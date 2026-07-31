@@ -2163,7 +2163,8 @@ function getPaymentConfigStatus() {
   const nowConfigured = isConfiguredSecret('NOWPAYMENTS_API_KEY');
   const nowIpnConfigured = isConfiguredSecret('NOWPAYMENTS_IPN_SECRET');
   const stripeConfigured = isConfiguredSecret('STRIPE_SECRET_KEY');
-  const paypalConfigured = isConfiguredSecret('PAYPAL_CLIENT_ID') && isConfiguredSecret('PAYPAL_CLIENT_SECRET');
+  const paypalConfigured = isConfiguredSecret('PAYPAL_CLIENT_ID')
+    && (isConfiguredSecret('PAYPAL_CLIENT_SECRET') || isConfiguredSecret('PAYPAL_SECRET'));
   const btcpayConfigured = isConfiguredSecret('BTCPAY_SERVER_URL') && isConfiguredSecret('BTCPAY_API_KEY') && isConfiguredSecret('BTCPAY_STORE_ID');
   const rails = [
     { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: BTC_WALLET, action: 'none' },

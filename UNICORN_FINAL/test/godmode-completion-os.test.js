@@ -74,7 +74,8 @@ check('unicorn-checkout Card honesty + BTC create path', () => {
   const src = read('src/site/unicorn-checkout.js');
   assert.ok(src.includes('payBtc'));
   assert.ok(src.includes('/api/checkout/create'));
-  assert.ok(src.includes('Card appears only when Stripe'));
+  assert.ok(src.includes('PayPal / NOWPayments appear only when armed') || src.includes('Card appears only when Stripe'));
+  assert.ok(src.includes('data-ck-paypal') || src.includes('data-ck-stripe'));
   assert.ok(!/pay\(node,\s*'create'\)/.test(src));
 });
 

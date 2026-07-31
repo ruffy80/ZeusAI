@@ -266,15 +266,25 @@ async function hydratePaymentRails(){
   setText('pricingPaymentRail', labels.join(' · ') + (emailConfigured ? ' · email armed' : ' · email idle') + ' · automatic activation');
   setText('checkoutPaymentRailCopy', copy + ' BTC quote and owner wallet are always shown before payment.');
   setText('paypalRailCopy', labels.includes('PayPal') ? 'PayPal is configured live and available for eligible orders.' : 'PayPal is hidden/parked until runtime credentials are configured; BTC direct remains live.');
+  const paypalActive = labels.includes('PayPal');
+  const nowActive = labels.includes('global crypto');
   setText('arkBtc', 'armed · primary');
   setText('arkCard', cardArmed ? 'armed · Stripe' : 'idle · needs STRIPE_SECRET_KEY');
+  setText('arkPaypal', paypalActive ? 'armed · Orders API' : 'idle · needs PAYPAL_CLIENT_ID/SECRET');
+  setText('arkNow', nowActive ? 'armed · hosted invoice' : 'idle · needs NOWPAYMENTS_API_KEY');
   setText('arkEmail', emailConfigured ? 'armed · recovery can email buyers' : 'idle · needs RESEND/BREVO/SMTP');
-  setText('arkNote', 'Armed Rails Continuum: BTC always-on' + (cardArmed ? ' · Card armed' : ' · Card idle') + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
+  setText('arkNote', 'Armed Rails Continuum: BTC always-on'
+    + (paypalActive ? ' · PayPal armed' : ' · PayPal idle')
+    + (nowActive ? ' · NOWPayments armed' : ' · NOWPayments idle')
+    + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
   const paypalPanel = document.getElementById('coPanelPaypal');
   const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
-  const paypalActive = labels.includes('PayPal');
   if (paypalPanel && !paypalActive) paypalPanel.style.display = 'none';
-  if (paypalChip && !paypalActive) paypalChip.style.display = 'none';
+  if (paypalChip) paypalChip.style.display = paypalActive ? '' : 'none';
+  const nowPanel = document.getElementById('coPanelNow');
+  const nowChip = document.querySelector('.co-method .chip[data-method="nowpayments"]');
+  if (nowPanel && !nowActive) nowPanel.style.display = 'none';
+  if (nowChip) nowChip.style.display = nowActive ? '' : 'none';
   const cardChip = document.querySelector('.co-method .chip[data-method="card"], .co-method .chip[data-method="stripe"]');
   const cardPanel = document.getElementById('coPanelCard') || document.getElementById('coPanelStripe');
   if (cardChip && !cardArmed) cardChip.style.display = 'none';
@@ -3173,13 +3183,14 @@ function hydrateCheckout(){
   $('#coAmount')?.addEventListener('input', draw);
   $('#coPlan')?.addEventListener('input', e => { if (sumP) sumP.textContent = e.target.value; });
 
-  // method switch
+  // method switch — BTC primary; PayPal / NOWPayments panels only when armed chips visible
   $$('.co-method .chip').forEach(c => c.addEventListener('click', () => {
     $$('.co-method .chip').forEach(x=>x.classList.remove('on'));
     c.classList.add('on');
     const m = c.dataset.method;
-    $('#coPanelBtc').style.display = m==='btc' ? '' : 'none';
-    $('#coPanelPaypal').style.display = m==='paypal' ? '' : 'none';
+    if ($('#coPanelBtc')) $('#coPanelBtc').style.display = m==='btc' ? '' : 'none';
+    if ($('#coPanelPaypal')) $('#coPanelPaypal').style.display = m==='paypal' ? '' : 'none';
+    if ($('#coPanelNow')) $('#coPanelNow').style.display = m==='nowpayments' ? '' : 'none';
   }));
 
   // PayPal — create real order when creds available
@@ -3266,46 +3277,78 @@ function hydrateCheckout(){
     if (el) el.value = btcAmt.toFixed(8) + ' BTC  @  $' + rate.toLocaleString();
   }
 
-  // Create a real signed PayPal order when user clicks "Start payment"
+  // Create sovereign invoice then PayPal approve (canonical storefront settle plane).
   $('#coPayPP')?.addEventListener('click', async () => {
-    const amt = Number(($('#coAmountPP')||{}).value || 0);
-    const pl = (($('#coPlanPP')||{}).value || plan);
-    const email = (($('#coEmailPP')||{}).value || ($('#coEmail')||{}).value || '');
+    const amt = Number(($('#coAmountPP')||{}).value || ($('#coAmount')||{}).value || 0);
+    const pl = (($('#coPlanPP')||{}).value || ($('#coPlan')||{}).value || plan);
+    const email = String((($('#coEmailPP')||{}).value || ($('#coEmail')||{}).value || '')).trim();
     const ref = getRef();
     if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
-    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
-    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    if (email && !validEmail(email)) { toast('Email looks invalid — clear it or fix it','err'); return; }
+    try { if (email) localStorage.setItem('u_email', email); } catch(_) {}
     setBusy('coPayPP', true, 'Creating PayPal order…');
     toast('Creating PayPal order…','ok');
-    const customerToken = getCustToken();
     try {
-      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-        if (r && r.receipt) {
-        currentReceipt = r.receipt;
-        showReceiptStatus(r.receipt);
-        if (r.receipt.approveHref) {
-          toast('Order created · opening PayPal…','ok');
-          window.open(r.receipt.approveHref, '_blank', 'noopener');
-          startPolling(r.receipt.id);
-        } else {
-          // Only fall back to paypal.me when PayPal is genuinely configured as
-          // a payment rail — not when it's just the owner contact email.
-          const paypalConfigured = (STATE.paymentMethods || []).some(
-            (m) => (m.id === 'paypal') && m.active !== false
-          );
-          if (paypalConfigured && ppHandle && !ppHandle.includes('@')) {
-            const fallback = ppHandle.startsWith('http') ? ppHandle
-              : `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`;
-            toast('Opening paypal.me…','ok');
-            window.open(fallback, '_blank', 'noopener');
-            startPolling(r.receipt.id);
-          } else {
-            toast('PayPal is not configured. Use BTC checkout instead.','err');
-          }
-        }
-      } else toast('Could not start PayPal order','err');
+      const order = await api('/api/checkout/create', {
+        method: 'POST',
+        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
+      });
+      if (!order || !order.orderId || !order.access_token) {
+        toast((order && order.error) || 'Could not mint invoice for PayPal','err');
+        return;
+      }
+      const pp = await api('/api/order/' + encodeURIComponent(order.orderId) + '/paypal/create', {
+        method: 'POST',
+        body: JSON.stringify({ access_token: order.access_token }),
+      });
+      if (pp && pp.approveHref) {
+        toast('Opening PayPal…','ok');
+        window.location.href = pp.approveHref;
+        return;
+      }
+      toast((pp && (pp.detail || pp.error)) || 'PayPal unavailable — use BTC','err');
+      if (order.checkout_url) window.location.href = order.checkout_url;
+    } catch (e) {
+      toast('PayPal error: ' + (e && e.message || e), 'err');
     } finally {
       setBusy('coPayPP', false);
+    }
+  });
+
+  // NOWPayments hosted invoice — sovereign order first, then redirect.
+  $('#coPayNP')?.addEventListener('click', async () => {
+    const amt = Number(($('#coAmountNP')||{}).value || ($('#coAmount')||{}).value || 0);
+    const pl = (($('#coPlanNP')||{}).value || ($('#coPlan')||{}).value || plan);
+    const email = String((($('#coEmailNP')||{}).value || ($('#coEmail')||{}).value || '')).trim();
+    const ref = getRef();
+    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    if (email && !validEmail(email)) { toast('Email looks invalid — clear it or fix it','err'); return; }
+    try { if (email) localStorage.setItem('u_email', email); } catch(_) {}
+    setBusy('coPayNP', true, 'Creating NOWPayments invoice…');
+    try {
+      const order = await api('/api/checkout/create', {
+        method: 'POST',
+        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
+      });
+      if (!order || !order.orderId || !order.access_token) {
+        toast((order && order.error) || 'Could not mint invoice','err');
+        return;
+      }
+      const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
+        method: 'POST',
+        body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
+      });
+      if (np && np.invoiceUrl) {
+        toast('Opening NOWPayments…','ok');
+        window.location.href = np.invoiceUrl;
+        return;
+      }
+      toast((np && (np.detail || np.error)) || 'NOWPayments unavailable — use BTC','err');
+      if (order.checkout_url) window.location.href = order.checkout_url;
+    } catch (e) {
+      toast('NOWPayments error: ' + (e && e.message || e), 'err');
+    } finally {
+      setBusy('coPayNP', false);
     }
   });
 

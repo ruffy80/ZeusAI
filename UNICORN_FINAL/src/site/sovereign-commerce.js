@@ -687,6 +687,103 @@ async function createOrder(ctx, input) {
   return { order, status: 201 };
 }
 
+/**
+ * Mark a sovereign order paid from an alternate rail (PayPal / NOWPayments).
+ * Idempotent. Keeps BTC watcher safe by releasing the sats amount index.
+ */
+function markOrderPaidFromProvider(orderId, proof) {
+  const id = String(orderId || '').trim();
+  const order = ORDERS.get(id);
+  if (!order) return { ok: false, error: 'order_not_found' };
+  if (order.status === 'paid') return { ok: true, duplicate: true, orderId: id, entitlement_id: order.entitlement_id || null };
+  if (order.status !== 'pending') return { ok: false, error: 'order_not_pending', status: order.status };
+  const provider = String((proof && proof.provider) || 'alt-rail').toLowerCase().slice(0, 32);
+  const providerRef = String((proof && (proof.providerRef || proof.txid || proof.paymentId || proof.paypalOrderId)) || '').slice(0, 128);
+  order.status = 'paid';
+  order.paid_at = new Date().toISOString();
+  order.paid_via = provider;
+  order.txids = Array.from(new Set([...(order.txids || []), providerRef].filter(Boolean)));
+  order.confirmations = Number((proof && proof.confirmations) != null ? proof.confirmations : 1);
+  order.provider_settle = {
+    provider,
+    providerRef,
+    at: order.paid_at,
+    meta: (proof && proof.meta) || undefined,
+  };
+  const entitlement = {
+    entitlement_id: 'ent_' + crypto.randomBytes(9).toString('hex'),
+    access_token: order.access_token,
+    orderId: order.orderId,
+    serviceId: order.serviceId,
+    serviceName: order.serviceName,
+    buyer: order.buyer,
+    granted_at: new Date().toISOString(),
+    valid_until: order.valid_until || null,
+    preorder: !!order.preorder,
+    txid: providerRef || provider,
+    amount_sats: order.amount_sats,
+    paid_via: provider,
+  };
+  entitlement.signature = sign(entitlement);
+  order.entitlement_id = entitlement.entitlement_id;
+  persistEntitlement(entitlement);
+  if (order.amount_sats) AMT_INDEX.delete(order.amount_sats);
+  persistOrder(order);
+  _metricInc('orders_paid');
+  console.log('[commerce] PAID via ' + provider, order.orderId, 'service=' + order.serviceId, 'ref=' + providerRef);
+  try {
+    const affRef = (order.affiliate && order.affiliate.ref) || (order.meta && order.meta.affiliateRef);
+    if (affRef) {
+      const refEng = require('../commerce/referral-engine-real');
+      const buyerEmail = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
+      const red = refEng.recordRedemption({
+        code: affRef,
+        referredEmail: buyerEmail,
+        orderId: order.orderId,
+        amountUsd: Number(order.subtotal_fiat || 0),
+      });
+      order.affiliate = Object.assign({}, order.affiliate || {}, {
+        ref: affRef,
+        redemption: { ok: !!(red && red.ok), payoutUsd: red && red.payoutUsd, duplicate: !!(red && red.duplicate) },
+      });
+      persistOrder(order);
+    }
+  } catch (affErr) {
+    console.warn('[commerce] affiliate redeem skipped:', affErr && affErr.message);
+  }
+  try {
+    const bridge = require('../commerce/canonical-settle-bridge');
+    bridge.bridgePaid(order);
+  } catch (_) { /* optional */ }
+  _fireDelivery(order);
+  _fireFunnel('checkout_paid', { serviceId: order.serviceId, value: order.subtotal_fiat, provider });
+  try {
+    const _whBase = process.env.UNICORN_BACKEND_INTERNAL_URL || 'http://127.0.0.1:3000';
+    fetch(_whBase + '/internal/webhooks/emit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'order.paid',
+        payload: {
+          orderId: order.orderId,
+          serviceId: order.serviceId,
+          serviceName: order.serviceName,
+          amount_sats: order.amount_sats,
+          amount_btc: order.amount_btc,
+          currency: order.currency,
+          txid: providerRef,
+          confirmations: order.confirmations,
+          paid_at: order.paid_at,
+          entitlement_id: order.entitlement_id,
+          paid_via: provider,
+        },
+      }),
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => {});
+  } catch (_) {}
+  return { ok: true, orderId: id, entitlement_id: order.entitlement_id, paid_via: provider, access_token: order.access_token };
+}
+
 // ── Payment watcher (mempool.space) ─────────────────────────────────────────
 const WATCH_STATE = { lastScanAt: 0, lastScanOk: false, lastError: null, totalScans: 0, totalMatched: 0 };
 async function scanIncoming() {
@@ -930,7 +1027,8 @@ a{color:var(--acc)}
 <div class="card" id="armedRailsContinuum" data-ark="1.0">
   <p style="margin:0 0 8px"><b>Armed Rails Continuum</b> <span class="k">— live settle / notify status</span></p>
   <div class="row"><span class="k">BTC</span><span class="v" id="arkBtc">armed · primary</span></div>
-  <div class="row"><span class="k">Card</span><span class="v" id="arkCard">checking…</span></div>
+  <div class="row"><span class="k">PayPal</span><span class="v" id="arkPaypal">checking…</span></div>
+  <div class="row"><span class="k">NOWPayments</span><span class="v" id="arkNow">checking…</span></div>
   <div class="row"><span class="k">Email recovery</span><span class="v" id="arkEmail">checking…</span></div>
   <p class="note" id="arkNote" style="margin-top:8px">Optional rails appear only when runtime keys are present. BTC owner-wallet is always the primary settle path.</p>
 </div>
@@ -939,15 +1037,21 @@ a{color:var(--acc)}
   function set(id,t){var el=document.getElementById(id);if(el)el.textContent=t;}
   fetch('/api/payment/methods',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
     var methods=(j&&j.methods)||[];
-    var card=methods.some(function(m){var id=String((m&&m.id)||'').toLowerCase();return (id==='card'||id==='stripe')&&m.active!==false;});
+    var paypal=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='paypal'&&m.active!==false;});
+    var nowp=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='nowpayments'&&m.active!==false;});
     var email=!!(j&&j.emailConfigured);
-    set('arkCard', card ? 'armed · Stripe' : 'idle · needs STRIPE_SECRET_KEY');
+    set('arkPaypal', paypal ? 'armed · Orders API' : 'idle · needs PAYPAL_CLIENT_ID/SECRET');
+    set('arkNow', nowp ? 'armed · hosted invoice' : 'idle · needs NOWPAYMENTS_API_KEY');
     set('arkEmail', email ? 'armed · recovery can email buyers' : 'idle · needs RESEND/BREVO/SMTP');
-    set('arkNote', card || email
-      ? 'Live rails: BTC'+(card?' · Card':'')+(email?' · Email':'')+'.'
-      : 'BTC direct is live. Card and email recovery stay idle until keys are armed — no fake CTAs.');
+    var alt=document.getElementById('altRailsCard');
+    if(alt) alt.style.display = (paypal || nowp) ? '' : 'none';
+    var btnPp=document.getElementById('payPaypalBtn');
+    var btnNp=document.getElementById('payNowBtn');
+    if(btnPp) btnPp.style.display = paypal ? '' : 'none';
+    if(btnNp) btnNp.style.display = nowp ? '' : 'none';
+    set('arkNote', 'Live rails: BTC'+(paypal?' · PayPal':'')+(nowp?' · NOWPayments':'')+(email?' · Email':'')+'.');
   }).catch(function(){
-    set('arkCard','unknown'); set('arkEmail','unknown');
+    set('arkPaypal','unknown'); set('arkNow','unknown'); set('arkEmail','unknown');
   });
 })();
 </script>
@@ -973,6 +1077,15 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin-top:16px"><a class="cta" href="${bip21}" target="_blank" rel="noopener">Open in wallet</a>
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a></p>
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
+</div>
+
+<div class="card" id="altRailsCard" style="display:none">
+  <p style="margin:0 0 10px"><b>Other payment rails</b> <span class="k">(optional — BTC above stays primary)</span></p>
+  <p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">
+    <button type="button" class="cta" id="payPaypalBtn" style="display:none;background:#0070ba;color:#fff">Pay with PayPal</button>
+    <button type="button" class="cta" id="payNowBtn" style="display:none;background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
+  </p>
+  <p class="note" id="altRailsMsg">Buttons appear only when PayPal / NOWPayments secrets are armed at runtime.</p>
 </div>
 
   <div class="grant" id="grant">
@@ -1031,6 +1144,47 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
     }).catch(function(){setTimeout(poll,5000);});
   }
   poll();
+  function setAltMsg(t){var el=document.getElementById('altRailsMsg');if(el)el.textContent=t;}
+  var payPaypalBtn=document.getElementById('payPaypalBtn');
+  if(payPaypalBtn){payPaypalBtn.addEventListener('click',function(){
+    setAltMsg('Creating PayPal order…');
+    fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/paypal/create',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ access_token: TOK })
+    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
+      if(!res.ok || !(res.j&&res.j.approveHref)){ setAltMsg((res.j&&(res.j.detail||res.j.error))||'PayPal unavailable'); return; }
+      setAltMsg('Redirecting to PayPal…');
+      window.location.href = res.j.approveHref;
+    }).catch(function(e){ setAltMsg('PayPal error: '+(e&&e.message||e)); });
+  });}
+  var payNowBtn=document.getElementById('payNowBtn');
+  if(payNowBtn){payNowBtn.addEventListener('click',function(){
+    setAltMsg('Creating NOWPayments invoice…');
+    fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/nowpayments/create',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ access_token: TOK, payCurrency: 'any' })
+    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
+      if(!res.ok || !(res.j&&res.j.invoiceUrl)){ setAltMsg((res.j&&(res.j.detail||res.j.error))||'NOWPayments unavailable'); return; }
+      setAltMsg('Redirecting to NOWPayments…');
+      window.location.href = res.j.invoiceUrl;
+    }).catch(function(e){ setAltMsg('NOWPayments error: '+(e&&e.message||e)); });
+  });}
+  try {
+    var qs = new URLSearchParams(window.location.search||'');
+    if(qs.get('paypal')==='return'){
+      var token = qs.get('token') || qs.get('PayerID') || '';
+      setAltMsg('Capturing PayPal payment…');
+      fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/paypal/capture',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ access_token: TOK, paypalOrderId: token || undefined })
+      }).then(function(r){return r.json();}).then(function(j){
+        if(j&&j.ok){ setAltMsg('PayPal payment captured — activating…'); poll(); }
+        else setAltMsg((j&&(j.detail||j.error))||'PayPal capture pending — webhook will settle shortly.');
+      }).catch(function(){ setAltMsg('PayPal capture pending — keep this page open.'); });
+    } else if(qs.get('np')==='success'){
+      setAltMsg('NOWPayments return received — waiting for IPN settle…');
+    }
+  } catch(_){}
   var saveEmailBtn=document.getElementById('saveEmailBtn');
   if(saveEmailBtn){saveEmailBtn.addEventListener('click',function(){
     var inp=document.getElementById('deliveryEmail');
@@ -1202,6 +1356,113 @@ async function handle(req, res, ctx) {
     order.buyer.email = nextEmail;
     persistOrder(order);
     return sendJson(res, 200, { ok: true, orderId: order.orderId, email: nextEmail }), true;
+  }
+
+  // --- /api/order/:orderId/paypal/create — optional PayPal rail (BTC remains primary)
+  const mPaypalCreate = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/paypal\/create$/);
+  if (mPaypalCreate && req.method === 'POST') {
+    const order = ORDERS.get(mPaypalCreate[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    if (order.status !== 'pending') return sendJson(res, 409, { error: 'order_not_pending', status: order.status }), true;
+    const body = await readBody(req);
+    const token = String((body && body.access_token) || '').trim();
+    if (!token || token !== String(order.access_token || '')) {
+      return sendJson(res, 401, { error: 'invalid_access_token' }), true;
+    }
+    try {
+      const alt = require('../commerce/alt-rails-os');
+      if (!alt.isPaypalArmed()) return sendJson(res, 503, { error: 'paypal_not_configured' }), true;
+      const created = await alt.createPaypalOrderForSovereign(order);
+      order.meta = Object.assign({}, order.meta || {}, {
+        paypalOrderId: created.paypalOrderId,
+        paypalApproveHref: created.approveHref,
+      });
+      persistOrder(order);
+      return sendJson(res, 200, created), true;
+    } catch (e) {
+      return sendJson(res, 502, { error: 'paypal_create_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
+    }
+  }
+
+  // --- /api/order/:orderId/paypal/capture — after buyer returns from PayPal
+  const mPaypalCapture = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/paypal\/capture$/);
+  if (mPaypalCapture && req.method === 'POST') {
+    const order = ORDERS.get(mPaypalCapture[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    const body = await readBody(req);
+    const token = String((body && body.access_token) || '').trim();
+    if (!token || token !== String(order.access_token || '')) {
+      return sendJson(res, 401, { error: 'invalid_access_token' }), true;
+    }
+    if (order.status === 'paid') {
+      return sendJson(res, 200, { ok: true, duplicate: true, orderId: order.orderId, status: 'paid' }), true;
+    }
+    try {
+      const alt = require('../commerce/alt-rails-os');
+      const paypalOrderId = String((body && body.paypalOrderId) || (order.meta && order.meta.paypalOrderId) || '').trim();
+      const cap = await alt.capturePaypalOrder(paypalOrderId);
+      const settled = markOrderPaidFromProvider(order.orderId, {
+        provider: 'paypal',
+        providerRef: cap.captureId || paypalOrderId,
+        paypalOrderId,
+        meta: { captureStatus: cap.status },
+      });
+      return sendJson(res, settled.ok ? 200 : 409, settled), true;
+    } catch (e) {
+      const code = /incomplete|not_configured|invalid_/.test(String(e && e.message || '')) ? 402 : 502;
+      return sendJson(res, code, { error: 'paypal_capture_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
+    }
+  }
+
+  // --- /api/order/:orderId/nowpayments/create — hosted invoice redirect
+  const mNpCreate = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/nowpayments\/create$/);
+  if (mNpCreate && req.method === 'POST') {
+    const order = ORDERS.get(mNpCreate[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    if (order.status !== 'pending') return sendJson(res, 409, { error: 'order_not_pending', status: order.status }), true;
+    const body = await readBody(req);
+    const token = String((body && body.access_token) || '').trim();
+    if (!token || token !== String(order.access_token || '')) {
+      return sendJson(res, 401, { error: 'invalid_access_token' }), true;
+    }
+    try {
+      const alt = require('../commerce/alt-rails-os');
+      if (!alt.isNowPaymentsArmed()) return sendJson(res, 503, { error: 'nowpayments_not_configured' }), true;
+      const created = await alt.createNowPaymentsInvoiceForSovereign(order, {
+        payCurrency: (body && body.payCurrency) || 'any',
+      });
+      order.meta = Object.assign({}, order.meta || {}, {
+        nowpaymentsInvoiceId: created.invoiceId,
+        nowpaymentsInvoiceUrl: created.invoiceUrl,
+      });
+      persistOrder(order);
+      return sendJson(res, 200, created), true;
+    } catch (e) {
+      return sendJson(res, 502, { error: 'nowpayments_create_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
+    }
+  }
+
+  // --- /api/order/:orderId/provider-settle — internal webhook bridge (PayPal IPN / NOW IPN)
+  const mProviderSettle = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/provider-settle$/);
+  if (mProviderSettle && req.method === 'POST') {
+    const order = ORDERS.get(mProviderSettle[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    const body = await readBody(req);
+    const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || (body && body.settleSecret) || '');
+    const token = String((body && body.access_token) || '').trim();
+    const tokenOk = !!(token && token === String(order.access_token || ''));
+    const secretOk = !!(expected && provided && provided === expected);
+    if (!tokenOk && !secretOk) {
+      return sendJson(res, 401, { error: 'unauthorized', honesty: 'provider_settle_requires_internal_secret_or_access_token' }), true;
+    }
+    const settled = markOrderPaidFromProvider(order.orderId, {
+      provider: (body && body.provider) || 'alt-rail',
+      providerRef: (body && (body.providerRef || body.txid || body.paymentId || body.paypalOrderId)) || null,
+      confirmations: (body && body.confirmations) || 1,
+      meta: (body && body.meta) || undefined,
+    });
+    return sendJson(res, settled.ok ? 200 : 409, settled), true;
   }
 
   // --- /api/order/:orderId/status -----------------------------------------
@@ -1689,4 +1950,4 @@ setInterval(() => {
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending, markOrderPaidFromProvider };

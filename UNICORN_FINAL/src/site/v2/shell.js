@@ -1775,6 +1775,8 @@ function pageCheckout(params) {
     <div class="co-box">
       <div class="co-method">
         <button class="chip on" data-method="btc">₿ Bitcoin</button>
+        <button class="chip" data-method="paypal" style="display:none">PayPal</button>
+        <button class="chip" data-method="nowpayments" style="display:none">Card / crypto</button>
       </div>
       <div id="coPanelBtc">
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
@@ -1799,7 +1801,14 @@ function pageCheckout(params) {
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
         <a class="btn btn-gold" id="coPaypal" style="width:100%;justify-content:center" target="_blank" rel="noopener">Or tip via paypal.me</a>
-        <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal appears only when runtime credentials are configured. Current production checkout routes revenue directly to the BTC owner wallet.</p>
+        <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal appears only when runtime credentials are configured. BTC direct remains the primary settle path.</p>
+      </div>
+      <div id="coPanelNow" style="display:none">
+        <div class="field"><label for="coAmountNP">Amount (USD)</label><input id="coAmountNP" type="number" min="1" step="1" value=""/></div>
+        <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="starter"/></div>
+        <div class="field"><label for="coEmailNP">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailNP" type="email" placeholder="you@company.com"/></div>
+        <button class="btn btn-primary" id="coPayNP" style="width:100%;justify-content:center;margin-bottom:8px">Pay with card / crypto →</button>
+        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice (card + 300+ crypto → auto BTC). Appears only when API key is armed. Direct BTC checkout above stays primary.</p>
       </div>
     </div>
     <aside class="co-box">

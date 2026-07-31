@@ -257,14 +257,17 @@ class PaymentGateway {
   get methods() {
     // Honesty contract: only surface rails that can actually settle.
     // BTC is always-on (owner wallet). ETH/bank require configured destinations.
-    // Stripe/PayPal follow real secret presence — never advertise dead rails.
+    // Stripe/PayPal/NOWPayments follow real secret presence — never advertise dead rails.
     const ethConfigured = Boolean(String(process.env.ETH_WALLET_ADDRESS || process.env.USDC_WALLET_ADDRESS || process.env.ETH_RECEIVE_ADDRESS || '').trim());
     const bankConfigured = process.env.BANK_TRANSFER_ENABLED === '1'
       || Boolean(String(process.env.BANK_ACCOUNT_IBAN || process.env.BANK_ACCOUNT_NUMBER || process.env.BANK_ROUTING_NUMBER || process.env.BANK_BENEFICIARY || process.env.BANK_TRANSFER_IBAN || '').trim());
+    const nowKey = String(process.env.NOWPAYMENTS_API_KEY || '').trim();
+    const nowConfigured = !!(nowKey && nowKey.length > 8 && !/^your_|^changeme$|^placeholder|^skip$/i.test(nowKey));
     return [
       { id: 'card',       name: 'Credit Card',    currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
       { id: 'paypal',     name: 'PayPal',          currency: 'USD', active: this.isPayPalConfigured(), feePercent: 3.4, settlement: 'instant',    provider: 'paypal' },
       { id: 'stripe',     name: 'Stripe',          currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
+      { id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: nowConfigured,           feePercent: 1.0, settlement: 'instant',    provider: 'nowpayments' },
       { id: 'crypto_btc', name: 'Bitcoin',         currency: 'BTC', active: true,                      feePercent: 1.2, settlement: '10-30 min', primary: true },
       { id: 'crypto_eth', name: 'Ethereum',        currency: 'ETH', active: ethConfigured,             feePercent: 1.4, settlement: '2-10 min'                      },
       { id: 'bank',       name: 'Bank Transfer',   currency: 'EUR', active: bankConfigured,            feePercent: 0.8, settlement: '1-2 days'                      },
