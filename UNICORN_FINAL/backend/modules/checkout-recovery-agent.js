@@ -191,4 +191,30 @@ function getStatus(opts) {
 
 function run(input) { return recover(input); }
 
-module.exports = { name: NAME, scan, recover, getStatus, run };
+let _timer = null;
+/**
+ * Always-on recovery tick — independent of revenue-autopilot.
+ * Portal awaiting_payment orders only (sovereign pending is recovered in
+ * src/site/sovereign-commerce.js on the site process).
+ */
+function start(opts) {
+  if (_timer) return { ok: true, already: true };
+  const intervalMs = Math.max(60 * 1000, Number((opts && opts.intervalMs) || process.env.CHECKOUT_RECOVERY_INTERVAL_MS || 15 * 60 * 1000));
+  const stuckAfterMs = Math.max(60 * 1000, Number((opts && opts.stuckAfterMs) || 15 * 60 * 1000));
+  const tick = () => {
+    try { recover({ stuckAfterMs, dryRun: false }); }
+    catch (e) { console.warn('[checkout-recovery] tick failed:', e && e.message); }
+  };
+  setTimeout(tick, 20 * 1000);
+  _timer = setInterval(tick, intervalMs);
+  if (typeof _timer.unref === 'function') _timer.unref();
+  console.log('[checkout-recovery] always-on armed · interval=' + intervalMs + 'ms');
+  return { ok: true, intervalMs, stuckAfterMs };
+}
+
+function stop() {
+  if (_timer) { clearInterval(_timer); _timer = null; }
+  return { ok: true };
+}
+
+module.exports = { name: NAME, scan, recover, getStatus, run, start, stop };

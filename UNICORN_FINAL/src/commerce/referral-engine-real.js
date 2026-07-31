@@ -31,46 +31,48 @@ let db = null;
 let usingSqlite = false;
 let memoryStore = { codes: [], redemptions: [] };
 
+let _inited = false;
 function _init() {
-  if (db || !usingSqlite && memoryStore.codes.length === 0) {
-    try {
-      const Database = require('better-sqlite3');
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      db = new Database(DB_FILE);
-      db.pragma('journal_mode = WAL');
-      db.pragma('synchronous = NORMAL');
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS referral_codes (
-          code TEXT PRIMARY KEY,
-          owner_email TEXT NOT NULL COLLATE NOCASE,
-          owner_customer_id TEXT,
-          created_at TEXT NOT NULL,
-          discount_pct INTEGER DEFAULT 10,
-          payout_pct INTEGER DEFAULT 20,
-          active INTEGER DEFAULT 1
-        );
-        CREATE INDEX IF NOT EXISTS idx_referral_owner ON referral_codes(owner_email);
-        CREATE TABLE IF NOT EXISTS referral_redemptions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          code TEXT NOT NULL,
-          referred_email TEXT COLLATE NOCASE,
-          order_id TEXT,
-          amount_usd REAL DEFAULT 0,
-          payout_usd REAL DEFAULT 0,
-          payout_status TEXT DEFAULT 'pending',
-          payout_btc_txid TEXT,
-          redeemed_at TEXT NOT NULL,
-          FOREIGN KEY (code) REFERENCES referral_codes(code)
-        );
-        CREATE INDEX IF NOT EXISTS idx_redemption_code ON referral_redemptions(code);
-        CREATE INDEX IF NOT EXISTS idx_redemption_email ON referral_redemptions(referred_email);
-      `);
-      usingSqlite = true;
-      console.log('[referral-real] SQLite WAL active at ' + DB_FILE);
-    } catch (e) {
-      console.warn('[referral-real] SQLite unavailable, falling back to memory:', e.message);
-      usingSqlite = false;
-    }
+  if (_inited) return;
+  _inited = true;
+  try {
+    const Database = require('better-sqlite3');
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    db = new Database(DB_FILE);
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS referral_codes (
+        code TEXT PRIMARY KEY,
+        owner_email TEXT NOT NULL COLLATE NOCASE,
+        owner_customer_id TEXT,
+        created_at TEXT NOT NULL,
+        discount_pct INTEGER DEFAULT 10,
+        payout_pct INTEGER DEFAULT 20,
+        active INTEGER DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS idx_referral_owner ON referral_codes(owner_email);
+      CREATE TABLE IF NOT EXISTS referral_redemptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL,
+        referred_email TEXT COLLATE NOCASE,
+        order_id TEXT,
+        amount_usd REAL DEFAULT 0,
+        payout_usd REAL DEFAULT 0,
+        payout_status TEXT DEFAULT 'pending',
+        payout_btc_txid TEXT,
+        redeemed_at TEXT NOT NULL,
+        FOREIGN KEY (code) REFERENCES referral_codes(code)
+      );
+      CREATE INDEX IF NOT EXISTS idx_redemption_code ON referral_redemptions(code);
+      CREATE INDEX IF NOT EXISTS idx_redemption_email ON referral_redemptions(referred_email);
+    `);
+    usingSqlite = true;
+    console.log('[referral-real] SQLite WAL active at ' + DB_FILE);
+  } catch (e) {
+    console.warn('[referral-real] SQLite unavailable, falling back to memory:', e.message);
+    usingSqlite = false;
+    db = null;
   }
 }
 
@@ -117,8 +119,36 @@ function lookupCode(code) {
   return memoryStore.codes.find((x) => x.code === c && x.active) || null;
 }
 
+/**
+ * Ensure a free-form URL ?ref= CODE exists in the ledger so sovereign
+ * checkout attribution can redeem without a prior email signup.
+ * Owner email defaults to OWNER_EMAIL / ADMIN_EMAIL until claimed.
+ */
+function ensureTrackedCode(code, opts) {
+  _init();
+  const c = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
+  if (c.length < 3) return null;
+  const existing = lookupCode(c);
+  if (existing) return { ...existing, isNew: false };
+  const ownerEmail = String((opts && opts.ownerEmail) || process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'affiliate@zeusai.pro')
+    .trim().toLowerCase().slice(0, 254);
+  const discountPct = Math.max(1, Math.min(50, parseInt(_secret('REFERRAL_DISCOUNT_PCT', '10'), 10)));
+  const payoutPct = Math.max(1, Math.min(50, parseInt(_secret('REFERRAL_PAYOUT_PCT', '10'), 10)));
+  const now = new Date().toISOString();
+  if (usingSqlite && db) {
+    db.prepare(`INSERT OR IGNORE INTO referral_codes (code, owner_email, owner_customer_id, created_at, discount_pct, payout_pct, active) VALUES (?,?,?,?,?,?,1)`)
+      .run(c, ownerEmail, (opts && opts.ownerCustomerId) || null, now, discountPct, payoutPct);
+    return { code: c, owner_email: ownerEmail, discount_pct: discountPct, payout_pct: payoutPct, active: 1, isNew: true };
+  }
+  const rec = { code: c, owner_email: ownerEmail, owner_customer_id: null, discount_pct: discountPct, payout_pct: payoutPct, active: 1, created_at: now };
+  memoryStore.codes.push(rec);
+  return { ...rec, isNew: true };
+}
+
 function recordRedemption({ code, referredEmail, orderId, amountUsd }) {
   _init();
+  // Auto-ensure tracked URL refs so sovereign settle never drops attribution.
+  ensureTrackedCode(code);
   const c = lookupCode(code);
   if (!c) throw new Error('unknown_referral_code');
   const refEmail = String(referredEmail || '').trim().toLowerCase();
@@ -127,6 +157,15 @@ function recordRedemption({ code, referredEmail, orderId, amountUsd }) {
   const usd = Math.max(0, Number(amountUsd || 0));
   const payoutUsd = Math.round(usd * (Number(c.payout_pct || 20) / 100) * 100) / 100;
   const now = new Date().toISOString();
+
+  // Idempotent on order_id — never double-pay a commission for one invoice.
+  if (usingSqlite && db && orderId) {
+    const prior = db.prepare('SELECT id FROM referral_redemptions WHERE order_id = ? LIMIT 1').get(String(orderId));
+    if (prior) return { ok: true, id: prior.id, code: c.code, payoutUsd, payoutStatus: 'pending', duplicate: true };
+  } else if (orderId) {
+    const prior = memoryStore.redemptions.find((r) => r.orderId === orderId);
+    if (prior) return { ok: true, ...prior, duplicate: true };
+  }
 
   if (usingSqlite && db) {
     const r = db.prepare(`INSERT INTO referral_redemptions (code, referred_email, order_id, amount_usd, payout_usd, payout_status, redeemed_at) VALUES (?,?,?,?,?,?,?)`)
@@ -183,8 +222,9 @@ function globalStats() {
 }
 
 function _resetForTests() {
+  _init();
   if (usingSqlite && db) { db.exec('DELETE FROM referral_redemptions; DELETE FROM referral_codes;'); }
   memoryStore = { codes: [], redemptions: [] };
 }
 
-module.exports = { getOrCreateCode, lookupCode, recordRedemption, statsFor, globalStats, _resetForTests };
+module.exports = { getOrCreateCode, lookupCode, ensureTrackedCode, recordRedemption, statsFor, globalStats, _resetForTests };

@@ -1780,14 +1780,15 @@ function pageCheckout(params) {
             <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="${ssrPlan}"/></div>
             <div class="field"><label for="coEmail">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)"/></div>
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
-            <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
+            <div class="btc-addr" id="btcAddr" data-copy="">Invoice address appears after you generate a secure BTC invoice</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
-            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Prefer the gold button above for one-click sovereign invoice. This form also works — email is optional.</p>
+            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Prefer the gold button above for one-click sovereign invoice. QR + address unlock only after a unique sats-exact invoice is minted — never pay an estimate to the static wallet.</p>
           </div>
-          <div class="co-qr"><canvas id="btcQr" width="320" height="320"></canvas></div>
+          <div class="co-qr"><canvas id="btcQr" width="320" height="320" style="opacity:.35"></canvas><p style="color:var(--ink-dim);font-size:12px;margin-top:8px;text-align:center">QR unlocks with your invoice</p></div>
         </div>
         <div id="coStatus"></div>
+        <div id="coUpsell" class="card" style="margin-top:14px;padding:14px 16px;display:none"></div>
       </div>
       <div id="coPanelPaypal" style="display:none">
         <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value=""/></div>
@@ -1902,7 +1903,7 @@ function pageDashboard() {
   <div class="co-box" style="margin-top:22px">
     <span class="kicker">Affiliate program</span>
     <h3 style="margin:6px 0 10px">Your referral link · 10% signed split</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 10px">Every paid receipt attributed to your code is appended to the affiliate chain with an Ed25519 signature. Payouts are automatic on the 1st of each month.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 10px">Every paid sovereign order attributed to your <code class="inline">?ref=</code> code is recorded in the referral ledger with a pending commission. BTC partner payouts are manual until the automated payout rail ships — check <a href="/affiliate" data-link>/affiliate</a> status for owed amounts.</p>
     <input id="affLink" readonly style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:ui-monospace,monospace;font-size:13px" onclick="this.select();document.execCommand&&document.execCommand('copy')"/>
   </div>
 </section>`;

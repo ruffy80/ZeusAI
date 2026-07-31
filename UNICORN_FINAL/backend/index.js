@@ -16258,6 +16258,18 @@ if (require.main === module) {
       console.warn('[integrations] failed to mount:', e && e.message);
     }
 
+    // Godmode Completion OS: abandoned portal-checkout recovery is ALWAYS armed
+    // (independent of revenue-autopilot). Sovereign pending invoices are recovered
+    // on the site process via sovereign-commerce.recoverStuckPending.
+    try {
+      const checkoutRecoveryAgent = require('./modules/checkout-recovery-agent');
+      if (checkoutRecoveryAgent && typeof checkoutRecoveryAgent.start === 'function') {
+        checkoutRecoveryAgent.start({ stuckAfterMs: 15 * 60 * 1000 });
+      }
+    } catch (e) {
+      console.warn('[checkout-recovery] always-on start failed:', e && e.message);
+    }
+
     // Boot Immortal OS: revenue autopilot stays OFF under stable/safe unless
     // explicitly armed. Heavy interval work previously blocked cold-boot health.
     const _revDisabled = String(process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED || '').toLowerCase();
