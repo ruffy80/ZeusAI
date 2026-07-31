@@ -43,6 +43,22 @@ check('shell: hero eyebrow uses BTC-native save-10% copy', () => {
 check('shell: hero headline keeps ZeusAI brand + Ship AI products signal', () => {
   assert.ok(/ZeusAI\s*<span class="grad">Ship AI products at machine speed\./.test(shell));
 });
+check('shell: hero right panel shows Building the AI feature vision', () => {
+  assert.ok(shell.includes('hero-vision'), 'hero-vision aside missing');
+  assert.ok(shell.includes('Building the AI feature'), 'vision title missing');
+  assert.ok(shell.includes('We build the future'), 'future signal missing');
+  assert.ok(shell.includes('Construim viitorul'), 'RO future signal missing');
+  const brandIdx = shell.indexOf('hero-brand');
+  const visionIdx = shell.indexOf('Building the AI feature');
+  assert.ok(brandIdx > 0 && visionIdx > brandIdx, 'vision panel must follow brand headline');
+});
+check('styles: hero-vision uses Syne/Orbitron + vibrant chroma motion', () => {
+  assert.ok(styles.includes('.hero-vision-title'), 'vision title style missing');
+  assert.ok(styles.includes('font-family:Syne'), 'Syne font missing');
+  assert.ok(styles.includes('font-family:Orbitron'), 'Orbitron font missing');
+  assert.ok(styles.includes('heroVisionShimmer'), 'shimmer motion missing');
+  assert.ok(/#FF3B5C|#FF9F1C|#00E8A0|#2DE2E6/.test(styles), 'vibrant chroma missing');
+});
 check('shell: hero secondary link points to /wizard plan finder', () => {
   assert.ok(shell.includes('30-second plan finder'));
   assert.ok(/href="\/wizard"/.test(shell));
