@@ -3396,7 +3396,7 @@ function hydrateCheckout(){
             <div class="card" id="postPaidGiftCard" style="margin-top:10px;border-color:rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(138,92,255,.06),rgba(62,160,255,.04))">
               <span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">🎁 Gift this service</span>
               <h3 style="margin:6px 0 4px;font-size:16px">Send a signed gift code — friend gets ZeusAI on you.</h3>
-              <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Mints an Ed25519-signed redemption code. Public endpoint — no login required.</p>
+              <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Mint is bound to this paid receipt (no free public mint). Redeem records a ledger entry — delivery still follows the normal entitlement path.</p>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
                 <input id="ppGiftSku" placeholder="SKU (e.g. adaptive-ai)" value="${escapeHtml(String(r.plan || r.serviceId || ''))}" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
                 <input id="ppGiftVal" type="number" min="1" step="1" placeholder="USD value" value="${escapeHtml(String(Number(r.amountUsd || 0) || ''))}" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
@@ -3414,18 +3414,25 @@ function hydrateCheckout(){
             giftBtn.__bound = true;
             giftBtn.addEventListener('click', async function(){
               const out = document.getElementById('ppGiftOut');
+              const accessToken = String((r.license && r.license.token) || r.access_token || r.accessToken || '');
               const payload = {
                 sku: (document.getElementById('ppGiftSku')||{}).value || '',
                 valueUsd: Number((document.getElementById('ppGiftVal')||{}).value || 0),
                 fromEmail: (document.getElementById('ppGiftFrom')||{}).value || '',
                 toEmail: (document.getElementById('ppGiftTo')||{}).value || '',
-                message: 'Use ZeusAI on me 🎁'
+                message: 'Use ZeusAI on me',
+                paidOrderId: String(r.id || r.orderId || ''),
+                accessToken: accessToken
               };
+              if (!payload.paidOrderId || !payload.accessToken) {
+                if (out) out.innerHTML = '<div style="color:var(--danger);font-size:12.5px">Gift mint needs a paid receipt token — refresh after payment confirms.</div>';
+                return;
+              }
               try {
                 const gr = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 const gd = await gr.json();
-                if (gd && gd.code && out) {
-                  const url = location.origin + (gd.redeemUrl || ('/redeem/' + gd.code));
+                if (gd && gd.ok !== false && gd.code && out) {
+                  const url = location.origin + (gd.redeemUrl || ('/gift?c=' + gd.code));
                   out.innerHTML = '<div class="card" style="margin:0;padding:10px 12px;border-color:var(--violet)"><b style="color:var(--violet2)">' + escapeHtml(String(gd.code)) + '</b><div style="color:var(--ink-dim);font-size:12px;margin-top:4px">Share this URL: <code class="inline">' + escapeHtml(url) + '</code></div></div>';
                 } else if (out) {
                   out.innerHTML = '<div style="color:var(--danger);font-size:12.5px">Could not mint gift: ' + escapeHtml(String((gd && gd.error) || 'unknown')) + '</div>';

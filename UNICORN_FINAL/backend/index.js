@@ -5020,7 +5020,7 @@ app.get('/api/autonomy/capabilities', (req, res) => {
 
 // Admin: revoke a token (requires admin guard elsewhere if present)
 // Admin: revocă un token
-app.post('/api/autonomy/revoke', express.json(), (req, res) => {
+app.post('/api/autonomy/revoke', express.json(), requireAdminSecretOrJwt, (req, res) => {
   if (!_capTokens) return res.status(503).json({ error: 'capabilityTokens unavailable' });
   const { tokenId } = req.body || {};
   if (!tokenId) return res.status(400).json({ error: 'tokenId required' });
@@ -5066,7 +5066,7 @@ app.get('/api/autonomy/quarantine', (req, res) => {
   res.json({ stats: _quarantine.stats(), items: _quarantine.list() });
 });
 
-app.post('/api/autonomy/quarantine/stage', express.json(), (req, res) => {
+app.post('/api/autonomy/quarantine/stage', express.json(), requireAdminSecretOrJwt, (req, res) => {
   if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
   res.json(_quarantine.stage(req.body || {}));
 });
@@ -5078,7 +5078,7 @@ app.post('/api/autonomy/quarantine/veto', express.json(), (req, res) => {
   res.json(_quarantine.veto(stageId, vetoer, reason));
 });
 
-app.post('/api/autonomy/quarantine/promote', express.json(), (req, res) => {
+app.post('/api/autonomy/quarantine/promote', express.json(), requireAdminSecretOrJwt, (req, res) => {
   if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
   const { stageId } = req.body || {};
   if (!stageId) return res.status(400).json({ error: 'stageId required' });
@@ -5779,9 +5779,34 @@ function _authorizePaymentConfirm(req, payload, method) {
   if (tokenOk) return { ok: true, mode: 'token' };
   if (pqOk) return { ok: true, mode: `pq-hmac-${_pqDigest}` };
 
-  if (!confirmToken && !pqSecret) return { ok: true, mode: 'open-dev' };
+  // Phase-1 security: never leave payment confirm open in production/stable.
+  // Tests set NODE_ENV=test; explicit ALLOW_OPEN_PAYMENT_CONFIRM=1 for local labs only.
+  if (!confirmToken && !pqSecret) {
+    const allowOpen = process.env.NODE_ENV === 'test'
+      || ['1', 'true', 'yes', 'on'].includes(String(process.env.ALLOW_OPEN_PAYMENT_CONFIRM || '').toLowerCase());
+    if (allowOpen) return { ok: true, mode: 'open-dev' };
+    return { ok: false, reason: 'confirm_secret_required' };
+  }
   if (pqSecret && pqSig && !isFresh) return { ok: false, reason: 'stale_pq_timestamp' };
   return { ok: false, reason: 'unauthorized' };
+}
+
+/** Admin gate for mutating autonomy / ZAC control-plane routes. */
+function requireAdminSecretOrJwt(req, res, next) {
+  const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+  const provided = String(
+    req.headers['x-admin-secret']
+    || req.headers['x-admin-token']
+    || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+    || ''
+  );
+  if (expected && provided && provided === expected) return next();
+  if (!expected) {
+    // Fail closed when no admin secret is configured (except unit-test env).
+    if (process.env.NODE_ENV === 'test') return next();
+    return res.status(503).json({ ok: false, error: 'admin_secret_not_configured' });
+  }
+  return adminTokenMiddleware(req, res, next);
 }
 
 function _handleUnicornEvents(req, res) {
@@ -8145,19 +8170,19 @@ app.get('/api/zac/scan', (req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/zac/start', (req, res) => {
+app.post('/api/zac/start', requireAdminSecretOrJwt, (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
   try { res.json({ ok: true, status: _zac.bootstrap(req.body || {}) }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/zac/stop', (req, res) => {
+app.post('/api/zac/stop', requireAdminSecretOrJwt, (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
   try { res.json({ ok: true, ...(_zac.shutdown() || {}) }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/zac/site-complete', (req, res) => {
+app.post('/api/zac/site-complete', requireAdminSecretOrJwt, (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
   try {
     const r = _zac.completeSite({ unicornRoot: require('path').resolve(__dirname, '..'), dryRun: !!(req.body && req.body.dryRun) });
@@ -8165,7 +8190,7 @@ app.post('/api/zac/site-complete', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/zac/dev/generate-module', (req, res) => {
+app.post('/api/zac/dev/generate-module', requireAdminSecretOrJwt, (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
   const { name, description } = (req.body || {});
   if (!name) return res.status(400).json({ ok: false, error: 'name required' });

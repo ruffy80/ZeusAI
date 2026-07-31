@@ -4431,8 +4431,16 @@ async function unicornHandler(req, res) {
       if (fu === '/api/email/proof' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.emailProof(p)); } catch (e) { return fsend(400, { error: e.message }); } });
       if (fu === '/api/email/proof/list') return fsend(200, frontier.emailProofList(50));
 
-      // F8 — Gift-as-Capability
-      if (fu === '/api/gift/mint' && req.method === 'POST') return fbody(p => fsend(200, frontier.giftMint(p)));
+      // F8 — Gift-as-Capability (mint gated: paid-order proof or admin secret)
+      if (fu === '/api/gift/mint' && req.method === 'POST') return fbody(p => {
+        const adminSecret = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+        const provided = String(req.headers['x-admin-secret'] || req.headers['x-admin-token'] || '');
+        const payload = Object.assign({}, p || {});
+        if (adminSecret && provided && provided === adminSecret) payload.adminAuth = true;
+        const out = frontier.giftMint(payload);
+        if (out && out.ok === false) return fsend(out.status || 401, out);
+        return fsend(200, out);
+      });
       if (fu === '/api/gift/redeem' && req.method === 'POST') return fbody(p => fsend(200, frontier.giftRedeem(p)));
 
       // F9 — Pledge
@@ -9367,7 +9375,16 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
   }
   // POST /api/referral/redeem  { code, referredEmail, orderId, amountUsd }
+  // Phase-1: public redeem closed. Sovereign settle redeems in-process.
+  // HTTP redeem requires ADMIN_SECRET or REFERRAL_REDEEM_SECRET.
   if (urlPath === '/api/referral/redeem' && req.method === 'POST') {
+    const expected = process.env.REFERRAL_REDEEM_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+    const provided = String(req.headers['x-admin-secret'] || req.headers['x-referral-secret'] || '');
+    if (!expected || !provided || provided !== expected) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'unauthorized', honesty: 'redeem_via_settle_or_admin' }));
+      return;
+    }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>4*1024) req.destroy(); });
     req.on('end', () => {
       try {
