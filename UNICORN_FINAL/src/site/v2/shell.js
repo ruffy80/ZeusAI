@@ -515,7 +515,7 @@ img{max-width:100%;display:block}
 @media(max-width:980px){.hero{padding-top:168px}}
 @media(max-width:640px){.hero{padding-top:176px}}
 .hero-copy{padding:28px 0 20px}
-.hero h1{line-height:1.22;padding:0;margin:24px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
+.hero h1{line-height:1.22;padding:0;margin:16px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
 .hero h1 .grad{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
 .hero-grid{display:grid;grid-template-columns:1fr;gap:40px;align-items:start;max-width:1480px;margin:0 auto;width:100%}
