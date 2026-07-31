@@ -535,6 +535,15 @@ async function createOrder(ctx, input) {
   // Email is optional; if present it must look like an email. Normalize first.
   const email = String((input && input.email) || '').trim().toLowerCase().slice(0, 254);
   if (email && !EMAIL_RE.test(email)) return { error: 'invalid_email', status: 400 };
+  // Affiliate / referral attribution from storefront ?ref= (Godmode Completion OS).
+  const affiliateRef = String((input && (input.ref || input.affiliateRef || (input.affiliate && input.affiliate.ref))) || '')
+    .trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32) || null;
+  if (affiliateRef) {
+    try {
+      const refEng = require('../commerce/referral-engine-real');
+      if (refEng && typeof refEng.ensureTrackedCode === 'function') refEng.ensureTrackedCode(affiliateRef);
+    } catch (_) { /* attribution best-effort */ }
+  }
   const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
@@ -636,7 +645,9 @@ async function createOrder(ctx, input) {
       inputs: buyerInputs,
       buyMode: buyability.mode,
       requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
+      affiliateRef: affiliateRef || undefined,
     },
+    affiliate: affiliateRef ? { ref: affiliateRef, split: 0.1 } : null,
     buy_mode: buyability.mode,
     access_token: accessToken,
     status: 'pending',
@@ -741,6 +752,27 @@ async function scanIncoming() {
         matched++;
         _metricInc('orders_paid');
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
+        // Affiliate redemption on settle (sovereign path — previously unwired).
+        try {
+          const affRef = (order.affiliate && order.affiliate.ref) || (order.meta && order.meta.affiliateRef);
+          if (affRef) {
+            const refEng = require('../commerce/referral-engine-real');
+            const buyerEmail = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
+            const red = refEng.recordRedemption({
+              code: affRef,
+              referredEmail: buyerEmail,
+              orderId: order.orderId,
+              amountUsd: Number(order.subtotal_fiat || 0),
+            });
+            order.affiliate = Object.assign({}, order.affiliate || {}, {
+              ref: affRef,
+              redemption: { ok: !!(red && red.ok), payoutUsd: red && red.payoutUsd, duplicate: !!(red && red.duplicate) },
+            });
+            persistOrder(order);
+          }
+        } catch (affErr) {
+          console.warn('[commerce] affiliate redeem skipped:', affErr && affErr.message);
+        }
         // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
         _fireDelivery(order);
         _fireFunnel('checkout_paid', { serviceId: order.serviceId, value: order.subtotal_fiat });
@@ -1484,6 +1516,90 @@ async function handle(req, res, ctx) {
   return false;
 }
 
+// ── Sovereign abandoned-checkout recovery (always-on, site process) ─────────
+// Portal recovery agent only sees SQLite awaiting_payment. Primary money path
+// is sovereign pending in ORDERS — recover those here with email + Telegram.
+const _sovRecoverySent = new Map(); // orderId → ts
+const SOV_RECOVERY_STUCK_MS = Math.max(5 * 60 * 1000, Number(process.env.SOVEREIGN_RECOVERY_STUCK_MS || 30 * 60 * 1000));
+const SOV_RECOVERY_COOLDOWN_MS = 24 * 3600 * 1000;
+const SOV_RECOVERY_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.SOVEREIGN_RECOVERY_INTERVAL_MS || 15 * 60 * 1000));
+
+function recoverStuckPending(opts) {
+  const now = Date.now();
+  const stuckAfter = Math.max(60 * 1000, Number((opts && opts.stuckAfterMs) || SOV_RECOVERY_STUCK_MS));
+  const dryRun = !!(opts && opts.dryRun);
+  const stuck = [];
+  const sent = [];
+  const skipped = [];
+  for (const o of ORDERS.values()) {
+    if (!o || o.status !== 'pending') continue;
+    if (o.expires_at_ms && now >= o.expires_at_ms) continue;
+    const created = Date.parse(o.created_at || '') || (o.expires_at_ms ? o.expires_at_ms - ORDER_TTL_MS : 0);
+    const ageMs = now - created;
+    if (!(ageMs >= stuckAfter)) continue;
+    stuck.push(o);
+  }
+  let mailer = null;
+  try { mailer = require('../commerce/transactional-email'); } catch (_) {}
+  for (const o of stuck) {
+    const last = _sovRecoverySent.get(o.orderId) || 0;
+    if (now - last < SOV_RECOVERY_COOLDOWN_MS) { skipped.push({ orderId: o.orderId, reason: 'cooldown' }); continue; }
+    if (dryRun) { skipped.push({ orderId: o.orderId, reason: 'dry_run' }); continue; }
+    const buyerEmail = String((o.buyer && o.buyer.email) || '').trim().toLowerCase();
+    let emailed = false;
+    if (mailer && EMAIL_RE.test(buyerEmail)) {
+      try {
+        if (typeof mailer.sendTransactional === 'function') {
+          Promise.resolve(mailer.sendTransactional({
+            to: buyerEmail,
+            template: 'payment_pending',
+            data: {
+              orderId: o.orderId,
+              checkout_url: o.checkout_url,
+              amount_btc: o.amount_btc,
+              btcAmount: o.amount_btc,
+              serviceName: o.serviceName,
+              priceUSD: o.subtotal_fiat,
+            },
+          })).catch(() => {});
+          emailed = true;
+        } else if (typeof mailer.sendRaw === 'function') {
+          Promise.resolve(mailer.sendRaw({
+            to: buyerEmail,
+            subject: `Your ZeusAI order ${o.orderId} — payment still pending`,
+            text: `Your order ${o.orderId} (${o.serviceName}) for $${o.subtotal_fiat} (≈ ${o.amount_btc} BTC) is still awaiting payment.\n\nPay here: ${o.checkout_url}\n\n— ZeusAI`,
+          })).catch(() => {});
+          emailed = true;
+        }
+      } catch (_) { emailed = false; }
+    }
+    // Owner Telegram nudge when email rail missing / unarmed.
+    if (!emailed) {
+      try {
+        const zac = require('../../backend/modules/zacAlertChannel');
+        if (zac && typeof zac.sendTelegram === 'function') {
+          Promise.resolve(zac.sendTelegram([
+            '🛒 *Sovereign checkout recovery*',
+            `Order \`${o.orderId}\` still pending (${Math.floor(ageMsOf(o, now) / 60000)}m).`,
+            o.serviceId ? `Service: ${o.serviceId}` : null,
+            o.subtotal_fiat != null ? `Amount: $${o.subtotal_fiat}` : null,
+            o.checkout_url ? `Pay: ${o.checkout_url}` : null,
+            buyerEmail ? `Buyer: ${buyerEmail}` : 'No buyer email on invoice',
+          ].filter(Boolean).join('\n'))).catch(() => {});
+        }
+      } catch (_) { /* optional */ }
+    }
+    _sovRecoverySent.set(o.orderId, now);
+    sent.push({ orderId: o.orderId, emailed, email: buyerEmail || null });
+  }
+  return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped };
+}
+
+function ageMsOf(o, now) {
+  const created = Date.parse(o.created_at || '') || 0;
+  return Math.max(0, (now || Date.now()) - created);
+}
+
 // ── Boot ────────────────────────────────────────────────────────────────────
 loadState();
 loadCatalogSeen();
@@ -1493,7 +1609,14 @@ setTimeout(() => { getBtcPrice().catch((e) => console.warn('[commerce] initial B
 setInterval(() => { scanIncoming().catch((e) => console.warn('[commerce] scan error:', e.message)); }, WATCH_MS).unref();
 // Price refresh independent of watcher
 setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC price refresh error:', e.message)); }, 5 * 60 * 1000).unref();
+// Abandoned sovereign invoice recovery (always-on — not gated on revenue autopilot)
+setTimeout(() => {
+  try { recoverStuckPending({ dryRun: false }); } catch (e) { console.warn('[commerce] recovery boot:', e && e.message); }
+}, 45 * 1000);
+setInterval(() => {
+  try { recoverStuckPending({ dryRun: false }); } catch (e) { console.warn('[commerce] recovery tick:', e && e.message); }
+}, SOV_RECOVERY_INTERVAL_MS).unref();
 
-console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
+console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending };

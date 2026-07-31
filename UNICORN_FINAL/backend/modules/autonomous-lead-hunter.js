@@ -193,6 +193,43 @@ async function _runCycle() {
         lead.outreach = null;
         lead.retries++;
       }
+      // Godmode Completion OS: deliver outreach when a real email exists + mailer armed.
+      // Synthetic / null-email leads still emit events for owner dashboards only.
+      if (lead.outreach && lead.email && String(lead.email).includes('@') && lead.source !== 'synthetic') {
+        try {
+          const mailer = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'transactional-email.js'));
+          const subject = 'ZeusAI — quick note for ' + (lead.company || 'your team');
+          const text = String(lead.outreach);
+          if (mailer && typeof mailer.sendRaw === 'function') {
+            Promise.resolve(mailer.sendRaw({ to: lead.email, subject, text }))
+              .then((r) => {
+                lead.outreachSentAt = new Date().toISOString();
+                lead.outreachDelivery = (r && r.ok === false) ? (r.error || 'send_failed') : 'sent';
+              })
+              .catch((err) => {
+                lead.outreachDelivery = 'send_failed:' + String(err && err.message || 'unknown').slice(0, 80);
+              });
+          } else {
+            lead.outreachDelivery = 'email_unconfigured';
+          }
+        } catch (mailErr) {
+          lead.outreachDelivery = 'mailer_unavailable';
+        }
+        // Owner Telegram nudge so qualified leads never die silently pre-keys.
+        try {
+          const zac = require('./zacAlertChannel');
+          if (zac && typeof zac.sendTelegram === 'function') {
+            Promise.resolve(zac.sendTelegram([
+              '🎯 *Lead qualified*',
+              lead.company ? `Company: ${lead.company}` : null,
+              `Email: ${lead.email}`,
+              lead.industry ? `Industry: ${lead.industry}` : null,
+              lead.score != null ? `Score: ${lead.score}` : null,
+              lead.outreach ? ('Outreach drafted — delivery: ' + (lead.outreachDelivery || 'queued')) : null,
+            ].filter(Boolean).join('\n'))).catch(() => {});
+          }
+        } catch (_) { /* optional */ }
+      }
       bus.emit('lead:qualified', { ...lead });
       state.memory.successes.push({ id: lead.id, confidence, ts: Date.now() });
       if (state.memory.successes.length > 200) state.memory.successes = state.memory.successes.slice(-200);

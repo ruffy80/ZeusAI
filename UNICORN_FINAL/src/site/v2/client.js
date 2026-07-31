@@ -2525,6 +2525,11 @@ async function sovereignBuy(serviceId, opts){
     const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     const payload = { serviceId, qty: 1, currency: 'USD', preorder };
     if (email) payload.email = email;
+    // Godmode Completion OS: attribute affiliate ?ref= on the sovereign money path.
+    try {
+      const ref = (typeof getRef === 'function') ? getRef() : (localStorage.getItem('u_ref') || null);
+      if (ref) payload.ref = String(ref).trim().slice(0, 32);
+    } catch (_) {}
     const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify(payload) });
     let j = null;
     try { j = await r.json(); } catch (_) { j = null; }
@@ -3108,8 +3113,34 @@ function hydrateCheckout(){
   const draw = () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
     updateBtcQuote(amt, btc);
-    const btcAmt = (amt * (fxRates.BTC || 0.0000095));
-    renderQr('btcQr', `bitcoin:${btc}?amount=${btcAmt.toFixed(8)}&label=ZeusAI-${encodeURIComponent(plan)}`);
+    const rate = estBtcUsd();
+    const btcAmt = rate > 0 ? (amt / rate) : (amt * (fxRates.BTC || 0.0000095));
+    // Honesty: never show static-wallet QR / address until a unique invoice exists.
+    // Paying an estimate to the shared owner address cannot match a sovereign order.
+    const addrEl = document.getElementById('btcAddr');
+    const qrCanvas = document.getElementById('btcQr');
+    if (currentReceipt && (currentReceipt.btcUri || (currentReceipt.destination && currentReceipt.destination.address))) {
+      const uri = currentReceipt.btcUri
+        || ('bitcoin:' + currentReceipt.destination.address + (currentReceipt.btcAmount != null ? ('?amount=' + Number(currentReceipt.btcAmount).toFixed(8)) : ''));
+      renderQr('btcQr', uri);
+      if (addrEl) {
+        addrEl.textContent = (currentReceipt.destination && currentReceipt.destination.address) || currentReceipt.btcAddress || '';
+        addrEl.dataset.copy = addrEl.textContent;
+      }
+      if (qrCanvas) qrCanvas.style.opacity = '1';
+    } else {
+      if (addrEl) {
+        addrEl.textContent = 'Invoice address appears after you generate a secure BTC invoice';
+        addrEl.dataset.copy = '';
+      }
+      if (qrCanvas) {
+        try {
+          const ctx = qrCanvas.getContext && qrCanvas.getContext('2d');
+          if (ctx) { ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height); }
+        } catch (_) {}
+        qrCanvas.style.opacity = '0.35';
+      }
+    }
     if (sumA) sumA.textContent = '$' + amt;
     // Live multi-currency strip
     const strip = $('#coFxStrip');
@@ -3154,6 +3185,35 @@ function hydrateCheckout(){
   if (typeof liveRateTimer.unref === 'function') liveRateTimer.unref();
   $('#coAmountPP')?.addEventListener('input', updatePP);
   $('#coPlanPP')?.addEventListener('input', updatePP);
+
+  // Checkout AOV lift — same upsell engine as /services/:id, on the money page.
+  (async function hydrateCheckoutUpsell(){
+    const host = document.getElementById('coUpsell');
+    if (!host) return;
+    const anchor = String(plan || '').trim();
+    if (!anchor) return;
+    try {
+      const r = await api('/api/upsell?service=' + encodeURIComponent(anchor));
+      const recs = (r && (r.recommendations || r.items || r.upsells)) || [];
+      if (!Array.isArray(recs) || !recs.length) { host.style.display = 'none'; return; }
+      host.style.display = '';
+      host.innerHTML = '<span class="kicker">Also useful with this plan</span><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">'
+        + recs.slice(0, 3).map(function(rec){
+          const id = String(rec.id || rec.serviceId || '');
+          const title = String(rec.title || rec.name || id);
+          const price = Number(rec.priceUSD || rec.price_usd || rec.price || 0);
+          const label = price > 0 ? (title + ' · $' + price) : title;
+          return '<button type="button" class="btn btn-ghost" data-co-upsell="' + escapeHtml(id) + '">' + escapeHtml(label) + '</button>';
+        }).join('')
+        + '</div>';
+      host.querySelectorAll('[data-co-upsell]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const sid = btn.getAttribute('data-co-upsell');
+          if (sid && typeof window.sovereignBuy === 'function') window.sovereignBuy(sid, { el: btn });
+        });
+      });
+    } catch (_) { host.style.display = 'none'; }
+  })().catch(function(){});
 
   // --- Live BTC/USD helpers (hoisted inside hydrateCheckout) ---
   // Note: btcUsdLive/btcUsdLastFetch/btcUsdFetchPromise are declared earlier

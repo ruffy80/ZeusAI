@@ -48,52 +48,30 @@
     }
   }
 
-  function pay(node, method) {
+  function payBtc(node) {
     if (node.__ckBusy) return;
     var sid = node.getAttribute('data-service-id');
     var price = Number.parseFloat(node.getAttribute('data-price') || '0');
     if (!Number.isFinite(price) || price < 0) price = 0;
     setBusy(node, true);
-    status(node, 'Processing ' + method.toUpperCase() + '…');
-    fetch('/api/checkout/' + method, {
+    status(node, 'Creating BTC invoice…');
+    // Sovereign money path — never advertise Card via /api/checkout/create.
+    fetch('/api/checkout/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serviceId: sid, amount: price }),
-    }).then(function (r) { return r.json(); }).then(function (d) {
-      if (d && d.ok !== false) {
-        status(node, '✓ ' + (d.message || 'Order created') + (d.orderId ? (' · ' + d.orderId) : ''), 'ok');
-        if (d.btcAddress) {
-          var p = node.querySelector('[data-ck-extra]');
-          if (p) {
-            p.innerHTML = '';
-            var wrap = document.createElement('div');
-            wrap.style.fontSize = '12px';
-            wrap.style.marginTop = '8px';
-            wrap.textContent = 'BTC: ';
-            var code = document.createElement('code');
-            code.textContent = String(d.btcAddress);
-            wrap.appendChild(code);
-            p.appendChild(wrap);
-          }
-        }
+      body: JSON.stringify({ serviceId: sid, qty: 1, currency: 'USD' }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (pack) {
+      var d = pack.d || {};
+      if (pack.ok && (d.orderId || d.checkout_url)) {
+        status(node, '✓ Invoice ready' + (d.orderId ? (' · ' + d.orderId) : ''), 'ok');
+        var target = d.checkout_url || ('/checkout/' + encodeURIComponent(String(d.orderId)));
         try {
-          // Subscribe to confirmation events
-          if (window.EventSource) {
-            var es = new EventSource('/unicorn-stream');
-            es.addEventListener('payment', function (ev) {
-              try {
-                var msg = JSON.parse(ev.data);
-                if (msg && msg.orderId === d.orderId) {
-                  status(node, '✓✓ Payment confirmed', 'ok');
-                  es.close();
-                }
-              } catch (_) {}
-            });
-            setTimeout(function () { try { es.close(); } catch (_) {} }, 10 * 60 * 1000);
-          }
+          var u = new URL(target, window.location.origin);
+          if (u.origin === window.location.origin) target = u.pathname + u.search;
         } catch (_) {}
+        window.location.href = target;
       } else {
-        status(node, '✗ ' + (d && d.error || 'Payment failed'), 'err');
+        status(node, '✗ ' + (d.error || d.reason || 'Payment failed'), 'err');
       }
     }).catch(function (err) {
       status(node, '✗ ' + (err && err.message || err), 'err');
@@ -110,22 +88,35 @@
     var priceNum = Number.parseFloat(price);
     if (!Number.isFinite(priceNum) || priceNum < 0) priceNum = 0;
     var safeName = escHtml(name);
+    // Honesty: Card CTA only when Stripe is armed at runtime.
     node.innerHTML = (
       '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:18px;max-width:480px">' +
         '<div style="font-size:16px;font-weight:600;margin-bottom:6px">' + safeName + '</div>' +
         '<div style="font-size:24px;color:#7cf7c0;font-weight:700">$' + priceNum.toFixed(2) + '</div>' +
         '<div style="display:flex;gap:8px;margin-top:14px">' +
           '<button data-ck-btc style="background:#7cf7c0;color:#0a0f1e;border:0;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer">Pay with BTC</button>' +
-          '<button data-ck-stripe style="background:transparent;color:#e8eef9;border:1px solid rgba(255,255,255,0.2);padding:10px 18px;border-radius:8px;cursor:pointer">Pay with Card</button>' +
+          '<button data-ck-stripe style="display:none;background:transparent;color:#e8eef9;border:1px solid rgba(255,255,255,0.2);padding:10px 18px;border-radius:8px;cursor:pointer">Pay with Card</button>' +
         '</div>' +
-        '<div data-ck-status style="margin-top:10px;font-size:12px;color:#7a8499"></div>' +
+        '<div data-ck-status style="margin-top:10px;font-size:12px;color:#7a8499">Bitcoin checkout is live. Card appears only when Stripe is configured.</div>' +
         '<div data-ck-extra></div>' +
       '</div>'
     );
     var btc = node.querySelector('[data-ck-btc]');
     var stripe = node.querySelector('[data-ck-stripe]');
-    if (btc) btc.addEventListener('click', function () { pay(node, 'btc'); });
-    if (stripe) stripe.addEventListener('click', function () { pay(node, 'create'); });
+    if (btc) btc.addEventListener('click', function () { payBtc(node); });
+    fetch('/api/payment/methods').then(function (r) { return r.json(); }).then(function (j) {
+      var methods = (j && (j.methods || j.paymentMethods)) || [];
+      var stripeOn = methods.some(function (m) {
+        var id = String((m && (m.id || m.kind || m.method)) || '').toLowerCase();
+        return (id === 'stripe' || id === 'card') && m.active !== false;
+      });
+      if (stripeOn && stripe) {
+        stripe.style.display = '';
+        stripe.addEventListener('click', function () {
+          status(node, 'Card checkout requires a portal order — use /checkout with Stripe armed.', 'err');
+        });
+      }
+    }).catch(function () { /* BTC-only is fine */ });
   }
 
   function init() {
