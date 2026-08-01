@@ -87,5 +87,19 @@ check('better-sqlite3 is in engines-compatible range', () => {
     'better-sqlite3 should stay on 12.x for Node 22/24 prebuilds, got ' + ver);
 });
 
+check('Compat Truth Preflight is wired (CTOS forever — no fake Node ABI reds)', () => {
+  assert.ok(wf.includes('compat-truth-preflight.js'),
+    'node-compatibility.yml must run scripts/compat-truth-preflight.js');
+  assert.ok(wf.includes('Compat Truth Preflight') || wf.includes('CTOS'),
+    'workflow step should be named Compat Truth / CTOS');
+  const preflight = fs.readFileSync(path.join(ROOT, 'scripts/compat-truth-preflight.js'), 'utf8');
+  assert.ok(preflight.includes('no-raw-json-cta-guard.test.js'),
+    'CTOS must classify SITE_CTA_REGRESSION via no-raw-json-cta-guard');
+  assert.ok(preflight.includes('SITE_CTA_REGRESSION'));
+  assert.ok(preflight.includes('COMPAT_TRUTH'));
+  assert.ok(preflight.includes('::error title=COMPAT_TRUTH'),
+    'CTOS must emit GitHub Actions error annotations with class labels');
+});
+
 console.log('node-compat-contract.test.js: ' + passed + ' passed · node=' + process.versions.node);
 process.exit(0);

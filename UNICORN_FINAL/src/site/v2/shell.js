@@ -3161,7 +3161,7 @@ Content-Type: application/json
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
       <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">Start Autonomous Deal</a>
       <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
-      <a href="/api/enterprise/aedo" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">AEDO status</a>
+      <button type="button" class="btn btn-ghost" data-live-inspect="/api/enterprise/aedo" data-live-title="AEDO status" style="font-size:16px;padding:14px 26px">AEDO status</button>
     </div>
 
     <div id="entRails" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:36px 0 8px">

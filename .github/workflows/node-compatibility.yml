@@ -78,18 +78,16 @@ jobs:
           echo "[compat] node=$(node -v) npm=$(npm -v) matrix=${EXPECT}"
           node -e 'const e=Number(process.env.EXPECT),m=Number(process.versions.node.split(".")[0]); if(m!==e){console.error("[compat] matrix/runtime mismatch",process.versions.node,"expected",e); process.exit(1);} console.log("[compat] runtime major matches matrix",m);'
 
-      - name: 🔎 Preflight (QR + node-compat contracts)
+      - name: 🔎 Compat Truth Preflight (CTOS — never fake Node ABI reds)
         working-directory: ./UNICORN_FINAL
+        env:
+          NODE_COMPAT_MATRIX: ${{ matrix.node }}
         run: |
           set -euo pipefail
-          # Run payment/QR contracts BEFORE the full suite so a stale assertion
-          # surfaces as a clear commerce contract failure — not a vague
-          # "Node N compatibility" red that looks like a runtime ABI break.
-          node test/node-compat-contract.test.js
-          node test/payment-honesty.test.js
-          node test/checkout-payments-never-dead.test.js
-          node test/sovereign-checkout-html.test.js
-          node test/nginx-contract-guard.test.js
+          # CTOS/1.0: classify SITE_CTA / COMMERCE / NGINX / ENGINE contracts
+          # BEFORE npm test so a raw-JSON CTA or QR regression never shows up
+          # as "Node 22/24 compatibility failed".
+          node scripts/compat-truth-preflight.js
 
       - name: 🔍 Lint backend + site
         working-directory: ./UNICORN_FINAL
