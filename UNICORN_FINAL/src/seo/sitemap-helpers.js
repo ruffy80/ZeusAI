@@ -61,6 +61,10 @@ const CORE_PUBLIC_PATHS = [
   '/social-network',
   '/enterprise',
   '/operator',
+  '/dropship',
+  '/tg',
+  '/wizard',
+  '/revenue-command',
 ];
 
 /** Paths robots.txt disallows — never list in public sitemaps */

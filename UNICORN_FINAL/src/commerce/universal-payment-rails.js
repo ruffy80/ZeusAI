@@ -79,12 +79,67 @@ function primaryCtaHtml(serviceId, opts) {
   return `<a class="btn btn-primary" href="${esc(href)}" data-sovereign-buy="${esc(id)}" data-buy-mode="checkout" aria-label="${esc(label)}" style="${style}">${esc(label)}</a>`;
 }
 
-function assessVirtualBuyability(serviceId) {
+/**
+ * Look up a dropship product for honesty gates (dispatchable / demoOnly).
+ * Fail-open to null when ZACC is unavailable in this process.
+ */
+function lookupDropshipProduct(productId) {
+  const id = String(productId || '').trim();
+  if (!id) return null;
+  try {
+    const zacc = require('../../backend/modules/zacc');
+    if (zacc && zacc.publisher && typeof zacc.publisher.get === 'function') {
+      return zacc.publisher.get(id) || null;
+    }
+  } catch (_) { /* site-only / test contexts */ }
+  return null;
+}
+
+/**
+ * @param {string} serviceId
+ * @param {object} [itemOrOpts] optional product fields (dispatchable, demoOnly) or { item }
+ */
+function assessVirtualBuyability(serviceId, itemOrOpts) {
   const v = parseVirtualSku(serviceId);
   if (!v || !v.id) {
     return { mode: 'unavailable', buyable: false, reason: 'invalid_virtual_sku', ctaLabel: 'Unavailable', ctaHref: null };
   }
   if (v.prefix === 'dropship' || v.prefix === 'ds') {
+    const hint = (itemOrOpts && typeof itemOrOpts === 'object' && !itemOrOpts.item && (itemOrOpts.dispatchable != null || itemOrOpts.demoOnly != null || itemOrOpts.type || itemOrOpts.niche))
+      ? itemOrOpts
+      : ((itemOrOpts && itemOrOpts.item) || null);
+    // Publisher lookup always wins over synthetic virtual-SKU stubs from resolveService.
+    const looked = lookupDropshipProduct(v.id);
+    const product = looked || hint;
+    const allowDemo = String(process.env.ALLOW_DEMO_CHECKOUT || '') === '1';
+    if (product) {
+      if (product.demoOnly === true && !allowDemo) {
+        return {
+          mode: 'unavailable', buyable: false, reason: 'demo_not_for_sale',
+          ctaLabel: 'Preview · not for sale', ctaHref: '/dropship',
+        };
+      }
+      if (product.dispatchable === false && !allowDemo) {
+        return {
+          mode: 'unavailable', buyable: false, reason: 'not_dispatchable',
+          ctaLabel: 'Preview · not for sale', ctaHref: '/dropship',
+        };
+      }
+      // Explicit dispatchable:true on hint (tests) or looked product → buyable.
+      // If neither source asserts dispatchable and we only have a weak hint, fail closed.
+      if (product.dispatchable !== true && !looked && !allowDemo) {
+        return {
+          mode: 'unavailable', buyable: false, reason: 'not_dispatchable',
+          ctaLabel: 'Preview · not for sale', ctaHref: '/dropship',
+        };
+      }
+    } else if (!allowDemo) {
+      // Fail-closed: unknown dropship id must not mint invoices via virtual SKU bypass.
+      return {
+        mode: 'unavailable', buyable: false, reason: 'dropship_product_not_found',
+        ctaLabel: 'Unavailable', ctaHref: '/dropship',
+      };
+    }
     return {
       mode: 'checkout',
       buyable: true,
@@ -115,4 +170,5 @@ module.exports = {
   ctaLabel,
   primaryCtaHtml,
   assessVirtualBuyability,
+  lookupDropshipProduct,
 };

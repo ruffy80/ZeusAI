@@ -260,10 +260,21 @@ async function run() {
     assert.equal(billionDashboard.body.ok, true);
     assert.equal(billionDashboard.body.payout.btcAddress, wallet);
 
-    const billionEconomics = await request('/api/billion-scale/marketplace-economics');
+    const billionEconomicsDefault = await request('/api/billion-scale/marketplace-economics');
+    assert.equal(billionEconomicsDefault.status, 200);
+    assert.equal(billionEconomicsDefault.body.ok, true);
+    assert.equal(billionEconomicsDefault.body.scenario, false);
+    assert.ok(Number(billionEconomicsDefault.body.annualRevenueUsd || 0) === 0);
+
+    const billionEconomics = await request('/api/billion-scale/marketplace-economics?scenario=1&gmvUsd=5000000000&takeRate=0.2');
     assert.equal(billionEconomics.status, 200);
     assert.equal(billionEconomics.body.ok, true);
     assert.ok(billionEconomics.body.annualRevenueUsd >= 1000000000);
+
+    const profitPath = await request('/api/billion-scale/profit-path');
+    assert.equal(profitPath.status, 200);
+    assert.equal(profitPath.body.ok, true);
+    assert.equal(profitPath.body.protocol, 'BPPOS/1.0');
 
     const billionProposal = await request('/api/billion-scale/deal-desk/proposal', {
       method: 'POST',

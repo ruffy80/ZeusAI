@@ -104,12 +104,17 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
-  // Universal Payment Rails — dropship / social-tip virtual SKUs are always
-  // self-serve multi-rail (BTC · PayPal · NOW) via /checkout/?plan=…
+  // Universal Payment Rails — virtual SKUs (dropship / social-tip).
+  // Dropship must still pass dispatchable / demo honesty (no invoice bypass).
   try {
     const upr = require('./universal-payment-rails');
     if (upr && typeof upr.isVirtualSku === 'function' && upr.isVirtualSku(id)) {
-      return upr.assessVirtualBuyability(id);
+      const virtual = upr.assessVirtualBuyability(id, item || undefined);
+      // Map UPR "checkout" mode onto storefront "btc" multi-rail chooser semantics.
+      if (virtual && virtual.buyable && virtual.mode === 'checkout') {
+        return Object.assign({}, virtual, { mode: 'btc' });
+      }
+      return virtual;
     }
   } catch (_) { /* fall through */ }
 

@@ -3097,6 +3097,21 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         forecastNext30dUsd: Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0),
       };
 
+      // Billion Autonomy Loop — digital IndexNow + enterprise/CJ watch (no fake GMV)
+      try {
+        const balos = require('../src/commerce/billion-autonomy-loop-os');
+        if (balos && typeof balos.tick === 'function') {
+          const loopOut = await balos.tick({ source: 'revenue-autopilot:' + String(reason || 'interval'), forceLive: true });
+          runResult.billionAutonomyLoop = {
+            ok: !!(loopOut && loopOut.ok),
+            skuCount: loopOut && loopOut.skus ? loopOut.skus.length : 0,
+            moneyUrlCount: loopOut && loopOut.moneyUrlCount || 0,
+          };
+        }
+      } catch (e) {
+        runResult.billionAutonomyLoop = { ok: false, error: String(e && e.message || e).slice(0, 120) };
+      }
+
       state.runs += 1;
       state.lastRunTs = ts;
       state.lastError = null;
@@ -8211,6 +8226,40 @@ app.get(['/api/billion-scale/owner-dashboard', '/api/billion-scale/dashboard'], 
 
 app.get('/api/billion-scale/marketplace-economics', (req, res) => {
   res.json(billionScaleRevenueEngine.marketplaceEconomics(req.query || {}));
+});
+
+app.get(['/api/billion-scale/profit-path', '/api/profit-path/status'], (req, res) => {
+  try {
+    const bppos = require('../src/commerce/billion-profit-path-os');
+    res.json(bppos.assessPaths({}));
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'profit_path_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
+app.get(['/api/billion-scale/autonomy-loop', '/api/autonomy-loop/status'], (req, res) => {
+  try {
+    const balos = require('../src/commerce/billion-autonomy-loop-os');
+    res.json(balos.status());
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'autonomy_loop_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
+app.post('/api/billion-scale/autonomy-loop/tick', async (req, res) => {
+  try {
+    const balos = require('../src/commerce/billion-autonomy-loop-os');
+    const dryRun = !!(req.body && req.body.dryRun) || String(req.query.dryRun || '') === '1';
+    const out = await balos.tick({
+      source: (req.body && req.body.source) || 'api-backend',
+      dryRun,
+      forceLive: !dryRun,
+      limit: req.body && req.body.limit,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'autonomy_loop_tick_failed', detail: String(e && e.message || e).slice(0, 160) });
+  }
 });
 
 app.post('/api/billion-scale/deal-desk/proposal', (req, res) => {
@@ -16469,6 +16518,19 @@ if (require.main === module) {
       } catch (e) {
         console.warn('[revenue-autopilot] start failed:', e && e.message);
       }
+    }
+
+    // Billion Autonomy Loop — always-on digital flywheel (IndexNow money URLs,
+    // enterprise notify hook, CJ arm watch). Independent of revenue-autopilot
+    // so stable runtime still acquires discovery traffic honestly.
+    try {
+      const balos = require('../src/commerce/billion-autonomy-loop-os');
+      if (balos && typeof balos.start === 'function') {
+        const st = balos.start({ bootDelayMs: 90000 });
+        console.log('♾️ Billion Autonomy Loop: ' + (st && st.ok ? 'ACTIVE' : ('IDLE ' + (st && st.reason || ''))));
+      }
+    } catch (e) {
+      console.warn('[BALOS] start failed:', e && e.message);
     }
   });
 

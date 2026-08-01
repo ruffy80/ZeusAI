@@ -71,25 +71,39 @@ function buildStrategicPackages(options = {}) {
 }
 
 function marketplaceEconomics(input = {}) {
-  const gmvUsd = Number(input.gmvUsd || 5000000000);
-  const takeRate = Number(input.takeRate || 0.2);
-  const vendorCount = Number(input.vendorCount || 10000);
-  const annualRevenueUsd = Math.round(gmvUsd * takeRate);
+  const scenario = input.scenario === true || input.scenario === '1' || input.scenario === 1
+    || input.gmvUsd != null || input.takeRate != null;
+  const gmvUsd = Number(scenario
+    ? (input.gmvUsd != null ? input.gmvUsd : 5000000000)
+    : (input.observedGmvUsd != null ? input.observedGmvUsd : 0));
+  const takeRate = Number(input.takeRate != null ? input.takeRate : (scenario ? 0.2 : 0));
+  const vendorCount = Number(input.vendorCount != null ? input.vendorCount : (scenario ? 10000 : 0));
+  const annualRevenueUsd = Math.round(Number(gmvUsd || 0) * Number(takeRate || 0));
   return {
     ok: true,
-    model: 'marketplace-gmv-take-rate',
-    gmvUsd,
-    takeRate,
-    vendorCount,
+    model: scenario ? 'marketplace-gmv-take-rate-scenario' : 'marketplace-gmv-take-rate-observed',
+    scenario: !!scenario,
+    gmvUsd: Number(gmvUsd || 0),
+    takeRate: Number(takeRate || 0),
+    vendorCount: Number(vendorCount || 0),
     annualRevenueUsd,
-    pathToBillionUsd: annualRevenueUsd >= 1000000000 ? 'achieved-at-this-scale' : `needs ${Math.ceil(1000000000 / Math.max(1, annualRevenueUsd))}x more GMV or take-rate`,
+    pathToBillionUsd: annualRevenueUsd >= 1000000000
+      ? (scenario ? 'scenario_achieved_at_this_scale' : 'achieved-at-this-scale')
+      : (scenario
+        ? `scenario_needs_${Math.ceil(1000000000 / Math.max(1, annualRevenueUsd || 1))}x`
+        : 'not_achieved — pass scenario=1 or gmvUsd=… for model; default never invents GMV'),
     requiredControls: ['vendor quarantine', 'quality scoring', 'payment settlement proof', 'refund policy', 'revenue-share ledger'],
+    honesty: scenario
+      ? 'Scenario model only — not live GMV.'
+      : 'Observed/default zero — never invents GMV. Use ?scenario=1&gmvUsd=5000000000 for planning math.',
   };
 }
 
 function ownerRevenueDashboard(options = {}) {
   const catalogCount = Number(options.catalogCount || 413);
   const registryCount = Number(options.registryCount || 314);
+  const observedGmvUsd = Number(options.observedGmvUsd || 0);
+  const observedPaidOrders = Number(options.observedPaidOrders || 0);
   const pipeline = buildStrategicPackages(options).map((pkg) => ({
     packageId: pkg.id,
     priceUsd: pkg.priceUsd,
@@ -102,9 +116,16 @@ function ownerRevenueDashboard(options = {}) {
     generatedAt: new Date().toISOString(),
     payout: { rail: 'btc-direct', btcAddress: options.btcWallet || DEFAULT_BTC_WALLET, automatic: true },
     inventory: { catalogCount, registryCount, strategicPackageCount: STRATEGIC_PACKAGES.length },
+    observed: {
+      gmvUsd: observedGmvUsd,
+      paidOrders: observedPaidOrders,
+      honesty: 'Observed from paid orders only — pipelineMath below is model, not revenue.',
+    },
     kpisNeeded: ['MRR', 'ARR', 'pipeline value', 'qualified leads', 'proposal win rate', 'BTC received', 'delivery margin', 'churn', 'marketplace GMV'],
     pipelineMath: pipeline,
+    pipelineMathNote: 'Deal-count math for $10M/$100M/$1B targets — not claimed earnings.',
     immediateFocus: ['sell enterprise packages instead of hundreds of small modules', 'build case studies', 'track ROI per customer', 'create partner/channel sales', 'convert marketplace into take-rate business'],
+    profitPath: '/api/billion-scale/profit-path',
   };
 }
 
@@ -151,9 +172,10 @@ function status(options = {}) {
     minPackageUsd: Math.min(...packages.map((pkg) => pkg.priceUsd)),
     maxPackageUsd: Math.max(...packages.map((pkg) => pkg.priceUsd)),
     payout: { rail: 'btc-direct', btcAddress: options.btcWallet || DEFAULT_BTC_WALLET, automatic: true },
-    engines: ['strategic packages', 'enterprise deal desk', 'owner revenue dashboard', 'marketplace economics', 'vertical growth pages', 'CLOS closed-loop proof', 'AGY yield index'],
+    engines: ['strategic packages', 'enterprise deal desk', 'owner revenue dashboard', 'marketplace economics', 'profit path OS', 'vertical growth pages', 'CLOS closed-loop proof', 'AGY yield index'],
     clos: { protocol: 'CLOS/1.0', discovery: '/.well-known/clos.json', agy: '/api/clos/agy' },
-    caveat: 'This creates the commercial infrastructure for billion-scale revenue; actual revenue requires customers, distribution, proof, delivery and compliance. CLOS/AGY compounds only from attested paid→delivered loops — never invents GMV.',
+    profitPath: '/api/billion-scale/profit-path',
+    caveat: 'This creates the commercial infrastructure for billion-scale revenue; actual revenue requires customers, distribution, proof, delivery and compliance. CLOS/AGY compounds only from attested paid→delivered loops — never invents GMV. Default marketplace-economics is observed/zero; pass scenario=1 for planning math.',
   };
 }
 

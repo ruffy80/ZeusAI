@@ -626,6 +626,26 @@ async function resolveService(ctx, serviceId) {
         ? amountOverride
         : 0;
       if (!(price > 0)) return null;
+      let demoOnly = false;
+      let dispatchable = parsed && (parsed.prefix === 'social-tip' || parsed.prefix === 'tip') ? true : undefined;
+      let type = parsed && parsed.prefix === 'dropship' ? 'physical' : 'digital';
+      if (parsed && (parsed.prefix === 'dropship' || parsed.prefix === 'ds')) {
+        try {
+          const product = upr.lookupDropshipProduct ? upr.lookupDropshipProduct(parsed.id) : null;
+          if (product) {
+            demoOnly = product.demoOnly === true;
+            dispatchable = product.dispatchable === true;
+            if (product.title) {
+              // prefer live product title when amount override is used
+            }
+          } else {
+            demoOnly = false;
+            dispatchable = false;
+          }
+        } catch (_) {
+          dispatchable = false;
+        }
+      }
       return withCanonical({
         id: serviceId,
         name: title,
@@ -635,7 +655,10 @@ async function resolveService(ctx, serviceId) {
         segment: parsed && parsed.prefix === 'dropship' ? 'dropship' : 'social-tip',
         group: parsed && parsed.prefix === 'dropship' ? 'dropship' : 'social-tip',
         tier: 'instant',
-        demoOnly: false,
+        type,
+        niche: parsed && parsed.prefix === 'dropship' ? 'dropship' : undefined,
+        demoOnly,
+        dispatchable,
         synthetic: false,
         virtualSku: true,
         fulfillmentRecipe: parsed && parsed.prefix === 'dropship' ? 'dropship-physical' : 'social-tip',

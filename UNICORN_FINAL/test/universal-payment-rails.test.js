@@ -52,10 +52,18 @@ check('chooserHref carries amount for tips / quotes', () => {
   assert.ok(href.includes('amount=12'));
 });
 
-check('commerce-buyability routes virtual SKUs before unavailable gates', () => {
-  const a = buyability.assessBuyability({ id: 'dropship:sku-1', demoOnly: true, synthetic: true });
-  assert.equal(a.buyable, true);
-  assert.ok(a.ctaHref && a.ctaHref.includes('dropship'));
+check('commerce-buyability refuses non-dispatchable / demo dropship virtual SKUs', () => {
+  const blocked = buyability.assessBuyability({
+    id: 'dropship:sku-1', demoOnly: true, synthetic: true, dispatchable: false, type: 'physical', niche: 'dropship',
+  });
+  assert.equal(blocked.buyable, false);
+  assert.ok(/demo|dispatchable|not_for_sale|preview/i.test(String(blocked.reason || blocked.ctaLabel || '')));
+
+  const ok = buyability.assessBuyability({
+    id: 'dropship:real-vid-1', dispatchable: true, demoOnly: false, type: 'physical', niche: 'dropship',
+  });
+  assert.equal(ok.buyable, true);
+  assert.ok(ok.ctaHref && ok.ctaHref.includes('dropship'));
 });
 
 check('catalog/store CTAs open chooser, not instant BTC', () => {
