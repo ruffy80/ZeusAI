@@ -123,7 +123,8 @@
     "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env'",
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked",
     "evolve": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); console.log('[SPRINT]', JSON.stringify(ai.getStatus())); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
-    "heal": "node scripts/health-guardian.js"
+    "heal": "node scripts/health-guardian.js",
+    "compat-truth": "node scripts/compat-truth-preflight.js"
   },
   "devDependencies": {
     "eslint": "^8.57.1",
