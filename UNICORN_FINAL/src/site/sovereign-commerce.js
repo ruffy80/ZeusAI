@@ -757,7 +757,9 @@ async function createOrder(ctx, input) {
     bip21: `bitcoin:${OWNER_BTC}?amount=${amountBtc.toFixed(8)}&label=${encodeURIComponent('ZeusAI ' + orderId)}&message=${encodeURIComponent(svc.name || serviceId)}`,
     checkout_url: `${OWNER_DOMAIN}/checkout/${orderId}`,
     status_url:   `${OWNER_DOMAIN}/api/order/${orderId}/status`,
-    qr_url:       `${OWNER_DOMAIN}/api/checkout/${orderId}/qr.svg`,
+    // Served under /checkout/ (nginx ^~ /checkout/ → site). /api/checkout/*/qr.svg
+    // is swallowed by generic ^~ /api/ → backend HTML, so keep QR off /api/.
+    qr_url:       `${OWNER_DOMAIN}/checkout/${orderId}/qr.svg`,
     buyer: {
       email: String(email || '').slice(0, 200),
       inputs: buyerInputs,
@@ -1307,7 +1309,43 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
 </div>` : ''}
 
 <div class="card">
-  <div class="qr"><img alt="BIP-21 QR" src="/api/checkout/${orderId}/qr.svg" loading="lazy"></div>
+  <div class="qr"><img id="btcQrImg" alt="BIP-21 QR" src="/checkout/${orderId}/qr.svg" loading="eager"
+    onerror="this.onerror=null;this.src='/api/qr?d='+encodeURIComponent('${bip21Js}');"></div>
+  <canvas id="btcQrCanvas" width="280" height="280" style="display:none;margin:0 auto"></canvas>
+  <script${nonceAttr}>
+  (function(){
+    // Durable QR: if both img endpoints fail, draw via /api/qr fetch → blob, else show BIP-21 text.
+    var img = document.getElementById('btcQrImg');
+    var canvas = document.getElementById('btcQrCanvas');
+    var uri = '${bip21Js}';
+    function showCanvasFromBlob(blob){
+      if (!canvas || !blob) return;
+      var url = URL.createObjectURL(blob);
+      var i = new Image();
+      i.onload = function(){
+        try {
+          canvas.style.display = 'block';
+          if (img) img.style.display = 'none';
+          var ctx = canvas.getContext('2d');
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          ctx.drawImage(i, 0, 0, canvas.width, canvas.height);
+        } catch(_){}
+        try { URL.revokeObjectURL(url); } catch(_){}
+      };
+      i.src = url;
+    }
+    setTimeout(function(){
+      if (!img) return;
+      // If the img never became a real image (backend HTML leak), force /api/qr.
+      if (!img.naturalWidth || img.naturalWidth < 8) {
+        fetch('/api/qr?d=' + encodeURIComponent(uri), { cache: 'no-store' })
+          .then(function(r){ return r.ok ? r.blob() : null; })
+          .then(function(b){ if (b && String(b.type||'').indexOf('image') === 0) showCanvasFromBlob(b); })
+          .catch(function(){});
+      }
+    }, 1200);
+  })();
+  </script>
   <p class="note" style="text-align:center;margin-top:16px">Scan with any Bitcoin wallet (on-chain). The exact amount is critical — it is the payment identifier.</p>
   <div class="row"><span class="k">Address</span><span class="v mono">${receiveAddress} <button class="copy" data-copy="${receiveAddress}">copy</button></span></div>
   <div class="row"><span class="k">Amount</span><span class="v mono">${btc} BTC <button class="copy" data-copy="${escapeHtml(btc)}">copy</button></span></div>
@@ -1556,6 +1594,26 @@ async function handle(req, res, ctx) {
     } catch (_) {}
     if (idemKey) _idempotencySet(idemKey, 201, out.order);
     return sendJson(res, 201, out.order), true;
+  }
+
+  // --- /checkout/:orderId/qr.svg (BIP-21 QR — under /checkout/ nginx pin) ---
+  const mCheckoutQr = url.match(/^\/checkout\/([a-zA-Z0-9_-]{6,64})\/qr\.svg$/);
+  if (mCheckoutQr && req.method === 'GET') {
+    const order = ORDERS.get(mCheckoutQr[1]);
+    if (!order) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Order not found'); return true; }
+    try {
+      const svg = await qrSvg(order.bip21 || `bitcoin:${order.receive_address || OWNER_BTC}`);
+      res.writeHead(200, {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=60',
+        'X-Unicorn-Commerce': '1',
+      });
+      res.end(svg);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('qr_failed');
+    }
+    return true;
   }
 
   // --- /checkout/:orderId (HTML) -------------------------------------------

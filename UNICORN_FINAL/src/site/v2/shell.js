@@ -1772,7 +1772,7 @@ function pageCheckout(params) {
       <button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>
       <button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>
     </div>
-    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount). PayPal and card/crypto appear when those rails are armed live.</p>
+    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount). Tap a button — PayPal and card/crypto open when armed.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
@@ -1804,18 +1804,18 @@ function pageCheckout(params) {
         <div id="coUpsell" class="card" style="margin-top:14px;padding:14px 16px;display:none"></div>
       </div>
       <div id="coPanelPaypal" style="display:none">
-        <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value=""/></div>
-        <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="starter"/></div>
+        <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
+        <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="${ssrPlan}"/></div>
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
-        <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal appears only when runtime credentials are configured. BTC direct remains the primary settle path.</p>
+        <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal Orders API — same product delivery as BTC after capture.</p>
       </div>
       <div id="coPanelNow" style="display:none">
-        <div class="field"><label for="coAmountNP">Amount (USD)</label><input id="coAmountNP" type="number" min="1" step="1" value=""/></div>
-        <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="starter"/></div>
+        <div class="field"><label for="coAmountNP">Amount (USD)</label><input id="coAmountNP" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
+        <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="${ssrPlan}"/></div>
         <div class="field"><label for="coEmailNP">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailNP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayNP" style="width:100%;justify-content:center;margin-bottom:8px">Pay with card / crypto →</button>
-        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice — pick card or any supported crypto on their page (settles to owner BTC). Appears only when API key <b>and</b> IPN secret are armed. Direct BTC checkout above stays primary.</p>
+        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice — card or any supported crypto (settles to owner BTC).</p>
       </div>
     </div>
     <aside class="co-box">

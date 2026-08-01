@@ -79,10 +79,29 @@ const SITE_PINNED = [
   '/api/commerce/metrics',
   '/api/order/',
   '/api/entitlements/',
+  '/api/qr',
 ];
 for (const p of SITE_PINNED) {
   check('site-pinned: ' + p + ' → unicorn_site', () => assertSitePinned(p));
 }
+check('site-pinned: sovereign checkout QR → unicorn_site via ^~ /api/checkout/ord_', () => {
+  assert.ok(/location\s+\^~\s+\/api\/checkout\/ord_/.test(conf),
+    'expected ^~ /api/checkout/ord_ pin (beats generic ^~ /api/)');
+  const idx = conf.indexOf('/api/checkout/ord_');
+  assert.ok(idx > 0, 'ord_ pin token missing');
+  const window = conf.slice(Math.max(0, idx - 80), idx + 350);
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(window),
+    '/api/checkout/ord_ must proxy_pass to unicorn_site');
+});
+
+check('site-pinned: /checkout/ passes X-CSP-Nonce and local Cache-Control', () => {
+  const idx = conf.search(/location\s+\^~\s+\/checkout\//);
+  assert.ok(idx >= 0, 'expected ^~ /checkout/');
+  const block = conf.slice(idx, idx + 900);
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(block));
+  assert.ok(/X-CSP-Nonce/.test(block), 'X-CSP-Nonce required to avoid dual-CSP dead buttons');
+  assert.ok(/add_header\s+Cache-Control/.test(block), 'local add_header clears inherited CSP');
+});
 
 // Backend-pinned public discovery docs (served by backend/index.js).
 const BACKEND_PINNED = [
