@@ -4545,7 +4545,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/nowpayments/security'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -4786,6 +4786,16 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(getPaymentConfigStatus()));
   }
 
+  if (urlPath === '/api/payment/innovation' || urlPath === '/api/payment/pios') {
+    try {
+      const pios = require('./commerce/payment-innovation-os');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(pios.getTelemetrySnapshot()));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'payment_innovation_unavailable', detail: String(e && e.message || e).slice(0, 120) }));
+    }
+  }
   if (urlPath === '/api/payment/methods') {
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(getPublicPaymentMethods()));

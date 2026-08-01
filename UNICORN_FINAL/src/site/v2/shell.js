@@ -1757,8 +1757,8 @@ function pageCheckout(params) {
   // as the primary CTA. The manual form remains as a secondary path.
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
-    <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. Keep this window open: ZeusAI watches settlement and unlocks delivery/license credentials automatically.</p>
+    <div><span class="kicker">Checkout promise</span><h2>Pay with Bitcoin, PayPal, or card/crypto. <span class="grad">Activation is automatic.</span></h2></div>
+    <p>Every payment generates an Ed25519‑signed receipt. Pick one rail — ZeusAI watches settlement and unlocks delivery automatically. Bitcoin is primary (10% discount when quoted).</p>
   </div>
   <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(34,197,94,.08));border:1px solid rgba(247,147,26,.35)">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1773,7 +1773,7 @@ function pageCheckout(params) {
       <button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>
       <button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>
     </div>
-    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount). Tap a button — PayPal and card/crypto open when armed.</p>
+    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount when available). PayPal and card/crypto open when armed — your last choice is remembered on this device.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
@@ -6095,7 +6095,7 @@ function pageOrderPassport(id) {
   return `<section style="padding-top:140px;max-width:920px" id="orderPassport" data-order-id="${_esc(safeId)}">
   <span class="kicker">Digital Order · Passport</span>
   <h1 style="font-size:clamp(30px,3.6vw,44px);margin:10px 0 8px">Order <code style="font-family:var(--mono);font-size:.85em">${_esc(safeId)}</code></h1>
-  <p style="color:var(--ink-dim);max-width:640px">Every ZeusAI digital order gets a signed passport: settlement proof, delivery credentials, entitlement verification. Nothing is marked as delivered before on-chain confirmation.</p>
+  <p style="color:var(--ink-dim);max-width:640px">Every ZeusAI digital order gets a signed passport: settlement proof, delivery credentials, entitlement verification. Delivery unlocks after Bitcoin confirmations or PayPal/NOWPayments settle.</p>
   <div class="grid op-grid-ssr phone-stack" style="grid-template-columns:1.2fr 1fr;gap:20px;margin-top:26px">
     <div class="card" style="padding:22px">
       <span class="tag" id="opStateTag" style="background:rgba(138,92,255,.14)">Loading…</span>
@@ -6103,18 +6103,20 @@ function pageOrderPassport(id) {
       <p style="color:var(--ink-dim);font-size:14px" id="opSummary">Reading the live receipt ledger…</p>
       <ol class="op-timeline" id="opTimeline" style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
         <li data-op-step="created" data-active="1" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:var(--violet2);flex:none;margin-top:4px"></span><div><b style="display:block">Order created</b><span style="color:var(--ink-dim);font-size:13px" id="opCreatedAt">—</span></div></li>
-        <li data-op-step="pending" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Awaiting BTC payment</b><span style="color:var(--ink-dim);font-size:13px" id="opPaymentHint">Send exact amount to the address on the right.</span></div></li>
-        <li data-op-step="paid" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Payment confirmed on-chain</b><span style="color:var(--ink-dim);font-size:13px" id="opPaidAt">—</span></div></li>
+        <li data-op-step="pending" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block" id="opPendingTitle">Awaiting payment</b><span style="color:var(--ink-dim);font-size:13px" id="opPaymentHint">Open the invoice and choose Bitcoin, PayPal, or card/crypto.</span></div></li>
+        <li data-op-step="paid" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block" id="opPaidTitle">Payment confirmed</b><span style="color:var(--ink-dim);font-size:13px" id="opPaidAt">—</span></div></li>
         <li data-op-step="activated" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Delivery pack issued</b><span style="color:var(--ink-dim);font-size:13px" id="opDeliveredAt">—</span></div></li>
       </ol>
     </div>
     <aside class="co-box" style="padding:22px">
       <span class="kicker">Payment</span>
-      <h3 style="margin:6px 0 10px;font-size:18px">₿ Bitcoin</h3>
-      <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Send the exact BTC amount below to activate. Payment is verified against mempool.space; nothing is marked paid without an on-chain confirmation.</p>
+      <h3 style="margin:6px 0 10px;font-size:18px" id="opPayTitle">Multi-rail invoice</h3>
+      <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px" id="opPayCopy">Bitcoin is always available. PayPal / card-crypto appear when armed on the live invoice.</p>
       <div id="opBtcAmount" style="font-family:var(--mono);font-size:18px;color:var(--gold);margin-bottom:8px">—</div>
       <div class="btc-addr" id="opBtcAddr" data-copy="${_esc(OWNER.btc)}" title="Click to copy">${_esc(OWNER.btc)}</div>
-      <a class="btn btn-primary" id="opBtcWallet" href="#" style="margin-top:12px;width:100%;justify-content:center">Open in BTC wallet</a>
+      <a class="btn btn-primary" id="opBtcWallet" href="#" style="margin-top:12px;width:100%;justify-content:center">Open invoice / wallet</a>
+      <a class="btn btn-ghost" id="opAltPaypal" href="#" style="margin-top:8px;width:100%;justify-content:center;display:none">Pay with PayPal</a>
+      <a class="btn btn-ghost" id="opAltNow" href="#" style="margin-top:8px;width:100%;justify-content:center;display:none">Pay with card / crypto</a>
       <p style="color:var(--ink-dim);font-size:12px;margin:12px 0 0">Owner: ${_esc(OWNER.name)}</p>
     </aside>
   </div>
@@ -6134,6 +6136,13 @@ function pageOrderPassport(id) {
     var btcAmount = document.getElementById('opBtcAmount');
     var btcAddr = document.getElementById('opBtcAddr');
     var btcWallet = document.getElementById('opBtcWallet');
+    var altPp = document.getElementById('opAltPaypal');
+    var altNow = document.getElementById('opAltNow');
+    var payTitle = document.getElementById('opPayTitle');
+    var payCopy = document.getElementById('opPayCopy');
+    var pendingTitle = document.getElementById('opPendingTitle');
+    var paidTitle = document.getElementById('opPaidTitle');
+    var paymentHint = document.getElementById('opPaymentHint');
     var createdAtEl = document.getElementById('opCreatedAt');
     var paidAtEl = document.getElementById('opPaidAt');
     var deliveredAtEl = document.getElementById('opDeliveredAt');
@@ -6147,6 +6156,13 @@ function pageOrderPassport(id) {
       if (dot) dot.style.background = active ? 'var(--violet2)' : 'rgba(138,92,255,.25)';
     }
     function fmt(ts){ try { return new Date(ts).toLocaleString(); } catch(_) { return String(ts||'—'); } }
+    function viaLabel(v){
+      v=String(v||'').toLowerCase();
+      if(v==='paypal') return 'PayPal';
+      if(v==='nowpayments'||v==='now') return 'Card / crypto';
+      if(v==='btc'||v==='bitcoin') return 'Bitcoin';
+      return v || 'payment';
+    }
     async function tick(){
       try {
         var r = await fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/status', {cache:'no-store'});
@@ -6164,26 +6180,49 @@ function pageOrderPassport(id) {
         var status = String(j.status || j.state || 'pending').toLowerCase();
         if (stateTag) stateTag.textContent = status;
         if (title) title.textContent = 'Status: ' + status.replace(/_/g, ' ');
-        if (summary) summary.textContent = j.summary || j.message || 'Live status refreshed every 8 seconds.';
-        if (createdAtEl) createdAtEl.textContent = j.createdAt ? fmt(j.createdAt) : '—';
-        var pi = j.paymentInstructions || j.payment || {};
-        var amt = pi.btcAmount || j.btcAmount || pi.amount || null;
-        var addr = pi.btcAddress || j.btcAddress || pi.address || ${JSON.stringify(OWNER.btc)};
-        var uri = pi.btcUri || j.btcUri || (addr && amt ? ('bitcoin:'+addr+'?amount='+amt) : null);
-        if (btcAmount) btcAmount.textContent = amt ? (amt + ' BTC') : '—';
+        var via = j.paid_via || (j.rails && j.selectedRail) || null;
+        if (summary) {
+          if (j.rails && j.rails.nowpayments && j.rails.nowpayments.partialPaid) {
+            summary.textContent = j.rails.nowpayments.honesty || 'Partial card/crypto payment seen — waiting for full confirmation.';
+          } else {
+            summary.textContent = j.summary || j.message || ('Live status · ' + (via ? ('rail ' + viaLabel(via)) : 'multi-rail') + ' · refresh every 8s');
+          }
+        }
+        if (createdAtEl) createdAtEl.textContent = j.createdAt || j.created_at ? fmt(j.createdAt || j.created_at) : '—';
+        var amt = j.amount_btc || (j.paymentInstructions && j.paymentInstructions.btcAmount) || j.btcAmount || null;
+        var addr = j.receive_address || (j.paymentInstructions && j.paymentInstructions.btcAddress) || j.btcAddress || ${JSON.stringify(OWNER.btc)};
+        var uri = j.bip21 || (j.paymentInstructions && j.paymentInstructions.btcUri) || (addr && amt ? ('bitcoin:'+addr+'?amount='+amt) : null);
+        if (btcAmount) btcAmount.textContent = amt ? (amt + ' BTC') : (j.subtotal_fiat != null ? ('$'+Number(j.subtotal_fiat).toFixed(2)) : '—');
         if (btcAddr) { btcAddr.textContent = addr; btcAddr.dataset.copy = addr; }
         if (btcWallet) {
-          if (uri) { btcWallet.href = uri; btcWallet.style.opacity='1'; btcWallet.style.pointerEvents='auto'; }
-          else { btcWallet.href = '#'; btcWallet.style.opacity='.5'; btcWallet.style.pointerEvents='none'; }
+          var inv = j.checkout_url || ('/checkout/'+encodeURIComponent(ORDER_ID));
+          btcWallet.href = uri || inv;
+          btcWallet.textContent = uri ? 'Open in BTC wallet' : 'Open invoice';
+          btcWallet.style.opacity='1'; btcWallet.style.pointerEvents='auto';
         }
+        if (altPp) {
+          var pp = j.rails && j.rails.paypal && j.rails.paypal.approveHref;
+          if (pp) { altPp.href = pp; altPp.style.display = ''; } else { altPp.style.display = 'none'; }
+        }
+        if (altNow) {
+          var np = j.rails && j.rails.nowpayments && j.rails.nowpayments.invoiceUrl;
+          if (np) { altNow.href = np; altNow.style.display = ''; } else { altNow.style.display = 'none'; }
+        }
+        if (payTitle) payTitle.textContent = status === 'paid' ? ('Paid via ' + viaLabel(j.paid_via || 'btc')) : 'Multi-rail invoice';
+        if (payCopy) payCopy.textContent = status === 'paid'
+          ? 'Settlement recorded. Delivery unlocks automatically.'
+          : 'Bitcoin is always available. PayPal / card-crypto links appear after you start those rails on the invoice.';
+        if (pendingTitle) pendingTitle.textContent = (j.rails && j.rails.nowpayments && j.rails.nowpayments.partialPaid) ? 'Partial payment seen' : 'Awaiting payment';
+        if (paymentHint) paymentHint.textContent = (j.doublePayWarning) || 'Open the invoice and choose Bitcoin, PayPal, or card/crypto.';
         markStep('pending', ['pending','awaiting_payment','created','new'].includes(status));
         if (['paid','confirmed','activated','delivered','completed'].includes(status)) {
           markStep('paid', true);
-          if (paidAtEl) paidAtEl.textContent = j.paidAt ? fmt(j.paidAt) : (j.confirmedAt ? fmt(j.confirmedAt) : 'confirmed on-chain');
+          if (paidTitle) paidTitle.textContent = 'Payment confirmed · ' + viaLabel(j.paid_via || 'btc');
+          if (paidAtEl) paidAtEl.textContent = j.paid_at || j.paidAt ? fmt(j.paid_at || j.paidAt) : (j.confirmedAt ? fmt(j.confirmedAt) : 'confirmed');
         }
-        if (['activated','delivered','completed'].includes(status)) {
+        if (['activated','delivered','completed'].includes(status) || (status === 'paid' && j.entitlement_id)) {
           markStep('activated', true);
-          if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'delivered';
+          if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'ready';
           if (deliveryCard) { deliveryCard.hidden = false; }
           if (deliveryLinks) {
             var qs = new URLSearchParams(window.location.search || '');
