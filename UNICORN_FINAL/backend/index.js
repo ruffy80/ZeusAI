@@ -8213,6 +8213,15 @@ app.get('/api/billion-scale/marketplace-economics', (req, res) => {
   res.json(billionScaleRevenueEngine.marketplaceEconomics(req.query || {}));
 });
 
+app.get(['/api/billion-scale/profit-path', '/api/profit-path/status'], (req, res) => {
+  try {
+    const bppos = require('../src/commerce/billion-profit-path-os');
+    res.json(bppos.assessPaths({}));
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'profit_path_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
 app.post('/api/billion-scale/deal-desk/proposal', (req, res) => {
   res.json(billionScaleRevenueEngine.dealDeskProposal(req.body || {}, { btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
 });

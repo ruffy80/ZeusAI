@@ -335,7 +335,7 @@ class AutoPublisher {
   }
 
   list(opts) {
-    const { sort = 'profit', category, limit = 60, search, includeHidden } = opts || {};
+    const { sort = 'profit', category, limit = 60, search, includeHidden, includeLuxuryPreview } = opts || {};
     let items = this.published.slice();
     // Autonomous Shelf Protocol: soft-hidden SKUs stay in memory but leave the
     // public storefront unless an operator explicitly asks for them.
@@ -343,6 +343,20 @@ class AutoPublisher {
     // Restamp honesty badges on every list so pre-upgrade SKUs never claim
     // AUTO-SHIP without a real CJ vid.
     for (const p of items) this._ensureHonesty(p);
+    // Billion Profit Path — hide absurd non-dispatchable luxury previews
+    // (Rolex/cars/etc.) from the default public shelf. They remain fetchable
+    // via includeLuxuryPreview=1 for operators; they are never buyable.
+    if (!includeLuxuryPreview && process.env.DROPSHIP_SHOW_LUXURY_PREVIEW !== '1') {
+      const LUXRE = /\b(rolex|ferrari|lamborghini|yacht|private\s*jet|mansion|durango|cellini)\b/i;
+      items = items.filter((p) => {
+        if (p && p.dispatchable === true) return true;
+        const price = Number(p && p.priceUsd) || 0;
+        if (price >= 2500) return false;
+        const title = String((p && (p.title || p.name)) || '');
+        if (LUXRE.test(title) || LUXRE.test(String(p && p.id || ''))) return false;
+        return true;
+      });
+    }
     if (category) items = items.filter(p => p.category === category);
     if (search) {
       const q = String(search).toLowerCase();

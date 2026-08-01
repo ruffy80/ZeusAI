@@ -2375,7 +2375,7 @@ function buildInnovationCoverage() {
     { id: 'autonomous-money-machine', title: 'Autonomous Money Machine: Revenue Commander + Offer Factory + Conversion + Recovery + SDR + SEO + Success', status: 'live-100-api', evidence: ['/api/money-machine/status', '/api/revenue/commander', '/api/offers/factory', '/api/conversion/intelligence', '/api/checkout/recovery/status', '/api/sales/sdr/lead', '/api/seo/programmatic/status', '/api/customer-success/status'], userAction: 'none for foundation; connect paid outbound channels only after owner approval and budget limits' },
     { id: 'unicorn-commerce-connector', title: 'Unicorn Commerce Connector: Module Registry → Catalog → BTC Checkout → Delivery', status: 'live-100-api', evidence: ['/api/unicorn-commerce/status', '/api/unicorn-commerce/catalog', '/api/catalog/master', '/api/checkout/btc', '/api/delivery/{receiptId}'], userAction: 'none; every current/future module becomes a BTC-sellable service manifest automatically' },
     { id: 'future-invention-foundry', title: 'Future Invention Foundry: Not-Yet-Invented Service Primitives', status: 'live-rd-foundation', evidence: ['/api/unicorn-commerce/future-primitives', '/api/unicorn-commerce/catalog'], userAction: 'none; speculative primitives are sold as labeled R&D foundations with owner payout guardrails' },
-    { id: 'billion-scale-revenue-foundation', title: 'Billion-Scale Revenue Foundation: Packages + Deal Desk + KPI + Marketplace Economics', status: 'live-foundation-api', evidence: ['/api/billion-scale/status', '/api/billion-scale/packages', '/api/billion-scale/owner-dashboard', '/api/billion-scale/marketplace-economics', '/api/billion-scale/deal-desk/proposal'], userAction: 'requires real customers, distribution, proof and delivery; infrastructure is live' },
+    { id: 'billion-scale-revenue-foundation', title: 'Billion-Scale Revenue Foundation: Packages + Deal Desk + KPI + Marketplace Economics + Profit Path OS', status: 'live-foundation-api', evidence: ['/api/billion-scale/status', '/api/billion-scale/packages', '/api/billion-scale/owner-dashboard', '/api/billion-scale/marketplace-economics', '/api/billion-scale/profit-path', '/api/billion-scale/deal-desk/proposal'], userAction: 'requires real customers, distribution, proof and delivery; infrastructure is live — default economics never invent GMV' },
     { id: 'billion-scale-activation-orchestrator', title: 'Billion-Scale Activation Orchestrator: Existing Module Graph + Missing Control Modules', status: 'live-activation-api', evidence: ['/api/billion-scale/activation/status', '/api/billion-scale/activation/modules', '/api/billion-scale/activation/run', '/api/catalog/master'], userAction: 'none for activation graph; customer acquisition and delivery proof remain real-world execution' },
   ];
   const counts = items.reduce((acc, item) => {
@@ -7480,15 +7480,62 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   if (urlPath === '/api/billion-scale/owner-dashboard' || urlPath === '/api/billion-scale/dashboard') {
     const cat = await buildMasterCatalog();
     const sources = getRuntimeDataSources();
-    const payload = billionScaleRevenueEngine.ownerRevenueDashboard({ btcWallet: BTC_WALLET, catalogCount: cat.counts.total, registryCount: sources.moduleRegistry?.total || getSiteFallbackModuleRegistry().total });
+    let observedGmvUsd = 0;
+    let observedPaidOrders = 0;
+    try {
+      const ord = require('./site/sovereign-commerce');
+      if (ord && ord.ORDERS) {
+        for (const o of ord.ORDERS.values()) {
+          if (o && o.status === 'paid') {
+            observedPaidOrders += 1;
+            observedGmvUsd += Number(o.subtotal_fiat || o.amount_usd || 0) || 0;
+          }
+        }
+      }
+    } catch (_) { /* observed best-effort */ }
+    const payload = billionScaleRevenueEngine.ownerRevenueDashboard({
+      btcWallet: BTC_WALLET,
+      catalogCount: cat.counts.total,
+      registryCount: sources.moduleRegistry?.total || getSiteFallbackModuleRegistry().total,
+      observedGmvUsd: Math.round(observedGmvUsd * 100) / 100,
+      observedPaidOrders,
+    });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(payload));
   }
 
   if (urlPath === '/api/billion-scale/marketplace-economics') {
     const payload = billionScaleRevenueEngine.marketplaceEconomics(Object.fromEntries(requestUrl.searchParams.entries()));
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control': payload.scenario ? 'public, max-age=60' : 'no-store' });
     return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/billion-scale/profit-path' || urlPath === '/api/profit-path/status') {
+    try {
+      const bppos = require('./commerce/billion-profit-path-os');
+      let observedGmvUsd = 0;
+      let observedPaidOrders = 0;
+      try {
+        const ord = require('./site/sovereign-commerce');
+        if (ord && ord.ORDERS) {
+          for (const o of ord.ORDERS.values()) {
+            if (o && o.status === 'paid') {
+              observedPaidOrders += 1;
+              observedGmvUsd += Number(o.subtotal_fiat || o.amount_usd || 0) || 0;
+            }
+          }
+        }
+      } catch (_) { /* best-effort */ }
+      const payload = bppos.assessPaths({
+        observedGmvUsd: Math.round(observedGmvUsd * 100) / 100,
+        observedPaidOrders,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'profit_path_unavailable', detail: String(e && e.message || e).slice(0, 160) }));
+    }
   }
 
   if (urlPath === '/api/billion-scale/deal-desk/proposal' && req.method === 'POST') {

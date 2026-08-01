@@ -353,13 +353,29 @@ async function runTests() {
     assert.ok(r.body.kpisNeeded.includes('ARR'));
   });
 
-  await test('GET /api/billion-scale/marketplace-economics → billion take-rate model', async () => {
-    const r = await apiRequest('GET', '/api/billion-scale/marketplace-economics');
+  await test('GET /api/billion-scale/marketplace-economics → honest default + scenario model', async () => {
+    const observed = await apiRequest('GET', '/api/billion-scale/marketplace-economics');
+    assert.equal(observed.status, 200);
+    assert.equal(observed.body.ok, true);
+    assert.equal(observed.body.scenario, false);
+    assert.ok(Number(observed.body.annualRevenueUsd || 0) === 0);
+    assert.ok(/never invents GMV/i.test(String(observed.body.honesty || '')));
+
+    const r = await apiRequest('GET', '/api/billion-scale/marketplace-economics?scenario=1&gmvUsd=5000000000&takeRate=0.2');
     assert.equal(r.status, 200);
     assert.equal(r.body.ok, true);
-    assert.equal(r.body.model, 'marketplace-gmv-take-rate');
+    assert.equal(r.body.scenario, true);
     assert.ok(r.body.annualRevenueUsd >= 1000000000);
-    assert.equal(r.body.pathToBillionUsd, 'achieved-at-this-scale');
+    assert.ok(/scenario_achieved/i.test(String(r.body.pathToBillionUsd || '')));
+  });
+
+  await test('GET /api/billion-scale/profit-path → readiness map', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/profit-path');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.protocol, 'BPPOS/1.0');
+    assert.ok(Array.isArray(r.body.paths) && r.body.paths.length >= 5);
+    assert.ok(r.body.summary && r.body.summary.criticalBlockers);
   });
 
   await test('POST /api/billion-scale/deal-desk/proposal → enterprise BTC proposal', async () => {
