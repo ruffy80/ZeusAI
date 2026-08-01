@@ -1385,7 +1385,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note" id="emailSaveMsg" style="margin-top:8px">You can pay first — email can be added any time before delivery.</p>
 </div>` : ''}
 
-<div class="card">
+<div class="card" id="btcPayCard">
   <div class="qr"><img id="btcQrImg" alt="BIP-21 QR" src="/checkout/${orderId}/qr.svg" loading="eager"
     onerror="this.onerror=null;this.src='/api/qr?d='+encodeURIComponent('${bip21Js}');"></div>
   <canvas id="btcQrCanvas" width="280" height="280" style="display:none;margin:0 auto"></canvas>
@@ -1434,9 +1434,20 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
 </div>
 
+<div class="card" id="paypalFailBanner" style="display:none;border-color:#5c4316;background:#2a210b">
+  <p style="margin:0 0 8px;color:#ffdf9d"><b id="paypalFailTitle">PayPal did not complete</b></p>
+  <p class="note" id="paypalFailBody" style="color:#ffdf9d;margin:0 0 12px">Your order is still pending — nothing was charged. Continue with Bitcoin or card/crypto below, or retry PayPal with a buyer account (not the ZeusAI merchant login).</p>
+  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap">
+    <a class="cta" href="#btcPayCard" id="paypalFailBtc" style="background:#f7931a;color:#05040a">Pay with Bitcoin →</a>
+    <button type="button" class="cta" id="paypalFailNow" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto →</button>
+    <button type="button" class="cta" id="paypalFailRetry" style="background:#0070ba;color:#fff">Retry PayPal (buyer account)</button>
+  </p>
+</div>
+
 <div class="card" id="altRailsCard">
   <p style="margin:0 0 10px"><b>Pay another way</b> <span class="k">(same order · Bitcoin stays available)</span></p>
   <p class="note" id="doublePayWarn" style="display:none;color:var(--warn);margin:0 0 10px">You started an alternate rail — do not also send BTC unless that rail fails.</p>
+  <p class="note" id="paypalBuyerHint" style="margin:0 0 10px">PayPal tip: use a <b>buyer</b> account or guest checkout. Paying while logged into the ZeusAI merchant PayPal account is blocked by PayPal.</p>
   <p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">
     <button type="button" class="cta" id="payPaypalBtn" style="background:#0070ba;color:#fff">Pay with PayPal</button>
     <button type="button" class="cta" id="payNowBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
@@ -1523,6 +1534,15 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   poll();
   function setAltMsg(t){var el=document.getElementById('altRailsMsg');if(el)el.textContent=t;}
   function showDoublePay(){var w=document.getElementById('doublePayWarn');if(w)w.style.display='block';}
+  function showPaypalFail(title, body){
+    var ban=document.getElementById('paypalFailBanner');
+    var t=document.getElementById('paypalFailTitle');
+    var b=document.getElementById('paypalFailBody');
+    if(t&&title) t.textContent=title;
+    if(b&&body) b.textContent=body;
+    if(ban){ ban.style.display='block'; try{ ban.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}}
+    showDoublePay();
+  }
   function paintPayPack(pack){
     var host=document.getElementById('payPackLinks'); if(!host||!pack||!pack.rails) return;
     var bits=[];
@@ -1531,8 +1551,7 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
     if(pack.rails.nowpayments&&pack.rails.nowpayments.invoiceUrl) bits.push('<div><a href="'+pack.rails.nowpayments.invoiceUrl+'">Open card/crypto invoice →</a></div>');
     host.innerHTML=bits.join('')||'No alternate rails armed yet.';
   }
-  var payPaypalBtn=document.getElementById('payPaypalBtn');
-  if(payPaypalBtn){payPaypalBtn.addEventListener('click',function(){
+  function startPaypal(){
     setAltMsg('Creating PayPal order…');
     fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/paypal/create',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -1540,14 +1559,29 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
     }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
       if(!res.ok || !(res.j&&res.j.approveHref)){
         var fo=res.j&&res.j.failover;
-        setAltMsg((fo&&fo.message)||(res.j&&(res.j.detail||res.j.error))||'PayPal unavailable — use Bitcoin above');
+        showPaypalFail('PayPal unavailable', (fo&&fo.message)||(res.j&&(res.j.detail||res.j.error))||'PayPal unavailable — use Bitcoin or card/crypto below.');
+        setAltMsg((fo&&fo.message)||'PayPal unavailable — use Bitcoin above');
         return;
       }
       showDoublePay();
-      setAltMsg('Redirecting to PayPal…');
-      window.location.href = res.j.approveHref;
-    }).catch(function(e){ setAltMsg('PayPal error: '+(e&&e.message||e)+' — Bitcoin invoice still works'); });
-  });}
+      setAltMsg((res.j.buyerHint||'Use a buyer PayPal account / guest checkout')+' · Redirecting…');
+      // Open PayPal in a new tab when possible so a sticky merchant session is easier to escape.
+      try {
+        var w=window.open(res.j.approveHref,'_blank','noopener,noreferrer');
+        if(!w){ window.location.href = res.j.approveHref; }
+        else { setAltMsg('PayPal opened in a new tab. If PayPal says you are the seller, log out there or use Bitcoin / card-crypto here.'); }
+      } catch(_){ window.location.href = res.j.approveHref; }
+    }).catch(function(e){
+      showPaypalFail('PayPal error', String(e&&e.message||e)+' — Bitcoin invoice still works.');
+      setAltMsg('PayPal error: '+(e&&e.message||e)+' — Bitcoin invoice still works');
+    });
+  }
+  var payPaypalBtn=document.getElementById('payPaypalBtn');
+  if(payPaypalBtn){payPaypalBtn.addEventListener('click',function(){ startPaypal(); });}
+  var paypalFailRetry=document.getElementById('paypalFailRetry');
+  if(paypalFailRetry){paypalFailRetry.addEventListener('click',function(){ startPaypal(); });}
+  var paypalFailNow=document.getElementById('paypalFailNow');
+  if(paypalFailNow){paypalFailNow.addEventListener('click',function(){ var b=document.getElementById('payNowBtn'); if(b) b.click(); });}
   var payNowBtn=document.getElementById('payNowBtn');
   if(payNowBtn){payNowBtn.addEventListener('click',function(){
     setAltMsg('Creating NOWPayments invoice…');
@@ -1579,18 +1613,33 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   });}
   try {
     var qs = new URLSearchParams(window.location.search||'');
-    if(qs.get('paypal')==='return'){
+    var paypalState = String(qs.get('paypal')||'').toLowerCase();
+    if(paypalState==='return'){
       var token = qs.get('token') || qs.get('PayerID') || '';
       setAltMsg('Capturing PayPal payment…');
       fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/paypal/capture',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ access_token: TOK, paypalOrderId: token || undefined })
-      }).then(function(r){return r.json();}).then(function(j){
-        if(j&&j.ok){ setAltMsg('PayPal payment captured — activating…'); poll(); }
-        else setAltMsg((j&&(j.detail||j.error))||'PayPal capture pending — webhook will settle shortly.');
-      }).catch(function(){ setAltMsg('PayPal capture pending — keep this page open.'); });
+      }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
+        if(res.j&&res.j.ok){ setAltMsg('PayPal payment captured — activating…'); poll(); return; }
+        var detail=(res.j&&(res.j.buyerMessage||res.j.detail||res.j.error))||'No PayPal payment was captured.';
+        var fo=res.j&&res.j.failover;
+        showPaypalFail('PayPal did not capture', (fo&&fo.message)||detail+' Continue with Bitcoin or card/crypto — order stays pending until a rail settles.');
+        setAltMsg(detail);
+      }).catch(function(){
+        showPaypalFail('PayPal capture pending', 'No payment confirmed yet. Keep this page open, or pay with Bitcoin / card-crypto below.');
+        setAltMsg('PayPal capture pending — keep this page open.');
+      });
+    } else if(paypalState==='cancel'){
+      showPaypalFail(
+        'PayPal cancelled or blocked',
+        'Nothing was charged. If PayPal said you are logged into the seller account: log out of PayPal (or use a private window) and retry with a buyer account — or pay instantly with Bitcoin / card-crypto on this invoice.'
+      );
+      setAltMsg('PayPal cancelled — Bitcoin and card/crypto still work on this order.');
     } else if(qs.get('np')==='success'){
       setAltMsg('NOWPayments return received — waiting for IPN settle…');
+    } else if(qs.get('np')==='cancel'){
+      showPaypalFail('Card/crypto cancelled', 'Nothing was charged. Pay with Bitcoin above, or retry card/crypto.');
     }
   } catch(_){}
   var saveEmailBtn=document.getElementById('saveEmailBtn');
@@ -1942,8 +1991,26 @@ async function handle(req, res, ctx) {
       });
       return sendJson(res, settled.ok ? 200 : 409, settled), true;
     } catch (e) {
-      const code = /incomplete|not_configured|invalid_|mismatch|missing/.test(String(e && e.message || '')) ? 402 : 502;
-      return sendJson(res, code, { error: 'paypal_capture_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
+      const detail = String(e && e.message || e).slice(0, 200);
+      const code = /incomplete|not_configured|invalid_|mismatch|missing/.test(detail) ? 402 : 502;
+      let buyerMessage = null;
+      let failover = null;
+      try {
+        const alt = require('../commerce/alt-rails-os');
+        const classified = alt.classifyPaypalBuyerError && alt.classifyPaypalBuyerError(detail);
+        if (classified) buyerMessage = classified.message;
+      } catch (_) {}
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        failover = pios.failoverPlan('paypal');
+        if (!buyerMessage && failover) buyerMessage = failover.message;
+      } catch (_) {}
+      return sendJson(res, code, {
+        error: 'paypal_capture_failed',
+        detail,
+        buyerMessage: buyerMessage || 'No PayPal payment was captured. Your order is still pending — use Bitcoin or card/crypto on this invoice.',
+        failover,
+      }), true;
     }
   }
 

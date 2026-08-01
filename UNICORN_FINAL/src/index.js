@@ -2268,7 +2268,25 @@ function getPublicPaymentMethods() {
     methods.push({ id: 'stripe', name: 'Stripe', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'stripe' });
   }
   if (status.rails.some((rail) => rail.id === 'paypal' && rail.active && rail.settleReady)) {
-    methods.push({ id: 'paypal', name: 'PayPal', currency: 'USD', active: true, settleReady: true, primary: false, settlement: 'instant', provider: 'paypal' });
+    let paypalEnv = 'live';
+    try {
+      const alt = require('./commerce/alt-rails-os');
+      if (alt && typeof alt.paypalEnv === 'function') paypalEnv = alt.paypalEnv();
+    } catch (_) {
+      paypalEnv = String(process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || 'live').toLowerCase();
+    }
+    methods.push({
+      id: 'paypal',
+      name: paypalEnv === 'sandbox' ? 'PayPal (sandbox)' : 'PayPal',
+      currency: 'USD',
+      active: true,
+      settleReady: true,
+      primary: false,
+      settlement: 'instant',
+      provider: 'paypal',
+      env: paypalEnv,
+      buyerHint: 'Use a buyer PayPal account or guest checkout — not the ZeusAI merchant login.',
+    });
   }
   if (status.rails.some((rail) => rail.id === 'nowpayments' && rail.active && rail.settleReady)) {
     methods.push({ id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: true, settleReady: true, primary: false, settlement: 'instant', provider: 'nowpayments' });
