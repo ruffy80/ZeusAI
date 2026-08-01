@@ -171,7 +171,15 @@ check('BTC perfection guards are present in sovereign commerce and site routes',
   assert.ok(sovSrc.includes('late_payment_expired'), 'late expired BTC payments must be recorded');
   assert.ok(sovSrc.includes("kind: 'payment_amount_mismatch'"), 'underpay/overpay mismatches must be classified');
   assert.ok(sovSrc.includes('priceUnavailableForNewInvoices'), 'new invoices must fail closed on static fallback price');
-  assert.ok(sovSrc.includes("'/api/checkout/' +") || sovSrc.includes('/api/checkout/${orderId}/qr.svg'), 'checkout must use local QR route');
+  // Preferred durable QR: /checkout/:id/qr.svg (nginx ^~ /checkout/ → site).
+  // Legacy /api/checkout/:id/qr.svg remains as a fallback pin (^~ /api/checkout/ord_).
+  assert.ok(
+    sovSrc.includes('/checkout/${orderId}/qr.svg')
+      || sovSrc.includes("'/checkout/' +")
+      || sovSrc.includes('/api/checkout/${orderId}/qr.svg')
+      || sovSrc.includes("'/api/checkout/' +"),
+    'checkout must use first-party site QR route (/checkout/:id/qr.svg)'
+  );
   assert.ok(siteSrc.includes('ALLOW_OPEN_PAYMENT_CONFIRM'), 'loopback payment confirm must be gated');
   assert.ok(siteSrc.includes('txid_required_for_btc_confirm'), 'trusted BTC confirm must require txid');
   assert.ok(siteSrc.includes('verifyDeliveryAccess'), 'delivery route must require access token');
