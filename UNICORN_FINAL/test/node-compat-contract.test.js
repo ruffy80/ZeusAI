@@ -101,5 +101,21 @@ check('Compat Truth Preflight is wired (CTOS forever — no fake Node ABI reds)'
     'CTOS must emit GitHub Actions error annotations with class labels');
 });
 
+check('CTOS/1.1 instant autofix + GitHub repair workflow are forever-wired', () => {
+  const preflight = fs.readFileSync(path.join(ROOT, 'scripts/compat-truth-preflight.js'), 'utf8');
+  assert.ok(preflight.includes('CTOS/1.1'));
+  assert.ok(preflight.includes('compat-truth-autofix.js'),
+    'preflight must invoke instant autofix on SITE_CTA_REGRESSION');
+  assert.ok(fs.existsSync(path.join(ROOT, 'scripts/compat-truth-autofix.js')));
+  assert.ok(pkg.scripts && pkg.scripts['compat-truth:fix'],
+    'package.json must expose npm run compat-truth:fix');
+  const autofixWf = path.join(REPO, '.github/workflows/compat-truth-autofix.yml');
+  assert.ok(fs.existsSync(autofixWf), 'compat-truth-autofix.yml must exist');
+  const aw = fs.readFileSync(autofixWf, 'utf8');
+  assert.ok(aw.includes('workflow_run'), 'autofix must trigger on matrix completion');
+  assert.ok(aw.includes('Node Compatibility Matrix'));
+  assert.ok(aw.includes('compat-truth-autofix.js'));
+});
+
 console.log('node-compat-contract.test.js: ' + passed + ' passed · node=' + process.versions.node);
 process.exit(0);
