@@ -7353,6 +7353,49 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   // (Model Context Protocol) that sovereign-extensions.js already serves.
   // No PII, no secrets — just public discovery pointing at endpoints that
   // already exist (/openapi.json, /api/agent/*, /api/commerce/protocol).
+  // Public platform discovery document (agents + humans + crawlers).
+  // Must never 404/403 behind nginx — companion to /agents.json.
+  if (urlPath === '/.well-known/zeusai.json') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    return res.end(JSON.stringify({
+      version: '1.0',
+      name: 'ZeusAI Unicorn Platform',
+      owner: OWNER_NAME,
+      contact: process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || undefined,
+      site: APP_URL,
+      endpoints: {
+        api: APP_URL.replace(/\/$/, '') + '/api',
+        health: APP_URL.replace(/\/$/, '') + '/health',
+        catalog: APP_URL.replace(/\/$/, '') + '/api/catalog',
+        openapi: APP_URL.replace(/\/$/, '') + '/openapi.json',
+        did: '/.well-known/did.json',
+        integrity: '/.well-known/unicorn-integrity.json',
+        security: '/.well-known/security.txt',
+        agents: '/agents.json',
+        pomx: '/.well-known/pomx.json',
+        exchange: '/api/pomx/exchange',
+      },
+      capabilities: [
+        'autonomous-commerce',
+        'proof-of-margin-exchange',
+        'viral-engine',
+        'payment-orchestration',
+        'carbon-accounting',
+        'quantum-security',
+        'signed-receipts',
+      ],
+      discovery: [
+        '/.well-known/did.json',
+        '/.well-known/ai-attestation',
+        '/.well-known/unicorn-integrity.json',
+        '/.well-known/pomx.json',
+        '/agents.json',
+        '/openapi.json',
+      ],
+      generatedAt: new Date().toISOString(),
+    }));
+  }
+
   if (urlPath === '/agents.json' || urlPath === '/.well-known/agents.json') {
     res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'public, max-age=3600' });
     return res.end(JSON.stringify({

@@ -120,6 +120,23 @@ check('generic /api/ → unicorn_backend', () => {
     'generic /api/ must proxy_pass to unicorn_backend');
 });
 
+// /.well-known catch-all must proxy (never alias /root — www-data 403).
+check('^~ /.well-known/ → unicorn_site (no /root alias)', () => {
+  const body = locationBlock('/.well-known/');
+  assert.ok(body, 'expected ^~ /.well-known/ catch-all');
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(body),
+    '/.well-known/ must proxy_pass unicorn_site');
+  assert.ok(!/alias\s+\/root\//.test(body),
+    '/.well-known/ must never alias /root (Permission denied for www-data)');
+  assert.ok(!/unicorn_temp/.test(body),
+    '/.well-known/ must not depend on /root/.unicorn_temp');
+});
+
+check('heal-nginx-wellknown-root-alias.py exists for live self-heal', () => {
+  const heal = path.join(__dirname, '..', 'scripts', 'heal-nginx-wellknown-root-alias.py');
+  assert.ok(fs.existsSync(heal), 'missing heal-nginx-wellknown-root-alias.py');
+});
+
 if (failed > 0) {
   console.error('nginx-contract-guard.test.js: ' + failed + ' assertion(s) failed.');
   process.exit(1);
