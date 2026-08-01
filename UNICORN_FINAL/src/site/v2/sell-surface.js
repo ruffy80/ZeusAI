@@ -61,7 +61,7 @@ function _loadBuyable() {
       ctaLabel,
       ctaHref: buyable
         ? ('/checkout/?plan=' + encodeURIComponent(p.id))
-        : (mode === 'contact' ? '/contact' : '/services'),
+        : (mode === 'contact' ? '/enterprise#enterprise-contact' : '/services'),
     });
   }
   return out;

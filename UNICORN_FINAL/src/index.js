@@ -1609,6 +1609,7 @@ let uaic = null; try { uaic = require('./commerce/uaic'); } catch (e) { console.
 let USE = null; try { USE = require('./engine/universal-site-engine').create({ sources: null }); } catch (e) { console.warn('[USE] not loaded:', e.message); }
 let entCatalog = null; try { entCatalog = require('./commerce/enterprise-catalog'); } catch (e) { console.warn('[enterprise-catalog] not loaded:', e.message); }
 let negotiator = null; try { negotiator = require('./commerce/negotiation-engine'); } catch (e) { console.warn('[negotiation] not loaded:', e.message); }
+let aecos = null; try { aecos = require('./commerce/autonomous-enterprise-closure-os'); } catch (e) { console.warn('[aecos] not loaded:', e.message); }
 let outreach = null; try { outreach = require('./commerce/outreach-engine'); } catch (e) { console.warn('[outreach] not loaded:', e.message); }
 let vault = null; try { vault = require('./commerce/revenue-vault'); } catch (e) { console.warn('[vault] not loaded:', e.message); }
 let governance = null; try { governance = require('./commerce/governance'); } catch (e) { console.warn('[governance] not loaded:', e.message); }
@@ -8789,41 +8790,68 @@ setInterval(function(){loadOrder().then(render);},10000);
   }
 
   // ===================== ENTERPRISE (FAANG / hyperscaler) =====================
+  // AECOS enriches catalog/deals for clear UX + autonomous kickoff cash-close.
+  if (urlPath === '/api/enterprise/aecos' || urlPath === '/api/enterprise/closure') {
+    const status = aecos && typeof aecos.publicStatus === 'function'
+      ? aecos.publicStatus()
+      : { ok: false, error: 'aecos_offline' };
+    res.writeHead(status.ok === false ? 503 : 200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    return res.end(JSON.stringify(status));
+  }
   if (urlPath === '/api/enterprise/catalog') {
     if (!entCatalog) { res.writeHead(503, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'catalog_offline' })); }
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=120' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), summary: entCatalog.summarize(), products: entCatalog.publicView() }));
+    const payload = (aecos && typeof aecos.enrichCatalogResponse === 'function')
+      ? aecos.enrichCatalogResponse()
+      : { updatedAt: new Date().toISOString(), summary: entCatalog.summarize(), products: entCatalog.publicView() };
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
+    return res.end(JSON.stringify(payload));
   }
   if (urlPath.startsWith('/api/enterprise/product/')) {
     if (!entCatalog) { res.writeHead(503); return res.end('{}'); }
     const id = decodeURIComponent(urlPath.slice('/api/enterprise/product/'.length));
     const p = entCatalog.byId(id);
     if (!p) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
+    const out = (aecos && typeof aecos.enrichProductForUi === 'function') ? (aecos.enrichProductForUi(p) || p) : p;
     res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify(p));
+    return res.end(JSON.stringify(out));
   }
   if (urlPath === '/api/enterprise/deals') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
+    const raw = negotiator.listDeals() || [];
+    const deals = aecos && typeof aecos.enrichDealForUi === 'function'
+      ? raw.map((d) => aecos.enrichDealForUi(d)).filter(Boolean)
+      : raw;
+    const stats = aecos && typeof aecos.pipelineStats === 'function'
+      ? aecos.pipelineStats(raw)
+      : { bookedFmt: '$0', pipelineFmt: '$0', open: deals.length, winRate: 0 };
     res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify(negotiator.listDeals()));
+    return res.end(JSON.stringify({ ok: true, stats, deals }));
   }
   if (urlPath.startsWith('/api/enterprise/deal/') && req.method === 'GET') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     const id = decodeURIComponent(urlPath.slice('/api/enterprise/deal/'.length));
     const d = negotiator.getDeal(id);
     if (!d) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
+    const out = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(d) : d;
     res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify(d));
+    return res.end(JSON.stringify(out));
   }
   if (urlPath === '/api/enterprise/negotiate/start' && req.method === 'POST') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
     req.on('end', () => {
       try {
-        const p = JSON.parse(body||'{}');
+        const raw = JSON.parse(body||'{}');
+        const p = (aecos && typeof aecos.normalizeNegotiateStart === 'function')
+          ? aecos.normalizeNegotiateStart(raw)
+          : raw;
         const deal = negotiator.startDeal(p);
+        // Preserve SPA metadata on the deal object for UI enrich.
+        deal.buyerTier = p.buyerTier || raw.buyerTier || 'fortune500';
+        deal.termYears = p.termYears != null ? p.termYears : (Number(raw.termYears) || 5);
+        const ui = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(deal) : deal;
         res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, deal }));
+        res.end(JSON.stringify({ ok:true, deal: ui }));
       } catch(e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -8835,8 +8863,9 @@ setInterval(function(){loadOrder().then(render);},10000);
       try {
         const { dealId, offerUSD, message } = JSON.parse(body||'{}');
         const deal = negotiator.counter(dealId, offerUSD, message);
+        const ui = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(deal) : deal;
         res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, deal }));
+        res.end(JSON.stringify({ ok:true, deal: ui }));
       } catch(e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -8848,8 +8877,18 @@ setInterval(function(){loadOrder().then(render);},10000);
       try {
         const { dealId } = JSON.parse(body||'{}');
         const deal = negotiator.accept(dealId);
+        const ui = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(deal) : deal;
+        // Cash-close path: mint engagement kickoff immediately (full ACV stays SOW).
+        let closure = null;
+        try {
+          if (aecos && typeof aecos.closeFromDeal === 'function') {
+            closure = aecos.closeFromDeal(deal, {
+              btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : undefined,
+            });
+          }
+        } catch (_) { /* best-effort */ }
         res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, deal }));
+        res.end(JSON.stringify({ ok:true, deal: ui, closure }));
       } catch(e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -8863,8 +8902,17 @@ setInterval(function(){loadOrder().then(render);},10000);
       try {
         const { dealId, otp } = JSON.parse(body||'{}');
         const deal = negotiator.confirmGovernance(dealId, otp);
+        const ui = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(deal) : deal;
+        let closure = null;
+        try {
+          if (aecos && typeof aecos.closeFromDeal === 'function') {
+            closure = aecos.closeFromDeal(deal, {
+              btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : undefined,
+            });
+          }
+        } catch (_) { /* best-effort */ }
         res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, deal }));
+        res.end(JSON.stringify({ ok:true, deal: ui, closure }));
       } catch(e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -8905,31 +8953,36 @@ setInterval(function(){loadOrder().then(render);},10000);
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           fs.appendFileSync(path.join(dir, 'enterprise-leads.jsonl'), JSON.stringify(lead) + '\n');
         } catch (e) { console.warn('[enterprise-contact] persist failed:', e.message); }
-        // Auto-build a deal-desk quote so the lead gets a real BTC URI immediately.
+        // AECOS: autonomous kickoff quote (honest $2,500 engagement — not fake full ACV).
         let quote = null;
+        let closure = null;
         try {
-          const desk = require('../backend/modules/enterprise-deal-desk');
-          const interestKey = (interest || 'enterprise-starter').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 60) || 'enterprise-starter';
-          const priceHint = Math.max(500, Math.min(50000, Number(p.budgetUsd) || Number(p.budget) || 2500));
-          const seats = Math.max(1, Math.min(500, parseInt(p.seats, 10) || 5));
-          const slaTier = ['standard', 'enterprise', 'mission'].includes(String(p.slaTier || '').toLowerCase())
-            ? String(p.slaTier).toLowerCase()
-            : 'enterprise';
-          quote = desk.buildQuote({
-            items: [{ id: interestKey, title: interest || 'Enterprise starter', priceUsd: priceHint }],
-            seats,
-            slaTier,
-            customerId: email,
-            btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : (process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'),
-            btcSpotUsd: Number(p.btcSpotUsd) || 95000,
-          });
+          if (aecos && typeof aecos.closeFromContact === 'function') {
+            closure = aecos.closeFromContact(lead, {
+              productId: interest || (aecos.KICKOFF_ID || 'ent-engagement-kickoff'),
+              btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : (process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'),
+              btcSpotUsd: Number(p.btcSpotUsd) || 95000,
+            });
+            quote = closure && closure.quote ? closure.quote : null;
+          } else {
+            const desk = require('../backend/modules/enterprise-deal-desk');
+            quote = desk.buildQuote({
+              items: [{ id: 'ent-engagement-kickoff', title: 'Enterprise Engagement Kickoff', priceUsd: 2500 }],
+              seats: 1,
+              slaTier: 'enterprise',
+              customerId: email,
+              btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : (process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'),
+              btcSpotUsd: Number(p.btcSpotUsd) || 95000,
+            });
+          }
           lead.quoteId = quote && quote.id ? quote.id : null;
           lead.netUsd = quote && quote.netUsd != null ? quote.netUsd : null;
           lead.btcUri = quote && quote.btcUri ? quote.btcUri : null;
+          lead.checkoutHref = quote && quote.checkoutHref ? quote.checkoutHref : null;
           try {
             const fs2 = require('fs'); const path2 = require('path');
             fs2.appendFileSync(path2.join(__dirname, '..', 'data', 'enterprise-quotes.jsonl'), JSON.stringify({
-              leadId: lead.id, quote, createdAt: new Date().toISOString(),
+              leadId: lead.id, quote, closure, createdAt: new Date().toISOString(),
             }) + '\n');
           } catch (_) { /* best-effort */ }
         } catch (e) {
@@ -8970,17 +9023,28 @@ setInterval(function(){loadOrder().then(render);},10000);
         return res.end(JSON.stringify({
           ok: true,
           leadId: lead.id,
+          protocol: closure && closure.protocol ? closure.protocol : (aecos && aecos.PROTOCOL) || null,
           quote: quote ? {
             id: quote.id,
             netUsd: quote.netUsd,
             btcAmount: quote.btcAmount,
             btcAddress: quote.btcAddress,
             btcUri: quote.btcUri,
-            slaTier: quote.slaTier && quote.slaTier.key,
+            checkoutHref: quote.checkoutHref || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(email)),
+            productId: quote.productId || 'ent-engagement-kickoff',
+            honesty: quote.honesty || 'Kickoff deposit only. Full ACV closes under SOW.',
+            slaTier: quote.slaTier && (quote.slaTier.key || quote.slaTier),
             seats: quote.seats,
           } : null,
-          message: 'Thank you. Quote ready — our enterprise team will reply within 24 hours.',
-          messageRo: 'Mulțumim. Oferta este gata — echipa enterprise vă contactează în 24 de ore.'
+          next: (closure && closure.next) || [
+            'Pay engagement kickoff ($2,500)',
+            'Receive signed proposal pack automatically',
+            'SOW remainder negotiated autonomously',
+          ],
+          message: (closure && closure.message)
+            || 'Autonomous desk ready — pay the engagement kickoff to start. Full license closes under SOW.',
+          messageRo: (closure && closure.messageRo)
+            || 'Desk autonom gata — plătește kickoff-ul de engagement ca să pornim. Licența full se închide pe SOW.',
         }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
