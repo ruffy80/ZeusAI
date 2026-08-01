@@ -92,6 +92,11 @@ function _fireDelivery(order) {
   } catch (e) {
     console.warn('[commerce] wsi paid bridge:', e && e.message);
   }
+  // Post-Pay Closure — CLOS ack when digital delivery fires
+  try {
+    const ppcos = require('../commerce/post-pay-closure-os');
+    if (ppcos && typeof ppcos.onDeliveryFired === 'function') ppcos.onDeliveryFired(order);
+  } catch (_) { /* optional */ }
   if (!_deliveryHook) return;
   try {
     let railPatch = { method: 'BTC', paid_via: 'btc', providerRef: null };
@@ -996,6 +1001,14 @@ function markOrderPaidFromProvider(orderId, proof) {
     const bridge = require('../commerce/canonical-settle-bridge');
     bridge.bridgePaid(order);
   } catch (_) { /* optional */ }
+  try {
+    const ppcos = require('../commerce/post-pay-closure-os');
+    if (ppcos && typeof ppcos.onOrderPaid === 'function') {
+      order.post_pay_closure = ppcos.onOrderPaid(order);
+    }
+  } catch (e) {
+    console.warn('[commerce] post-pay closure skipped:', e && e.message);
+  }
   _fireDelivery(order);
   _fireFunnel('checkout_paid', { serviceId: order.serviceId, value: order.subtotal_fiat, provider });
   try {
@@ -1234,6 +1247,15 @@ async function scanIncoming() {
           }
         } catch (bridgeErr) {
           console.warn('[commerce] settle bridge paid skipped:', bridgeErr && bridgeErr.message);
+        }
+        try {
+          const ppcos = require('../commerce/post-pay-closure-os');
+          if (ppcos && typeof ppcos.onOrderPaid === 'function') {
+            order.post_pay_closure = ppcos.onOrderPaid(order);
+            persistOrder(order);
+          }
+        } catch (e) {
+          console.warn('[commerce] post-pay closure skipped:', e && e.message);
         }
         // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
         _fireDelivery(order);

@@ -187,30 +187,20 @@ async function _runTelegramCta(skus, dryRun) {
   const top = (skus || []).slice(0, 3);
   if (!top.length) return { ok: false, reason: 'no_skus' };
   try {
-    const tpg = require('../../backend/modules/telegram-profit-group-os');
-    if (!tpg) return { ok: false, reason: 'tpg_unavailable' };
-    const lines = [
-      '⚡ ZeusAI Autonomy Loop — buyable digital offers',
-      ...top.map((s) => `• ${s.title} · $${s.priceUsd} → ${s.checkoutHref}`),
-      'Enterprise: ' + APP_URL + '/enterprise#enterprise-contact',
-      'Honesty: digital flywheel — CJ AUTO-SHIP only when supplier key is armed.',
-    ];
-    if (dryRun) return { ok: true, dryRun: true, preview: lines.join('\n') };
-    let sent = null;
-    if (typeof tpg.postValue === 'function') {
-      sent = await Promise.resolve(tpg.postValue({
-        title: 'Autonomy Loop offers',
-        body: lines.join('\n'),
-        url: top[0].checkoutHref,
-      }));
-    } else if (typeof tpg.sendGroup === 'function') {
-      sent = await Promise.resolve(tpg.sendGroup(lines.join('\n')));
-    } else {
-      return { ok: false, reason: 'tpg_send_unavailable' };
+    const amos = require('./autonomy-money-surface-os');
+    const sent = await amos.postMoneyOffers(top, { dryRun: !!dryRun, force: false });
+    if (sent && sent.ok) {
+      if (!dryRun) _counts.telegramPosts += 1;
+      return { ok: true, posted: !dryRun, dryRun: !!dryRun, channel: sent.channel || null };
     }
-    if (sent && sent.ok === false) return { ok: false, detail: sent };
-    _counts.telegramPosts += 1;
-    return { ok: true, posted: true };
+    // Explicit soft reasons are not counted as errors when not configured / cadence.
+    const soft = sent && ['not_configured', 'silenced', 'daily_cap', 'cadence_wait'].includes(sent.reason);
+    return {
+      ok: false,
+      reason: (sent && sent.reason) || 'send_failed',
+      soft: !!soft,
+      detail: sent,
+    };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e).slice(0, 160) };
   }
@@ -326,7 +316,7 @@ async function tick(opts) {
     honesty: 'Digital flywheel + enterprise inbound + IndexNow. Never invents GMV. Never marks non-CJ SKUs dispatchable.',
   };
 
-  const failed = actions.filter((a) => a && a.ok === false).length;
+  const failed = actions.filter((a) => a && a.ok === false && !a.soft).length;
   if (failed) _counts.errors += failed;
 
   _state.lastTickAt = result.at;
@@ -337,6 +327,7 @@ async function tick(opts) {
     moneyUrlCount: urls.length,
     actionOk: actions.filter((a) => a && a.ok).length,
     actionFail: failed,
+    softFails: actions.filter((a) => a && a.ok === false && a.soft).length,
   };
   _saveState();
   _appendLedger({ type: 'tick', source: result.source, dryRun: effectiveDry, skuCount: skus.length, moneyUrlCount: urls.length });

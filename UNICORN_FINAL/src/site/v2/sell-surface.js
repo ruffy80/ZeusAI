@@ -701,10 +701,17 @@ function socialArcPanelHtml() {
 </script>`;
 }
 
-/** Additive home conversion strip */
+/** Additive home conversion strip — AMOS money surface + classic buy strip */
 function homeBuyStripHtml(catalogCount) {
   const n = Number(catalogCount) || 0;
-  return `<section id="homeBuyStrip" style="margin:28px 0 0">
+  let money = '';
+  try {
+    const amos = require('../../commerce/autonomy-money-surface-os');
+    if (amos && typeof amos.homeMoneyStripHtml === 'function') {
+      money = amos.homeMoneyStripHtml({ catalogCount: n, limit: 6 });
+    }
+  } catch (_) { money = ''; }
+  const classic = `<section id="homeBuyStrip" style="margin:28px 0 0">
   <div class="card" style="padding:22px 24px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(0,255,163,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between">
     <div style="min-width:260px;flex:1">
       <span class="kicker" style="color:#f7931a">Real-world storefront</span>
@@ -719,6 +726,7 @@ function homeBuyStripHtml(catalogCount) {
     </div>
   </div>
 </section>`;
+  return (money || '') + classic;
 }
 
 module.exports = {

@@ -7538,6 +7538,28 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  if (urlPath === '/api/billion-scale/money-surface' || urlPath === '/api/money-surface/status') {
+    try {
+      const amos = require('./commerce/autonomy-money-surface-os');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(amos.status()));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'money_surface_unavailable', detail: String(e && e.message || e).slice(0, 160) }));
+    }
+  }
+
+  if (urlPath === '/api/billion-scale/post-pay' || urlPath === '/api/post-pay/status') {
+    try {
+      const ppcos = require('./commerce/post-pay-closure-os');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(ppcos.status()));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'post_pay_unavailable', detail: String(e && e.message || e).slice(0, 160) }));
+    }
+  }
+
   if (urlPath === '/api/billion-scale/autonomy-loop' || urlPath === '/api/autonomy-loop/status') {
     try {
       const balos = require('./commerce/billion-autonomy-loop-os');

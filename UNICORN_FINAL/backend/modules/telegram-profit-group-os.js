@@ -378,6 +378,33 @@ async function postValue(force) {
   return { ok: !!(r && r.ok), template: tmpl.id, result: r, cta };
 }
 
+/**
+ * Money-surface offers (BALOS/AMOS). Honors explicit text — unlike postValue(force).
+ */
+async function postMoneyOffers(input) {
+  const o = input && typeof input === 'object' ? input : {};
+  const text = String(o.text || (Array.isArray(o.lines) ? o.lines.join('\n') : '') || '').trim();
+  if (!text) return { ok: false, reason: 'empty_text' };
+  _rollDay();
+  if (!o.force) {
+    if (state.silenced) return { ok: false, reason: 'silenced' };
+    if (state.postsToday >= MAX_VALUE_POSTS_DAY) return { ok: false, reason: 'daily_cap' };
+    if (Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
+  }
+  const url = String(o.url || SITE + '/buy').slice(0, 500);
+  const buttons = [[{ text: 'Buy now →', url }, { text: 'Live site', url: SITE }]];
+  const r = await sendGroup(text, { kind: 'money_offers', buttons });
+  if (r && r.ok) {
+    state.postsToday += 1;
+    state.lastValueAt = Date.now();
+    state.lastPost = { id: 'money_offers', at: new Date().toISOString(), cta: url };
+    _computeProfitScore();
+    _saveState();
+    _append(LEDGER, { ts: new Date().toISOString(), type: 'money_offers', cta: url });
+  }
+  return { ok: !!(r && r.ok), result: r, cta: url, reason: r && r.reason ? r.reason : undefined };
+}
+
 async function welcomeMember(member, chat) {
   if (!member || member.is_bot) return { ok: false, reason: 'bot' };
   if (Date.now() - state.lastWelcomeAt < WELCOME_COOLDOWN_MS) {
@@ -712,6 +739,7 @@ module.exports = {
   stop,
   tick,
   postValue,
+  postMoneyOffers,
   welcomeMember,
   handleUpdate,
   handleCommand,
