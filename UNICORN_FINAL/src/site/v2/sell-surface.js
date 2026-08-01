@@ -722,7 +722,6 @@ function homeBuyStripHtml(catalogCount) {
       <a class="btn btn-primary" href="/buy" data-link>Open /buy →</a>
       <a class="btn btn-ghost" href="/outcomes" data-link>Outcomes</a>
       <a class="btn btn-ghost" href="/rails" data-link>Rails honesty</a>
-      <a class="btn btn-ghost" href="/sw-reset">Reset cache</a>
     </div>
   </div>
 </section>`;

@@ -1501,7 +1501,7 @@ function getCinematicFallbackHtml(route) {
   return `<!doctype html><html lang="en" data-route="${route || '/'}"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#05040a"/><title>ZeusAI — Sovereign AI OS</title><style>
   html,body{margin:0;min-height:100%;background:#05040a;color:#f4f7ff;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;overflow-x:hidden}
   .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:hidden}.hero:before{content:"";position:absolute;inset:0;background:url('/assets/zeus/hero.jpg') center/cover no-repeat;filter:contrast(1.12) saturate(1.16) brightness(.78);transform:scale(1.035);animation:drift 18s ease-in-out infinite}.hero:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 22%,rgba(255,211,106,.22),transparent 34%),linear-gradient(90deg,rgba(5,4,10,.9),rgba(5,4,10,.48),rgba(5,4,10,.92))}.content{position:relative;z-index:2;max-width:880px}.brand{position:fixed;left:28px;top:22px;z-index:5;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;text-shadow:0 0 28px rgba(255,211,106,.45)}h1{font-size:clamp(48px,8vw,120px);line-height:.92;margin:0 0 24px;background:linear-gradient(180deg,#fff,#ffd36a 48%,#7fdcff);-webkit-background-clip:text;background-clip:text;color:transparent}p{font-size:clamp(18px,2vw,25px);line-height:1.55;color:#d9e3ff;max-width:720px}.actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}.btn{padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08);backdrop-filter:blur(10px)}.btn.primary{background:linear-gradient(135deg,#8a5cff,#3ea0ff);border-color:transparent}.wallet{margin-top:28px;font-family:ui-monospace,monospace;font-size:13px;color:#ffd36a;word-break:break-all}@keyframes drift{50%{transform:scale(1.07) translateY(-1.5%)}}
-</style></head><body><div class="brand">ZEUS AI</div><section class="hero"><div class="content"><h1>ZeusAI cinematic shell active.</h1><p>The v2 shell is protected. Marketplace, BTC checkout, payment methods and live APIs remain active while the full UI module reloads.</p><div class="actions"><a class="btn primary" href="/services">Open Marketplace</a><a class="btn" href="/sw-reset">Reset browser cache</a></div><div class="wallet">BTC owner wallet: ${ownerBtc}</div></div></section></body></html>`;
+</style></head><body><div class="brand">ZEUS AI</div><section class="hero"><div class="content"><h1>ZeusAI cinematic shell active.</h1><p>The v2 shell is protected. Marketplace, BTC checkout, payment methods and live APIs remain active while the full UI module reloads.</p><div class="actions"><a class="btn primary" href="/services">Open Marketplace</a><a class="btn" href="/">Home</a></div><div class="wallet">BTC owner wallet: ${ownerBtc}</div></div></section></body></html>`;
 }
 // Fallback shim keeps the cinematic Zeus visual layer; never fall back to the old legacy template.
 if (!v2 || typeof v2.getHtml !== 'function') {
@@ -7232,10 +7232,45 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       return res.end(swSrc);
     } catch(_) { res.writeHead(404); return res.end(); }
   }
-  // Emergency SW kill-switch: visit /sw-reset to unregister all service workers + purge caches.
-  if (urlPath === '/sw-reset' || urlPath === '/sw-reset.html') {
-    res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store' });
-    return res.end('<!doctype html><meta charset=utf-8><title>SW reset</title><body style="font-family:system-ui;background:#05040a;color:#eee;padding:40px"><h1>Resetting service worker…</h1><p id=s>Working…</p><script>(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs){await r.unregister();}const ks=await caches.keys();for(const k of ks){await caches.delete(k);}document.getElementById("s").textContent="Done. Reloading home…";setTimeout(()=>location.replace("/"),700);}catch(e){document.getElementById("s").textContent="Error: "+e.message;}})();</script></body>');
+  // SWNOS heal bounce (silent) + legacy /sw-reset alias.
+  // Clear-Site-Data "cache" only — never "storage" (would wipe localStorage auth tokens).
+  // Client also unregisters any leftover SW, then returns to ?next with _healed=1 (loop guard).
+  if (urlPath === '/sw-heal' || urlPath === '/sw-reset' || urlPath === '/sw-reset.html') {
+    let nextPath = '/';
+    try {
+      const rawNext = String(requestUrl.searchParams.get('next') || '/').trim() || '/';
+      if (rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('://') && !rawNext.includes('\\')
+          && !rawNext.startsWith('/sw-heal') && !rawNext.startsWith('/sw-reset')) {
+        nextPath = rawNext.slice(0, 512);
+      }
+    } catch (_) { nextPath = '/'; }
+    let dest = '/';
+    try {
+      const u = new URL(nextPath, 'http://local.invalid');
+      u.searchParams.set('_healed', '1');
+      dest = u.pathname + u.search + (u.hash || '');
+    } catch (_) { dest = '/?_healed=1'; }
+    const destJson = JSON.stringify(dest);
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Clear-Site-Data': '"cache"',
+      'Referrer-Policy': 'no-referrer'
+    });
+    return res.end(
+      '<!doctype html><meta charset=utf-8><meta name="robots" content="noindex">'
+      + '<title>Refreshing…</title>'
+      + '<body style="font-family:system-ui;background:#05040a;color:#eee;padding:40px">'
+      + '<p>Refreshing ZeusAI…</p>'
+      + '<script>(async()=>{try{'
+      + 'if("serviceWorker" in navigator){const rs=await navigator.serviceWorker.getRegistrations();'
+      + 'await Promise.all(rs.map(r=>r.unregister().catch(()=>{})));}'
+      + 'if(window.caches&&caches.keys){const ks=await caches.keys();'
+      + 'await Promise.all(ks.map(k=>caches.delete(k).catch(()=>{})));}'
+      + '}catch(_){}'
+      + 'location.replace(' + destJson + ');'
+      + '})();</script></body>'
+    );
   }
   if (urlPath === '/.well-known/unicorn-integrity.json' || urlPath === '/integrity.json') {
     const payload = { site:'unicorn-v2', version: process.env.SW_VERSION || V2_BUILD_ID, generatedAt: new Date().toISOString(), owner: OWNER_NAME, domain: APP_URL, btc: BTC_WALLET };

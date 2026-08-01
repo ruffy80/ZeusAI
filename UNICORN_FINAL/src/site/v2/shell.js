@@ -654,7 +654,6 @@ function footer(route, opts) {
       <li><a href="/status" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
-      <li><a href="/sw-reset">Clear cache</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
@@ -820,46 +819,85 @@ window.googleTranslateElementInit = function(){
 <div id="google_translate_element" aria-hidden="true"></div>
 
 <script${N}>
-// Service worker cleanup: unregister any legacy workers and drop their caches
-// so future navigations are always fetched fresh from origin. The user keeps
-// the page they're currently viewing — we deliberately do NOT trigger a
-// location.reload() here. The previous version did, and that one-per-build
-// forced reload was both visible to the user as an "auto-refresh" and
-// re-entered the still-controlling legacy SW, which on some Android browsers
-// (Samsung Internet, older Chromium) returned a stale/empty HTML and left the
-// Marketplace page blank. Cleanup is still effective: the next user-initiated
-// navigation runs entirely SW-free.
-if ('serviceWorker' in navigator) {
+/* SWNOS/1.0 — Service-Worker Never-Stale OS + CCG auto-heal.
+   Legacy SWs and build-SHA drift heal themselves via a one-shot /sw-heal bounce
+   (Clear-Site-Data: cache + unregister). Never requires a manual /sw-reset visit.
+   Loop-safe: ?_healed=1 on return + in-memory guard. We do NOT use Clear-Site-Data
+   "storage" (would wipe auth tokens in localStorage). */
+(function(){
+  function stripHealed(url){
+    try {
+      var u = new URL(url, location.origin);
+      if (!u.searchParams.has('_healed')) return null;
+      u.searchParams.delete('_healed');
+      var q = u.searchParams.toString();
+      return u.pathname + (q ? '?' + q : '') + u.hash;
+    } catch(_){ return null; }
+  }
+  var alreadyHealed = false;
+  try {
+    if (/[?&]_healed=1(?:&|$)/.test(location.search)) {
+      alreadyHealed = true;
+      window.__ZEUS_SWNOS_HEALED__ = true;
+      var clean = stripHealed(location.href);
+      if (clean && history.replaceState) history.replaceState(null, '', clean);
+    }
+  } catch(_){}
+  if (window.__ZEUS_SWNOS_HEALED__) alreadyHealed = true;
+
+  function healUrl(reason){
+    var path = location.pathname + location.search + location.hash;
+    if (!path || path.charAt(0) !== '/') path = '/';
+    return '/sw-heal?reason=' + encodeURIComponent(String(reason || 'auto').slice(0, 48))
+      + '&next=' + encodeURIComponent(path);
+  }
+  function goHeal(reason){
+    if (alreadyHealed || window.__ZEUS_SWNOS_HEALED__) return;
+    alreadyHealed = true;
+    window.__ZEUS_SWNOS_HEALED__ = true;
+    try { location.replace(healUrl(reason)); } catch(_){}
+  }
+
+  function purgeClientCaches(){
+    var tasks = [];
+    if ('serviceWorker' in navigator) {
+      tasks.push(navigator.serviceWorker.getRegistrations().then(function(regs){
+        return Promise.all((regs || []).map(function(reg){ return reg.unregister().catch(function(){}); }));
+      }).catch(function(){}));
+    }
+    if (window.caches && caches.keys) {
+      tasks.push(caches.keys().then(function(keys){
+        return Promise.all((keys || []).map(function(key){ return caches.delete(key).catch(function(){}); }));
+      }).catch(function(){}));
+    }
+    return Promise.all(tasks);
+  }
+
+  // Always drop Cache API + unregister any leftover workers on load.
   window.addEventListener('load', function(){
-    navigator.serviceWorker.getRegistrations().then(function(regs){
-      if (!regs || !regs.length) return null;
-      return Promise.all(regs.map(function(reg){ return reg.unregister().catch(function(){}); }))
-        .then(function(){ return (window.caches && caches.keys) ? caches.keys() : []; })
-        .then(function(keys){ return Promise.all((keys || []).map(function(key){ return caches.delete(key).catch(function(){}); })); });
+    purgeClientCaches().then(function(){
+      if (alreadyHealed || window.__ZEUS_SWNOS_HEALED__) return;
+      var hasController = ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller;
+      if (!hasController) return;
+      // Controller survived unregister → Clear-Site-Data bounce (SW-free next load).
+      goHeal('sw-controller');
     }).catch(function(){});
   });
-}
-/* CCG/1.0 — Client Continuum Guardian: detect build SHA drift vs integrity.json.
-   Soft-only: one sessionStorage-gated hint banner, never infinite reload loops. */
-(function(){
+
+  // CCG/1.0 — build SHA drift vs integrity.json → silent one-shot heal (no /sw-reset banner).
   try {
     var meta = document.querySelector('meta[name="x-zeus-build"]');
     var pageSha = meta && meta.getAttribute('content');
-    if (!pageSha) return;
-    fetch('/integrity.json', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
-      var live = (d && d.payload && d.payload.version) || (d && d.version) || '';
-      if (!live) return;
-      var a = String(pageSha).slice(0, 7);
-      var b = String(live).slice(0, 7);
-      if (!a || !b || a === b) return;
-      var key = 'zeus.ccg.drift.' + b;
-      try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch(_){}
-      var bar = document.createElement('div');
-      bar.setAttribute('role', 'status');
-      bar.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;z-index:80;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:12px;background:rgba(5,4,10,.92);border:1px solid rgba(247,147,26,.45);color:#e8ecff;font:13px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.45)';
-      bar.innerHTML = 'Newer ZeusAI build is live (<code>'+b+'</code>). You are on <code>'+a+'</code>. <a href="/sw-reset" style="color:#ffd36a;font-weight:600">Clear cache &amp; reload</a>';
-      document.body.appendChild(bar);
-    }).catch(function(){});
+    if (pageSha && !alreadyHealed) {
+      fetch('/integrity.json', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
+        var live = (d && d.payload && d.payload.version) || (d && d.version) || '';
+        if (!live) return;
+        var a = String(pageSha).slice(0, 7);
+        var b = String(live).slice(0, 7);
+        if (!a || !b || a === b) return;
+        goHeal('drift-' + b);
+      }).catch(function(){});
+    }
   } catch(_){}
 })();
 // CSP violation reporter (defensive)

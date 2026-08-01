@@ -72,9 +72,10 @@ symlink after health/QIS/smoke pass. Live mutable state (`.env`, `data`, `db`)
 lives in `/var/www/unicorn/shared` and is symlinked into each release — never
 ship snapshots of it. Current live build SHA: `GET /integrity.json` (`version`).
 
-**Browser-testing gotcha:** the site registers a service worker that aggressively
-caches assets, so a hard reload alone may still serve stale JS. Visit `/sw-reset`
-once (unregisters the SW + purges caches) before verifying front-end changes.
+**Browser cache:** the site no longer registers a service worker. Shell SWNOS
+auto-heals legacy SW controllers and build-SHA drift via a silent `/sw-heal`
+bounce (`Clear-Site-Data: "cache"` + unregister). Manual `/sw-reset` is not
+required before UI verification — a normal reload/navigation is enough.
 
 ### Environment / secrets
 

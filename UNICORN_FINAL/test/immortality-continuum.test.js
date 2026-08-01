@@ -141,10 +141,12 @@ async function main() {
     assert.strictEqual(typeof e.commerceBlocked, 'boolean');
   });
 
-  await check('CCG client continuum + deploy DCA hooks present', () => {
+  await check('CCG/SWNOS auto-heal + deploy DCA hooks present', () => {
     const shell = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'shell.js'), 'utf8');
-    assert.ok(shell.includes('Client Continuum Guardian') || shell.includes('zeus.ccg.drift'));
-    assert.ok(shell.includes('/sw-reset'));
+    assert.ok(shell.includes('SWNOS') || shell.includes('zeus.ccg') || shell.includes('/sw-heal'));
+    assert.ok(shell.includes('/sw-heal'));
+    assert.ok(shell.includes('goHeal') || shell.includes('_healed'));
+    assert.ok(!/Clear cache &amp; reload/.test(shell), 'CCG must not push manual /sw-reset');
     const deploy = fs.readFileSync(path.join(ROOT, 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
     assert.ok(deploy.includes('dca_canary_fail'));
     assert.ok(deploy.includes('dca promote recorded') || deploy.includes('/api/icp/dca/promote'));
