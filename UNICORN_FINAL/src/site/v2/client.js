@@ -3356,7 +3356,14 @@ function hydrateCheckout(){
         });
         if (pp && pp.approveHref) {
           try { localStorage.setItem('u_preferred_rail', 'paypal'); } catch (_) {}
-          window.location.href = pp.approveHref;
+          toast(pp.buyerHint || 'PayPal: use a buyer account or guest checkout (not the ZeusAI merchant login)', 'ok');
+          // Prefer a new tab so a sticky merchant PayPal session is easier to escape.
+          try {
+            const w = window.open(pp.approveHref, '_blank', 'noopener,noreferrer');
+            if (!w) window.location.href = pp.approveHref;
+          } catch (_) {
+            window.location.href = pp.approveHref;
+          }
           return;
         }
         const fo = pp && pp.failover;
