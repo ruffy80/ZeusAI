@@ -144,4 +144,13 @@ check('src/index.js wires AECOS into contact + negotiate', () => {
   assert.ok(src.includes('enrichCatalogResponse'));
 });
 
+check('backend enterprise-cloud-router exposes public AECOS routes (nginx → :3000)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../backend/modules/enterprise-cloud-router.js'), 'utf8');
+  assert.ok(src.includes('autonomous-enterprise-closure-os'));
+  assert.ok(src.includes("'/api/enterprise/aecos'"));
+  assert.ok(src.includes("'/api/enterprise/catalog'"));
+  assert.ok(src.includes('closeFromContact'));
+  assert.ok(src.includes('normalizeNegotiateStart'));
+});
+
 console.log(`\n✅ autonomous-enterprise-closure-os: ${passed} tests passed`);
