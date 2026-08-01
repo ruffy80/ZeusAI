@@ -3106,28 +3106,54 @@ function hydrateCheckout(){
   const q = new URLSearchParams(location.search);
   const plan = q.get('plan') || 'starter';
   const queryAmount = Number(q.get('amount'));
-  let amount = Number.isFinite(queryAmount) && queryAmount > 0 ? queryAmount : null;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-  set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
-  set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
-  set('coAmountNP', amount != null ? amount : ''); set('coPlanNP', plan);
-  // Critical: reveal PayPal / NOWPayments chips on this page. Boot-time
-  // hydrateCommerceProof often returns early (no proof DOM) and left chips hidden.
+  const readPositive = (id) => {
+    const el = document.getElementById(id);
+    const n = Number(el && el.value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const readBuyingAmount = () => {
+    const el = document.getElementById('checkoutBuyingAmount');
+    if (!el) return null;
+    const m = String(el.textContent || '').replace(/,/g, '').match(/(\d+(?:\.\d+)?)/);
+    const n = m ? Number(m[1]) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  // Preserve SSR amount (shell already filled coAmount). Never wipe a good value
+  // with "" — that was why PayPal / NOW top buttons appeared dead.
+  let amount = Number.isFinite(queryAmount) && queryAmount > 0 ? queryAmount : null;
+  if (amount == null) amount = readPositive('coAmount');
+  if (amount == null) amount = readBuyingAmount();
+  if (amount == null) {
+    const cached = (typeof _priceCacheGet === 'function') ? _priceCacheGet(plan) : null;
+    if (cached && Number.isFinite(Number(cached.price_usd))) amount = Number(cached.price_usd);
+  }
+  const syncAmounts = (usd) => {
+    if (!(Number(usd) > 0)) return;
+    set('coAmount', usd);
+    set('coAmountPP', usd);
+    set('coAmountNP', usd);
+    const sum = document.getElementById('sumAmount');
+    if (sum) sum.textContent = '$' + Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const buyAmt = document.getElementById('checkoutBuyingAmount');
+    if (buyAmt) buyAmt.textContent = '$' + Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  };
+  set('coPlan', plan);
+  set('coPlanPP', plan);
+  set('coPlanNP', plan);
+  if (amount != null) syncAmounts(amount);
+  // Critical: reveal PayPal / NOWPayments chips on this page.
   hydratePaymentRails().catch(function () {});
   try {
     const rememberedEmail = localStorage.getItem('u_email') || '';
     if (rememberedEmail && !q.get('email')) {
       set('coEmail', rememberedEmail);
       set('coEmailPP', rememberedEmail);
+      set('coEmailNP', rememberedEmail);
     }
   } catch (_) {}
   const sumP = $('#sumPlan'); if (sumP) sumP.textContent = plan;
-  // Try cache first so the checkout summary shows the price instantly.
-  if (amount == null) {
-    const cached = (typeof _priceCacheGet === 'function') ? _priceCacheGet(plan) : null;
-    if (cached && Number.isFinite(Number(cached.price_usd))) amount = Number(cached.price_usd);
-  }
-  const sumA = $('#sumAmount'); if (sumA) sumA.textContent = amount != null ? ('$' + amount) : '—';
+  const sumA = $('#sumAmount'); if (sumA && amount != null) sumA.textContent = '$' + amount;
 
   if (amount == null) {
     fetchLivePricing(plan, { /* no onSlow placeholder — em-dash already shown */ }).then(function(live){
@@ -3137,9 +3163,7 @@ function hydrateCheckout(){
         return;
       }
       amount = liveAmount;
-      set('coAmount', liveAmount);
-      set('coAmountPP', liveAmount);
-      if (sumA) sumA.textContent = '$' + liveAmount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+      syncAmounts(liveAmount);
     }).catch(function(){
       if (sumA) sumA.textContent = 'price refreshing…';
     });
@@ -3228,15 +3252,98 @@ function hydrateCheckout(){
   $$('.co-method .chip').forEach(c => c.addEventListener('click', () => {
     selectCheckoutRail(c.dataset.method);
   }));
+  // Shared catalog checkout: server prices by serviceId — never block on empty amount inputs.
+  // Works for every current/future catalog SKU: create → rail-specific approve/invoice URL.
+  async function startCatalogRail(rail, busyBtnId) {
+    const pl = String(
+      (($('#coPlan') || {}).value)
+      || (($('#coPlanPP') || {}).value)
+      || (($('#coPlanNP') || {}).value)
+      || plan
+      || ''
+    ).trim();
+    const email = String(
+      (($('#coEmail') || {}).value)
+      || (($('#coEmailPP') || {}).value)
+      || (($('#coEmailNP') || {}).value)
+      || ''
+    ).trim();
+    const ref = typeof getRef === 'function' ? getRef() : null;
+    if (!pl || /^custom$/i.test(pl)) {
+      toast('Pick a product / plan first', 'err');
+      return;
+    }
+    if (email && !validEmail(email)) {
+      toast('Email looks invalid — clear it or fix it', 'err');
+      return;
+    }
+    try { if (email) localStorage.setItem('u_email', email); } catch (_) {}
+    // BTC primary: one-click sovereign mint (QR page). Prefer dedicated helper.
+    if (rail === 'btc' || rail === 'bitcoin') {
+      const btn = document.getElementById(busyBtnId || 'coSovereignPrimary') || document.getElementById('coPay');
+      if (typeof window.sovereignBuy === 'function') {
+        await window.sovereignBuy(pl, { el: btn });
+        return;
+      }
+    }
+    const topId = rail === 'paypal' ? 'coBuyPaypalTop' : (rail === 'nowpayments' ? 'coBuyNowTop' : busyBtnId);
+    const ids = [busyBtnId, topId].filter(Boolean);
+    ids.forEach((id) => setBusy(id, true, rail === 'paypal' ? 'Opening PayPal…' : 'Opening invoice…'));
+    try {
+      toast(rail === 'paypal' ? 'Creating PayPal order…' : 'Creating payment invoice…', 'ok');
+      const order = await api('/api/checkout/create', {
+        method: 'POST',
+        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
+      });
+      if (!order || !order.orderId || !order.access_token) {
+        toast((order && (order.reason || order.error)) || 'Could not create order', 'err');
+        return;
+      }
+      if (rail === 'paypal') {
+        const pp = await api('/api/order/' + encodeURIComponent(order.orderId) + '/paypal/create', {
+          method: 'POST',
+          body: JSON.stringify({ access_token: order.access_token }),
+        });
+        if (pp && pp.approveHref) {
+          window.location.href = pp.approveHref;
+          return;
+        }
+        toast((pp && (pp.detail || pp.error)) || 'PayPal unavailable — try Bitcoin', 'err');
+      } else if (rail === 'nowpayments') {
+        const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
+          method: 'POST',
+          body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
+        });
+        if (np && np.invoiceUrl) {
+          window.location.href = np.invoiceUrl;
+          return;
+        }
+        toast((np && (np.detail || np.error)) || 'Card/crypto unavailable — try Bitcoin', 'err');
+      }
+      // Always land on the sovereign invoice page (BTC QR) if rail-specific URL missing.
+      if (order.checkout_url) window.location.href = order.checkout_url;
+      else if (order.orderId) window.location.href = '/checkout/' + encodeURIComponent(order.orderId);
+    } catch (e) {
+      toast((rail === 'paypal' ? 'PayPal' : 'NOWPayments') + ' error: ' + (e && e.message || e), 'err');
+    } finally {
+      ids.forEach((id) => setBusy(id, false));
+    }
+  }
+
+  document.getElementById('coSovereignPrimary')?.addEventListener('click', (ev) => {
+    // Belt-and-suspenders if delegated data-sovereign-buy did not run.
+    // Skip when capture handler already preventDefault'd (avoids double mint).
+    if (ev.defaultPrevented) return;
+    selectCheckoutRail('btc');
+    startCatalogRail('btc', 'coSovereignPrimary');
+  });
   document.getElementById('coBuyPaypalTop')?.addEventListener('click', () => {
     selectCheckoutRail('paypal');
-    const btn = document.getElementById('coPayPP');
-    if (btn) btn.click();
+    startCatalogRail('paypal', 'coPayPP');
   });
   document.getElementById('coBuyNowTop')?.addEventListener('click', () => {
     selectCheckoutRail('nowpayments');
-    const btn = document.getElementById('coPayNP');
-    if (btn) btn.click();
+    startCatalogRail('nowpayments', 'coPayNP');
   });
 
   // PayPal — real Orders API only; no paypal.me/mailto fallback.
@@ -3269,7 +3376,7 @@ function hydrateCheckout(){
       host.querySelectorAll('[data-co-upsell]').forEach(function(btn){
         btn.addEventListener('click', function(){
           const sid = btn.getAttribute('data-co-upsell');
-          if (sid && typeof window.sovereignBuy === 'function') window.sovereignBuy(sid, { el: btn });
+          if (sid) window.location.href = '/checkout/?plan=' + encodeURIComponent(sid);
         });
       });
     } catch (_) { host.style.display = 'none'; }
@@ -3310,90 +3417,17 @@ function hydrateCheckout(){
     if (el) el.value = btcAmt.toFixed(8) + ' BTC  @  $' + rate.toLocaleString();
   }
 
-  // Create sovereign invoice then PayPal approve (canonical storefront settle plane).
-  $('#coPayPP')?.addEventListener('click', async () => {
-    const amt = Number(($('#coAmountPP')||{}).value || ($('#coAmount')||{}).value || 0);
-    const pl = (($('#coPlanPP')||{}).value || ($('#coPlan')||{}).value || plan);
-    const email = String((($('#coEmailPP')||{}).value || ($('#coEmail')||{}).value || '')).trim();
-    const ref = getRef();
-    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
-    if (email && !validEmail(email)) { toast('Email looks invalid — clear it or fix it','err'); return; }
-    try { if (email) localStorage.setItem('u_email', email); } catch(_) {}
-    setBusy('coPayPP', true, 'Creating PayPal order…');
-    toast('Creating PayPal order…','ok');
-    try {
-      const order = await api('/api/checkout/create', {
-        method: 'POST',
-        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
-      });
-      if (!order || !order.orderId || !order.access_token) {
-        toast((order && order.error) || 'Could not mint invoice for PayPal','err');
-        return;
-      }
-      const pp = await api('/api/order/' + encodeURIComponent(order.orderId) + '/paypal/create', {
-        method: 'POST',
-        body: JSON.stringify({ access_token: order.access_token }),
-      });
-      if (pp && pp.approveHref) {
-        toast('Opening PayPal…','ok');
-        window.location.href = pp.approveHref;
-        return;
-      }
-      toast((pp && (pp.detail || pp.error)) || 'PayPal unavailable — use BTC','err');
-      if (order.checkout_url) window.location.href = order.checkout_url;
-    } catch (e) {
-      toast('PayPal error: ' + (e && e.message || e), 'err');
-    } finally {
-      setBusy('coPayPP', false);
-    }
-  });
-
-  // NOWPayments hosted invoice — sovereign order first, then redirect.
-  $('#coPayNP')?.addEventListener('click', async () => {
-    const amt = Number(($('#coAmountNP')||{}).value || ($('#coAmount')||{}).value || 0);
-    const pl = (($('#coPlanNP')||{}).value || ($('#coPlan')||{}).value || plan);
-    const email = String((($('#coEmailNP')||{}).value || ($('#coEmail')||{}).value || '')).trim();
-    const ref = getRef();
-    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
-    if (email && !validEmail(email)) { toast('Email looks invalid — clear it or fix it','err'); return; }
-    try { if (email) localStorage.setItem('u_email', email); } catch(_) {}
-    setBusy('coPayNP', true, 'Creating NOWPayments invoice…');
-    try {
-      const order = await api('/api/checkout/create', {
-        method: 'POST',
-        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
-      });
-      if (!order || !order.orderId || !order.access_token) {
-        toast((order && order.error) || 'Could not mint invoice','err');
-        return;
-      }
-      const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
-        method: 'POST',
-        body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
-      });
-      if (np && np.invoiceUrl) {
-        toast('Opening NOWPayments…','ok');
-        window.location.href = np.invoiceUrl;
-        return;
-      }
-      toast((np && (np.detail || np.error)) || 'NOWPayments unavailable — use BTC','err');
-      if (order.checkout_url) window.location.href = order.checkout_url;
-    } catch (e) {
-      toast('NOWPayments error: ' + (e && e.message || e), 'err');
-    } finally {
-      setBusy('coPayNP', false);
-    }
-  });
+  $('#coPayPP')?.addEventListener('click', () => { startCatalogRail('paypal', 'coPayPP'); });
+  $('#coPayNP')?.addEventListener('click', () => { startCatalogRail('nowpayments', 'coPayNP'); });
 
   // BTC pay — Buy Immortal OS: prefer sovereign one-click mint (email optional).
   // Falls back to UAIC only if sovereignBuy is unavailable.
   $('#coPay')?.addEventListener('click', async () => {
-    const amt = Number(($('#coAmount')||{}).value || 0);
-    const pl = ($('#coPlan')||{}).value || 'starter';
+    const pl = ($('#coPlan')||{}).value || plan || 'starter';
     let email = String(($('#coEmail')||{}).value || '').trim();
     const ref = getRef();
     const customerToken = getCustToken();
-    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    const amt = Number(($('#coAmount')||{}).value || 0) || readBuyingAmount() || 0;
     if (email && !validEmail(email)) {
       toast('Email looks invalid — clear it or fix it (email is optional)', 'err');
       return;
@@ -3405,6 +3439,7 @@ function hydrateCheckout(){
       await window.sovereignBuy(pl, { el: $('#coPay') });
       return;
     }
+    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
     if (hint) hint.textContent = 'Generating secure invoice… this usually takes 1-2 seconds.';
     setBusy('coPay', true, 'Generating invoice…');
     try {
