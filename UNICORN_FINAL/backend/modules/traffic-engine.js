@@ -104,11 +104,23 @@ function _verticalIds() {
 
 /** Canonical list of every URL worth indexing. Deterministic, capped. */
 function urlsToSubmit() {
-  const core = ['/', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
-    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press'];
+  const core = ['/', '/buy', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
+    '/enterprise', '/wizard', '/dropship', '/zacc', '/marketplace', '/tg'];
   const urls = new Set(core.map((p) => APP_URL + p));
   for (const id of _catalogIds()) urls.add(APP_URL + '/services/' + encodeURIComponent(id));
   for (const id of _verticalIds()) urls.add(APP_URL + '/vertical/' + encodeURIComponent(id));
+  // Billion Autonomy Loop — prioritize instant digital money pages when catalog is large
+  try {
+    const instant = require('../../src/commerce/instant-catalog');
+    const all = instant && typeof instant.all === 'function' ? instant.all() : [];
+    for (const p of all || []) {
+      if (p && p.id) {
+        urls.add(APP_URL + '/services/' + encodeURIComponent(p.id));
+        urls.add(APP_URL + '/checkout/?plan=' + encodeURIComponent(p.id));
+      }
+    }
+  } catch (_) { /* optional */ }
   return Array.from(urls).slice(0, MAX_URLS);
 }
 

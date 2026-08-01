@@ -98,6 +98,7 @@ function _moduleInventory() {
     { id: 'paymentInnovationOs', path: 'src/commerce/payment-innovation-os.js', role: 'pay_pack_failover', ready: true },
     { id: 'zaccDropship', path: 'backend/modules/zacc/index.js', role: 'physical_commerce', ready: true },
     { id: 'autoRevenue', path: 'backend/modules/autoRevenue.js', role: 'affiliate_idle_until_receipts', ready: true },
+    { id: 'billionAutonomyLoopOs', path: 'src/commerce/billion-autonomy-loop-os.js', role: 'digital_flywheel_indexnow_enterprise_cj_watch', ready: true },
   ];
   return { protocol: PROTOCOL, count: modules.length, modules };
 }
@@ -227,12 +228,13 @@ function assessPaths(opts = {}) {
       grade: readyCount >= 4 && pay.btc.settleReady ? 'foundation-ready' : 'partial',
       criticalBlockers,
       nextToUnlockBillion: [
-        'Close first real paid digital orders',
-        'Arm SMTP for receipt/delivery emails',
-        'Arm CJ + publish only dispatchable SKUs',
-        'Run enterprise deal desk for $25k–$1M packages',
+        'Autonomy loop (BALOS) submits money URLs via IndexNow — keep it running',
+        'Close first real paid digital orders on instant-* SKUs',
+        'Enterprise contact → Telegram notify + deal desk quotes',
+        'Arm CJ when ready — BALOS pulses AUTO-SHIP publish automatically',
         'Grow marketplace vendors; use scenario economics only as model',
       ],
+      autonomyLoop: '/api/billion-scale/autonomy-loop',
     },
     scenarioHint: '/api/billion-scale/marketplace-economics?scenario=1&gmvUsd=5000000000&takeRate=0.2',
   };
