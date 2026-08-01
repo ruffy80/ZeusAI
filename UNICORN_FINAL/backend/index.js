@@ -8237,6 +8237,24 @@ app.get(['/api/billion-scale/profit-path', '/api/profit-path/status'], (req, res
   }
 });
 
+app.get(['/api/billion-scale/money-surface', '/api/money-surface/status'], (req, res) => {
+  try {
+    const amos = require('../src/commerce/autonomy-money-surface-os');
+    res.json(amos.status());
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'money_surface_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
+app.get(['/api/billion-scale/post-pay', '/api/post-pay/status'], (req, res) => {
+  try {
+    const ppcos = require('../src/commerce/post-pay-closure-os');
+    res.json(ppcos.status());
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'post_pay_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
 app.get(['/api/billion-scale/autonomy-loop', '/api/autonomy-loop/status'], (req, res) => {
   try {
     const balos = require('../src/commerce/billion-autonomy-loop-os');
