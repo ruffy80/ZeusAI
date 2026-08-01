@@ -94,6 +94,15 @@ check('site-pinned: sovereign checkout QR → unicorn_site via ^~ /api/checkout/
     '/api/checkout/ord_ must proxy_pass to unicorn_site');
 });
 
+check('site-pinned: /checkout/ passes X-CSP-Nonce and local Cache-Control', () => {
+  const idx = conf.search(/location\s+\^~\s+\/checkout\//);
+  assert.ok(idx >= 0, 'expected ^~ /checkout/');
+  const block = conf.slice(idx, idx + 900);
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(block));
+  assert.ok(/X-CSP-Nonce/.test(block), 'X-CSP-Nonce required to avoid dual-CSP dead buttons');
+  assert.ok(/add_header\s+Cache-Control/.test(block), 'local add_header clears inherited CSP');
+});
+
 // Backend-pinned public discovery docs (served by backend/index.js).
 const BACKEND_PINNED = [
   '/.well-known/enterprise.json',

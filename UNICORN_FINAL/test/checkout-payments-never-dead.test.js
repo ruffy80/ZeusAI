@@ -52,6 +52,16 @@ check('nginx pins checkout QR + /api/qr to site (beats ^~ /api/)', () => {
   assert.ok(nginx.includes('proxy_pass http://unicorn_site'));
 });
 
+check('nginx /checkout/ clears inherited CSP and passes X-CSP-Nonce', () => {
+  const idx = nginx.search(/location\s+\^~\s+\/checkout\//);
+  assert.ok(idx >= 0, 'checkout location missing');
+  const block = nginx.slice(idx, idx + 900);
+  assert.ok(/add_header\s+Cache-Control/.test(block),
+    'checkout location must set add_header (clears server CSP inheritance)');
+  assert.ok(/X-CSP-Nonce/.test(block),
+    'checkout location must pass X-CSP-Nonce so script nonces match CSP');
+});
+
 check('sovereign invoice page has QR img fallback', () => {
   assert.ok(sov.includes('btcQrImg'));
   assert.ok(sov.includes('/checkout/${orderId}/qr.svg') || sov.includes('/checkout/'));
