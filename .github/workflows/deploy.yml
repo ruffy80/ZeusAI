@@ -216,7 +216,8 @@ jobs:
         # while production modules keep intervals alive) fails fast instead
         # of consuming the full 6h GitHub Actions ceiling and silently
         # blocking deploys, the way it did on 2026-04-29.
-        timeout-minutes: 12
+        # 20m budget: full suite is ~8–12m when exits are clean; leave headroom.
+        timeout-minutes: 20
         run: npm test --if-present
 
       - name: 🧬 Forward-only preflight (syntax, requires, routes, PM2 contract)
