@@ -68,7 +68,7 @@ check('closeFromContact returns kickoff quote + checkoutHref', () => {
     { btcSpotUsd: 100000 }
   );
   assert.ok(closure.quote);
-  assert.ok(closure.quote.netUsd >= 2500);
+  assert.equal(closure.quote.netUsd, 2500);
   assert.ok(String(closure.quote.checkoutHref || '').includes('ent-engagement-kickoff'));
   assert.ok(Array.isArray(closure.next) && closure.next.length >= 2);
 });

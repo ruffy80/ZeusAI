@@ -266,17 +266,12 @@ function buildKickoffQuote(input) {
   const cat = _catalog();
   const product = (cat && cat.byId(productId)) || null;
   const title = (product && product.title) || 'Enterprise Engagement Kickoff';
-  const priceUsd = productId === KICKOFF_ID
-    ? KICKOFF_PRICE_USD
-    : Math.min(KICKOFF_PRICE_USD, Math.max(500, Math.round(Number((product && product.priceUSD) || KICKOFF_PRICE_USD) * 0.01) || KICKOFF_PRICE_USD));
-
-  const kickoffPrice = productId === KICKOFF_ID ? KICKOFF_PRICE_USD : Math.max(KICKOFF_PRICE_USD, Math.min(5000, priceUsd));
 
   if (!desk || typeof desk.buildQuote !== 'function') {
     const id = 'quote_aecos_' + crypto.randomBytes(4).toString('hex');
     return {
       id,
-      netUsd: kickoffPrice,
+      netUsd: KICKOFF_PRICE_USD,
       btcAmount: null,
       btcUri: null,
       checkoutHref: '/checkout/?plan=' + encodeURIComponent(KICKOFF_ID)
@@ -286,10 +281,12 @@ function buildKickoffQuote(input) {
     };
   }
 
+  // Fixed engagement deposit — use standard SLA uplift (1.0) so UX stays
+  // exactly $2,500. Enterprise SLA uplift applies on the SOW remainder, not kickoff.
   const quote = desk.buildQuote({
-    items: [{ id: KICKOFF_ID, title: 'Kickoff · ' + title, priceUsd: kickoffPrice }],
+    items: [{ id: KICKOFF_ID, title: 'Kickoff · ' + title, priceUsd: KICKOFF_PRICE_USD }],
     seats: 1,
-    slaTier: 'enterprise',
+    slaTier: 'standard',
     customerId: email || null,
     discountPct: 0,
     btcWallet: (input && input.btcWallet) || process.env.LEGAL_OWNER_BTC || process.env.BTC_WALLET_ADDRESS,
@@ -300,19 +297,28 @@ function buildKickoffQuote(input) {
     + (email ? ('&email=' + encodeURIComponent(email)) : '')
     + (quote.id ? ('&quoteId=' + encodeURIComponent(quote.id)) : '');
 
+  // Pin net to the advertised kickoff; recompute BTC if desk uplifted.
+  const netUsd = KICKOFF_PRICE_USD;
+  const spot = Math.max(1, Number((input && input.btcSpotUsd) || process.env.BTC_SPOT_USD || 95000));
+  const btcAmount = +(netUsd / spot).toFixed(8);
+  const btcAddress = quote.btcAddress || process.env.LEGAL_OWNER_BTC || process.env.BTC_WALLET_ADDRESS;
+  const btcUri = btcAddress
+    ? ('bitcoin:' + btcAddress + '?amount=' + btcAmount.toFixed(8) + '&label=' + encodeURIComponent('ZeusAI-' + quote.id))
+    : quote.btcUri;
+
   return {
     id: quote.id,
-    netUsd: quote.netUsd,
-    btcAmount: quote.btcAmount,
-    btcAddress: quote.btcAddress,
-    btcUri: quote.btcUri,
-    seats: quote.seats,
-    slaTier: quote.slaTier && quote.slaTier.key,
+    netUsd,
+    btcAmount,
+    btcAddress,
+    btcUri,
+    seats: 1,
+    slaTier: 'standard',
     orderId: quote.orderId || null,
     checkoutHref,
     productId: KICKOFF_ID,
     targetProductId: productId !== KICKOFF_ID ? productId : null,
-    honesty: 'Kickoff deposit only. Full enterprise ACV closes under SOW after proposal acceptance.',
+    honesty: 'Kickoff deposit only ($2,500). Full enterprise ACV closes under SOW after proposal acceptance.',
   };
 }
 
