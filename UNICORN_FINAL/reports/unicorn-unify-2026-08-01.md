@@ -29,22 +29,25 @@ No second full product tree existed in the git workspace. Unification = restore 
 ## Primary chosen
 **`UNICORN_FINAL`** — only complete instance: 610 modules, full `src/` SSR + `client/`, 145 scripts, deploy workflows at repo root.
 
-## Modules restored (from `unicorn_green` into primary)
-Stub-sized files (<600B) replaced with complete implementations:
+## Modules — correction (2026-08-01 CI follow-up)
+An earlier pass restored ~18 “stub-sized” files from `unicorn_green`. That was **wrong**:
+those files were intentional thin shims to `supreme-*-adapter` / `integrated-autonomy-kernel`,
+not self-mutation damage. Restoring the green bodies broke IAK singleton identity
+(`unicornMeshOrchestrator` must `===` IAK) and failed deploy CI.
 
-- `ai-self-healing.js`, `auto-innovation-loop.js`, `auto-optimize.js`, `auto-repair.js`
-- `autonomousInnovation.js`, `code-optimizer.js`, `error-pattern-detector.js`, `evolution-core.js`
-- `predictive-healing.js`, `quantum-healing.js`, `recovery-engine.js`, `recovery-orchestrator.js`
-- `self-healing-engine.js`, `service-watchdog.js`, `shadow-tester.js`, `ui-evolution.js`
-- `unicornInnovationSuite.js`, `unicornMeshOrchestrator.js`
-
-AdaptiveModule*/Engine* pool shims restored locally (gitignored; regenerated at boot).
+**Reverted to shim form (pre-unify):**
+`ai-self-healing`, `auto-innovation-loop`, `auto-optimize`, `auto-repair`,
+`autonomousInnovation`, `code-optimizer`, `error-pattern-detector`, `evolution-core`,
+`predictive-healing`, `quantum-healing`, `recovery-engine`, `recovery-orchestrator`,
+`self-healing-engine`, `service-watchdog`, `shadow-tester`, `ui-evolution`,
+`unicornInnovationSuite`, `unicornMeshOrchestrator`.
 
 ## Conflicts resolved
 | Module | Decision |
 |--------|----------|
 | `aiProviders`, `referralEngine`, `unicornAutoGenesis`, `totalSystemHealer`, `universalMarketNexus` | **Kept primary** (already substantial / newer) |
-| `central-orchestrator`, `unicornOrchestrator` | Tried green restore → mesh degraded → **reverted to primary** |
+| `central-orchestrator`, `unicornOrchestrator` | Kept IAK facet shims |
+| Green “fuller” copies of supreme/IAK shim names | **Rejected** — would regress IAK |
 | `universal-ai-connector` template | Already covered by `universalAIConnector.js` + `universal-ai-connector/` |
 | `globalEnergyCarbonTrade` template stub | Covered by `globalEnergyCarbonTrader.js` |
 

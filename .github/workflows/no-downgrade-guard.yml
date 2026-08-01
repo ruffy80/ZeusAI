@@ -118,6 +118,7 @@ jobs:
       - name: 🤖 AutoInnovation guard (block unreviewed bot merges)
         env:
           BASELINE: ${{ steps.baseline.outputs.sha }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
@@ -128,6 +129,23 @@ jobs:
             sha_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
             [ -f "$APPROVED_SHA_FILE" ] || return 1
             grep -Eiq "^${sha_lc}([[:space:]]*(#.*)?)?$" "$APPROVED_SHA_FILE"
+          }
+
+          # Docs-only AutoInnovation proposals (INNOVATION_LOG / innovations/**)
+          # may open PRs without [innovation-approved]. Hard-fail only when the
+          # commit touches runtime paths, or when the event is a push to main.
+          is_docs_only_commit() {
+            local sha="$1" files
+            files="$(git diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null || true)"
+            [ -n "$files" ] || return 1
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
+              case "$path" in
+                INNOVATION_LOG.md|innovations/*|UNICORN_FINAL/data/innovations/*|UNICORN_FINAL/reports/*) ;;
+                *) return 1 ;;
+              esac
+            done <<< "$files"
+            return 0
           }
 
           # Walk every commit between baseline and HEAD. If any commit
@@ -143,6 +161,7 @@ jobs:
           # reaching production at zeusai.pro.
 
           UNAPPROVED=""
+          DOCS_ONLY_WARN=""
           while IFS= read -r SHA; do
             [ -z "$SHA" ] && continue
             SUBJECT="$(git log -1 --format=%s "$SHA")"
@@ -153,6 +172,9 @@ jobs:
                   echo "✅ approved AutoInnovation commit: $SHA — $SUBJECT"
                 elif is_approved_by_sha_file "$SHA"; then
                   echo "✅ approved AutoInnovation commit via allowlist: $SHA — $SUBJECT"
+                elif [ "$EVENT_NAME" = "pull_request" ] && is_docs_only_commit "$SHA"; then
+                  echo "⚠️  docs-only AutoInnovation PR commit (allowed on PR, blocked on main push): $SHA — $SUBJECT"
+                  DOCS_ONLY_WARN="${DOCS_ONLY_WARN}${SHA} ${SUBJECT}"$'\n'
                 else
                   UNAPPROVED="${UNAPPROVED}${SHA} ${SUBJECT}"$'\n'
                 fi
@@ -174,6 +196,9 @@ jobs:
             echo "::error::manual review, or add the exact SHA to ${APPROVED_SHA_FILE}."
             echo "::error::manual review. See LIVE_BASELINE.md."
             exit 1
+          fi
+          if [ -n "$DOCS_ONLY_WARN" ]; then
+            echo "::notice::Docs-only AutoInnovation proposals passed the PR guard; merging to main still requires [innovation-approved] or SHA allowlist."
           fi
           echo "✅ no unreviewed AutoInnovation commits since baseline"
 
