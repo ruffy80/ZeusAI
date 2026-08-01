@@ -74,5 +74,11 @@ check('BTC top CTA wired via startCatalogRail + sovereignBuy', () => {
   assert.ok(client.includes('coSovereignPrimary'));
 });
 
+check('payment-honesty QR contract matches preferred /checkout path', () => {
+  const honesty = fs.readFileSync(path.join(ROOT, 'test/payment-honesty.test.js'), 'utf8');
+  assert.ok(honesty.includes('/checkout/${orderId}/qr.svg'),
+    'payment-honesty must accept durable /checkout QR (keeps Node compat CI green)');
+});
+
 console.log('checkout-payments-never-dead.test.js: ' + passed + ' passed');
 process.exit(0);

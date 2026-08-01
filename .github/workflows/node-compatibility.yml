@@ -69,13 +69,40 @@ jobs:
           echo "[compat] npm ci failed after 3 attempts" >&2
           exit 1
 
+      - name: 🧾 Engine / nvm / matrix contract
+        working-directory: ./UNICORN_FINAL
+        env:
+          EXPECT: ${{ matrix.node }}
+        run: |
+          set -euo pipefail
+          echo "[compat] node=$(node -v) npm=$(npm -v) matrix=${EXPECT}"
+          node -e 'const e=Number(process.env.EXPECT),m=Number(process.versions.node.split(".")[0]); if(m!==e){console.error("[compat] matrix/runtime mismatch",process.versions.node,"expected",e); process.exit(1);} console.log("[compat] runtime major matches matrix",m);'
+
+      - name: 🔎 Preflight (QR + node-compat contracts)
+        working-directory: ./UNICORN_FINAL
+        run: |
+          set -euo pipefail
+          # Run payment/QR contracts BEFORE the full suite so a stale assertion
+          # surfaces as a clear commerce contract failure — not a vague
+          # "Node N compatibility" red that looks like a runtime ABI break.
+          node test/node-compat-contract.test.js
+          node test/payment-honesty.test.js
+          node test/checkout-payments-never-dead.test.js
+          node test/sovereign-checkout-html.test.js
+          node test/nginx-contract-guard.test.js
+
       - name: 🔍 Lint backend + site
         working-directory: ./UNICORN_FINAL
         run: npm run lint
 
       - name: 🧪 Run tests
         working-directory: ./UNICORN_FINAL
-        run: npm test --if-present
+        run: |
+          set -euo pipefail
+          npm test --if-present
+        env:
+          # Surface which Node major failed in job summaries / annotations.
+          NODE_COMPAT_MATRIX: ${{ matrix.node }}
 
       - name: 🏗️ Build frontend
         working-directory: ./UNICORN_FINAL/client
