@@ -104,6 +104,15 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
+  // Universal Payment Rails — dropship / social-tip virtual SKUs are always
+  // self-serve multi-rail (BTC · PayPal · NOW) via /checkout/?plan=…
+  try {
+    const upr = require('./universal-payment-rails');
+    if (upr && typeof upr.isVirtualSku === 'function' && upr.isVirtualSku(id)) {
+      return upr.assessVirtualBuyability(id);
+    }
+  } catch (_) { /* fall through */ }
+
   if (isUnavailableItem(item, id)) {
     return {
       mode: 'unavailable', buyable: false, reason: 'not_for_sale',
@@ -135,7 +144,7 @@ function assessBuyability(itemOrId, opts = {}) {
   if (PROFESSIONAL_ID_RE.test(id) || tier === 'professional' || group === 'professional') {
     return {
       mode: 'reserve', buyable: true, reason: 'human_build_kickoff',
-      ctaLabel: 'Reserve →',
+      ctaLabel: 'Reserve → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }
@@ -143,7 +152,7 @@ function assessBuyability(itemOrId, opts = {}) {
   if (INSTANT_ID_RE.test(id) || tier === 'instant' || group === 'instant' || PUBLIC_SELF_SERVE_CORE_IDS.has(id)) {
     return {
       mode: 'btc', buyable: true, reason: 'digital_deliverable',
-      ctaLabel: 'Buy now →',
+      ctaLabel: 'Buy → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }
@@ -170,7 +179,7 @@ function assessBuyability(itemOrId, opts = {}) {
   if (curatedPublicGroups.has(group) || curatedPublicGroups.has(tier)) {
     return {
       mode: 'btc', buyable: true, reason: 'curated_deliverable',
-      ctaLabel: 'Buy now →',
+      ctaLabel: 'Buy → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }
@@ -178,7 +187,7 @@ function assessBuyability(itemOrId, opts = {}) {
     if (item && publicCatalogFilter.hasFulfillmentRecipe(item)) {
       return {
         mode: 'btc', buyable: true, reason: 'curated_deliverable',
-        ctaLabel: 'Buy now →',
+        ctaLabel: 'Buy → choose payment',
         ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
       };
     }
@@ -190,7 +199,7 @@ function assessBuyability(itemOrId, opts = {}) {
       mode: PROFESSIONAL_ID_RE.test(id) ? 'reserve' : 'btc',
       buyable: true,
       reason: 'seed_catalog',
-      ctaLabel: PROFESSIONAL_ID_RE.test(id) ? 'Reserve →' : 'Buy now →',
+      ctaLabel: PROFESSIONAL_ID_RE.test(id) ? 'Reserve → choose payment' : 'Buy → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }
@@ -199,7 +208,7 @@ function assessBuyability(itemOrId, opts = {}) {
   if (item && price > 0) {
     return {
       mode: 'btc', buyable: true, reason: 'priced_catalog_item',
-      ctaLabel: 'Buy now →',
+      ctaLabel: 'Buy → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }

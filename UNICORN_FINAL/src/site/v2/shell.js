@@ -199,9 +199,9 @@ function _ctaForProduct(p) {
       return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
     }
     if (/^professional-/i.test(id) || tier === 'professional') {
-      return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+      return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve → choose payment', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
     }
-    return { mode: 'checkout', buyable: true, ctaLabel: 'Buy now →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    return { mode: 'checkout', buyable: true, ctaLabel: 'Buy → choose payment', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
 }
 
@@ -218,7 +218,7 @@ function _primaryCtaHtml(p, opts) {
   if (cta.mode === 'unavailable' || !cta.buyable) {
     return `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Not for sale')}</a>`;
   }
-  const label = cta.ctaLabel || 'Buy now →';
+  const label = cta.ctaLabel || 'Buy → choose payment';
   // data-buy-mode=checkout → client opens method chooser (BTC / PayPal / NOWPayments).
   return `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="${flex}${size}">${_esc(label)}</a>`;
 }
@@ -1153,10 +1153,10 @@ function pageHome() {
     return `<option value="${id}">${label}</option>`;
   }).join('');
   const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
-      <span class="kicker" style="width:100%;margin-bottom:4px">30-second BTC checkout</span>
+      <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · BTC · PayPal · card/crypto</span>
       <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
       <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
-      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
+      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Buy → choose payment</button>
     </form>` : '';
   // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
   // before any other section, so the world\u2019s first fully-autonomous economic
@@ -1694,7 +1694,7 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>14-day trial · community support</li>
       </ul>
-      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-sovereign-buy="starter" data-buy-mode="btc">Get BTC invoice →</a>
+      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-sovereign-buy="starter" data-buy-mode="checkout">Buy → choose payment</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
@@ -1706,7 +1706,7 @@ function pagePricing() {
         <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
         <li>SSO, priority support · signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-sovereign-buy="pro" data-buy-mode="btc">Get BTC invoice →</a>
+      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-sovereign-buy="pro" data-buy-mode="checkout">Buy → choose payment</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
@@ -1748,7 +1748,8 @@ function pageCheckout(params) {
   // clicked. No "computing…", no price flicker, no mismatch. RO: prețul de
   // pe card e în HTML înainte de orice JS.
   const p = params || {};
-  const ssrPlan = String(p.plan || 'starter').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120) || 'starter';
+  // Allow virtual SKU prefixes (dropship:…, social-tip:…) — colons must survive.
+  const ssrPlan = String(p.plan || 'starter').trim().replace(/[^a-zA-Z0-9_.:@-]/g, '').slice(0, 160) || 'starter';
   const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
   const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
@@ -3648,6 +3649,31 @@ function pageSocialNetwork() {
   </header>
 
   ${sellSurface.socialArcPanelHtml()}
+
+  <section class="card" id="zaSocialTipPanel" style="margin:24px 0;padding:20px;border:1px solid rgba(0,112,186,.35);background:linear-gradient(135deg,rgba(0,112,186,.10),rgba(247,147,26,.06))">
+    <span class="kicker">Support · multi-rail</span>
+    <h2 style="margin:8px 0 6px;font-size:20px">Tip a creator — Bitcoin, PayPal, or card/crypto</h2>
+    <p style="color:var(--ink-dim);margin:0 0 12px;font-size:14px">Opens the same ZeusAI checkout chooser used everywhere else. Amount in USD.</p>
+    <form id="zaSocialTipForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center" onsubmit="return false">
+      <input id="zaSocialTipHandle" type="text" placeholder="@handle or creator id" maxlength="64" style="padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);min-width:180px"/>
+      <input id="zaSocialTipUsd" type="number" min="1" step="1" value="5" style="width:110px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+      <button type="button" class="btn btn-primary" id="zaSocialTipGo">Tip → choose payment</button>
+    </form>
+  </section>
+  <script>
+  (function(){
+    var btn=document.getElementById('zaSocialTipGo');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      var h=String((document.getElementById('zaSocialTipHandle')||{}).value||'').trim().replace(/^@/,'');
+      var usd=Number((document.getElementById('zaSocialTipUsd')||{}).value||0);
+      if(!h){ alert('Enter a creator handle'); return; }
+      if(!(usd>=1)){ alert('Enter a tip amount of at least $1'); return; }
+      var plan='social-tip:'+h;
+      window.location.href='/checkout/?plan='+encodeURIComponent(plan)+'&amount='+encodeURIComponent(String(usd));
+    });
+  })();
+  </script>
 
   <div class="za-social-body" id="za-app">
     <div class="za-authbar" id="zaAuthBar">

@@ -33,7 +33,7 @@ function _loadBuyable() {
     let mode = 'btc';
     let buyable = true;
     let reason = 'self_serve';
-    let ctaLabel = 'Buy with BTC';
+    let ctaLabel = 'Buy → choose payment';
     if (buyability && typeof buyability.assessBuyability === 'function') {
       const a = buyability.assessBuyability(p);
       mode = a.mode;
@@ -41,6 +41,12 @@ function _loadBuyable() {
       reason = a.reason || reason;
       ctaLabel = a.ctaLabel || ctaLabel;
     }
+    try {
+      const upr = require('../commerce/universal-payment-rails');
+      if (buyable && upr && typeof upr.ctaLabel === 'function') {
+        ctaLabel = upr.ctaLabel(mode === 'reserve' ? 'reserve' : 'checkout');
+      }
+    } catch (_) { /* keep assessed label */ }
     if (mode === 'unavailable') continue;
     out.push({
       id: p.id,
@@ -69,23 +75,26 @@ function pageBuy() {
 
   function card(p) {
     const mins = p.deliveryMinutes ? `<span class="tag">${_esc(String(p.deliveryMinutes))} min delivery</span>` : '';
-    const modeTag = p.mode === 'btc'
-      ? '<span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC self-serve · real delivery</span>'
+    const modeTag = (p.mode === 'btc' || p.mode === 'checkout')
+      ? '<span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC · PayPal · card/crypto</span>'
       : (p.mode === 'reserve'
-        ? '<span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">BTC reserve · kickoff pack now</span>'
+        ? '<span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">Reserve · multi-rail</span>'
         : '<span class="tag">Contact / SOW</span>');
     const price = p.priceUSD > 0
       ? ('$' + p.priceUSD.toLocaleString('en-US', { maximumFractionDigits: 0 }))
       : 'Free';
     const href = p.ctaHref;
     const btnClass = p.buyable ? 'btn btn-primary' : 'btn btn-ghost';
-    return `<article class="card" style="padding:18px;display:flex;flex-direction:column;gap:10px;border-color:${p.mode === 'btc' ? 'rgba(247,147,26,.35)' : 'var(--stroke)'}">
+    const sov = p.buyable
+      ? ` data-sovereign-buy="${_esc(p.id)}" data-buy-mode="checkout"`
+      : '';
+    return `<article class="card" style="padding:18px;display:flex;flex-direction:column;gap:10px;border-color:${(p.mode === 'btc' || p.mode === 'checkout') ? 'rgba(247,147,26,.35)' : 'var(--stroke)'}">
   <div style="display:flex;flex-wrap:wrap;gap:8px">${modeTag}${mins}</div>
   <h3 style="margin:0;font-size:18px">${_esc(p.title)}</h3>
   <p style="margin:0;color:var(--ink-dim);font-size:13.5px;flex:1;line-height:1.5">${_esc(p.description)}</p>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <strong style="font-size:22px">${_esc(price)}</strong>
-    <a class="${btnClass}" href="${_esc(href)}" data-link>${_esc(p.ctaLabel)} →</a>
+    <a class="${btnClass}" href="${_esc(href)}"${sov} data-link>${_esc(p.ctaLabel)}</a>
   </div>
   <p style="margin:0;font-size:11.5px;color:var(--ink-dim)">Receipt signed · Delivery Passport (DPS) · Commerce Twin exportable after pay</p>
 </article>`;
@@ -100,7 +109,7 @@ function pageBuy() {
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> Real-world storefront · BTC to owner wallet</span>
       <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Buy what we actually deliver.</span></h1>
-      <p class="lead">Only self-serve SKUs with real fulfillment recipes appear here. Pay in BTC → signed receipt → digital pack (or professional kickoff). Card/PayPal/NOWPayments appear when you arm them later — never faked.</p>
+      <p class="lead">Only self-serve SKUs with real fulfillment recipes appear here. Every buy opens BTC · PayPal · card/crypto — signed receipt and delivery after settlement. Never faked rails.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#buy-instant" data-link>Shop instant delivery</a>
         <a class="btn btn-ghost" href="/outcomes" data-link>See outcome proofs</a>
@@ -650,7 +659,7 @@ function socialArcPanelHtml() {
   return `<section class="card" id="zaArcPanel" style="margin:24px 0;padding:20px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.08));border:1px solid rgba(247,147,26,.35)">
   <span class="kicker" style="color:#f7931a">Attention → Revenue Continuum</span>
   <h2 style="margin:8px 0 6px;font-size:22px">Your attention can mint a real offer</h2>
-  <p style="color:var(--ink-dim);margin:0 0 12px;font-size:14px">Record attention weight → ARC mints a catalog offer → checkout still requires BTC. Never invents GMV.</p>
+  <p style="color:var(--ink-dim);margin:0 0 12px;font-size:14px">Record attention weight → ARC mints a catalog offer → checkout with Bitcoin, PayPal, or card/crypto. Never invents GMV.</p>
   <form id="zaArcForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center" onsubmit="return false">
     <input id="zaArcActor" type="text" placeholder="actor id (optional)" style="padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);min-width:160px"/>
     <input id="zaArcWeight" type="number" min="1" max="20" value="5" style="width:90px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
@@ -681,8 +690,8 @@ function socialArcPanelHtml() {
         html += '<h3 style="margin:8px 0 4px">'+esc(offer.title||offer.serviceId||'Attention offer')+'</h3>';
         html += '<p style="margin:0;color:var(--ink-dim);font-size:13.5px">Weight '+esc(weight)+' · actor '+esc(actorId)+'</p>';
         if (offer.priceUsd != null) html += '<p style="margin:8px 0 0;font-size:18px;font-weight:700">$'+esc(offer.priceUsd)+'</p>';
-        if (offer.checkoutPath) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="'+esc(offer.checkoutPath)+'">Checkout minted offer →</a></p>';
-        else if (offer.serviceId) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="/checkout/?plan='+encodeURIComponent(offer.serviceId)+'">Checkout →</a></p>';
+        if (offer.checkoutPath) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="'+esc(offer.checkoutPath)+'" data-sovereign-buy="'+esc(offer.serviceId||'')+'" data-buy-mode="checkout">Checkout → choose payment</a></p>';
+        else if (offer.serviceId) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="/checkout/?plan='+encodeURIComponent(offer.serviceId)+'" data-sovereign-buy="'+esc(offer.serviceId)+'" data-buy-mode="checkout">Checkout → choose payment</a></p>';
         html += '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--ink-dim)">Technical detail</summary><pre class="code" style="margin-top:8px;font-size:11px;max-height:120px;overflow:auto">'+esc(JSON.stringify(d,null,2))+'</pre></details>';
         html += '</div>';
         el.innerHTML = html;

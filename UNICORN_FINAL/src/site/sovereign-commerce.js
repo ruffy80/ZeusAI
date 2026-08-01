@@ -601,6 +601,39 @@ async function resolveService(ctx, serviceId) {
       }
     }
   } catch {}
+  // 3) Universal Payment Rails — virtual SKUs (dropship / social tips)
+  try {
+    const upr = require('../commerce/universal-payment-rails');
+    if (upr && typeof upr.isVirtualSku === 'function' && upr.isVirtualSku(serviceId)) {
+      const parsed = upr.parseVirtualSku(serviceId);
+      const amountOverride = (ctx && ctx._amountUsdOverride != null)
+        ? Number(ctx._amountUsdOverride)
+        : null;
+      const title = (ctx && ctx._virtualTitle)
+        || (parsed && parsed.prefix === 'dropship' ? ('Dropship · ' + (parsed.id || 'product'))
+          : (parsed && (parsed.prefix === 'social-tip' || parsed.prefix === 'tip')
+            ? ('Social tip · ' + (parsed.id || 'creator'))
+            : serviceId));
+      const price = (Number.isFinite(amountOverride) && amountOverride > 0)
+        ? amountOverride
+        : 0;
+      if (!(price > 0)) return null;
+      return withCanonical({
+        id: serviceId,
+        name: title,
+        title,
+        price,
+        description: 'Universal multi-rail checkout (BTC · PayPal · NOWPayments)',
+        segment: parsed && parsed.prefix === 'dropship' ? 'dropship' : 'social-tip',
+        group: parsed && parsed.prefix === 'dropship' ? 'dropship' : 'social-tip',
+        tier: 'instant',
+        demoOnly: false,
+        synthetic: false,
+        virtualSku: true,
+        fulfillmentRecipe: parsed && parsed.prefix === 'dropship' ? 'dropship-physical' : 'social-tip',
+      });
+    }
+  } catch (_) { /* fall through */ }
   return null;
 }
 
@@ -665,6 +698,23 @@ async function createOrder(ctx, input) {
       if (refEng && typeof refEng.ensureTrackedCode === 'function') refEng.ensureTrackedCode(affiliateRef);
     } catch (_) { /* attribution best-effort */ }
   }
+
+  // Virtual SKUs (dropship / social tips) may carry an explicit quoted amount.
+  let amountUsdOverride = null;
+  try {
+    const upr = require('../commerce/universal-payment-rails');
+    if (upr && upr.isVirtualSku(serviceId) && input && input.amountUsd != null) {
+      const n = Number(input.amountUsd);
+      if (Number.isFinite(n) && n >= 1 && n <= 10000000) amountUsdOverride = Math.round(n * 100) / 100;
+    }
+  } catch (_) { /* ignore */ }
+  if (amountUsdOverride != null) {
+    ctx = Object.assign({}, ctx || {}, {
+      _amountUsdOverride: amountUsdOverride,
+      _virtualTitle: String((input && (input.title || input.serviceName)) || '').slice(0, 160) || undefined,
+    });
+  }
+
   const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
@@ -709,13 +759,23 @@ async function createOrder(ctx, input) {
     : {};
   const brief = String((input && input.brief) || buyerInputs.brief || '').trim().slice(0, 4000);
 
-  const unitFull = svc.price != null ? Number(svc.price) : 0;
-  // Pre-orders pay only PREORDER_PCT of full price; everyone gets BTC_DISCOUNT_PCT off.
-  // Both factors are multiplicative so a pre-order also benefits from BTC discount.
+  let unitFull = svc.price != null ? Number(svc.price) : 0;
+  if (amountUsdOverride != null) unitFull = amountUsdOverride;
+  // Pre-orders pay only PREORDER_PCT of full price; BTC rail gets BTC_DISCOUNT_PCT.
+  // PayPal / NOW / dropship quoted totals skip the BTC discount (exact amount).
   const isPreorder = !!preorder;
   const preorderFactor = isPreorder ? (PREORDER_PCT / 100) : 1;
-  const btcFactor      = (100 - BTC_DISCOUNT_PCT) / 100;
-  const unit           = Number((unitFull * preorderFactor * btcFactor).toFixed(2));
+  let skipBtcDiscount = false;
+  try {
+    const upr = require('../commerce/universal-payment-rails');
+    skipBtcDiscount = !!(upr && upr.isVirtualSku(serviceId));
+  } catch (_) { /* ignore */ }
+  if (input && (input.skipBtcDiscount === true
+    || /^(paypal|nowpayments|now|card)$/i.test(String(input.rail || '')))) {
+    skipBtcDiscount = true;
+  }
+  const btcFactor = skipBtcDiscount ? 1 : ((100 - BTC_DISCOUNT_PCT) / 100);
+  const unit      = Number((unitFull * preorderFactor * btcFactor).toFixed(2));
   const q = Math.max(1, Math.min(100, Number(qty) || 1));
   const subtotalFiat = Number((unit * q).toFixed(2));
   if (!(subtotalFiat > 0)) return { error: 'service_not_priced', status: 409 };
@@ -767,6 +827,23 @@ async function createOrder(ctx, input) {
     meta: {
       brief: brief || undefined,
       inputs: buyerInputs,
+      shipping: (input && input.shipping && typeof input.shipping === 'object') ? input.shipping : undefined,
+      quoteId: (input && (input.quoteId || (input.quote && input.quote.id))) || undefined,
+      dropshipProductId: (function () {
+        try {
+          const upr = require('../commerce/universal-payment-rails');
+          const p = upr && upr.parseVirtualSku(serviceId);
+          return (p && (p.prefix === 'dropship' || p.prefix === 'ds')) ? p.id : undefined;
+        } catch (_) { return undefined; }
+      })(),
+      socialTipTarget: (function () {
+        try {
+          const upr = require('../commerce/universal-payment-rails');
+          const p = upr && upr.parseVirtualSku(serviceId);
+          return (p && (p.prefix === 'social-tip' || p.prefix === 'tip')) ? p.id : undefined;
+        } catch (_) { return undefined; }
+      })(),
+      rail: (input && input.rail) || undefined,
       buyMode: buyability.mode,
       requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
       affiliateRef: affiliateRef || undefined,

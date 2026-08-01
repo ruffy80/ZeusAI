@@ -29,7 +29,7 @@ check('boot hydrates payment rails outside commerce-proof pages', () => {
 check('product buy opens method chooser, not instant BTC', () => {
   assert.ok(client.includes("mode === 'btc-direct'"));
   assert.ok(client.includes("'/checkout/?plan=' + encodeURIComponent(id)"));
-  assert.ok(client.includes("ctaLabel: 'Buy now →'"));
+  assert.ok(client.includes("ctaLabel: 'Buy → choose payment'"));
 });
 
 check('checkout shell exposes PayPal + NOW top CTAs and visible chips', () => {
