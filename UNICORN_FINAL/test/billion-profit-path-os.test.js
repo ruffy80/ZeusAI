@@ -96,3 +96,5 @@ check('source wiring: profit-path route + luxury shelf filter', () => {
 });
 
 console.log('\n' + passed + ' checks passed (billion-profit-path-os)');
+// ZACC/world-feed timers may keep the event loop alive after assertions.
+process.exit(0);

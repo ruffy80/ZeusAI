@@ -100,6 +100,8 @@ async function main() {
   });
 
   console.log('\n' + passed + ' checks passed (billion-autonomy-loop-os)');
+  // Force exit — ZACC/BALOS timers must not hold the CI event loop open.
+  process.exit(0);
 }
 
 main().catch((e) => {

@@ -104,6 +104,8 @@ async function main() {
   });
 
   console.log('\n' + passed + ' checks passed (autonomy-money-surface-os)');
+  // Force exit — commerce/ZACC side-effects must not hold the CI event loop open.
+  process.exit(0);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
