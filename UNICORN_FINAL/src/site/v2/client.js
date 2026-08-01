@@ -3241,6 +3241,7 @@ function hydrateCheckout(){
   $('#coPlan')?.addEventListener('input', e => { if (sumP) sumP.textContent = e.target.value; });
 
   // method switch — BTC primary; PayPal / NOWPayments panels when armed
+  // Payment Innovation OS: remember preferred rail on this device.
   function selectCheckoutRail(m){
     $$('.co-method .chip').forEach(x => {
       x.classList.toggle('on', x.dataset.method === m);
@@ -3248,10 +3249,18 @@ function hydrateCheckout(){
     if ($('#coPanelBtc')) $('#coPanelBtc').style.display = m === 'btc' ? '' : 'none';
     if ($('#coPanelPaypal')) $('#coPanelPaypal').style.display = m === 'paypal' ? '' : 'none';
     if ($('#coPanelNow')) $('#coPanelNow').style.display = m === 'nowpayments' ? '' : 'none';
+    try { if (m) localStorage.setItem('u_preferred_rail', String(m)); } catch (_) {}
   }
   $$('.co-method .chip').forEach(c => c.addEventListener('click', () => {
     selectCheckoutRail(c.dataset.method);
   }));
+  try {
+    const pref = String(localStorage.getItem('u_preferred_rail') || '').toLowerCase();
+    if (pref === 'paypal' || pref === 'nowpayments' || pref === 'btc') {
+      const chip = document.querySelector('.co-method .chip[data-method="' + pref + '"]');
+      if (chip && chip.offsetParent !== null) selectCheckoutRail(pref);
+    }
+  } catch (_) { /* ignore */ }
   // Shared catalog checkout: server prices by serviceId — never block on empty amount inputs.
   // Works for every current/future catalog SKU + virtual dropship/social-tip SKUs.
   async function startCatalogRail(rail, busyBtnId) {
@@ -3346,26 +3355,33 @@ function hydrateCheckout(){
           body: JSON.stringify({ access_token: order.access_token }),
         });
         if (pp && pp.approveHref) {
+          try { localStorage.setItem('u_preferred_rail', 'paypal'); } catch (_) {}
           window.location.href = pp.approveHref;
           return;
         }
-        toast((pp && (pp.detail || pp.error)) || 'PayPal unavailable — try Bitcoin', 'err');
+        const fo = pp && pp.failover;
+        toast((fo && fo.message) || (pp && (pp.detail || pp.error)) || 'PayPal unavailable — opening Bitcoin invoice', 'err');
+        selectCheckoutRail('btc');
       } else if (rail === 'nowpayments') {
         const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
           method: 'POST',
           body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
         });
         if (np && np.invoiceUrl) {
+          try { localStorage.setItem('u_preferred_rail', 'nowpayments'); } catch (_) {}
           window.location.href = np.invoiceUrl;
           return;
         }
-        toast((np && (np.detail || np.error)) || 'Card/crypto unavailable — try Bitcoin', 'err');
+        const fo = np && np.failover;
+        toast((fo && fo.message) || (np && (np.detail || np.error)) || 'Card/crypto unavailable — opening Bitcoin invoice', 'err');
+        selectCheckoutRail('btc');
       }
-      // Always land on the sovereign invoice page (BTC QR) if rail-specific URL missing.
+      // Rail failover cascade — always land on the sovereign invoice (BTC QR).
       if (order.checkout_url) window.location.href = order.checkout_url;
       else if (order.orderId) window.location.href = '/checkout/' + encodeURIComponent(order.orderId);
     } catch (e) {
-      toast((rail === 'paypal' ? 'PayPal' : 'NOWPayments') + ' error: ' + (e && e.message || e), 'err');
+      toast((rail === 'paypal' ? 'PayPal' : 'NOWPayments') + ' error: ' + (e && e.message || e) + ' — try Bitcoin', 'err');
+      selectCheckoutRail('btc');
     } finally {
       ids.forEach((id) => setBusy(id, false));
     }

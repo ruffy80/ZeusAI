@@ -1435,12 +1435,15 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
 </div>
 
 <div class="card" id="altRailsCard">
-  <p style="margin:0 0 10px"><b>Other payment rails</b> <span class="k">(optional — BTC above stays primary)</span></p>
+  <p style="margin:0 0 10px"><b>Pay another way</b> <span class="k">(same order · Bitcoin stays available)</span></p>
+  <p class="note" id="doublePayWarn" style="display:none;color:var(--warn);margin:0 0 10px">You started an alternate rail — do not also send BTC unless that rail fails.</p>
   <p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">
     <button type="button" class="cta" id="payPaypalBtn" style="background:#0070ba;color:#fff">Pay with PayPal</button>
     <button type="button" class="cta" id="payNowBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
+    <button type="button" class="cta" id="payPackBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Build pay pack →</button>
   </p>
-  <p class="note" id="altRailsMsg">Buttons appear only when PayPal / NOWPayments secrets are armed at runtime.</p>
+  <p class="note" id="altRailsMsg">PayPal / card-crypto appear when armed. One order · pick one rail · automatic delivery.</p>
+  <div id="payPackLinks" class="note" style="margin-top:8px"></div>
 </div>
 
   <div class="grant" id="confirmWait" style="background:#2a210b;border-color:#5c4316;color:#ffdf9d">
@@ -1498,11 +1501,16 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var wt=document.getElementById('confirmWaitText');
         if(wt&&waiting) wt.textContent='Transaction seen: '+confs+'/'+req+' confirmations. Delivery unlocks automatically when confirmed.';
       }
+      if(j.rails&&j.rails.nowpayments&&j.rails.nowpayments.partialPaid){
+        setAltMsg(j.rails.nowpayments.honesty||'Partial card/crypto payment seen — waiting for full amount.');
+        if(s){s.textContent='partial'; s.className='status pending';}
+      }
+      if(j.doublePayWarning){ showDoublePay(); }
       if(j.status==='paid'){
         var g=document.getElementById('grant');if(g)g.classList.add('on');
         var tk=document.getElementById('tok');if(tk)tk.textContent=TOK;
         var en=document.getElementById('ent');if(en)en.textContent=j.entitlement_id||'—';
-        var tx=document.getElementById('tx');if(tx)tx.textContent=(j.txids&&j.txids[0])||'—';
+        var tx=document.getElementById('tx');if(tx)tx.textContent=(j.txids&&j.txids[0])||(j.paid_via?('via '+j.paid_via):'—');
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
         var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
@@ -1514,6 +1522,15 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   }
   poll();
   function setAltMsg(t){var el=document.getElementById('altRailsMsg');if(el)el.textContent=t;}
+  function showDoublePay(){var w=document.getElementById('doublePayWarn');if(w)w.style.display='block';}
+  function paintPayPack(pack){
+    var host=document.getElementById('payPackLinks'); if(!host||!pack||!pack.rails) return;
+    var bits=[];
+    if(pack.rails.btc&&pack.rails.btc.bip21) bits.push('<div>₿ BTC URI ready on this page</div>');
+    if(pack.rails.paypal&&pack.rails.paypal.approveHref) bits.push('<div><a href="'+pack.rails.paypal.approveHref+'">Open PayPal approve →</a></div>');
+    if(pack.rails.nowpayments&&pack.rails.nowpayments.invoiceUrl) bits.push('<div><a href="'+pack.rails.nowpayments.invoiceUrl+'">Open card/crypto invoice →</a></div>');
+    host.innerHTML=bits.join('')||'No alternate rails armed yet.';
+  }
   var payPaypalBtn=document.getElementById('payPaypalBtn');
   if(payPaypalBtn){payPaypalBtn.addEventListener('click',function(){
     setAltMsg('Creating PayPal order…');
@@ -1521,10 +1538,15 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ access_token: TOK })
     }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
-      if(!res.ok || !(res.j&&res.j.approveHref)){ setAltMsg((res.j&&(res.j.detail||res.j.error))||'PayPal unavailable'); return; }
+      if(!res.ok || !(res.j&&res.j.approveHref)){
+        var fo=res.j&&res.j.failover;
+        setAltMsg((fo&&fo.message)||(res.j&&(res.j.detail||res.j.error))||'PayPal unavailable — use Bitcoin above');
+        return;
+      }
+      showDoublePay();
       setAltMsg('Redirecting to PayPal…');
       window.location.href = res.j.approveHref;
-    }).catch(function(e){ setAltMsg('PayPal error: '+(e&&e.message||e)); });
+    }).catch(function(e){ setAltMsg('PayPal error: '+(e&&e.message||e)+' — Bitcoin invoice still works'); });
   });}
   var payNowBtn=document.getElementById('payNowBtn');
   if(payNowBtn){payNowBtn.addEventListener('click',function(){
@@ -1533,10 +1555,27 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ access_token: TOK, payCurrency: 'any' })
     }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
-      if(!res.ok || !(res.j&&res.j.invoiceUrl)){ setAltMsg((res.j&&(res.j.detail||res.j.error))||'NOWPayments unavailable'); return; }
+      if(!res.ok || !(res.j&&res.j.invoiceUrl)){
+        var fo=res.j&&res.j.failover;
+        setAltMsg((fo&&fo.message)||(res.j&&(res.j.detail||res.j.error))||'Card/crypto unavailable — use Bitcoin above');
+        return;
+      }
+      showDoublePay();
       setAltMsg('Redirecting to NOWPayments…');
       window.location.href = res.j.invoiceUrl;
-    }).catch(function(e){ setAltMsg('NOWPayments error: '+(e&&e.message||e)); });
+    }).catch(function(e){ setAltMsg('NOWPayments error: '+(e&&e.message||e)+' — Bitcoin invoice still works'); });
+  });}
+  var payPackBtn=document.getElementById('payPackBtn');
+  if(payPackBtn){payPackBtn.addEventListener('click',function(){
+    setAltMsg('Building multi-rail pay pack…');
+    fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/pay-pack',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ access_token: TOK, mint: true })
+    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
+      if(!res.ok || !(res.j&&res.j.pack)){ setAltMsg((res.j&&(res.j.detail||res.j.error))||'Pay pack unavailable'); return; }
+      paintPayPack(res.j.pack);
+      setAltMsg('Pay pack ready — open one rail only.');
+    }).catch(function(e){ setAltMsg('Pay pack error: '+(e&&e.message||e)); });
   });}
   try {
     var qs = new URLSearchParams(window.location.search||'');
@@ -1650,27 +1689,50 @@ async function handle(req, res, ctx) {
         serviceId: out.serviceId,
       }), true;
     }
+    // Payment Innovation OS — optional pay-pack mint on create (?payPack=1 or body.payPack).
+    let payPack = null;
+    try {
+      const wantPack = !!(body && (body.payPack === true || body.payPack === 1 || body.payPack === '1'))
+        || /(?:^|[?&])payPack=1(?:&|$)/.test(String(req.url || ''));
+      if (wantPack && out.order) {
+        const pios = require('../commerce/payment-innovation-os');
+        const ensured = await pios.ensurePayPack(out.order, {
+          mint: true,
+          selectedRail: body && body.rail,
+        });
+        persistOrder(out.order);
+        payPack = ensured.pack;
+      }
+    } catch (_) { /* pay-pack best-effort */ }
     try {
       const tx = require('../commerce/transactional-email');
       const buyerEmail = String(out.order && out.order.buyer && out.order.buyer.email || '').trim().toLowerCase();
       if (tx && typeof tx.sendTransactional === 'function' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+        let emailData = {
+          orderId: out.order.orderId,
+          checkout_url: out.order.checkout_url,
+          amount_btc: out.order.amount_btc,
+          btcAmount: out.order.amount_btc,
+          btcAddress: out.order.receive_address || OWNER_BTC,
+          serviceName: out.order.serviceName,
+          priceUSD: out.order.subtotal_fiat,
+        };
+        try {
+          const pios = require('../commerce/payment-innovation-os');
+          emailData = Object.assign(emailData, pios.pendingEmailData(out.order, payPack));
+        } catch (_) { /* keep BTC-only fallback */ }
         Promise.resolve(tx.sendTransactional({
           to: buyerEmail,
           template: 'payment_pending',
-          data: {
-            orderId: out.order.orderId,
-            checkout_url: out.order.checkout_url,
-            amount_btc: out.order.amount_btc,
-            btcAmount: out.order.amount_btc,
-            btcAddress: out.order.receive_address || OWNER_BTC,
-            serviceName: out.order.serviceName,
-            priceUSD: out.order.subtotal_fiat
-          }
+          data: emailData,
         })).catch(() => {});
       }
     } catch (_) {}
     if (idemKey) _idempotencySet(idemKey, 201, out.order);
-    return sendJson(res, 201, out.order), true;
+    const responseOrder = payPack
+      ? Object.assign({}, out.order, { pay_pack: payPack, protocol_pios: 'PIOS/1.0' })
+      : out.order;
+    return sendJson(res, 201, responseOrder), true;
   }
 
   // --- /checkout/:orderId/qr.svg (BIP-21 QR — under /checkout/ nginx pin) ---
@@ -1749,6 +1811,52 @@ async function handle(req, res, ctx) {
     return sendJson(res, 200, { ok: true, orderId: order.orderId, email: nextEmail }), true;
   }
 
+  // --- /api/order/:orderId/pay-pack — unified multi-rail session (PIOS/1.0)
+  const mPayPack = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/pay-pack$/);
+  if (mPayPack && (req.method === 'GET' || req.method === 'POST')) {
+    const order = ORDERS.get(mPayPack[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    let body = {};
+    if (req.method === 'POST') {
+      try { body = await readBody(req); } catch (_) { body = {}; }
+    } else {
+      try {
+        const u = new URL(req.url || '', 'http://local');
+        body = {
+          access_token: u.searchParams.get('access_token') || '',
+          mint: u.searchParams.get('mint') !== '0',
+          selectedRail: u.searchParams.get('rail') || undefined,
+        };
+      } catch (_) {}
+    }
+    const token = String((body && body.access_token) || '').trim();
+    if (!token || token !== String(order.access_token || '')) {
+      return sendJson(res, 401, { error: 'invalid_access_token' }), true;
+    }
+    try {
+      const pios = require('../commerce/payment-innovation-os');
+      const mint = body.mint !== false && body.mint !== 0 && body.mint !== '0';
+      const ensured = await pios.ensurePayPack(order, {
+        mint,
+        selectedRail: body.selectedRail || body.rail,
+        payCurrency: body.payCurrency || 'any',
+      });
+      persistOrder(order);
+      return sendJson(res, 200, {
+        ok: true,
+        protocol: pios.PROTOCOL,
+        pack: ensured.pack,
+        minted: ensured.minted,
+        errors: ensured.errors,
+        failover: ensured.errors && ensured.errors.length
+          ? pios.failoverPlan((ensured.errors[0] && ensured.errors[0].rail) || 'alt', ensured.pack.armed)
+          : null,
+      }), true;
+    } catch (e) {
+      return sendJson(res, 502, { error: 'pay_pack_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
+    }
+  }
+
   // --- /api/order/:orderId/paypal/create — optional PayPal rail (BTC remains primary)
   const mPaypalCreate = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/paypal\/create$/);
   if (mPaypalCreate && req.method === 'POST') {
@@ -1767,10 +1875,24 @@ async function handle(req, res, ctx) {
       order.meta = Object.assign({}, order.meta || {}, {
         paypalOrderId: created.paypalOrderId,
         paypalApproveHref: created.approveHref,
+        selectedRail: 'paypal',
       });
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        pios.recordTelemetry({ type: 'rail_start', rail: 'paypal', orderId: order.orderId });
+      } catch (_) {}
       persistOrder(order);
       return sendJson(res, 200, created), true;
     } catch (e) {
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        const fo = pios.failoverPlan('paypal');
+        return sendJson(res, 502, {
+          error: 'paypal_create_failed',
+          detail: String(e && e.message || e).slice(0, 200),
+          failover: fo,
+        }), true;
+      } catch (_) {}
       return sendJson(res, 502, { error: 'paypal_create_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
     }
   }
@@ -1845,10 +1967,25 @@ async function handle(req, res, ctx) {
       order.meta = Object.assign({}, order.meta || {}, {
         nowpaymentsInvoiceId: created.invoiceId,
         nowpaymentsInvoiceUrl: created.invoiceUrl,
+        nowpaymentsStatus: 'waiting',
+        selectedRail: 'nowpayments',
       });
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        pios.recordTelemetry({ type: 'rail_start', rail: 'nowpayments', orderId: order.orderId });
+      } catch (_) {}
       persistOrder(order);
       return sendJson(res, 200, created), true;
     } catch (e) {
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        const fo = pios.failoverPlan('nowpayments');
+        return sendJson(res, 502, {
+          error: 'nowpayments_create_failed',
+          detail: String(e && e.message || e).slice(0, 200),
+          failover: fo,
+        }), true;
+      } catch (_) {}
       return sendJson(res, 502, { error: 'nowpayments_create_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
     }
   }
@@ -1881,6 +2018,26 @@ async function handle(req, res, ctx) {
     }
     const meta = Object.assign({}, (body && body.meta) || {});
     if (body && body.invoiceId) meta.invoiceId = String(body.invoiceId).slice(0, 128);
+    // NOWPayments honesty — record partial/waiting statuses without fulfilling.
+    const npStatus = String((body && (body.paymentStatus || body.nowpaymentsStatus || meta.payment_status || meta.status)) || '').toLowerCase();
+    if (npStatus && /partial|underpaid|partially_paid|waiting|confirming|expired|failed/.test(npStatus) && !/finished|confirmed|completed/.test(npStatus)) {
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        pios.applyNowPaymentsStatus(order, npStatus);
+        persistOrder(order);
+        if (/partial|underpaid|partially_paid/.test(npStatus)) {
+          return sendJson(res, 202, {
+            ok: false,
+            pending: true,
+            error: 'partial_payment',
+            nowpaymentsStatus: npStatus,
+            honesty: 'Partial NOWPayments amount recorded — fulfillment waits for full confirmation.',
+            orderId: order.orderId,
+            status: order.status,
+          }), true;
+        }
+      } catch (_) { /* continue to settle attempt when status is final */ }
+    }
     const settled = markOrderPaidFromProvider(order.orderId, {
       provider: (body && body.provider) || 'alt-rail',
       providerRef: (body && (body.providerRef || body.txid || body.paymentId || body.paypalOrderId)) || null,
@@ -1936,6 +2093,10 @@ async function handle(req, res, ctx) {
       bip21: order.bip21,
       checkout_url: order.checkout_url,
     };
+    try {
+      const pios = require('../commerce/payment-innovation-os');
+      Object.assign(slim, pios.enrichOrderStatus(order));
+    } catch (_) { /* status enrichment best-effort */ }
     return sendJson(res, 200, slim), true;
   }
 

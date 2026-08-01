@@ -61,24 +61,51 @@ const TEMPLATES = {
     text: `Hi ${name || 'there'},\n\nYour ZeusAI account is live. Manage services at ${envAppUrl()}/account.\n\n— ZeusAI`,
     html: `<p>Hi ${escapeHtml(name || 'there')},</p><p>Your ZeusAI account is live. Manage services at <a href="${envAppUrl()}/account">${envAppUrl()}/account</a>.</p><p>— ZeusAI · Self-custody · BTC-first</p>`
   }),
-  payment_pending: ({ orderId, btcAddress, btcAmount, amount_btc, priceUSD, checkout_url, serviceName }) => {
+  payment_pending: ({
+    orderId, btcAddress, btcAmount, amount_btc, priceUSD, checkout_url, serviceName,
+    paypalApproveHref, nowInvoiceUrl, multiRail,
+  }) => {
     const amountBtc = btcAmount || amount_btc || 'pending';
     const safeService = serviceName || 'your service';
     const checkoutUrl = checkout_url || `${envAppUrl()}/checkout/${orderId}`;
-    const usdNote = Number(priceUSD) > 0 ? ` ($${priceUSD})` : '';
+    const usdNote = Number(priceUSD) > 0 ? ` ($${Number(priceUSD).toFixed(2)})` : '';
+    const hasAlt = !!(paypalApproveHref || nowInvoiceUrl || multiRail);
+    const altText = [
+      paypalApproveHref ? (`PayPal: ${paypalApproveHref}`) : '',
+      nowInvoiceUrl ? (`Card/crypto: ${nowInvoiceUrl}`) : '',
+    ].filter(Boolean).join('\n');
+    const altHtml = [
+      paypalApproveHref
+        ? `<p style="margin:8px 0"><a href="${escapeHtml(paypalApproveHref)}" style="background:#0070ba;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;display:inline-block;font-weight:600">Pay with PayPal</a></p>`
+        : '',
+      nowInvoiceUrl
+        ? `<p style="margin:8px 0"><a href="${escapeHtml(nowInvoiceUrl)}" style="background:#14132a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;display:inline-block;font-weight:600">Pay with card / crypto</a></p>`
+        : '',
+    ].join('');
     return {
       subject: `Payment pending · ${safeService} · Order ${orderId}`,
       text:
         `Service: ${safeService}\n` +
         `Order: ${orderId}\n` +
-        `Send exactly ${amountBtc} BTC${usdNote} to ${btcAddress || 'the provided BTC address'}.\n` +
-        `Checkout: ${checkoutUrl}`,
+        (hasAlt
+          ? (`Choose one payment rail${usdNote}:\n` +
+             `- Bitcoin: send exactly ${amountBtc} BTC to ${btcAddress || 'the invoice address'}\n` +
+             (altText ? (altText + '\n') : '') +
+             `- Or open checkout: ${checkoutUrl}\n`)
+          : (`Send exactly ${amountBtc} BTC${usdNote} to ${btcAddress || 'the provided BTC address'}.\n` +
+             `Checkout: ${checkoutUrl}\n`)),
       html:
         `<p><b>Service:</b> ${escapeHtml(safeService)}</p>` +
         `<p><b>Order:</b> ${escapeHtml(orderId)}</p>` +
-        `<p>Send exactly <b>${escapeHtml(String(amountBtc))} BTC</b>${usdNote} to:</p>` +
-        `<p><code>${escapeHtml(btcAddress || 'the provided BTC address')}</code></p>` +
-        `<p>Checkout: <a href="${escapeHtml(checkoutUrl)}">${escapeHtml(checkoutUrl)}</a></p>`
+        (hasAlt
+          ? (`<p>Choose <b>one</b> payment rail${usdNote}. Do not pay twice.</p>` +
+             `<p><b>Bitcoin</b> — send exactly <b>${escapeHtml(String(amountBtc))} BTC</b> to:</p>` +
+             `<p><code>${escapeHtml(btcAddress || 'the provided BTC address')}</code></p>` +
+             altHtml +
+             `<p>Checkout: <a href="${escapeHtml(checkoutUrl)}">${escapeHtml(checkoutUrl)}</a></p>`)
+          : (`<p>Send exactly <b>${escapeHtml(String(amountBtc))} BTC</b>${usdNote} to:</p>` +
+             `<p><code>${escapeHtml(btcAddress || 'the provided BTC address')}</code></p>` +
+             `<p>Checkout: <a href="${escapeHtml(checkoutUrl)}">${escapeHtml(checkoutUrl)}</a></p>`))
     };
   },
   payment_activated: ({ orderId, serviceId }) => ({
@@ -86,23 +113,27 @@ const TEMPLATES = {
     text: `Payment confirmed. ${serviceId} is active. Visit ${envAppUrl()}/account.`,
     html: `<p>Payment confirmed. <b>${escapeHtml(serviceId)}</b> is active.</p><p>Visit <a href="${envAppUrl()}/account">${envAppUrl()}/account</a> for delivery and API keys.</p>`
   }),
-  order_receipt: ({ orderId, serviceId, serviceName, priceUSD, amount_btc, btcAmount, txid, paid_at }) => {
+  order_receipt: ({ orderId, serviceId, serviceName, priceUSD, amount_btc, btcAmount, txid, paid_at, paid_via, providerRef }) => {
     const svc = serviceName || serviceId || 'your ZeusAI service';
     const btc = amount_btc || btcAmount;
     const usd = Number(priceUSD) > 0 ? '$' + Number(priceUSD).toFixed(2) : null;
+    const via = String(paid_via || (txid ? 'btc' : '') || '').toLowerCase();
+    const viaLabel = via === 'paypal' ? 'PayPal' : (via === 'nowpayments' || via === 'now' ? 'Card / crypto (NOWPayments)' : (via === 'btc' || via === 'bitcoin' ? 'Bitcoin' : (via || 'payment')));
     const paidLine = paid_at ? ('Paid at: ' + paid_at + '\n') : '';
+    const viaLine = via ? ('Paid via: ' + viaLabel + '\n') : '';
     const txLine = txid ? ('BTC txid: ' + txid + '\n') : '';
-    const amountLine = usd ? ('Amount: ' + usd + (btc ? ' (' + btc + ' BTC)' : '') + '\n') : (btc ? ('Amount: ' + btc + ' BTC\n') : '');
+    const refLine = providerRef && !txid ? ('Provider ref: ' + providerRef + '\n') : '';
+    const amountLine = usd ? ('Amount: ' + usd + (btc && (via === 'btc' || !via) ? ' (' + btc + ' BTC)' : '') + '\n') : (btc ? ('Amount: ' + btc + ' BTC\n') : '');
     return {
       subject: 'Receipt · ' + svc + ' · Order ' + orderId,
       text:
         'Thank you for your purchase.\n\n' +
         'Order: ' + orderId + '\n' +
         'Service: ' + svc + '\n' +
-        amountLine + paidLine + txLine +
+        amountLine + viaLine + paidLine + txLine + refLine +
         '\nYour account and any generated artifacts are available at ' + envAppUrl() + '/account.\n\n' +
         (txid ? ('On-chain proof: https://mempool.space/tx/' + txid + '\n\n') : '') +
-        '— ZeusAI · Self-custody · BTC-first',
+        '— ZeusAI · Multi-rail settlement · Self-custody BTC primary',
       html:
         '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a;">' +
           '<h2 style="margin:0 0 12px;font-size:20px;">✅ Receipt · ' + escapeHtml(svc) + '</h2>' +
@@ -110,12 +141,14 @@ const TEMPLATES = {
           '<table style="border-collapse:collapse;font-size:14px;margin:12px 0;">' +
             '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Order</td><td style="padding:4px 0;font-family:ui-monospace,SFMono-Regular,monospace;">' + escapeHtml(orderId || '—') + '</td></tr>' +
             '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Service</td><td style="padding:4px 0;">' + escapeHtml(svc) + '</td></tr>' +
-            (usd ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Amount</td><td style="padding:4px 0;">' + escapeHtml(usd) + (btc ? ' <span style="color:#64748b;">(' + escapeHtml(String(btc)) + ' BTC)</span>' : '') + '</td></tr>' : '') +
+            (usd ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Amount</td><td style="padding:4px 0;">' + escapeHtml(usd) + (btc && (via === 'btc' || !via) ? ' <span style="color:#64748b;">(' + escapeHtml(String(btc)) + ' BTC)</span>' : '') + '</td></tr>' : '') +
+            (via ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Paid via</td><td style="padding:4px 0;">' + escapeHtml(viaLabel) + '</td></tr>' : '') +
             (paid_at ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Paid</td><td style="padding:4px 0;">' + escapeHtml(paid_at) + '</td></tr>' : '') +
             (txid ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Bitcoin TX</td><td style="padding:4px 0;"><a href="https://mempool.space/tx/' + escapeHtml(txid) + '" style="color:#0369a1;font-family:ui-monospace,SFMono-Regular,monospace;">' + escapeHtml(txid.slice(0, 12)) + '…</a></td></tr>' : '') +
+            (providerRef && !txid ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Provider ref</td><td style="padding:4px 0;font-family:ui-monospace,SFMono-Regular,monospace;">' + escapeHtml(String(providerRef).slice(0, 48)) + '</td></tr>' : '') +
           '</table>' +
           '<p style="margin:16px 0;"><a href="' + escapeHtml(envAppUrl()) + '/account" style="background:#0ea5e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;display:inline-block;font-weight:600;">Open your account</a></p>' +
-          '<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">— ZeusAI · Self-custody · BTC-first</p>' +
+          '<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">— ZeusAI · Multi-rail settlement · Self-custody BTC primary</p>' +
         '</div>'
     };
   },
