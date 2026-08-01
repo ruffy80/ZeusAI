@@ -1837,11 +1837,10 @@ function bindHeroQuickBuy(){
       try { localStorage.setItem('u_email', email); } catch (_) {}
     }
     try { trackFunnel('hero_quick_buy_click', { serviceId: id, hasEmail: !!email }); } catch (_) {}
-    if (typeof window.sovereignBuy === 'function') {
-      window.sovereignBuy(id, { el: btn });
-    } else {
-      window.location.href = '/checkout/?plan=' + encodeURIComponent(id);
-    }
+    // Universal Payment Rails: always open the method chooser (BTC · PayPal · NOW).
+    let href = '/checkout/?plan=' + encodeURIComponent(id);
+    if (email) href += '&email=' + encodeURIComponent(email);
+    window.location.href = href;
   };
   if (btn) btn.addEventListener('click', function(ev){ ev.preventDefault(); submit(); });
   form.addEventListener('submit', function(ev){ ev.preventDefault(); submit(); });
@@ -2303,8 +2302,8 @@ function cardHtml(s){
     const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
     buyBtn = `<a class="${cls}" href="${href}" data-link style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
   } else {
-    const label = cta.ctaLabel || 'Get BTC invoice →';
-    buyBtn = `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(sid)}" data-sovereign-buy="${escapeHtml(sid)}" data-buy-mode="${escapeHtml(cta.mode || 'btc')}" style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
+    const label = cta.ctaLabel || 'Buy → choose payment';
+    buyBtn = `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(sid)}" data-sovereign-buy="${escapeHtml(sid)}" data-buy-mode="checkout" style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
   }
   return `<div class="card">
     <span class="tag">${escapeHtml(s.segment || s.category || 'core')}</span>
@@ -2454,8 +2453,8 @@ function masterCardHtml(it){
     const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
     buyBtn = '<a class="' + cls + '" href="' + href + '" data-link aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   } else {
-    const mode = cta.mode === 'reserve' ? 'reserve' : 'btc';
-    const label = cta.ctaLabel || (mode === 'reserve' ? 'Reserve with BTC →' : 'Buy with BTC →');
+    const mode = cta.mode === 'reserve' ? 'reserve' : 'checkout';
+    const label = cta.ctaLabel || (mode === 'reserve' ? 'Reserve → choose payment' : 'Buy → choose payment');
     buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="' + mode + '" aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   }
   // Future-invention / aspirational: never offer self-serve preorder Buy.
@@ -2513,10 +2512,10 @@ function clientBuyabilityCta(it) {
     return { mode: 'unavailable', buyable: false, ctaLabel: 'Not available yet', ctaHref: null };
   }
   if (/^professional-/i.test(id) || group === 'professional' || tier === 'professional') {
-    return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve → choose payment', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
   // Land on checkout method chooser (BTC + PayPal + NOWPayments when armed).
-  return { mode: 'checkout', buyable: true, ctaLabel: 'Buy now →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  return { mode: 'checkout', buyable: true, ctaLabel: 'Buy → choose payment', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
 }
 
 // Sovereign BTC checkout: creates a non-custodial order on the server and
@@ -2628,11 +2627,16 @@ if (typeof window !== 'undefined') {
       const id = t.getAttribute('data-sovereign-buy');
       const preorder = t.getAttribute('data-sovereign-preorder') === '1';
       if (!id) return;
-      // Instant BTC mint only for explicit BTC CTAs on the checkout page.
-      // Product / catalog cards always open the method chooser (BTC · PayPal · NOW).
+      // Instant BTC mint ONLY on the checkout page itself (btc-direct).
+      // Every other product surface → method chooser (BTC · PayPal · NOW).
       const mode = String(t.getAttribute('data-buy-mode') || '').toLowerCase();
-      const instantBtc = mode === 'btc-direct' || t.hasAttribute('data-sovereign-instant')
-        || t.id === 'coSovereignPrimary' || t.id === 'coPay';
+      const onCheckoutPage = /^\/checkout\/?$/.test(String(location.pathname || '').replace(/\/$/, '') || '/')
+        || String(location.pathname || '') === '/checkout'
+        || /\/checkout\/?$/.test(String(location.pathname || ''));
+      const instantBtc = onCheckoutPage && (
+        mode === 'btc-direct' || t.hasAttribute('data-sovereign-instant')
+        || t.id === 'coSovereignPrimary' || t.id === 'coPay'
+      );
       if (instantBtc) {
         sovereignBuy(id, { preorder, el: t });
         return;
@@ -3010,8 +3014,8 @@ async function hydrateServiceDetail(id){
             const label = cta.ctaLabel || 'Request proposal →';
             return '<a class="btn btn-gold" id="svcBuyBtn" href="' + href + '" data-link style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</a>';
           }
-          const label = cta.ctaLabel || '₿ Buy now → BTC checkout';
-          return '<button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="' + escapeHtml(s.id) + '" data-buy-mode="' + escapeHtml(cta.mode || 'btc') + '" style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</button>';
+          const label = cta.ctaLabel || 'Buy → choose payment';
+          return '<button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="' + escapeHtml(s.id) + '" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</button>';
         })()}
         <div id="svcUpsell" data-upsell-anchor="${escapeHtml(s.id)}" style="margin-top:12px"></div>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
@@ -3082,13 +3086,9 @@ function initServiceNarrative(service){
       };
       return;
     }
-    runBtn.textContent = 'Continue to BTC checkout →';
+    runBtn.textContent = 'Continue → choose payment';
     runBtn.onclick = function(){
       const sid = service && service.id ? String(service.id) : '';
-      if (sid && typeof window.sovereignBuy === 'function') {
-        window.sovereignBuy(sid, { el: runBtn });
-        return;
-      }
       if (sid) location.href = '/checkout/?plan=' + encodeURIComponent(sid);
       else location.href = '/services';
     };
@@ -3253,7 +3253,7 @@ function hydrateCheckout(){
     selectCheckoutRail(c.dataset.method);
   }));
   // Shared catalog checkout: server prices by serviceId — never block on empty amount inputs.
-  // Works for every current/future catalog SKU: create → rail-specific approve/invoice URL.
+  // Works for every current/future catalog SKU + virtual dropship/social-tip SKUs.
   async function startCatalogRail(rail, busyBtnId) {
     const pl = String(
       (($('#coPlan') || {}).value)
@@ -3278,8 +3278,43 @@ function hydrateCheckout(){
       return;
     }
     try { if (email) localStorage.setItem('u_email', email); } catch (_) {}
+    // Virtual SKUs (dropship:… / social-tip:…) need the quoted amountUsd.
+    const isVirtual = /^(dropship:|ds:|social-tip:|tip:)/i.test(pl);
+    let amountUsd = null;
+    if (isVirtual) {
+      amountUsd = Number(($('#coAmount') || {}).value || 0)
+        || readBuyingAmount()
+        || (Number.isFinite(queryAmount) && queryAmount > 0 ? queryAmount : null);
+      if (!(amountUsd > 0)) {
+        toast('Enter the tip / quote amount (USD)', 'err');
+        return;
+      }
+    }
     // BTC primary: one-click sovereign mint (QR page). Prefer dedicated helper.
     if (rail === 'btc' || rail === 'bitcoin') {
+      if (isVirtual && amountUsd > 0) {
+        // sovereignBuy does not pass amountUsd — create + redirect for virtual SKUs.
+        const topBtcId = (document.getElementById('coSovereignPrimary') || document.getElementById(busyBtnId || 'coPay') || {}).id || 'coSovereignPrimary';
+        setBusy(topBtcId, true, 'Opening BTC invoice…');
+        try {
+          const order = await api('/api/checkout/create', {
+            method: 'POST',
+            body: JSON.stringify({
+              serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined,
+              amountUsd, rail: 'btc', skipBtcDiscount: true,
+              title: (document.getElementById('checkoutBuyingPlan') || {}).textContent || undefined,
+            }),
+          });
+          if (order && order.checkout_url) { window.location.href = order.checkout_url; return; }
+          if (order && order.orderId) { window.location.href = '/checkout/' + encodeURIComponent(order.orderId); return; }
+          toast((order && (order.reason || order.error)) || 'Could not create order', 'err');
+        } catch (e) {
+          toast('BTC error: ' + (e && e.message || e), 'err');
+        } finally {
+          setBusy(topBtcId, false);
+        }
+        return;
+      }
       const btn = document.getElementById(busyBtnId || 'coSovereignPrimary') || document.getElementById('coPay');
       if (typeof window.sovereignBuy === 'function') {
         await window.sovereignBuy(pl, { el: btn });
@@ -3291,9 +3326,15 @@ function hydrateCheckout(){
     ids.forEach((id) => setBusy(id, true, rail === 'paypal' ? 'Opening PayPal…' : 'Opening invoice…'));
     try {
       toast(rail === 'paypal' ? 'Creating PayPal order…' : 'Creating payment invoice…', 'ok');
+      const createBody = { serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined, rail };
+      if (isVirtual && amountUsd > 0) {
+        createBody.amountUsd = amountUsd;
+        createBody.skipBtcDiscount = true;
+        createBody.title = (document.getElementById('checkoutBuyingPlan') || {}).textContent || undefined;
+      }
       const order = await api('/api/checkout/create', {
         method: 'POST',
-        body: JSON.stringify({ serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined }),
+        body: JSON.stringify(createBody),
       });
       if (!order || !order.orderId || !order.access_token) {
         toast((order && (order.reason || order.error)) || 'Could not create order', 'err');
@@ -5013,8 +5054,8 @@ function renderStoreGrid(products, grid){
     const isEnt = p.tier === 'enterprise' || /^ent-/i.test(String(p.id || ''));
     const isPro = p.tier === 'professional' || /^professional-/i.test(String(p.id || ''));
     const ctaLabel = isEnt ? 'Request proposal →'
-                   : isPro ? 'Reserve with BTC →'
-                   : 'Buy with BTC →';
+                   : isPro ? 'Reserve → choose payment'
+                   : 'Buy → choose payment';
     const ctaClass = isEnt ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
     const features = p.features ? `<ul style="margin:10px 0;padding-left:18px;color:var(--ink-dim);font-size:12px">${p.features.slice(0,4).map(f => '<li>' + escStore(f) + '</li>').join('')}</ul>` : '';
     const accounts = p.targetAccounts ? `<div style="font-size:11px;color:var(--ink-dim);margin-top:8px"><b>Target:</b> ${p.targetAccounts.slice(0,3).map(escStore).join(', ')}${p.targetAccounts.length>3?'…':''}</div>` : '';
@@ -5035,7 +5076,7 @@ function renderStoreGrid(products, grid){
       ${features}
       <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${deliverableNote}</div>
       ${accounts}
-      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isEnt ? 'contact' : (isPro ? 'reserve' : 'btc')}" style="margin-top:auto">${ctaLabel}</button>
+      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isEnt ? 'contact' : (isPro ? 'reserve' : 'checkout')}" style="margin-top:auto">${ctaLabel}</button>
     </div>`;
   }).join('');
   if (grid.dataset.storeWired !== '1') {
@@ -5055,44 +5096,16 @@ function renderStoreGrid(products, grid){
 }
 
 function openStoreCheckout(product){
-  const box = document.getElementById('storeCheckout');
-  if (!box || !product) return;
+  if (!product) return;
   if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(String(product.id || ''))) {
     window.location.href = '/enterprise#enterprise-contact';
     return;
   }
-  const isPro = String(product.tier || '').toLowerCase() === 'professional' || /^professional-/i.test(String(product.id || ''));
-  const fields = (product.inputs||[]).map(i => `
-    <label style="display:block;margin:10px 0 4px;font-size:13px;color:var(--ink-dim)">${escStore(i.label)}${i.required?' *':''}</label>
-    <input data-k="${escStore(i.key)}" type="${i.type||'text'}" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;font-size:14px">
-  `).join('');
-  const tok = getCustToken();
-  const timingNote = isPro
-    ? `$${product.priceUSD} · BTC reserve · kickoff pack now · human build across milestones`
-    : `$${product.priceUSD} · digital deliverable after BTC settlement` + (product.durationSec ? ` (target ~${product.durationSec}s when AI fulfillment is enabled)` : '');
-  box.innerHTML = `
-    <div class="card" style="padding:28px">
-      <h2 style="margin:0 0 4px">${escStore(product.title)} — ${isPro ? 'Reserve' : 'Checkout'}</h2>
-      <div style="color:var(--ink-dim);font-size:14px;margin-bottom:20px">${timingNote}</div>
-      ${fields}
-      ${tok ? '' : `
-        <label style="display:block;margin:16px 0 4px;font-size:13px;color:var(--ink-dim)">Email (deliverable link will be sent here)</label>
-        <input id="storeGuestEmail" type="email" placeholder="you@domain.com" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;font-size:14px">
-      `}
-      <button id="storePurchaseBtn" class="btn btn-primary" style="margin-top:20px;width:100%;padding:14px;font-size:15px">Create BTC Invoice →</button>
-      <div id="storeInvoice" style="margin-top:22px"></div>
-    </div>`;
-  box.querySelector('#storePurchaseBtn').addEventListener('click', async () => {
-    const inputs = {};
-    box.querySelectorAll('[data-k]').forEach(el => { inputs[el.dataset.k] = el.value; });
-    const payload = { productId: product.id, inputs };
-    const t = getCustToken(); if (t) payload.customerToken = t;
-    const em = box.querySelector('#storeGuestEmail'); if (em && em.value) payload.guestEmail = em.value;
-    const r = await fetch('/api/instant/purchase', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(x=>x.json()).catch(e=>({error:String(e)}));
-    if (r.error) { box.querySelector('#storeInvoice').innerHTML = `<div style="color:#ff9c9c;padding:12px;background:rgba(255,60,60,.1);border-radius:6px">${escStore(r.error)}</div>`; return; }
-    renderStoreInvoice(r);
-  });
-  box.scrollIntoView({ behavior:'smooth', block:'start' });
+  // Universal Payment Rails: Instant Store uses the same chooser as marketplace
+  // (BTC · PayPal · NOW) — never a BTC-only /api/instant/purchase bypass.
+  const sid = String(product.id || '').trim();
+  if (!sid) return;
+  window.location.href = '/checkout/?plan=' + encodeURIComponent(sid);
 }
 
 function renderStoreInvoice(r){

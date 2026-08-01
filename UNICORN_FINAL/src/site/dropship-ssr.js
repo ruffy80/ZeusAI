@@ -100,7 +100,7 @@ function productCardHtml(p) {
         '<div class="ds-product-meta">' +
           '<a class="ds-detail-link" href="/dropship/product/' + pid + '">View details \u2192</a>' +
           '<button class="ds-buy" type="button" data-buy data-pid="' + escapeHtml(p.id) +
-            '" data-title="' + escapeHtml(p.title || '') + '">Buy BTC</button>' +
+            '" data-title="' + escapeHtml(p.title || '') + '">Buy \u2192</button>' +
         '</div>' +
       '</div>' +
     '</article>'
@@ -199,8 +199,8 @@ function productPdpHtml(p, compare, related) {
               'Preview \u00b7 not for sale</button>' +
               '<p class="ds-delivery-note">This curated preview SKU is not available for checkout until a live supplier dispatch path is configured.</p>')
           : ('<button class="ds-pdp-buy" type="button" id="dp-buy" data-buy data-pid="' +
-              escapeHtml(p.id) + '">Buy with BTC \u2192</button>' +
-              '<p class="ds-delivery-note">Live destination quote required before invoice \u00b7 ETA ' +
+              escapeHtml(p.id) + '">Buy \u2192 choose payment</button>' +
+              '<p class="ds-delivery-note">Quote first \u00b7 Bitcoin, PayPal, or card/crypto \u00b7 ETA ' +
               escapeHtml(String(eta)) + ' days \u00b7 ' + escapeHtml(fulfilNote) + '</p>')) +
       '</div>' +
     '</div>' +
