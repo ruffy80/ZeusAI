@@ -1122,17 +1122,17 @@ function pageHome() {
   <div class="grid phone-stack" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
     <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span>
-        <span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span>
+        <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
+        <span style="font-size:11px;color:var(--ink-dim)">BTC on-chain · PayPal · card/crypto when armed</span>
       </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Live paid orders load here — every entry is a verifiable BTC settlement to the owner wallet.</div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Live paid orders load here — BTC entries link to mempool.space; alt-rail pays show provider refs.</div>
     </div>
     <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
-      <span class="kicker" style="color:#f7931a">₿ Native Bitcoin pricing</span>
+      <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
       <h3 style="margin:0;font-size:22px;line-height:1.2">Pay in BTC → <span class="grad">save 10%</span></h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13px">Every catalog price already reflects the 10% BTC discount — instant, custodian-free, receipt signed Ed25519.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:13px">Catalog prices include the BTC discount. Prefer PayPal or card/crypto? Same checkout — choose your rail.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <a class="btn btn-primary" href="/services" data-link>Buy in BTC →</a>
+        <a class="btn btn-primary" href="/services" data-link>Buy → choose payment</a>
         <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
       </div>
     </div>
@@ -1166,7 +1166,7 @@ function pageHome() {
     <div>
       <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
       <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
-      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Sources products from a seed catalogue plus live marketplace APIs when provider keys are configured. Synthesises ideas, prices them, sells in BTC (confirmed on-chain via mempool.space), and heals itself. Orders route to CJ Dropshipping automatically when configured; otherwise queued for manual fulfilment.</p>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Sources products from a seed catalogue plus live marketplace APIs when provider keys are configured. Synthesises ideas, prices them, sells via BTC (on-chain) plus PayPal/card when armed, and heals itself. Orders route to CJ Dropshipping automatically when configured; otherwise queued for manual fulfilment.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open Autonomous Commerce \u2192</a>
         <button type="button" class="btn" data-live-inspect="/api/zacc/public" data-live-title="Inspect live snapshot" style="margin-top:8px">Inspect live snapshot</button>
@@ -1175,7 +1175,7 @@ function pageHome() {
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
       <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">9 components</div><div style="font-size:18px;font-weight:700;margin-top:4px">All autonomous</div></div>
       <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">21 sources</div><div style="font-size:18px;font-weight:700;margin-top:4px">Market scanner</div></div>
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">BTC \u00b7 on-chain</div><div style="font-size:18px;font-weight:700;margin-top:4px">Verified payouts</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Multi-rail settle</div><div style="font-size:18px;font-weight:700;margin-top:4px">BTC \u00b7 PayPal \u00b7 card</div></div>
       <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Persistent</div><div style="font-size:18px;font-weight:700;margin-top:4px">Self-learning</div></div>
     </div>
   </div>
@@ -1244,7 +1244,7 @@ ${_zaccBanner}
 <section id="commerceProof">
   <div class="section-title">
     <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
-    <p>Not just hidden APIs: the catalogue, BTC/BTCPay-ready checkout, automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
+    <p>Not just hidden APIs: the catalogue, multi-rail checkout (BTC · PayPal · card/crypto), automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
     <div class="card" style="border-color:rgba(255,211,106,.42)">
@@ -1254,9 +1254,9 @@ ${_zaccBanner}
       <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
     </div>
     <div class="card" style="border-color:rgba(247,147,26,.45)">
-      <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
+      <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">Multi-rail pay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
-      <p id="commerceProofPaymentCopy">BTC direct is primary. Card/Stripe, PayPal and global crypto appear only when configured live.</p>
+      <p id="commerceProofPaymentCopy">BTC direct is primary. PayPal and NOWPayments appear only when credentials + settle webhooks are armed live.</p>
       <a class="btn btn-primary" href="/checkout/?plan=adaptive-ai" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
@@ -2181,6 +2181,18 @@ function pageOperator() {
   <div class="card" style="margin-top:18px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
+        <span class="tag">Payment Innovation OS</span>
+        <h3 style="margin:8px 0 4px">Multi-rail armed state · telemetry · settle queue</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Public <code class="inline">GET /api/payment/innovation</code> — operational counts only, never invents GMV.</p>
+      </div>
+      <button class="btn" id="opLoadPios" type="button">Refresh PIOS</button>
+    </div>
+    <div class="grid" id="opPiosGrid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><div class="card"><p style="margin:0;color:var(--ink-dim)">Loading rails…</p></div></div>
+    <pre class="code" id="opPiosRaw" style="margin-top:12px;max-height:220px;overflow:auto">PIOS snapshot loading…</pre>
+  </div>
+  <div class="card" style="margin-top:18px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
         <span class="tag">Admin ops summary</span>
         <h3 style="margin:8px 0 4px">Funnel, SLO and DeepSeek in one panel</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Uses <code class="inline">/api/admin/ops/summary</code>. Token is stored in <code class="inline">sessionStorage</code> only.</p>
@@ -2216,6 +2228,31 @@ function pageOperator() {
         if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
         const r = document.getElementById('opRaw');
         if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
+      });
+    }
+
+    function loadPios(){
+      const grid = document.getElementById('opPiosGrid');
+      const raw = document.getElementById('opPiosRaw');
+      if (raw) raw.textContent = 'Loading PIOS…';
+      fetch('/api/payment/innovation').then(r=>r.json()).then(d=>{
+        const armed = (d && d.armed) || {};
+        const counts = (d && d.counts) || {};
+        const cards = [
+          ['BTC', armed.btc && armed.btc.settleReady ? 'settleReady' : 'primary'],
+          ['PayPal', armed.paypal && armed.paypal.settleReady ? 'settleReady' : (armed.paypal && armed.paypal.armed ? 'armed' : 'off')],
+          ['NOW', armed.nowpayments && armed.nowpayments.settleReady ? 'settleReady' : (armed.nowpayments && armed.nowpayments.armed ? 'armed' : 'off')],
+          ['Pay-packs', fmtNum(counts.pay_pack_built)],
+          ['Failovers', fmtNum(counts.rail_failover)],
+          ['Partial NOW', fmtNum(counts.partial_paid_seen)],
+          ['Settle Q', fmtNum((d.settleQueue && d.settleQueue.pending) || 0)],
+          ['Telemetry', fmtNum(d.telemetryEvents)]
+        ];
+        if (grid) grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+esc(c[0])+'</span><h3 style="font-size:16px">'+esc(c[1])+'</h3></div>').join('');
+        if (raw) raw.textContent = JSON.stringify({ protocol: d.protocol, honesty: d.honesty, counts: d.counts, settleQueue: d.settleQueue }, null, 2);
+      }).catch(e=>{
+        if (grid) grid.innerHTML = '<div class="card"><p style="margin:0;color:#ffb4b4">PIOS unavailable.</p></div>';
+        if (raw) raw.textContent = 'PIOS error: '+(e && e.message || e);
       });
     }
 
@@ -2317,7 +2354,10 @@ function pageOperator() {
       });
     }
 
+    const piosBtn = document.getElementById('opLoadPios');
+    if (piosBtn) piosBtn.addEventListener('click', function(){ loadPios(); });
     loadPublic();
+    loadPios();
     if (saved) {
       loadAdminOps(saved);
       armAutoRefresh(saved);
