@@ -1094,7 +1094,24 @@ if (process.env.HOST_SANITY_DISABLED !== '1') {
       // observability-only (logs once/min/host); it never blocks a request and
       // it is NOT a security boundary. The actual security boundary is CORS
       // (see _allowedOrigins above) plus nginx server_name matching upstream.
-      if (seen === expected || seen.endsWith('.' + expected) || seen === 'localhost' || seen === '127.0.0.1') return next();
+      // Extra hosts: bare public IP health probes, CI canaries, etc.
+      // HOST_SANITY_EXTRA_HOSTS=ip1,ip2 (comma-separated, no ports).
+      const extra = String(process.env.HOST_SANITY_EXTRA_HOSTS || '')
+        .toLowerCase()
+        .split(',')
+        .map((s) => s.trim().split(':')[0])
+        .filter(Boolean);
+      const isIpLiteral = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(seen) || seen.includes(':');
+      if (
+        seen === expected
+        || seen.endsWith('.' + expected)
+        || seen === 'localhost'
+        || seen === '127.0.0.1'
+        || seen === '::1'
+        || extra.includes(seen)
+        || (isIpLiteral && (seen === String(process.env.HETZNER_HOST || '').toLowerCase()
+          || seen === String(process.env.PUBLIC_IP || '').toLowerCase()))
+      ) return next();
       const now = Date.now();
       const last = __hostSanitySeen.get(seen) || 0;
       if (now - last > 60000) {
