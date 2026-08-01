@@ -55,6 +55,19 @@ jobs:
             exit 1
           fi
 
+          # Refuse auto-merge unless head commit body carries [innovation-approved]
+          # (docs-only AutoInnovation PRs may pass No-Downgrade Guard with a warning,
+          # but must never land on main without an explicit approval trailer).
+          HEAD_SHA=$(gh pr view $PR_NUM --json headRefOid --jq '.headRefOid')
+          HEAD_BODY=$(git log -1 --format=%B "$HEAD_SHA" 2>/dev/null || true)
+          if ! printf '%s' "$HEAD_BODY" | grep -qiF '[innovation-approved]'; then
+            echo "✗ Head commit lacks [innovation-approved] trailer — human review required"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "tier=needs-innovation-approved-trailer" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "✓ Head commit has [innovation-approved] trailer"
+
           # ── CRITICAL PATHS GUARD ────────────────────────────────────────────
           # PRs touching these paths are NEVER auto-merged regardless of age or
           # score — they must be reviewed by a human. Keeps the platform safe
