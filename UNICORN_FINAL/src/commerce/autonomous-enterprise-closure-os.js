@@ -21,7 +21,12 @@ const path = require('path');
 
 const PROTOCOL = 'AECOS/1.0';
 const KICKOFF_ID = 'ent-engagement-kickoff';
+/** Default / floor display price — dynamic kickoff comes from AEDO (5–10% ACV). */
 const KICKOFF_PRICE_USD = 2500;
+
+function _aedo() {
+  try { return require('./autonomous-enterprise-deal-orchestrator'); } catch (_) { return null; }
+}
 
 const DATA_DIR = process.env.UNICORN_COMMERCE_DIR
   || path.join(__dirname, '..', '..', 'data', 'commerce');
@@ -68,24 +73,26 @@ function kickoffSku() {
 }
 
 function rails() {
+  const aedo = _aedo();
+  if (aedo && typeof aedo.rails === 'function') return aedo.rails();
   return [
     {
       id: 'instant',
-      title: 'Instant digital',
-      cta: 'Buy → choose payment',
-      meaning: 'Self-serve checkout. Artifact delivered automatically after payment.',
+      title: 'Instant',
+      cta: 'Buy → Pay',
+      meaning: 'Self-serve digital delivery. Fully autonomous. No negotiation.',
     },
     {
       id: 'professional',
-      title: 'Professional build',
-      cta: 'Reserve → choose payment',
-      meaning: 'Kickoff reserve for human-built work. Remainder via milestones.',
+      title: 'Professional',
+      cta: 'Reserve → Pay',
+      meaning: 'AI-assisted kickoff. Semi-custom delivery. Light SOW.',
     },
     {
       id: 'enterprise',
-      title: 'Enterprise Autopilot',
-      cta: 'Start autonomous deal →',
-      meaning: 'AI negotiates + deal-desk quotes. You pay a $2,500 kickoff; full license closes under SOW — never fake “Buy = delivered”.',
+      title: 'Enterprise',
+      cta: 'Start Autonomous Deal',
+      meaning: 'Full AI negotiation. Kickoff = 5–10% of ACV ($1k–$25k). MSA + SOW + security pack. Autonomous onboarding.',
     },
   ];
 }
@@ -260,6 +267,12 @@ function enrichCatalogResponse() {
 }
 
 function buildKickoffQuote(input) {
+  // Prefer AEDO dynamic kickoff (5–10% ACV, clamped $1k–$25k).
+  const aedo = _aedo();
+  if (aedo && typeof aedo.buildKickoffQuote === 'function') {
+    return aedo.buildKickoffQuote(input || {});
+  }
+
   const desk = _desk();
   const email = String((input && input.email) || '').trim().toLowerCase();
   const productId = String((input && input.productId) || KICKOFF_ID);
@@ -281,8 +294,6 @@ function buildKickoffQuote(input) {
     };
   }
 
-  // Fixed engagement deposit — use standard SLA uplift (1.0) so UX stays
-  // exactly $2,500. Enterprise SLA uplift applies on the SOW remainder, not kickoff.
   const quote = desk.buildQuote({
     items: [{ id: KICKOFF_ID, title: 'Kickoff · ' + title, priceUsd: KICKOFF_PRICE_USD }],
     seats: 1,
@@ -297,7 +308,6 @@ function buildKickoffQuote(input) {
     + (email ? ('&email=' + encodeURIComponent(email)) : '')
     + (quote.id ? ('&quoteId=' + encodeURIComponent(quote.id)) : '');
 
-  // Pin net to the advertised kickoff; recompute BTC if desk uplifted.
   const netUsd = KICKOFF_PRICE_USD;
   const spot = Math.max(1, Number((input && input.btcSpotUsd) || process.env.BTC_SPOT_USD || 95000));
   const btcAmount = +(netUsd / spot).toFixed(8);
@@ -318,7 +328,7 @@ function buildKickoffQuote(input) {
     checkoutHref,
     productId: KICKOFF_ID,
     targetProductId: productId !== KICKOFF_ID ? productId : null,
-    honesty: 'Kickoff deposit only ($2,500). Full enterprise ACV closes under SOW after proposal acceptance.',
+    honesty: 'Kickoff deposit (AEDO fallback). Full enterprise ACV closes under SOW after proposal acceptance.',
   };
 }
 
@@ -326,6 +336,12 @@ function buildKickoffQuote(input) {
  * Cap-coadă from contact form: lead → kickoff quote → pay CTA.
  */
 function closeFromContact(lead, opts) {
+  const aedo = _aedo();
+  if (aedo && typeof aedo.closeFromContact === 'function') {
+    const closure = aedo.closeFromContact(lead, opts);
+    _append({ type: 'contact_close', leadId: closure.leadId, quoteId: closure.quote && closure.quote.id, netUsd: closure.quote && closure.quote.netUsd, via: 'aedo' });
+    return Object.assign({ protocol: PROTOCOL }, closure);
+  }
   const o = opts || {};
   const email = String((lead && lead.email) || o.email || '').trim().toLowerCase();
   const interest = String((lead && lead.interest) || o.productId || KICKOFF_ID);
@@ -343,7 +359,7 @@ function closeFromContact(lead, opts) {
     quote,
     next: [
       'Pay engagement kickoff (BTC / PayPal / NOW when armed)',
-      'Receive signed proposal pack automatically after payment',
+      'Receive MSA / SOW / security pack automatically',
       'SOW remainder negotiated autonomously; full ACV never claimed as instant delivery',
     ],
     message: 'Autonomous desk ready — pay the engagement kickoff to start. Full license closes under SOW.',
@@ -357,6 +373,19 @@ function closeFromContact(lead, opts) {
  * After negotiate accept/confirm — mint kickoff path (not full ACV).
  */
 function closeFromDeal(deal, opts) {
+  const aedo = _aedo();
+  if (aedo && typeof aedo.closeFromDeal === 'function') {
+    const out = aedo.closeFromDeal(deal, opts);
+    _append({
+      type: 'deal_close',
+      dealId: out.dealId,
+      quoteId: out.kickoff && out.kickoff.id,
+      acceptedPriceUSD: out.acceptedPriceUSD,
+      packId: out.pack && out.pack.packId,
+      via: 'aedo',
+    });
+    return Object.assign({ protocol: PROTOCOL }, out);
+  }
   const d = deal || {};
   const email = String((d.buyer && d.buyer.email) || (opts && opts.email) || '').trim().toLowerCase();
   const quote = buildKickoffQuote({

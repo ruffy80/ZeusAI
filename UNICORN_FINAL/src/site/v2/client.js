@@ -4358,15 +4358,23 @@ function wireEnterpriseContactForm(){
       const data = await r.json().catch(() => ({}));
       if (r.ok && data.ok) {
         const q = data.quote || {};
+        const offer = data.offer || {};
+        const rail = (data.rail && data.rail.rail) || (offer.rail && offer.rail.rail) || 'enterprise';
+        const acvMid = offer.acv && offer.acv.mid;
+        const kickPct = (q.kickoff && q.kickoff.percentageLabel) || (offer.kickoff && offer.kickoff.percentageLabel) || '';
         const payHref = q.checkoutHref || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(payload.email));
-        showStatus('✅ ' + (data.message || 'Autonomous desk ready.') + ' Lead ' + (data.leadId || '—') + (q.netUsd != null ? ' · Kickoff $' + Number(q.netUsd).toLocaleString('en-US') : ''), 'ok');
+        showStatus('✅ ' + (data.message || 'AEDO ready.') + ' Lead ' + (data.leadId || '—')
+          + ' · Rail ' + String(rail).toUpperCase()
+          + (q.netUsd != null ? ' · Kickoff $' + Number(q.netUsd).toLocaleString('en-US') : '')
+          + (kickPct ? ' (' + kickPct + ')' : ''), 'ok');
         const payBox = document.getElementById('entKickoffPay');
         if (payBox) {
           payBox.style.display = 'block';
           payBox.innerHTML = `
             <div style="margin-top:8px;padding:18px 20px;border:1px solid rgba(163,255,206,.4);border-radius:10px;background:rgba(163,255,206,.08)">
-              <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a3ffce;font-weight:700">Next · Pay engagement kickoff</div>
-              <p style="margin:8px 0 14px;color:#eee;font-size:14px;line-height:1.5">Pay <b>$${(q.netUsd != null ? Number(q.netUsd) : 2500).toLocaleString('en-US')}</b> to unlock the proposal pack. Full license still closes under SOW — this is not instant full delivery.</p>
+              <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a3ffce;font-weight:700">AEDO · Rail ${String(rail).toUpperCase()} · Pay kickoff</div>
+              <p style="margin:8px 0 6px;color:#eee;font-size:14px;line-height:1.5">Kickoff <b>$${(q.netUsd != null ? Number(q.netUsd) : 2500).toLocaleString('en-US')}</b>${kickPct ? ' · ' + kickPct + ' of ACV' : ''}${acvMid ? ' · ACV mid $' + Number(acvMid).toLocaleString('en-US') : ''}.</p>
+              <p style="margin:0 0 14px;color:var(--ink-dim);font-size:13px;line-height:1.5">Unlocks MSA · SOW · Technical Appendix · Security Pack · Timeline · Payment Schedule. Full license closes under SOW — not instant delivery.</p>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <a class="btn btn-gold" href="${payHref}" data-link style="padding:12px 22px">Pay kickoff →</a>
                 ${q.btcUri ? `<a class="btn btn-ghost" href="${q.btcUri}" style="padding:12px 22px">Open BTC URI</a>` : ''}
@@ -4384,14 +4392,14 @@ function wireEnterpriseContactForm(){
             });
           }
         }
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
       } else {
         showStatus('❌ ' + (data.error || 'Submission failed. Please email us at vladoi_ionut@yahoo.com'), 'err');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
       }
     } catch (e) {
       showStatus('❌ Network error. Please try again or email vladoi_ionut@yahoo.com', 'err');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
     }
   });
 }
@@ -4473,14 +4481,24 @@ function renderEntThread(deal, closure){
     </div>`;
   }).join('');
   const kickoff = closure && (closure.kickoff || closure.quote);
+  const pack = closure && closure.pack;
+  const packDocs = pack && Array.isArray(pack.documents) ? pack.documents : [];
+  const kickPct = kickoff && kickoff.kickoff && kickoff.kickoff.percentageLabel;
   const kickoffHtml = kickoff ? `
     <div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(163,255,206,.45);background:rgba(163,255,206,.08)">
-      <b style="font-size:18px;color:#a3ffce">Pay engagement kickoff · $${Number(kickoff.netUsd || 2500).toLocaleString('en-US')}</b>
-      <div style="color:var(--ink-dim);margin-top:6px;font-size:13px">${kickoff.honesty || closure.honesty || 'Deal ACV recorded for SOW. Payable now = engagement kickoff only.'}</div>
+      <b style="font-size:18px;color:#a3ffce">Pay kickoff · $${Number(kickoff.netUsd || 2500).toLocaleString('en-US')}${kickPct ? ' · ' + kickPct + ' ACV' : ''}</b>
+      <div style="color:var(--ink-dim);margin-top:6px;font-size:13px">${kickoff.honesty || closure.honesty || 'Deal ACV recorded for SOW. Payable now = proportional kickoff only.'}</div>
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
         <a class="btn btn-gold" href="${kickoff.checkoutHref || closure.checkoutHref || '/checkout/?plan=ent-engagement-kickoff'}" data-link>Pay kickoff →</a>
         ${kickoff.btcUri ? `<a class="btn btn-ghost" href="${kickoff.btcUri}">Open BTC URI</a>` : ''}
       </div>
+      ${packDocs.length ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6fd3ff;margin-bottom:8px">Proposal pack ${pack.packId || ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${packDocs.map(function(d){
+          return '<a class="btn btn-ghost" style="padding:8px 12px;font-size:12px" href="' + (d.href || '#') + '" target="_blank" rel="noopener">' + (d.title || d.key) + '</a>';
+        }).join('')}</div>
+      </div>` : ''}
+      ${closure && closure.onboarding ? `<div style="margin-top:12px;font-size:12px;color:var(--ink-dim)">Onboarding <b style="color:#fff">${closure.onboarding.id}</b> · ${closure.onboarding.status || 'queued'}</div>` : ''}
     </div>` : '';
   t.innerHTML = `
     <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08)">
