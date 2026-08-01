@@ -88,3 +88,9 @@ UNICORN_FINAL/data/zacc-state.json
 /data/*.db-wal
 backups/auth-db/
 UNICORN_FINAL/backups/auth-db/
+
+# Local runtime backups / obsolete snapshot artifacts (not app instances)
+unicorn-backups/
+UNICORN_FINAL.zip
+release/*.zip
+UNICORN_FINAL/client/build_mirror/
