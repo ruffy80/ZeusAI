@@ -143,6 +143,32 @@ function accept(dealId) {
   return d;
 }
 
+function _finalizeConfirmed(d, actor) {
+  _otps.delete(d.id);
+  d.state = 'confirmed';
+  d.confirmedAt = new Date().toISOString();
+  d.history.push({ at: d.confirmedAt, actor: actor || 'governance', action: 'confirm' });
+  d.updatedAt = d.confirmedAt;
+  try {
+    const cg = _contracts();
+    if (cg && typeof cg.create === 'function') {
+      const contract = cg.create(d);
+      d.contractId = contract.id;
+      d.contractUrl = '/api/enterprise/contract/' + d.id;
+    }
+  } catch (e) { console.warn('[negotiation] contract gen failed:', e.message); }
+  try {
+    const g = _governance();
+    if (g && typeof g.recordAudit === 'function') g.recordAudit({ kind: 'deal_confirm', dealId: d.id, priceUSD: d.acceptedPriceUSD });
+  } catch (_) {}
+  try {
+    const v = require('./revenue-vault');
+    if (v && typeof v.allocateForDeal === 'function') v.allocateForDeal(d);
+  } catch (_) {}
+  _persist(d);
+  return d;
+}
+
 function confirmGovernance(dealId, otp) {
   const d = getDeal(dealId);
   if (!d) throw new Error('deal_not_found');
@@ -156,31 +182,34 @@ function confirmGovernance(dealId, otp) {
   if (got.length !== entry.otp.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(entry.otp))) {
     throw new Error('otp_invalid');
   }
-  _otps.delete(d.id);
-  d.state = 'confirmed';
-  d.confirmedAt = new Date().toISOString();
-  d.history.push({ at: d.confirmedAt, actor: 'governance', action: 'confirm' });
-  d.updatedAt = d.confirmedAt;
-  // Generate a signed contract via the contract generator (if present).
-  try {
-    const cg = _contracts();
-    if (cg && typeof cg.create === 'function') {
-      const contract = cg.create(d);
-      d.contractId = contract.id;
-      d.contractUrl = '/api/enterprise/contract/' + d.id;
-    }
-  } catch (e) { console.warn('[negotiation] contract gen failed:', e.message); }
-  // Audit + revenue-vault allocation.
-  try {
-    const g = _governance();
-    if (g && typeof g.recordAudit === 'function') g.recordAudit({ kind: 'deal_confirm', dealId: d.id, priceUSD: d.acceptedPriceUSD });
-  } catch (_) {}
-  try {
-    const v = require('./revenue-vault');
-    if (v && typeof v.allocateForDeal === 'function') v.allocateForDeal(d);
-  } catch (_) {}
-  _persist(d);
-  return d;
+  return _finalizeConfirmed(d, 'governance');
+}
+
+/**
+ * AEDO autonomous confirm — no human OTP.
+ * Enabled by default for enterprise autopilot; set AEDO_REQUIRE_HUMAN_OTP=1 to force classic path.
+ */
+function confirmAutonomous(dealId) {
+  if (process.env.AEDO_REQUIRE_HUMAN_OTP === '1') {
+    throw new Error('human_otp_required');
+  }
+  const d = getDeal(dealId);
+  if (!d) throw new Error('deal_not_found');
+  if (d.state === 'confirmed') return d;
+  if (d.state !== 'pending_governance' && d.state !== 'countered' && d.state !== 'open') {
+    throw new Error('deal_not_confirmable');
+  }
+  if (d.state !== 'pending_governance') {
+    d.acceptedPriceUSD = d.counterOfferUSD || d.currentOfferUSD || d.listPriceUSD;
+    d.history.push({
+      at: new Date().toISOString(),
+      actor: 'system',
+      action: 'accept_autonomous',
+      offerUSD: d.acceptedPriceUSD,
+    });
+  }
+  d.autonomousConfirm = true;
+  return _finalizeConfirmed(d, 'aedo_autonomous');
 }
 
 function _resetForTests() {
@@ -194,4 +223,14 @@ function _peekOtp(dealId) { const e = _otps.get(String(dealId||'')); return e ? 
 
 _hydrate();
 
-module.exports = { startDeal, counter, accept, confirmGovernance, getDeal, listDeals, _resetForTests, _peekOtp };
+module.exports = {
+  startDeal,
+  counter,
+  accept,
+  confirmGovernance,
+  confirmAutonomous,
+  getDeal,
+  listDeals,
+  _resetForTests,
+  _peekOtp,
+};

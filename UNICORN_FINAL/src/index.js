@@ -1610,6 +1610,8 @@ let USE = null; try { USE = require('./engine/universal-site-engine').create({ s
 let entCatalog = null; try { entCatalog = require('./commerce/enterprise-catalog'); } catch (e) { console.warn('[enterprise-catalog] not loaded:', e.message); }
 let negotiator = null; try { negotiator = require('./commerce/negotiation-engine'); } catch (e) { console.warn('[negotiation] not loaded:', e.message); }
 let aecos = null; try { aecos = require('./commerce/autonomous-enterprise-closure-os'); } catch (e) { console.warn('[aecos] not loaded:', e.message); }
+let aedo = null; try { aedo = require('./commerce/autonomous-enterprise-deal-orchestrator'); } catch (e) { console.warn('[aedo] not loaded:', e.message); }
+let entProposalPack = null; try { entProposalPack = require('./commerce/enterprise-proposal-pack'); } catch (e) { console.warn('[epp] not loaded:', e.message); }
 let outreach = null; try { outreach = require('./commerce/outreach-engine'); } catch (e) { console.warn('[outreach] not loaded:', e.message); }
 let vault = null; try { vault = require('./commerce/revenue-vault'); } catch (e) { console.warn('[vault] not loaded:', e.message); }
 let governance = null; try { governance = require('./commerce/governance'); } catch (e) { console.warn('[governance] not loaded:', e.message); }
@@ -8790,6 +8792,48 @@ setInterval(function(){loadOrder().then(render);},10000);
   }
 
   // ===================== ENTERPRISE (FAANG / hyperscaler) =====================
+  // AEDO — Autonomous Enterprise Deal Orchestrator (rails, ACV, kickoff %, pack).
+  if (urlPath === '/api/enterprise/aedo' || urlPath === '/api/enterprise/orchestrator') {
+    const status = aedo && typeof aedo.publicStatus === 'function'
+      ? aedo.publicStatus()
+      : { ok: false, error: 'aedo_offline' };
+    res.writeHead(status.ok === false ? 503 : 200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    return res.end(JSON.stringify(status));
+  }
+  if (urlPath === '/api/enterprise/aedo/orchestrate' && req.method === 'POST') {
+    let body = ''; req.on('data', (c) => { body += c; if (body.length > 64 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        if (!aedo) { res.writeHead(503, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'aedo_offline' })); }
+        const out = aedo.orchestrate(JSON.parse(body || '{}'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(out));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+  if (urlPath.startsWith('/api/enterprise/pack/')) {
+    if (!entProposalPack) { res.writeHead(503, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'pack_offline' })); }
+    const rest = decodeURIComponent(urlPath.slice('/api/enterprise/pack/'.length));
+    const parts = rest.split('/').filter(Boolean);
+    if (parts.length === 1) {
+      const pack = entProposalPack.getPack(parts[0]);
+      if (!pack) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'not_found' })); }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(pack));
+    }
+    if (parts.length >= 2) {
+      const md = entProposalPack.readDocument(parts[0], parts[1]);
+      if (!md) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'not_found' })); }
+      res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'private, max-age=60' });
+      return res.end(md);
+    }
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'bad_pack_path' }));
+  }
   // AECOS enriches catalog/deals for clear UX + autonomous kickoff cash-close.
   if (urlPath === '/api/enterprise/aecos' || urlPath === '/api/enterprise/closure') {
     const status = aecos && typeof aecos.publicStatus === 'function'
@@ -8876,9 +8920,15 @@ setInterval(function(){loadOrder().then(render);},10000);
     req.on('end', () => {
       try {
         const { dealId } = JSON.parse(body||'{}');
-        const deal = negotiator.accept(dealId);
+        let deal = negotiator.accept(dealId);
+        // AEDO: autonomous confirm — no human OTP (unless AEDO_REQUIRE_HUMAN_OTP=1).
+        try {
+          if (negotiator.confirmAutonomous && process.env.AEDO_REQUIRE_HUMAN_OTP !== '1') {
+            deal = negotiator.confirmAutonomous(dealId);
+          }
+        } catch (_) { /* leave pending_governance if forced */ }
         const ui = (aecos && typeof aecos.enrichDealForUi === 'function') ? aecos.enrichDealForUi(deal) : deal;
-        // Cash-close path: mint engagement kickoff immediately (full ACV stays SOW).
+        // Cash-close + proposal pack + onboarding (full ACV stays SOW).
         let closure = null;
         try {
           if (aecos && typeof aecos.closeFromDeal === 'function') {
@@ -8888,7 +8938,7 @@ setInterval(function(){loadOrder().then(render);},10000);
           }
         } catch (_) { /* best-effort */ }
         res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, deal: ui, closure }));
+        res.end(JSON.stringify({ ok:true, deal: ui, closure, autonomous: true }));
       } catch(e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -9023,7 +9073,15 @@ setInterval(function(){loadOrder().then(render);},10000);
         return res.end(JSON.stringify({
           ok: true,
           leadId: lead.id,
-          protocol: closure && closure.protocol ? closure.protocol : (aecos && aecos.PROTOCOL) || null,
+          protocol: closure && closure.protocol ? closure.protocol : (aedo && aedo.PROTOCOL) || (aecos && aecos.PROTOCOL) || null,
+          rail: closure && closure.rail ? closure.rail : null,
+          offer: closure && closure.offer ? {
+            acv: closure.offer.acv,
+            kickoff: closure.offer.kickoff,
+            packages: closure.offer.packages,
+            value: closure.offer.value,
+            termYears: closure.offer.termYears,
+          } : null,
           quote: quote ? {
             id: quote.id,
             netUsd: quote.netUsd,
@@ -9032,19 +9090,21 @@ setInterval(function(){loadOrder().then(render);},10000);
             btcUri: quote.btcUri,
             checkoutHref: quote.checkoutHref || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(email)),
             productId: quote.productId || 'ent-engagement-kickoff',
-            honesty: quote.honesty || 'Kickoff deposit only. Full ACV closes under SOW.',
+            honesty: quote.honesty || 'Proportional kickoff (5–10% ACV). Full ACV closes under SOW.',
+            kickoff: quote.kickoff || null,
+            acv: quote.acv || null,
             slaTier: quote.slaTier && (quote.slaTier.key || quote.slaTier),
             seats: quote.seats,
           } : null,
           next: (closure && closure.next) || [
-            'Pay engagement kickoff ($2,500)',
-            'Receive signed proposal pack automatically',
+            'Pay proportional engagement kickoff (5–10% ACV)',
+            'Receive MSA / SOW / Security Pack automatically',
             'SOW remainder negotiated autonomously',
           ],
           message: (closure && closure.message)
-            || 'Autonomous desk ready — pay the engagement kickoff to start. Full license closes under SOW.',
+            || 'AEDO ready — pay the engagement kickoff to start. Full license closes under SOW.',
           messageRo: (closure && closure.messageRo)
-            || 'Desk autonom gata — plătește kickoff-ul de engagement ca să pornim. Licența full se închide pe SOW.',
+            || 'AEDO gata — plătește kickoff-ul proporțional. Licența full se închide pe SOW.',
         }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });

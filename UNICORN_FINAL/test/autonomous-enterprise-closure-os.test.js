@@ -62,13 +62,13 @@ check('kickoff is self-serve reserve; full ACV is contact', () => {
   assert.ok(/autonomous deal/i.test(full.ctaLabel));
 });
 
-check('closeFromContact returns kickoff quote + checkoutHref', () => {
+check('closeFromContact returns dynamic kickoff quote + checkoutHref', () => {
   const closure = aecos.closeFromContact(
     { id: 'ent-test-1', email: 'buyer@acme.com', interest: 'ent-platform-license' },
-    { btcSpotUsd: 100000 }
+    { btcSpotUsd: 100000, seats: 25, slaTier: 'enterprise' }
   );
   assert.ok(closure.quote);
-  assert.equal(closure.quote.netUsd, 2500);
+  assert.ok(closure.quote.netUsd >= 1000 && closure.quote.netUsd <= 25000);
   assert.ok(String(closure.quote.checkoutHref || '').includes('ent-engagement-kickoff'));
   assert.ok(Array.isArray(closure.next) && closure.next.length >= 2);
 });

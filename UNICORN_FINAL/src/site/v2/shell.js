@@ -3154,31 +3154,31 @@ Content-Type: application/json
 
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">ZeusAI · Enterprise Autopilot</span>
+    <span class="kicker" style="color:#ffd36a">ZeusAI · AEDO Autonomous Deal Orchestrator</span>
     <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#6fd3ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Enterprise deals that close themselves.</h1>
-    <p style="color:var(--ink-dim);font-size:19px;max-width:820px;line-height:1.55">Three clear rails. Instant digital buys itself. Professional work reserves a kickoff. Enterprise starts an autonomous deal — pay <b style="color:#fff">$2,500</b> engagement, get a signed proposal pack, then SOW for the rest. Never fake “Buy = full license delivered”.</p>
+    <p style="color:var(--ink-dim);font-size:19px;max-width:860px;line-height:1.55">Three rails. Instant buys itself. Professional reserves. Enterprise runs full autonomous negotiation — dynamic ACV, kickoff at <b style="color:#fff">5–10% of ACV</b> ($1k–$25k), then MSA · SOW · Security Pack · Timeline · Payment Schedule and onboarding. No human approval. Never fake “Buy = full license”.</p>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
-      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">Start autonomous deal →</a>
-      <a href="/checkout/?plan=ent-engagement-kickoff" class="btn btn-ghost" data-link style="font-size:16px;padding:14px 26px">Pay $2,500 kickoff →</a>
+      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">Start Autonomous Deal</a>
       <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
+      <a href="/api/enterprise/aedo" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">AEDO status</a>
     </div>
 
     <div id="entRails" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:36px 0 8px">
       <div style="padding:22px 20px;border:1px solid rgba(111,211,255,.25);border-radius:12px;background:linear-gradient(165deg,rgba(111,211,255,.08),rgba(8,6,18,.4))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6fd3ff;font-weight:700">1 · Instant</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Buy → pay → delivered</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Self-serve digital. Artifact after payment.</p>
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6fd3ff;font-weight:700">1 · Instant · ACV &lt; $10k</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Buy → Pay</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Self-serve digital. No negotiation. Artifact after payment.</p>
       </div>
       <div style="padding:22px 20px;border:1px solid rgba(255,211,106,.28);border-radius:12px;background:linear-gradient(165deg,rgba(255,211,106,.08),rgba(8,6,18,.4))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;font-weight:700">2 · Professional</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Reserve → build</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Kickoff reserve for human-built work. Remainder via milestones.</p>
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;font-weight:700">2 · Professional · $10k–$50k</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Reserve → Pay</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">AI-assisted kickoff. Light SOW. Semi-custom delivery.</p>
       </div>
       <div style="padding:22px 20px;border:1px solid rgba(163,255,206,.3);border-radius:12px;background:linear-gradient(165deg,rgba(163,255,206,.1),rgba(8,6,18,.45))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a3ffce;font-weight:700">3 · Enterprise</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Autonomous deal</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">AI negotiates. You pay $2,500 kickoff. Full ACV closes under SOW.</p>
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a3ffce;font-weight:700">3 · Enterprise · ACV &gt; $50k</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Start Autonomous Deal</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Negotiate → kickoff 5–10% ACV → MSA/SOW pack → onboard.</p>
       </div>
     </div>
 
@@ -3205,8 +3205,8 @@ Content-Type: application/json
     <div id="entDeals" style="margin:40px 0 60px"></div>
 
     <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(163,255,206,.35);border-radius:14px;background:linear-gradient(180deg,rgba(163,255,206,.06),rgba(111,211,255,.04))">
-      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#a3ffce 0%,#6fd3ff 55%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Start autonomous deal</h2>
-      <p style="color:var(--ink-dim);font-size:15px;max-width:720px;margin:0 0 24px">Submit once. Desk mints a <b style="color:#fff">$2,500 engagement kickoff</b> with checkout link. After payment you get the proposal pack automatically — full license still closes under SOW. No fake instant delivery.</p>
+      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#a3ffce 0%,#6fd3ff 55%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Start Autonomous Deal</h2>
+      <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 24px">Submit once. AEDO classifies your rail, computes ACV, and mints a <b style="color:#fff">proportional kickoff (5–10% of ACV, $1k–$25k)</b>. Accept → MSA · SOW · Security Pack · Timeline · Payment Schedule generate autonomously — full license closes under SOW milestones.</p>
       <form id="entContactForm" class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Full name *
           <input name="name" required maxlength="200" placeholder="Jane Doe" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
@@ -3222,7 +3222,7 @@ Content-Type: application/json
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Package / module of interest
           <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
-            <option value="ent-engagement-kickoff">Enterprise Engagement Kickoff ($2,500)</option>
+            <option value="ent-engagement-kickoff">Enterprise Engagement Kickoff (5–10% ACV)</option>
             <option value="ent-platform-license">Platform Enterprise License</option>
             <option value="ent-private-cloud">Private Cloud</option>
             <option value="ent-ai-transformation">AI Transformation Programme</option>
@@ -3237,7 +3237,7 @@ Content-Type: application/json
         </label>
         <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px">
           <p style="color:var(--ink-dim);font-size:12px;margin:0">By submitting you accept our <a href="/legal" data-link style="color:#6fd3ff">terms</a> &amp; <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. Kickoff credited toward signed ACV.</p>
-          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Start autonomous deal →</button>
+          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Start Autonomous Deal</button>
         </div>
         <div id="entContactStatus" style="grid-column:1/-1;display:none;padding:14px 18px;border-radius:8px;font-size:14px"></div>
         <div id="entKickoffPay" style="grid-column:1/-1;display:none"></div>

@@ -145,6 +145,12 @@ function buildEnterpriseCloudRouter() {
   function _aecos() {
     try { return require('../../src/commerce/autonomous-enterprise-closure-os'); } catch (_) { return null; }
   }
+  function _aedo() {
+    try { return require('../../src/commerce/autonomous-enterprise-deal-orchestrator'); } catch (_) { return null; }
+  }
+  function _pack() {
+    try { return require('../../src/commerce/enterprise-proposal-pack'); } catch (_) { return null; }
+  }
   function _negotiator() {
     try { return require('../../src/commerce/negotiation-engine'); } catch (_) { return null; }
   }
@@ -152,6 +158,41 @@ function buildEnterpriseCloudRouter() {
     return process.env.LEGAL_OWNER_BTC || process.env.BTC_WALLET_ADDRESS
       || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
   }
+
+  router.get('/api/enterprise/aedo', (_req, res) => {
+    const a = _aedo();
+    if (!a) return res.status(503).json({ ok: false, error: 'aedo_offline' });
+    return res.json(a.publicStatus());
+  });
+  router.get('/api/enterprise/orchestrator', (_req, res) => {
+    const a = _aedo();
+    if (!a) return res.status(503).json({ ok: false, error: 'aedo_offline' });
+    return res.json(a.publicStatus());
+  });
+  router.post('/api/enterprise/aedo/orchestrate', express.json({ limit: '64kb' }), (req, res) => {
+    try {
+      const a = _aedo();
+      if (!a) return res.status(503).json({ ok: false, error: 'aedo_offline' });
+      return res.json(a.orchestrate(req.body || {}));
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+  router.get('/api/enterprise/pack/:packId', (req, res) => {
+    const p = _pack();
+    if (!p) return res.status(503).json({ ok: false, error: 'pack_offline' });
+    const pack = p.getPack(req.params.packId);
+    if (!pack) return res.status(404).json({ ok: false, error: 'not_found' });
+    return res.json(pack);
+  });
+  router.get('/api/enterprise/pack/:packId/:doc', (req, res) => {
+    const p = _pack();
+    if (!p) return res.status(503).json({ ok: false, error: 'pack_offline' });
+    const md = p.readDocument(req.params.packId, req.params.doc);
+    if (!md) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.set('Content-Type', 'text/markdown; charset=utf-8');
+    return res.send(md);
+  });
 
   router.get('/api/enterprise/aecos', (_req, res) => {
     const a = _aecos();
@@ -222,12 +263,22 @@ function buildEnterpriseCloudRouter() {
       const neg = _negotiator();
       const a = _aecos();
       if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
-      const deal = neg.accept((req.body || {}).dealId);
+      let deal = neg.accept((req.body || {}).dealId);
+      try {
+        if (neg.confirmAutonomous && process.env.AEDO_REQUIRE_HUMAN_OTP !== '1') {
+          deal = neg.confirmAutonomous((req.body || {}).dealId);
+        }
+      } catch (_) { /* optional */ }
       let closure = null;
       try {
         if (a) closure = a.closeFromDeal(deal, { btcWallet: _btcWallet() });
       } catch (_) { /* best-effort */ }
-      return res.json({ ok: true, deal: a ? a.enrichDealForUi(deal) : deal, closure });
+      return res.json({
+        ok: true,
+        deal: a ? a.enrichDealForUi(deal) : deal,
+        closure,
+        autonomous: true,
+      });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
     }
@@ -299,10 +350,19 @@ function buildEnterpriseCloudRouter() {
         id: lead.id, name, email, company, interest,
         quoteId: quote && quote.id, netUsd: quote && quote.netUsd,
       }));
+      const aedoMod = _aedo();
       return res.json({
         ok: true,
         leadId: lead.id,
-        protocol: (closure && closure.protocol) || (a && a.PROTOCOL) || null,
+        protocol: (closure && closure.protocol) || (aedoMod && aedoMod.PROTOCOL) || (a && a.PROTOCOL) || null,
+        rail: closure && closure.rail ? closure.rail : null,
+        offer: closure && closure.offer ? {
+          acv: closure.offer.acv,
+          kickoff: closure.offer.kickoff,
+          packages: closure.offer.packages,
+          value: closure.offer.value,
+          termYears: closure.offer.termYears,
+        } : null,
         quote: quote ? {
           id: quote.id,
           netUsd: quote.netUsd,
@@ -312,19 +372,21 @@ function buildEnterpriseCloudRouter() {
           checkoutHref: quote.checkoutHref
             || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(email)),
           productId: quote.productId || 'ent-engagement-kickoff',
-          honesty: quote.honesty || 'Kickoff deposit only. Full ACV closes under SOW.',
+          honesty: quote.honesty || 'Proportional kickoff (5–10% ACV). Full ACV closes under SOW.',
+          kickoff: quote.kickoff || null,
+          acv: quote.acv || null,
           slaTier: quote.slaTier && (quote.slaTier.key || quote.slaTier),
           seats: quote.seats,
         } : null,
         next: (closure && closure.next) || [
-          'Pay engagement kickoff ($2,500)',
-          'Receive signed proposal pack automatically',
+          'Pay proportional engagement kickoff (5–10% ACV)',
+          'Receive MSA / SOW / Security Pack automatically',
           'SOW remainder negotiated autonomously',
         ],
         message: (closure && closure.message)
-          || 'Autonomous desk ready — pay the engagement kickoff to start. Full license closes under SOW.',
+          || 'AEDO ready — pay the engagement kickoff to start. Full license closes under SOW.',
         messageRo: (closure && closure.messageRo)
-          || 'Desk autonom gata — plătește kickoff-ul de engagement ca să pornim. Licența full se închide pe SOW.',
+          || 'AEDO gata — plătește kickoff-ul proporțional. Licența full se închide pe SOW.',
       });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
