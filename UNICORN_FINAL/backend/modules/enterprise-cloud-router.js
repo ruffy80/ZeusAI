@@ -140,11 +140,117 @@ function buildEnterpriseCloudRouter() {
   // OpenAPI spec must be readable so prospective customers can integrate.
   router.get('/api/enterprise/openapi.json', (_req, res) => res.json(buildOpenApi()));
 
-  // Public enterprise contact form. Persists lead to data/enterprise-leads.jsonl
-  // mirroring the site-process handler in src/index.js. Forward-only fix for
-  // the case where nginx routes /api/enterprise/* to backend :3000 — without
-  // this allow-listed handler the api-key gate would 401 prospects who try
-  // to contact sales. Idempotent: site handler still works on port 3001.
+  // AECOS — public commerce surfaces (nginx often routes /api/enterprise/* → :3000).
+  // Must stay ahead of the org API-key gate so the SPA can close kickoff cash.
+  function _aecos() {
+    try { return require('../../src/commerce/autonomous-enterprise-closure-os'); } catch (_) { return null; }
+  }
+  function _negotiator() {
+    try { return require('../../src/commerce/negotiation-engine'); } catch (_) { return null; }
+  }
+  function _btcWallet() {
+    return process.env.LEGAL_OWNER_BTC || process.env.BTC_WALLET_ADDRESS
+      || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+  }
+
+  router.get('/api/enterprise/aecos', (_req, res) => {
+    const a = _aecos();
+    if (!a) return res.status(503).json({ ok: false, error: 'aecos_offline' });
+    return res.json(a.publicStatus());
+  });
+  router.get('/api/enterprise/closure', (_req, res) => {
+    const a = _aecos();
+    if (!a) return res.status(503).json({ ok: false, error: 'aecos_offline' });
+    return res.json(a.publicStatus());
+  });
+  router.get('/api/enterprise/catalog', (_req, res) => {
+    const a = _aecos();
+    if (a && typeof a.enrichCatalogResponse === 'function') {
+      return res.json(a.enrichCatalogResponse());
+    }
+    try {
+      const cat = require('../../src/commerce/enterprise-catalog');
+      return res.json({
+        updatedAt: new Date().toISOString(),
+        summary: cat.summarize(),
+        products: cat.publicView(),
+      });
+    } catch (e) {
+      return res.status(503).json({ ok: false, error: 'catalog_offline', message: e.message });
+    }
+  });
+  router.get('/api/enterprise/deals', (_req, res) => {
+    const neg = _negotiator();
+    const a = _aecos();
+    if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
+    const raw = neg.listDeals() || [];
+    const deals = a ? raw.map((d) => a.enrichDealForUi(d)).filter(Boolean) : raw;
+    const stats = a ? a.pipelineStats(raw) : { bookedFmt: '$0', pipelineFmt: '$0', open: deals.length, winRate: 0 };
+    return res.json({ ok: true, stats, deals });
+  });
+  router.post('/api/enterprise/negotiate/start', express.json({ limit: '32kb' }), (req, res) => {
+    try {
+      const neg = _negotiator();
+      const a = _aecos();
+      if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
+      const p = a && typeof a.normalizeNegotiateStart === 'function'
+        ? a.normalizeNegotiateStart(req.body || {})
+        : (req.body || {});
+      const deal = neg.startDeal(p);
+      deal.buyerTier = p.buyerTier || 'fortune500';
+      deal.termYears = p.termYears != null ? p.termYears : 5;
+      const ui = a ? a.enrichDealForUi(deal) : deal;
+      return res.json({ ok: true, deal: ui });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+  router.post('/api/enterprise/negotiate/counter', express.json({ limit: '32kb' }), (req, res) => {
+    try {
+      const neg = _negotiator();
+      const a = _aecos();
+      if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
+      const body = req.body || {};
+      const deal = neg.counter(body.dealId, body.offerUSD, body.message);
+      return res.json({ ok: true, deal: a ? a.enrichDealForUi(deal) : deal });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+  router.post('/api/enterprise/negotiate/accept', express.json({ limit: '16kb' }), (req, res) => {
+    try {
+      const neg = _negotiator();
+      const a = _aecos();
+      if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
+      const deal = neg.accept((req.body || {}).dealId);
+      let closure = null;
+      try {
+        if (a) closure = a.closeFromDeal(deal, { btcWallet: _btcWallet() });
+      } catch (_) { /* best-effort */ }
+      return res.json({ ok: true, deal: a ? a.enrichDealForUi(deal) : deal, closure });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+  router.post('/api/enterprise/negotiate/confirm', express.json({ limit: '16kb' }), (req, res) => {
+    try {
+      const neg = _negotiator();
+      const a = _aecos();
+      if (!neg) return res.status(503).json({ ok: false, error: 'negotiator_offline' });
+      const body = req.body || {};
+      const deal = neg.confirmGovernance(body.dealId, body.otp);
+      let closure = null;
+      try {
+        if (a) closure = a.closeFromDeal(deal, { btcWallet: _btcWallet() });
+      } catch (_) { /* best-effort */ }
+      return res.json({ ok: true, deal: a ? a.enrichDealForUi(deal) : deal, closure });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  // Public enterprise contact form. Persists lead + AECOS kickoff quote.
+  // Forward-only fix: nginx routes /api/enterprise/* to backend :3000.
   router.post('/api/enterprise/contact', express.json({ limit: '32kb' }), (req, res) => {
     try {
       const p = req.body || {};
@@ -172,12 +278,53 @@ function buildEnterpriseCloudRouter() {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.appendFileSync(path.join(dir, 'enterprise-leads.jsonl'), JSON.stringify(lead) + '\n');
       } catch (e) { console.warn('[enterprise-contact] persist failed:', e.message); }
-      console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest }));
+
+      let quote = null;
+      let closure = null;
+      const a = _aecos();
+      try {
+        if (a && typeof a.closeFromContact === 'function') {
+          closure = a.closeFromContact(lead, {
+            productId: interest || a.KICKOFF_ID || 'ent-engagement-kickoff',
+            btcWallet: _btcWallet(),
+            btcSpotUsd: Number(p.btcSpotUsd) || 95000,
+          });
+          quote = closure && closure.quote ? closure.quote : null;
+        }
+      } catch (e) {
+        console.warn('[enterprise-contact] aecos quote failed:', e && e.message);
+      }
+
+      console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({
+        id: lead.id, name, email, company, interest,
+        quoteId: quote && quote.id, netUsd: quote && quote.netUsd,
+      }));
       return res.json({
         ok: true,
         leadId: lead.id,
-        message: 'Thank you. Our enterprise team will reply within 24 hours.',
-        messageRo: 'Mulțumim. Echipa noastră enterprise vă va contacta în 24 de ore.'
+        protocol: (closure && closure.protocol) || (a && a.PROTOCOL) || null,
+        quote: quote ? {
+          id: quote.id,
+          netUsd: quote.netUsd,
+          btcAmount: quote.btcAmount,
+          btcAddress: quote.btcAddress,
+          btcUri: quote.btcUri,
+          checkoutHref: quote.checkoutHref
+            || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(email)),
+          productId: quote.productId || 'ent-engagement-kickoff',
+          honesty: quote.honesty || 'Kickoff deposit only. Full ACV closes under SOW.',
+          slaTier: quote.slaTier && (quote.slaTier.key || quote.slaTier),
+          seats: quote.seats,
+        } : null,
+        next: (closure && closure.next) || [
+          'Pay engagement kickoff ($2,500)',
+          'Receive signed proposal pack automatically',
+          'SOW remainder negotiated autonomously',
+        ],
+        message: (closure && closure.message)
+          || 'Autonomous desk ready — pay the engagement kickoff to start. Full license closes under SOW.',
+        messageRo: (closure && closure.messageRo)
+          || 'Desk autonom gata — plătește kickoff-ul de engagement ca să pornim. Licența full se închide pe SOW.',
       });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });

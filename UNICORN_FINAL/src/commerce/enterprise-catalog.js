@@ -119,14 +119,41 @@ const SEED = [
       { key: 'contactName', label: 'Authorized Signatory', required: true },
       { key: 'contactEmail', label: 'Signatory Email', required: true }
     ]
+  },
+  // Self-serve cash-close SKU — not full ACV. Unlocks autonomous proposal + SOW (AECOS).
+  {
+    id: 'ent-engagement-kickoff',
+    title: 'Enterprise Engagement Kickoff',
+    tier: 'enterprise',
+    group: 'enterprise-kickoff',
+    priceUSD: 2500,
+    billing: 'one-time',
+    currency: 'USD',
+    description:
+      'Paid start of the autonomous enterprise deal: discovery brief, commercial proposal pack, and SOW draft. Credited toward any signed engagement. Does NOT deliver the full enterprise license.',
+    sla: 'proposal pack ≤ 24h after payment',
+    inputs: [
+      { key: 'contactEmail', label: 'Work Email', required: true },
+      { key: 'legalEntity', label: 'Legal Entity', required: false },
+      { key: 'contactName', label: 'Primary Contact', required: false }
+    ]
   }
 ];
+
+function _ensureKickoff(list) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  if (!arr.some((p) => p && p.id === 'ent-engagement-kickoff')) {
+    const seed = SEED.find((p) => p.id === 'ent-engagement-kickoff');
+    if (seed) arr.unshift(seed);
+  }
+  return arr;
+}
 
 function loadAll() {
   try {
     if (fs.existsSync(FILE)) {
       const j = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-      if (Array.isArray(j) && j.length) return j;
+      if (Array.isArray(j) && j.length) return _ensureKickoff(j);
     }
   } catch (e) { console.warn('[enterprise-catalog] load failed:', e.message); }
   // Seed file on first run so it's editable.

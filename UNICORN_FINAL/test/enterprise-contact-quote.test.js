@@ -42,15 +42,15 @@ check('buildQuote rejects empty items', () => {
   assert.equal(err.code, 'items_required');
 });
 
-check('src/index.js wires contact → buildQuote', () => {
+check('src/index.js wires contact → AECOS / deal-desk quote', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const src = fs.readFileSync(path.join(__dirname, '../src/index.js'), 'utf8');
   assert.ok(src.includes("urlPath === '/api/enterprise/contact'"));
-  assert.ok(src.includes('enterprise-deal-desk'));
-  assert.ok(src.includes('desk.buildQuote') || src.includes('.buildQuote('));
+  assert.ok(src.includes('autonomous-enterprise-closure-os') || src.includes('enterprise-deal-desk'));
+  assert.ok(src.includes('closeFromContact') || src.includes('desk.buildQuote') || src.includes('.buildQuote('));
   assert.ok(src.includes('enterprise-quotes.jsonl'));
-  assert.ok(src.includes('btcUri'));
+  assert.ok(src.includes('btcUri') || src.includes('checkoutHref'));
 });
 
 console.log(`\n✅ enterprise-contact-quote: ${passed} tests passed`);

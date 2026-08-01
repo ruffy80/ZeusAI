@@ -2298,7 +2298,7 @@ function cardHtml(s){
     buyBtn = `<a class="btn btn-ghost" href="/services/${encodeURIComponent(sid)}" data-link style="flex:1;justify-content:center">Details</a>`;
   } else if (cta.mode === 'contact' || cta.buyable === false) {
     const href = cta.ctaHref || (cta.mode === 'unavailable' ? ('/services/' + encodeURIComponent(sid)) : '/enterprise#enterprise-contact');
-    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Request proposal →');
+    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Start autonomous deal →');
     const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
     buyBtn = `<a class="${cls}" href="${href}" data-link style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
   } else {
@@ -2449,7 +2449,7 @@ function masterCardHtml(it){
     buyBtn = '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
   } else if (cta.mode === 'contact' || cta.buyable === false) {
     const href = cta.ctaHref || (cta.mode === 'unavailable' ? ('/services/' + encodeURIComponent(id)) : '/enterprise#enterprise-contact');
-    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Request proposal →');
+    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Start autonomous deal →');
     const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
     buyBtn = '<a class="' + cls + '" href="' + href + '" data-link aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   } else {
@@ -2502,11 +2502,14 @@ function clientBuyabilityCta(it) {
   ) {
     return { mode: 'unavailable', buyable: false, ctaLabel: 'Not for sale', ctaHref: '/services/' + encodeURIComponent(id) };
   }
+  if (id === 'ent-engagement-kickoff' || group === 'enterprise-kickoff') {
+    return { mode: 'reserve', buyable: true, ctaLabel: 'Start autonomous deal →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
   if (/^ent-/i.test(id) || group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
-    return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+    return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
   }
   if (price >= 5000 || group === 'billion-scale-package' || group === 'billion-scale-activation' || group === 'strategic-package') {
-    return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+    return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
   }
   if (group === 'future-invention' || /^(activation-|billion-|future-)/i.test(id)) {
     return { mode: 'unavailable', buyable: false, ctaLabel: 'Not available yet', ctaHref: null };
@@ -2530,7 +2533,9 @@ async function sovereignBuy(serviceId, opts){
   const prevBtnText = el && el.tagName === 'BUTTON' ? el.textContent : null;
   try {
     // Enterprise / contact-only SKUs must never mint a self-serve invoice.
-    if (/^ent-/i.test(String(serviceId || '')) || String(serviceId || '').toLowerCase() === 'enterprise') {
+    // Exception: engagement kickoff is the honest self-serve cash-close SKU.
+    const sid = String(serviceId || '');
+    if (sid !== 'ent-engagement-kickoff' && (/^ent-/i.test(sid) || sid.toLowerCase() === 'enterprise')) {
       window.location.href = '/enterprise#enterprise-contact';
       return;
     }
@@ -3011,7 +3016,7 @@ async function hydrateServiceDetail(id){
           const cta = clientBuyabilityCta(s);
           if (cta.mode === 'contact' || cta.buyable === false) {
             const href = cta.ctaHref || '/enterprise#enterprise-contact';
-            const label = cta.ctaLabel || 'Request proposal →';
+            const label = cta.ctaLabel || 'Start autonomous deal →';
             return '<a class="btn btn-gold" id="svcBuyBtn" href="' + href + '" data-link style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</a>';
           }
           const label = cta.ctaLabel || 'Buy → choose payment';
@@ -4244,40 +4249,52 @@ async function hydrateEnterprise(){
   });
 
   const cat = await api('/api/enterprise/catalog');
-  if (!cat || !cat.products) return;  const s = cat.summary || {};
+  if (!cat || !cat.products) return;
+  const s = cat.summary || {};
   const setT = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setT('entProducts', s.products || cat.products.length);
   setT('entAccounts', s.addressableAccounts || '—');
   setT('entAnchor', s.anchorPortfolioFmt || '—');
   setT('entTop', s.topstonePortfolioFmt || '—');
 
-  const tierColor = { diamond:'#8a5cff', platinum:'#6fd3ff', gold:'#ffd36a' };
+  const tierColor = { kickoff:'#a3ffce', enterprise:'#6fd3ff', diamond:'#8a5cff', platinum:'#6fd3ff', gold:'#ffd36a' };
   const grid = document.getElementById('entProductsGrid');
   if (grid) {
-    grid.innerHTML = cat.products.map(p => `
-      <div class="card" style="padding:26px;display:flex;flex-direction:column;gap:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(20,12,40,.6),rgba(8,6,18,.6));position:relative;overflow:hidden">
-        <div style="position:absolute;top:14px;right:16px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:${tierColor[p.tier]||'#fff'};font-weight:600">${p.tier}</div>
-        <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${p.segment}</div>
-        <h3 style="font-size:22px;line-height:1.15;margin:0;letter-spacing:-0.01em">${p.title}</h3>
-        <p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.55">${p.tagline}</p>
+    grid.innerHTML = cat.products.map(p => {
+      const isKickoff = p.id === 'ent-engagement-kickoff' || p.tier === 'kickoff';
+      const accounts = Array.isArray(p.accounts) ? p.accounts : [];
+      const ctaHref = p.ctaHref || (isKickoff ? '/checkout/?plan=ent-engagement-kickoff' : '/enterprise#enterprise-contact');
+      const ctaLabel = p.ctaLabel || (isKickoff ? 'Pay engagement kickoff →' : 'Start autonomous deal →');
+      const border = isKickoff ? 'rgba(163,255,206,.35)' : 'rgba(255,255,255,.08)';
+      return `
+      <div class="card" style="padding:26px;display:flex;flex-direction:column;gap:14px;border:1px solid ${border};background:linear-gradient(180deg,rgba(20,12,40,.6),rgba(8,6,18,.6));position:relative;overflow:hidden">
+        <div style="position:absolute;top:14px;right:16px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:${tierColor[p.tier]||'#fff'};font-weight:600">${p.tier || 'enterprise'}</div>
+        <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${p.segment || 'Enterprise SOW'}</div>
+        <h3 style="font-size:22px;line-height:1.15;margin:0;letter-spacing:-0.01em">${p.title || p.id}</h3>
+        <p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.55">${p.tagline || p.description || ''}</p>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06)">
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Floor</div><div style="font-weight:600;font-size:15px;margin-top:3px">${p.floorFmt}</div></div>
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Anchor</div><div style="font-weight:700;font-size:17px;margin-top:3px;color:#fff">${p.anchorFmt}</div></div>
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Topstone</div><div style="font-weight:700;font-size:15px;margin-top:3px;color:#ffd36a">${p.topstoneFmt}</div></div>
+          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Floor</div><div style="font-weight:600;font-size:15px;margin-top:3px">${p.floorFmt || '—'}</div></div>
+          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Anchor</div><div style="font-weight:700;font-size:17px;margin-top:3px;color:#fff">${p.anchorFmt || '—'}</div></div>
+          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Topstone</div><div style="font-weight:700;font-size:15px;margin-top:3px;color:#ffd36a">${p.topstoneFmt || '—'}</div></div>
         </div>
-        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Model:</b> ${p.model}</div>
-        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Value captured:</b> ${p.valueCaptured}</div>
-        <div style="font-size:12px;color:var(--ink-dim);line-height:1.55"><b style="color:#fff">Target accounts:</b> ${p.accounts.slice(0,4).join(' · ')}${p.accounts.length>4?' …':''}</div>
-        <a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link data-pid="${p.id}" style="margin-top:auto;justify-content:center">Request proposal →</a>
-      </div>
-    `).join('');
-    grid.querySelectorAll('a[href="#enterprise-contact"], a[href="/enterprise#enterprise-contact"]').forEach(btn => {
+        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Model:</b> ${p.model || p.billing || 'proposal'}</div>
+        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Value captured:</b> ${p.valueCaptured || p.sla || 'SOW delivery'}</div>
+        ${accounts.length ? `<div style="font-size:12px;color:var(--ink-dim);line-height:1.55"><b style="color:#fff">Target accounts:</b> ${accounts.slice(0,4).join(' · ')}${accounts.length>4?' …':''}</div>` : ''}
+        ${p.honesty ? `<div style="font-size:11px;color:#a3ffce;line-height:1.45">${p.honesty}</div>` : ''}
+        <a class="btn btn-gold" href="${ctaHref}" data-link data-pid="${p.id}" data-kickoff="${isKickoff ? '1' : '0'}" style="margin-top:auto;justify-content:center">${ctaLabel}</a>
+      </div>`;
+    }).join('');
+    grid.querySelectorAll('a[data-pid]').forEach(btn => {
       btn.addEventListener('click', (ev) => {
+        if (btn.dataset.kickoff === '1') return; // let checkout navigation proceed
         ev.preventDefault();
         const sel = document.querySelector('#entContactForm select[name="interest"]');
         if (sel && btn.dataset.pid) {
           try { sel.value = btn.dataset.pid; } catch (_) {}
         }
+        const card = btn.closest ? btn.closest('.card') : null;
+        const h3 = card && card.querySelector ? card.querySelector('h3') : null;
+        openEntNegotiator(btn.dataset.pid, (h3 && h3.textContent) || btn.dataset.pid);
         const el = document.getElementById('enterprise-contact');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -4340,16 +4357,41 @@ function wireEnterpriseContactForm(){
       });
       const data = await r.json().catch(() => ({}));
       if (r.ok && data.ok) {
-        showStatus('✅ ' + (data.message || 'Thank you. Our enterprise team will reply within 24 hours.') + ' (Lead ID: ' + (data.leadId || '—') + ')', 'ok');
-        form.reset();
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+        const q = data.quote || {};
+        const payHref = q.checkoutHref || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(payload.email));
+        showStatus('✅ ' + (data.message || 'Autonomous desk ready.') + ' Lead ' + (data.leadId || '—') + (q.netUsd != null ? ' · Kickoff $' + Number(q.netUsd).toLocaleString('en-US') : ''), 'ok');
+        const payBox = document.getElementById('entKickoffPay');
+        if (payBox) {
+          payBox.style.display = 'block';
+          payBox.innerHTML = `
+            <div style="margin-top:8px;padding:18px 20px;border:1px solid rgba(163,255,206,.4);border-radius:10px;background:rgba(163,255,206,.08)">
+              <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a3ffce;font-weight:700">Next · Pay engagement kickoff</div>
+              <p style="margin:8px 0 14px;color:#eee;font-size:14px;line-height:1.5">Pay <b>$${(q.netUsd != null ? Number(q.netUsd) : 2500).toLocaleString('en-US')}</b> to unlock the proposal pack. Full license still closes under SOW — this is not instant full delivery.</p>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <a class="btn btn-gold" href="${payHref}" data-link style="padding:12px 22px">Pay kickoff →</a>
+                ${q.btcUri ? `<a class="btn btn-ghost" href="${q.btcUri}" style="padding:12px 22px">Open BTC URI</a>` : ''}
+                <button type="button" class="btn btn-ghost" id="entOpenNegBtn" data-pid="${payload.interest || 'ent-platform-license'}" style="padding:12px 22px">Negotiate ACV →</button>
+              </div>
+            </div>`;
+          const negBtn = document.getElementById('entOpenNegBtn');
+          if (negBtn) {
+            negBtn.addEventListener('click', () => {
+              openEntNegotiator(negBtn.dataset.pid, payload.interest || 'Enterprise package');
+              const emailEl = document.getElementById('entBuyerEmail');
+              if (emailEl) emailEl.value = payload.email;
+              const buyerEl = document.getElementById('entBuyer');
+              if (buyerEl && !buyerEl.value) buyerEl.value = payload.company || payload.name;
+            });
+          }
+        }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
       } else {
         showStatus('❌ ' + (data.error || 'Submission failed. Please email us at vladoi_ionut@yahoo.com'), 'err');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
       }
     } catch (e) {
       showStatus('❌ Network error. Please try again or email vladoi_ionut@yahoo.com', 'err');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start autonomous deal →'; }
     }
   });
 }
@@ -4357,17 +4399,19 @@ function wireEnterpriseContactForm(){
 function openEntNegotiator(pid, title){
   const n = document.getElementById('entNegotiator');
   if (!n) return;
+  const productId = (pid === 'ent-engagement-kickoff' || !pid) ? 'ent-platform-license' : pid;
   n.innerHTML = `
-    <div class="card" style="padding:28px;border:1px solid rgba(138,92,255,.28);background:linear-gradient(180deg,rgba(32,18,60,.55),rgba(10,6,20,.75))">
+    <div class="card" style="padding:28px;border:1px solid rgba(111,211,255,.28);background:linear-gradient(180deg,rgba(18,32,48,.55),rgba(10,6,20,.75))">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:20px;flex-wrap:wrap">
         <div>
-          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#ffd36a">Autonomous Negotiation Desk</div>
-          <h2 style="font-size:26px;margin:8px 0 4px">${title}</h2>
-          <p style="color:var(--ink-dim);font-size:14px;margin:0">Zeus AI negotiates on behalf of the owner. Floor enforced. No human required.</p>
+          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#a3ffce">Autonomous Negotiation Desk</div>
+          <h2 style="font-size:26px;margin:8px 0 4px">${title || productId}</h2>
+          <p style="color:var(--ink-dim);font-size:14px;margin:0">Zeus AI counters autonomously. Floor enforced. Accept → pay $2,500 kickoff → proposal pack. Full ACV stays SOW.</p>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px">
         <label style="display:flex;flex-direction:column;gap:6px"><span style="color:var(--ink-dim);font-size:12px">Buyer / account</span><input id="entBuyer" class="input" placeholder="e.g. Amazon Web Services" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="color:var(--ink-dim);font-size:12px">Work email *</span><input id="entBuyerEmail" type="email" class="input" placeholder="buyer@company.com" required style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/></label>
         <label style="display:flex;flex-direction:column;gap:6px"><span style="color:var(--ink-dim);font-size:12px">Tier</span>
           <select id="entTier" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff">
             <option value="hyperscaler">Hyperscaler (AWS / Google / Azure)</option>
@@ -4379,57 +4423,86 @@ function openEntNegotiator(pid, title){
           </select>
         </label>
         <label style="display:flex;flex-direction:column;gap:6px"><span style="color:var(--ink-dim);font-size:12px">Term (years)</span><input id="entTerm" type="number" min="1" max="15" value="5" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/></label>
-        <div style="display:flex;align-items:end"><button id="entStartBtn" data-pid="${pid}" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px">Start negotiation</button></div>
+        <div style="display:flex;align-items:end;grid-column:1/-1"><button id="entStartBtn" data-pid="${productId}" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px">Start negotiation</button></div>
       </div>
       <div id="entThread"></div>
     </div>
   `;
   document.getElementById('entStartBtn').addEventListener('click', async (e) => {
-    const productId = e.currentTarget.dataset.pid;
+    const productIdStart = e.currentTarget.dataset.pid;
     const buyerName = document.getElementById('entBuyer').value.trim() || 'Prospect';
+    const email = (document.getElementById('entBuyerEmail').value || '').trim();
     const buyerTier = document.getElementById('entTier').value;
     const termYears = Number(document.getElementById('entTerm').value || 5);
-    const r = await api('/api/enterprise/negotiate/start', { method:'POST', body: JSON.stringify({ productId, buyerName, buyerTier, termYears }) });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast('Work email required to start autonomous negotiation', 'warn');
+      return;
+    }
+    const r = await api('/api/enterprise/negotiate/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: productIdStart,
+        buyerName,
+        email,
+        buyerTier,
+        termYears,
+        buyer: { email, contactName: buyerName, legalEntity: buyerName },
+      }),
+    });
+    if (r && r.error) { toast(r.error, 'warn'); return; }
     if (r && r.deal) renderEntThread(r.deal);
     await renderEntDeals();
   });
   n.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
-function renderEntThread(deal){
+function renderEntThread(deal, closure){
   const t = document.getElementById('entThread');
   if (!t) return;
-  const closed = deal.status !== 'open';
-  const statusColor = deal.status === 'closed_won' ? '#6fd3ff' : deal.status === 'closed_lost' ? '#ff8a8a' : '#ffd36a';
-  const historyHtml = deal.history.map(h => {
+  const status = deal.status || deal.state || 'open';
+  const closed = status !== 'open' && status !== 'countered';
+  const statusColor = status === 'closed_won' ? '#6fd3ff' : status === 'closed_lost' ? '#ff8a8a' : '#ffd36a';
+  const history = Array.isArray(deal.history) ? deal.history : [];
+  const historyHtml = history.map(h => {
     const who = h.actor === 'unicorn' ? 'ZeusAI Core' : 'Buyer';
-    const color = h.actor === 'unicorn' ? '#8a5cff' : '#6fd3ff';
+    const color = h.actor === 'unicorn' ? '#6fd3ff' : '#a3ffce';
     const price = h.priceUSD ? ' · <b>' + fmtM(h.priceUSD) + '</b>' : '';
     return `<div style="padding:14px 16px;border-left:3px solid ${color};background:rgba(255,255,255,.02);margin:10px 0;border-radius:8px">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-bottom:6px"><span style="color:${color};font-weight:600">Round ${h.round} · ${who}</span><span>${(h.type||'').replace('_',' ')}${price}</span></div>
       <div style="color:#eee;font-size:13.5px;line-height:1.55">${(h.message||'').replace(/</g,'&lt;')}</div>
     </div>`;
   }).join('');
+  const kickoff = closure && (closure.kickoff || closure.quote);
+  const kickoffHtml = kickoff ? `
+    <div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(163,255,206,.45);background:rgba(163,255,206,.08)">
+      <b style="font-size:18px;color:#a3ffce">Pay engagement kickoff · $${Number(kickoff.netUsd || 2500).toLocaleString('en-US')}</b>
+      <div style="color:var(--ink-dim);margin-top:6px;font-size:13px">${kickoff.honesty || closure.honesty || 'Deal ACV recorded for SOW. Payable now = engagement kickoff only.'}</div>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-gold" href="${kickoff.checkoutHref || closure.checkoutHref || '/checkout/?plan=ent-engagement-kickoff'}" data-link>Pay kickoff →</a>
+        ${kickoff.btcUri ? `<a class="btn btn-ghost" href="${kickoff.btcUri}">Open BTC URI</a>` : ''}
+      </div>
+    </div>` : '';
   t.innerHTML = `
     <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08)">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
-        <div><b>${deal.buyerName}</b> · ${deal.buyerTier} · ${deal.termYears}y · round ${deal.round}/${deal.maxRounds}</div>
-        <div style="color:${statusColor};font-weight:600;text-transform:uppercase;letter-spacing:.12em;font-size:12px">${deal.status.replace('_',' ')}</div>
+        <div><b>${deal.buyerName || 'Prospect'}</b> · ${deal.buyerTier || 'fortune500'} · ${deal.termYears || 5}y · round ${deal.round || 1}/${deal.maxRounds || 8}</div>
+        <div style="color:${statusColor};font-weight:600;text-transform:uppercase;letter-spacing:.12em;font-size:12px">${String(status).replace('_',' ')}</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;font-size:13px">
-        <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Our current offer</div><div style="font-weight:700;margin-top:4px">${deal.currentOfferFmt}</div></div>
+        <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Our current offer</div><div style="font-weight:700;margin-top:4px">${deal.currentOfferFmt || '—'}</div></div>
         <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Buyer last offer</div><div style="font-weight:700;margin-top:4px">${deal.lastBuyerOfferFmt || '—'}</div></div>
-        <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Anchor</div><div style="font-weight:700;margin-top:4px">${deal.anchorFmt}</div></div>
+        <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Anchor</div><div style="font-weight:700;margin-top:4px">${deal.anchorFmt || deal.listFmt || '—'}</div></div>
       </div>
       ${historyHtml}
-      ${closed ? (deal.closedPriceFmt ? `<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(111,211,255,.4);background:rgba(111,211,255,.08)"><b style="font-size:20px;color:#6fd3ff">Closed won @ ${deal.closedPriceFmt}</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Signature package will be circulated within 48h.</div>${deal.contractId?`<div style="margin-top:10px"><a class="btn btn-ghost" href="/docs#contracts" target="_blank">📜 View signed contract (${deal.contractId})</a></div>`:''}</div>` : deal.status==='pending_governance' ? '<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(255,211,106,.4);background:rgba(255,211,106,.08);color:#ffd36a"><b>⏸ Awaiting owner governance OTP</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Enter the OTP on the Governance tab below to release this deal.</div></div>' : '<div class="card" style="padding:16px;margin-top:12px;color:#ff8a8a">Deal closed without signature.</div>')
+      ${kickoffHtml}
+      ${closed ? (deal.closedPriceFmt ? `<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(111,211,255,.4);background:rgba(111,211,255,.08)"><b style="font-size:20px;color:#6fd3ff">Closed won @ ${deal.closedPriceFmt}</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">SOW remainder follows kickoff payment + proposal pack.</div>${deal.contractId?`<div style="margin-top:10px"><a class="btn btn-ghost" href="/docs#contracts" target="_blank">📜 View signed contract (${deal.contractId})</a></div>`:''}</div>` : status==='pending_governance' ? '<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(255,211,106,.4);background:rgba(255,211,106,.08);color:#ffd36a"><b>⏸ ACV pending governance OTP</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">You can still pay the engagement kickoff now — proposal pack unlocks after payment.</div></div>' : '<div class="card" style="padding:16px;margin-top:12px;color:#ff8a8a">Deal closed without signature.</div>')
        : `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-top:16px">
             <input id="entMsg" class="input" placeholder="Optional message to Zeus (why this price is fair, constraints, etc.)" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/>
             <input id="entOffer" type="number" placeholder="Your offer (USD)" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/>
             <button id="entCounterBtn" data-did="${deal.id}" class="btn btn-primary" style="justify-content:center">Send counter</button>
           </div>
           <div style="display:flex;gap:10px;margin-top:10px">
-            <button id="entAcceptBtn" data-did="${deal.id}" class="btn btn-ghost">Accept current offer (${deal.currentOfferFmt})</button>
+            <button id="entAcceptBtn" data-did="${deal.id}" class="btn btn-ghost">Accept current offer (${deal.currentOfferFmt || '—'})</button>
           </div>`}
     </div>
   `;
@@ -4440,13 +4513,13 @@ function renderEntThread(deal){
       const message = document.getElementById('entMsg').value || '';
       if (!offerUSD) { toast('Enter an offer amount in USD', 'warn'); return; }
       const r = await api('/api/enterprise/negotiate/counter', { method:'POST', body: JSON.stringify({ dealId, offerUSD, message }) });
-      if (r && r.deal) renderEntThread(r.deal);
+      if (r && r.deal) renderEntThread(r.deal, r.closure);
       await renderEntDeals();
     });
     document.getElementById('entAcceptBtn').addEventListener('click', async (e) => {
       const dealId = e.currentTarget.dataset.did;
       const r = await api('/api/enterprise/negotiate/accept', { method:'POST', body: JSON.stringify({ dealId }) });
-      if (r && r.deal) renderEntThread(r.deal);
+      if (r && r.deal) renderEntThread(r.deal, r.closure);
       await renderEntDeals();
     });
   }
@@ -5074,16 +5147,20 @@ function renderStoreGrid(products, grid){
     const tierBadge = p.tier === 'enterprise' ? '<span style="background:linear-gradient(135deg,#ffd36a,#d97706);color:#1a0d00;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">ENTERPRISE</span>'
                    : p.tier === 'professional' ? '<span style="background:linear-gradient(135deg,#8a5cff,#5b21b6);color:#fff;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">PRO</span>'
                    : '<span style="background:rgba(124,255,184,.15);color:#7cffb8;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">INSTANT</span>';
-    const isEnt = p.tier === 'enterprise' || /^ent-/i.test(String(p.id || ''));
-    const isPro = p.tier === 'professional' || /^professional-/i.test(String(p.id || ''));
-    const ctaLabel = isEnt ? 'Request proposal →'
+    const isKickoff = String(p.id || '') === 'ent-engagement-kickoff';
+    const isEnt = !isKickoff && (p.tier === 'enterprise' || /^ent-/i.test(String(p.id || '')));
+    const isPro = isKickoff || p.tier === 'professional' || /^professional-/i.test(String(p.id || ''));
+    const ctaLabel = isKickoff ? 'Start autonomous deal →'
+                   : isEnt ? 'Start autonomous deal →'
                    : isPro ? 'Reserve → choose payment'
                    : 'Buy → choose payment';
-    const ctaClass = isEnt ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
+    const ctaClass = (isEnt || isKickoff) ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
     const features = p.features ? `<ul style="margin:10px 0;padding-left:18px;color:var(--ink-dim);font-size:12px">${p.features.slice(0,4).map(f => '<li>' + escStore(f) + '</li>').join('')}</ul>` : '';
     const accounts = p.targetAccounts ? `<div style="font-size:11px;color:var(--ink-dim);margin-top:8px"><b>Target:</b> ${p.targetAccounts.slice(0,3).map(escStore).join(', ')}${p.targetAccounts.length>3?'…':''}</div>` : '';
-    const deliverableNote = isEnt
-      ? 'SOW engagement — contact sales (not self-serve checkout)'
+    const deliverableNote = isKickoff
+      ? 'Engagement kickoff — proposal pack after payment; full ACV under SOW'
+      : isEnt
+      ? 'SOW engagement — autonomous deal desk (not self-serve full license)'
       : isPro
         ? 'Kickoff pack now · human milestone delivery for the build'
         : escStore(p.deliverable || 'Signed digital deliverable');
@@ -5099,7 +5176,7 @@ function renderStoreGrid(products, grid){
       ${features}
       <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${deliverableNote}</div>
       ${accounts}
-      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isEnt ? 'contact' : (isPro ? 'reserve' : 'checkout')}" style="margin-top:auto">${ctaLabel}</button>
+      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isKickoff ? 'reserve' : (isEnt ? 'contact' : (isPro ? 'reserve' : 'checkout'))}" style="margin-top:auto">${ctaLabel}</button>
     </div>`;
   }).join('');
   if (grid.dataset.storeWired !== '1') {
@@ -5120,7 +5197,12 @@ function renderStoreGrid(products, grid){
 
 function openStoreCheckout(product){
   if (!product) return;
-  if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(String(product.id || ''))) {
+  const pid = String(product.id || '');
+  if (pid === 'ent-engagement-kickoff') {
+    window.location.href = '/checkout/?plan=' + encodeURIComponent(pid);
+    return;
+  }
+  if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(pid)) {
     window.location.href = '/enterprise#enterprise-contact';
     return;
   }

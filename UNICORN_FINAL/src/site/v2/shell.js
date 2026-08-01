@@ -196,7 +196,7 @@ function _ctaForProduct(p) {
     const tier = String((p && (p.tier || p.group)) || '').toLowerCase();
     const id = String((p && p.id) || '');
     if (/^ent-/i.test(id) || tier === 'enterprise') {
-      return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+      return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
     }
     if (/^professional-/i.test(id) || tier === 'professional') {
       return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve → choose payment', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
@@ -213,7 +213,7 @@ function _primaryCtaHtml(p, opts) {
   const flex = o.flex ? 'flex:1;justify-content:center;' : '';
   const size = o.compact ? 'font-size:12px;padding:6px 10px;' : '';
   if (cta.mode === 'contact') {
-    return `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Request proposal for ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
+    return `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Start autonomous deal for ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Start autonomous deal →')}</a>`;
   }
   if (cta.mode === 'unavailable' || !cta.buyable) {
     return `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Not for sale')}</a>`;
@@ -1670,7 +1670,7 @@ function pageService(id) {
         const cta = _ctaForProduct(s);
         if (cta.mode === 'contact') {
           return `<p style="color:var(--ink-dim);font-size:13.5px">Enterprise engagements start with a signed SOW — not a self-serve cart. Request a proposal and our team responds with scope, milestones and settlement options.</p>
-      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
+      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Start autonomous deal →')}</a>`;
         }
         if (cta.mode === 'reserve') {
           return `<p style="color:var(--ink-dim);font-size:13.5px">Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.</p>
@@ -1756,7 +1756,7 @@ function pagePricing() {
         <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request proposal →</a>
+      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Start autonomous deal →</a>
     </div>
   </div>
   <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.06));border:1px solid rgba(247,147,26,.35)">
@@ -3154,20 +3154,38 @@ Content-Type: application/json
 
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">Enterprise · Hyperscaler grade</span>
-    <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Licenses built for AWS, Google, Microsoft, Meta, Apple, Amazon.</h1>
-    <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Enterprise licenses and transformations are scoped under a signed SOW with human deal leads — not a self-serve cart. Pricing is proposal-based from the catalogue anchors below. Every engagement includes signed deliverables, milestone acceptance, and BTC or wire settlement options agreed in the contract.</p>
+    <span class="kicker" style="color:#ffd36a">ZeusAI · Enterprise Autopilot</span>
+    <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#6fd3ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Enterprise deals that close themselves.</h1>
+    <p style="color:var(--ink-dim);font-size:19px;max-width:820px;line-height:1.55">Three clear rails. Instant digital buys itself. Professional work reserves a kickoff. Enterprise starts an autonomous deal — pay <b style="color:#fff">$2,500</b> engagement, get a signed proposal pack, then SOW for the rest. Never fake “Buy = full license delivered”.</p>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
-      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">📩 Contact Enterprise Sales</a>
+      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">Start autonomous deal →</a>
+      <a href="/checkout/?plan=ent-engagement-kickoff" class="btn btn-ghost" data-link style="font-size:16px;padding:14px 26px">Pay $2,500 kickoff →</a>
       <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
-      <a href="#enterprise-api" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">API endpoints</a>
+    </div>
+
+    <div id="entRails" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:36px 0 8px">
+      <div style="padding:22px 20px;border:1px solid rgba(111,211,255,.25);border-radius:12px;background:linear-gradient(165deg,rgba(111,211,255,.08),rgba(8,6,18,.4))">
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6fd3ff;font-weight:700">1 · Instant</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Buy → pay → delivered</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Self-serve digital. Artifact after payment.</p>
+      </div>
+      <div style="padding:22px 20px;border:1px solid rgba(255,211,106,.28);border-radius:12px;background:linear-gradient(165deg,rgba(255,211,106,.08),rgba(8,6,18,.4))">
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;font-weight:700">2 · Professional</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Reserve → build</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Kickoff reserve for human-built work. Remainder via milestones.</p>
+      </div>
+      <div style="padding:22px 20px;border:1px solid rgba(163,255,206,.3);border-radius:12px;background:linear-gradient(165deg,rgba(163,255,206,.1),rgba(8,6,18,.45))">
+        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a3ffce;font-weight:700">3 · Enterprise</div>
+        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Autonomous deal</div>
+        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">AI negotiates. You pay $2,500 kickoff. Full ACV closes under SOW.</p>
+      </div>
     </div>
 
     <div id="entSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:32px 0 40px">
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Products</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entProducts">10</div></div>
+      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Products</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entProducts">—</div></div>
       <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Target accounts</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entAccounts">—</div></div>
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Portfolio anchor</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#8a5cff" id="entAnchor">—</div></div>
+      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Portfolio anchor</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#6fd3ff" id="entAnchor">—</div></div>
       <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Topstone potential</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#ffd36a" id="entTop">—</div></div>
     </div>
 
@@ -3181,14 +3199,14 @@ Content-Type: application/json
     <p style="color:var(--ink-dim);font-size:13px;margin-bottom:60px">📖 Full reference: <a href="/docs" data-link style="color:#6fd3ff">/docs</a> · 🧪 Sandbox available on request · 🔐 Every response is Ed25519-signed.</p>
 
     <h2 style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise license catalogue</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Ten pre-packaged Anchor &amp; Topstone licenses for hyperscalers and Fortune 50.</p>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">SOW packages for hyperscalers and Fortune 500 — plus a <b style="color:#fff">$2,500 engagement kickoff</b> you can pay now to start the autonomous desk.</p>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:22px;margin-bottom:50px"></div>
     <div id="entNegotiator" style="margin:40px 0"></div>
     <div id="entDeals" style="margin:40px 0 60px"></div>
 
-    <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(255,211,106,.3);border-radius:14px;background:linear-gradient(180deg,rgba(255,211,106,.04),rgba(138,92,255,.04))">
-      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#ffd36a 0%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Contact Enterprise Sales</h2>
-      <p style="color:var(--ink-dim);font-size:15px;max-width:700px;margin:0 0 24px">Tell us about your scale, your stack, and what you need to ship. We reply within <b style="color:#fff">24 hours</b>. For procurement &amp; legal, ask for the deal-desk packet.</p>
+    <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(163,255,206,.35);border-radius:14px;background:linear-gradient(180deg,rgba(163,255,206,.06),rgba(111,211,255,.04))">
+      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#a3ffce 0%,#6fd3ff 55%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Start autonomous deal</h2>
+      <p style="color:var(--ink-dim);font-size:15px;max-width:720px;margin:0 0 24px">Submit once. Desk mints a <b style="color:#fff">$2,500 engagement kickoff</b> with checkout link. After payment you get the proposal pack automatically — full license still closes under SOW. No fake instant delivery.</p>
       <form id="entContactForm" class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Full name *
           <input name="name" required maxlength="200" placeholder="Jane Doe" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
@@ -3202,22 +3220,27 @@ Content-Type: application/json
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Phone (optional)
           <input name="phone" maxlength="80" placeholder="+1 555 ..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
-        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Module of interest
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Package / module of interest
           <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
-            <option value="">— Select (optional) —</option>
+            <option value="ent-engagement-kickoff">Enterprise Engagement Kickoff ($2,500)</option>
+            <option value="ent-platform-license">Platform Enterprise License</option>
+            <option value="ent-private-cloud">Private Cloud</option>
+            <option value="ent-ai-transformation">AI Transformation Programme</option>
+            <option value="ent-white-label">White-Label Platform</option>
+            <option value="ent-acquisition-pack">Acquisition Pack</option>
             ${modules.map(m => `<option value="${m.id}">${m.title}</option>`).join('')}
-            <option value="anchor-license">Anchor / Topstone license</option>
             <option value="custom">Custom deployment</option>
           </select>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Message *
-          <textarea name="message" required maxlength="4000" rows="5" placeholder="Tell us about your scale, timeline, security requirements..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px;resize:vertical;min-height:120px;font-family:inherit"></textarea>
+          <textarea name="message" required maxlength="4000" rows="5" placeholder="Scale, timeline, security, procurement constraints..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px;resize:vertical;min-height:120px;font-family:inherit"></textarea>
         </label>
         <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px">
-          <p style="color:var(--ink-dim);font-size:12px;margin:0">By submitting you accept our <a href="/legal" data-link style="color:#6fd3ff">terms</a> &amp; <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. No newsletter spam.</p>
-          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Send to Enterprise Sales →</button>
+          <p style="color:var(--ink-dim);font-size:12px;margin:0">By submitting you accept our <a href="/legal" data-link style="color:#6fd3ff">terms</a> &amp; <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. Kickoff credited toward signed ACV.</p>
+          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Start autonomous deal →</button>
         </div>
         <div id="entContactStatus" style="grid-column:1/-1;display:none;padding:14px 18px;border-radius:8px;font-size:14px"></div>
+        <div id="entKickoffPay" style="grid-column:1/-1;display:none"></div>
       </form>
     </section>
   </div>

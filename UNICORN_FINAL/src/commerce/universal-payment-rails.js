@@ -48,7 +48,7 @@ function chooserHref(serviceId, opts) {
 
 function ctaLabel(mode) {
   if (mode === 'reserve') return RESERVE_LABEL;
-  if (mode === 'contact') return 'Request proposal →';
+  if (mode === 'contact') return 'Start autonomous deal →';
   return CHOOSER_LABEL;
 }
 
@@ -66,7 +66,7 @@ function primaryCtaHtml(serviceId, opts) {
   const mode = String(o.mode || 'checkout').toLowerCase();
   if (mode === 'contact' || mode === 'unavailable') {
     const href = o.ctaHref || (mode === 'contact' ? '/enterprise#enterprise-contact' : '/services');
-    const label = o.ctaLabel || (mode === 'contact' ? 'Request proposal →' : 'Unavailable');
+    const label = o.ctaLabel || (mode === 'contact' ? 'Start autonomous deal →' : 'Unavailable');
     return `<a class="btn ${mode === 'contact' ? 'btn-gold' : 'btn-ghost'}" href="${esc(href)}" data-link style="${o.style || 'width:100%;justify-content:center'}">${esc(label)}</a>`;
   }
   const href = chooserHref(id, o);

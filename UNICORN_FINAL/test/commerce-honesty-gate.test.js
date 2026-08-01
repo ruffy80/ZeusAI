@@ -40,7 +40,11 @@ async function run() {
     const a = buyability.assessBuyability({ id: 'ent-platform-license', tier: 'enterprise', priceUSD: 250000 });
     assert.strictEqual(a.buyable, false);
     assert.strictEqual(a.mode, 'contact');
-    assert.ok(/proposal|contact/i.test(a.ctaLabel));
+    assert.ok(/autonomous deal|proposal|contact/i.test(a.ctaLabel));
+    const kick = buyability.assessBuyability({ id: 'ent-engagement-kickoff', tier: 'enterprise', group: 'enterprise-kickoff', priceUSD: 2500 });
+    assert.strictEqual(kick.buyable, true);
+    assert.strictEqual(kick.mode, 'reserve');
+    assert.ok(/autonomous deal|kickoff|Reserve/i.test(kick.ctaLabel));
   });
 
   await check('instant SKUs are self-serve BTC', () => {
@@ -136,14 +140,17 @@ async function run() {
     assert.strictEqual(out.order.buy_mode, 'btc');
   });
 
-  await check('store SSR: enterprise cards use Request proposal, not Buy with BTC', () => {
+  await check('store SSR: enterprise cards use autonomous deal / contact, not Buy with BTC', () => {
     const html = shell.getHtml('/store');
     assert.ok(html, 'store page renders');
-    assert.ok(/Request proposal/i.test(html) || /enterprise#enterprise-contact/i.test(html),
-      'enterprise CTA should be contact/proposal');
+    assert.ok(/Start autonomous deal|Request proposal|enterprise#enterprise-contact/i.test(html),
+      'enterprise CTA should be autonomous deal / contact');
     assert.ok(/Real products\. Real BTC settlement/i.test(html), 'honest store hero');
     assert.ok(/not for sale/i.test(html) || /Module mirror/i.test(html), 'library marked not for sale');
-    assert.ok(!/data-sovereign-buy="ent-/i.test(html), 'no sovereign buy on ent-* cards');
+    // Full ACV ent-* must not be sovereign-buy; engagement kickoff is the only exception.
+    const sovereignEnt = [...html.matchAll(/data-sovereign-buy="(ent-[^"]+)"/gi)].map((m) => m[1]);
+    assert.ok(sovereignEnt.every((id) => id === 'ent-engagement-kickoff'),
+      'only ent-engagement-kickoff may be sovereign-buy, got: ' + sovereignEnt.join(','));
   });
 
   await check('zacc singleton createDropshipOrder rejects demoOnly', async () => {

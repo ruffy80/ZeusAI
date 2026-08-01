@@ -125,10 +125,22 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
+  // Self-serve enterprise kickoff — only ent-* SKU that is buyable.
+  // Full ACV packages stay contact/negotiate; cash closes via this deposit.
+  if (id === 'ent-engagement-kickoff' || group === 'enterprise-kickoff') {
+    return {
+      mode: 'reserve',
+      buyable: true,
+      reason: 'enterprise_kickoff',
+      ctaLabel: 'Start autonomous deal →',
+      ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
+    };
+  }
+
   if (CONTACT_CORE_IDS.has(id) || ENTERPRISE_ID_RE.test(id) || tier === 'enterprise' || group === 'enterprise') {
     return {
       mode: 'contact', buyable: false, reason: 'enterprise_sow',
-      ctaLabel: 'Request proposal →',
+      ctaLabel: 'Start autonomous deal →',
       ctaHref: '/enterprise#enterprise-contact',
     };
   }
@@ -141,7 +153,7 @@ function assessBuyability(itemOrId, opts = {}) {
   ) {
     return {
       mode: 'contact', buyable: false, reason: 'high_ticket_sow',
-      ctaLabel: 'Request proposal →',
+      ctaLabel: 'Start autonomous deal →',
       ctaHref: '/enterprise#enterprise-contact',
     };
   }
