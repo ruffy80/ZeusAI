@@ -223,9 +223,9 @@ function bufToB64u(b){
   return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 
-// ================= Service Worker strategy =================
-// Important: avoid stale UI/cache mismatches in production by unregistering old SWs.
-// This keeps navigation and checkout behavior deterministic.
+// ================= Service Worker strategy (SWNOS assist) =================
+// Unregister any leftover workers and purge ALL Cache API entries.
+// Build-drift / controlling-SW heal is owned by shell.js → /sw-heal bounce.
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => {
     navigator.serviceWorker.getRegistrations()
@@ -233,7 +233,7 @@ if ('serviceWorker' in navigator) {
       .catch(() => {});
     if (window.caches && typeof window.caches.keys === 'function') {
       window.caches.keys()
-        .then((keys) => Promise.all(keys.filter((k) => String(k).startsWith('unicorn-v2-')).map((k) => window.caches.delete(k))))
+        .then((keys) => Promise.all((keys || []).map((k) => window.caches.delete(k))))
         .catch(() => {});
     }
   });

@@ -405,9 +405,17 @@ async function run() {
     assert.match(sw.text, /const V = 'unicorn-sw-disabled-[a-z0-9-]+'/);
     assert.match(sw.text, /skipWaiting/);
 
+    const heal = await request('/sw-heal?next=%2Fservices');
+    assert.equal(heal.status, 200);
+    assert.match(heal.headers.get('clear-site-data') || heal.headers['clear-site-data'] || '', /cache/i);
+    assert.match(heal.text, /unregister/);
+    assert.match(heal.text, /_healed=1/);
+    assert.match(heal.text, /\/services/);
+
     const reset = await request('/sw-reset');
     assert.equal(reset.status, 200);
     assert.match(reset.text, /unregister/);
+    assert.match(reset.text, /Clear-Site-Data|caches\.delete|_healed/i);
 
     console.log('site commerce smoke test passed');
     cleanupSmokeArtifacts();
