@@ -5662,25 +5662,35 @@ function renderAccountDashboard(root, me){
           ${(d.artifacts||[]).map(a => `<a class="btn btn-primary" href="${escStore(a.downloadUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">⬇ ${escStore(a.title||a.filename||a.serviceId||'artifact')}</a>`).join('')}
           ${(d.files||[]).map(f => `<a class="btn" href="${escStore(f.downloadUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">⬇ ${escStore(f.filename||f.kind||'file')}</a>`).join('')}
         </div>` : '<div style="margin-top:10px;font-size:12.5px;color:var(--ink-dim)">Packaging in progress — refresh shortly after payment confirms.</div>'}
-      </div>`).join('')}</div>` : '<div style="color:var(--ink-dim);font-size:14px">No deliveries yet. Pay a BTC invoice on <a href="/store">/store</a> with this account email to receive downloadable artifacts here.</div>'}
+      </div>`).join('')}</div>` : '<div style="color:var(--ink-dim);font-size:14px">No deliveries yet. Complete a checkout on <a href="/store">/store</a> with this account email (BTC, PayPal, or card/crypto) to receive downloadable artifacts here.</div>'}
 
     ${(me.pendingOrders||[]).length ? `
     <h2 style="margin:36px 0 14px;font-size:22px">⏳ Awaiting payment (${me.pendingOrders.length})</h2>
-    <div style="display:grid;gap:12px">${me.pendingOrders.map(p => `
+    <div style="display:grid;gap:12px">${me.pendingOrders.map(p => {
+      const paypalHref = p.approveHref || p.paypalApproveHref || '';
+      const nowHref = p.nowpaymentsInvoiceUrl || p.nowInvoiceUrl || '';
+      const btcUri = p.btcUri || p.bip21 || '';
+      const method = String(p.method || '').toUpperCase();
+      const showBtc = !!(p.btcAmount && p.btcAddress) || method === 'BTC' || !!btcUri;
+      return `
       <div class="card" style="padding:16px;border:1px solid rgba(255,211,106,.3)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
           <div>
             <div style="font-weight:600">${escStore(p.plan)} — $${p.amount}</div>
             <div style="font-size:12px;color:var(--ink-dim);font-family:monospace">${escStore(p.receiptId)}</div>
-            ${p.method==='BTC' ? `<div style="font-size:12px;margin-top:6px;color:var(--ink-dim)">Send <b style="color:#ffd36a">${p.btcAmount} BTC</b> to <code class="inline">${escStore(String(p.btcAddress||''))}</code></div>` : ''}
+            ${showBtc && p.btcAmount ? `<div style="font-size:12px;margin-top:6px;color:var(--ink-dim)">₿ Send <b style="color:#ffd36a">${escStore(String(p.btcAmount))} BTC</b>${p.btcAddress ? ` to <code class="inline">${escStore(String(p.btcAddress))}</code>` : ''}</div>` : ''}
+            ${paypalHref ? `<div style="font-size:12px;margin-top:4px;color:var(--ink-dim)">PayPal approve link ready — resume below.</div>` : ''}
+            ${nowHref ? `<div style="font-size:12px;margin-top:4px;color:var(--ink-dim)">Card / crypto (NOWPayments) invoice ready — resume below.</div>` : ''}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            ${p.btcUri ? `<a class="btn btn-primary" href="${escStore(p.btcUri)}" style="font-size:12px;padding:8px 12px">Open wallet</a>` : ''}
-            ${p.approveHref ? `<a class="btn btn-primary" href="${escStore(p.approveHref)}" target="_blank" style="font-size:12px;padding:8px 12px">PayPal →</a>` : ''}
-            <a class="btn" href="${escStore(p.invoiceUrl)}" target="_blank" style="font-size:12px;padding:8px 12px">Invoice</a>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${btcUri ? `<a class="btn btn-primary" href="${escStore(btcUri)}" style="font-size:12px;padding:8px 12px">Open wallet</a>` : ''}
+            ${paypalHref ? `<a class="btn btn-primary" href="${escStore(paypalHref)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">PayPal →</a>` : ''}
+            ${nowHref ? `<a class="btn btn-primary" href="${escStore(nowHref)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">Card / crypto →</a>` : ''}
+            <a class="btn" href="${escStore(p.invoiceUrl || p.checkoutUrl || '#')}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">Invoice</a>
           </div>
         </div>
-      </div>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('')}</div>` : ''}
 
     <h2 style="margin:36px 0 14px;font-size:24px">🔑 API keys (${(me.apiKeys||[]).length})</h2>
     ${(me.apiKeys||[]).length ? `<div style="display:grid;gap:10px">${me.apiKeys.map(k => `

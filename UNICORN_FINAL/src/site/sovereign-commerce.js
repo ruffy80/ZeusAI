@@ -94,6 +94,11 @@ function _fireDelivery(order) {
   }
   if (!_deliveryHook) return;
   try {
+    let railPatch = { method: 'BTC', paid_via: 'btc', providerRef: null };
+    try {
+      const pcos = require('../commerce/perfection-continuum-os');
+      railPatch = Object.assign(railPatch, pcos.deliveryReceiptPatch(order));
+    } catch (_) { /* PCOS optional */ }
     const receiptLike = {
       id: order.orderId,
       orderId: order.orderId,
@@ -102,8 +107,11 @@ function _fireDelivery(order) {
       email: (order.buyer && order.buyer.email) || '',
       customerEmail: (order.buyer && order.buyer.email) || '',
       status: 'paid',
-      method: 'BTC',
-      txid: (order.txids && order.txids[0]) || null,
+      method: railPatch.method || 'BTC',
+      paid_via: railPatch.paid_via || 'btc',
+      paidVia: railPatch.paidVia || railPatch.paid_via || 'btc',
+      providerRef: railPatch.providerRef || null,
+      txid: railPatch.txid != null ? railPatch.txid : ((order.txids && order.txids[0]) || null),
       amount_sats: order.amount_sats,
       amount_btc: order.amount_btc,
       currency: order.currency,
@@ -2202,15 +2210,30 @@ async function handle(req, res, ctx) {
     const order = ORDERS.get(mReceiptHtml[1]);
     if (!order) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Order not found'); return true; }
     if (order.status !== 'paid') { res.writeHead(409, { 'Content-Type': 'text/plain' }); res.end('Order not paid yet'); return true; }
+    let rf = null;
+    try {
+      const pcos = require('../commerce/perfection-continuum-os');
+      rf = pcos.htmlReceiptFields(order, escapeHtml);
+    } catch (_) { rf = null; }
+    const amountDd = rf
+      ? rf.amountDd
+      : `${escapeHtml(String(order.amount_btc))} BTC ≈ ${escapeHtml(String(order.subtotal_fiat))} ${escapeHtml(order.currency)}`;
+    const viaBlock = rf
+      ? `${rf.paidViaDt}${rf.paidViaDd}`
+      : `<dt>Paid via</dt><dd>${escapeHtml(String(order.paid_via || 'btc'))}</dd>`;
+    const proofBlock = rf
+      ? `${rf.proofDt}${rf.proofDd}`
+      : `<dt>TXIDs</dt><dd>${(order.txids || []).map(t => `<code>${escapeHtml(t)}</code>`).join('<br>') || '—'}</dd>`;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt — ${escapeHtml(order.orderId)}</title>
 <style>body{font-family:-apple-system,system-ui,sans-serif;max-width:640px;margin:2em auto;padding:0 1em;color:#222}h1{border-bottom:2px solid #000}dt{font-weight:600;margin-top:.6em}dd{margin:0 0 .4em 0}.sig{font-family:monospace;font-size:.75em;word-break:break-all;background:#f4f4f4;padding:.6em;border-radius:6px}@media print{body{margin:0}}</style></head>
 <body><h1>🦄 Unicorn — Receipt</h1>
 <dl>
 <dt>Order ID</dt><dd>${escapeHtml(order.orderId)}</dd>
 <dt>Service</dt><dd>${escapeHtml(order.serviceName)} (${escapeHtml(order.serviceId)})</dd>
-<dt>Amount</dt><dd>${escapeHtml(String(order.amount_btc))} BTC ≈ ${escapeHtml(String(order.subtotal_fiat))} ${escapeHtml(order.currency)}</dd>
+<dt>Amount</dt><dd>${amountDd}</dd>
+${viaBlock}
 <dt>Paid at</dt><dd>${escapeHtml(order.paid_at || '')}</dd>
-<dt>TXIDs</dt><dd>${(order.txids || []).map(t => `<code>${escapeHtml(t)}</code>`).join('<br>') || '—'}</dd>
+${proofBlock}
 <dt>Entitlement</dt><dd><code>${escapeHtml(order.entitlement_id || '—')}</code></dd>
 <dt>Issuer</dt><dd>${escapeHtml(OWNER_NAME)} · did:web:${escapeHtml(OWNER_DOMAIN.replace(/^https?:\/\//, ''))}</dd>
 </dl>
@@ -2232,6 +2255,13 @@ async function handle(req, res, ctx) {
       if (o.access_token === token && o.status === 'paid') { found = o; break; }
     }
     if (!found) return sendJson(res, 404, { valid: false, reason: 'not_found_or_unpaid' }), true;
+    let via = found.paid_via || 'btc';
+    let viaLbl = null;
+    try {
+      const pcos = require('../commerce/perfection-continuum-os');
+      via = pcos.normalizeVia(found.paid_via) || 'btc';
+      viaLbl = pcos.viaLabel(via);
+    } catch (_) { /* optional */ }
     return sendJson(res, 200, {
       valid: true,
       orderId: found.orderId,
@@ -2241,6 +2271,8 @@ async function handle(req, res, ctx) {
       entitlement_id: found.entitlement_id,
       valid_until: found.valid_until || null,
       preorder: !!found.preorder,
+      paid_via: via,
+      paid_via_label: viaLbl,
       txid: (found.txids || [])[0] || null,
       signature: found.signature,
       issuer: { did: `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`, name: OWNER_NAME },
@@ -2263,6 +2295,11 @@ async function handle(req, res, ctx) {
     if (!found) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not_found_or_unpaid' })); return true; }
     const issuerDid = `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`;
     const txid = (found.txids || [])[0] || null;
+    let walletPatch = {};
+    try {
+      const pcos = require('../commerce/perfection-continuum-os');
+      walletPatch = pcos.walletSubjectPatch(found) || {};
+    } catch (_) { walletPatch = {}; }
     const vc = {
       '@context': ['https://www.w3.org/2018/credentials/v1'],
       type: ['VerifiableCredential', 'ProofOfPurchaseCredential'],
@@ -2279,9 +2316,12 @@ async function handle(req, res, ctx) {
         amount_btc: found.amount_btc,
         currency: found.currency,
         subtotal_fiat: found.subtotal_fiat,
-        bitcoinTxId: txid,
-        proofUrl: proofUrlForOrder(found, txid),
-        receiveAddress: found.receive_address,
+        paidVia: walletPatch.paidVia || found.paid_via || 'btc',
+        paidViaLabel: walletPatch.paidViaLabel || null,
+        bitcoinTxId: walletPatch.bitcoinTxId !== undefined ? walletPatch.bitcoinTxId : txid,
+        providerRef: walletPatch.providerRef || null,
+        proofUrl: proofUrlForOrder(found, walletPatch.bitcoinTxId || txid),
+        receiveAddress: walletPatch.receiveAddress !== undefined ? walletPatch.receiveAddress : found.receive_address,
       },
       proof: {
         type: 'Ed25519Signature2020',

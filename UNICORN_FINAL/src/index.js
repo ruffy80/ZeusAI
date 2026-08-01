@@ -10095,29 +10095,37 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         invoiceUrl: `/api/invoice/${r.id}`, licenseUrl: `/api/license/${r.id}`, deliveryUrl: `/api/delivery/${r.id}`,
         artifactsUrl: `/api/delivery/${r.id}?format=artifacts`,
       })));
-      // Sovereign ORDERS by buyer.email
+      // Sovereign ORDERS by buyer.email (paid + pending multi-rail resume)
+      const pendingCrypto = [];
       try {
         if (commerce && commerce.ORDERS) {
+          let pcos = null;
+          try { pcos = require('./commerce/perfection-continuum-os'); } catch (_) { pcos = null; }
           for (const o of commerce.ORDERS.values()) {
             const buyerEmail = String((o.buyer && o.buyer.email) || o.email || '').toLowerCase();
-            if (buyerEmail !== email || o.status !== 'paid') continue;
+            if (buyerEmail !== email) continue;
             const oid = o.orderId || o.id;
-            activeServices.push({
-              id: `sovereign:${oid}`, receiptId: oid, serviceId: o.serviceId || o.plan,
-              title: o.serviceName || o.serviceId || o.plan,
-              amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd, currency: 'USD',
-              invoiceUrl: `/api/invoice/${encodeURIComponent(oid)}`,
-              licenseUrl: `/api/license/${encodeURIComponent(oid)}`,
-              deliveryUrl: `/api/delivery/${encodeURIComponent(oid)}`,
-              artifactsUrl: `/api/delivery/${encodeURIComponent(oid)}?format=artifacts`,
-            });
+            if (o.status === 'paid') {
+              activeServices.push({
+                id: `sovereign:${oid}`, receiptId: oid, serviceId: o.serviceId || o.plan,
+                title: o.serviceName || o.serviceId || o.plan,
+                amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd, currency: 'USD',
+                invoiceUrl: `/api/invoice/${encodeURIComponent(oid)}`,
+                licenseUrl: `/api/license/${encodeURIComponent(oid)}`,
+                deliveryUrl: `/api/delivery/${encodeURIComponent(oid)}`,
+                artifactsUrl: `/api/delivery/${encodeURIComponent(oid)}?format=artifacts`,
+              });
+            } else if (o.status === 'pending') {
+              const row = pcos && pcos.accountPendingFromOrder ? pcos.accountPendingFromOrder(o) : null;
+              if (row) pendingCrypto.push(row);
+            }
           }
         }
       } catch (_) { /* best-effort */ }
       res.writeHead(200, {'Content-Type':'application/json'});
       return res.end(JSON.stringify({
         customer: { email }, apiKeys: [], orders: receipts, activeServices,
-        pendingOrders: [], deliveries: enrichDeliveriesList(deliveries), authMode: 'cryptoauth-email',
+        pendingOrders: pendingCrypto, deliveries: enrichDeliveriesList(deliveries), authMode: 'cryptoauth-email',
       }));
     }
     const c = portal.getById(cid);
@@ -10233,13 +10241,21 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
               useUrl: `/checkout/${encodeURIComponent(oid)}`,
             });
           } else if (o.status === 'pending') {
-            pendingOrders.push({
+            let pendingRow = null;
+            try {
+              const pcos = require('./commerce/perfection-continuum-os');
+              pendingRow = pcos.accountPendingFromOrder(o);
+            } catch (_) { pendingRow = null; }
+            pendingOrders.push(pendingRow || {
               receiptId: oid,
               plan: o.serviceId || o.plan,
               amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd,
               method: 'BTC',
               btcAmount: o.amount_btc,
               btcAddress: o.receive_address || o.address,
+              btcUri: o.bip21 || null,
+              approveHref: (o.meta && o.meta.paypalApproveHref) || null,
+              nowpaymentsInvoiceUrl: (o.meta && o.meta.nowpaymentsInvoiceUrl) || null,
               createdAt: o.created_at,
               statusUrl: `/api/order/${encodeURIComponent(oid)}/status`,
               invoiceUrl: `/checkout/${encodeURIComponent(oid)}`,

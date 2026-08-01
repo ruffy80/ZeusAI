@@ -153,6 +153,11 @@ async function sendOrderReceiptEmail(receipt) {
   if (_seen.has(key)) return { ok: true, alreadyEmailed: true, orderId };
   const mailer = _mailer();
   if (!mailer) return { ok: false, error: 'mailer_unavailable' };
+  let railPatch = {};
+  try {
+    const pcos = require('./perfection-continuum-os');
+    railPatch = pcos.receiptEmailPatch(receipt) || {};
+  } catch (_) { railPatch = {}; }
   const data = {
     orderId,
     serviceId: receiptServiceId(receipt),
@@ -161,7 +166,9 @@ async function sendOrderReceiptEmail(receipt) {
     amount_btc: receipt.amount_btc || receipt.btcAmount || null,
     btcAmount: receipt.amount_btc || receipt.btcAmount || null,
     txid: receipt.txid || (receipt.confirmation && receipt.confirmation.txid) || null,
-    paid_at: receipt.paidAt || receipt.paid_at || null
+    paid_at: receipt.paidAt || receipt.paid_at || null,
+    paid_via: railPatch.paid_via || receipt.paid_via || receipt.paidVia || null,
+    providerRef: railPatch.providerRef || receipt.providerRef || null,
   };
   try {
     const r = await mailer.sendTransactional({ to, template: 'order_receipt', data });
