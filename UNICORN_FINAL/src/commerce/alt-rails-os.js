@@ -101,11 +101,24 @@ async function createPaypalOrderForSovereign(order) {
   const cancelUrl = base + '/checkout/' + encodeURIComponent(order.orderId) + '?paypal=cancel';
   const token = await _paypalAccessToken();
   // Bias toward buyer/guest checkout — never prefill merchant payer email.
-  // experience_context.GUEST_CHECKOUT + BILLING application_context reduces
-  // "logged into seller account" collisions when a merchant session is sticky.
+  // Prefer BILLING (guest card path). Avoid brand_name inside payment_source
+  // experience_context — live PayPal returns 422 INCOMPATIBLE_PARAMETER_VALUE.
+  const purchaseUnits = [{
+    reference_id: order.orderId,
+    custom_id: order.orderId,
+    description: String(order.serviceName || order.serviceId || 'ZeusAI').slice(0, 120),
+    amount: { currency_code: 'USD', value: amount.toFixed(2) },
+  }];
+  const applicationContext = {
+    brand_name: 'ZeusAI',
+    landing_page: 'BILLING',
+    shipping_preference: 'NO_SHIPPING',
+    user_action: 'PAY_NOW',
+    return_url: returnUrl,
+    cancel_url: cancelUrl,
+  };
   const experience = {
     payment_method_preference: 'IMMEDIATE_PAYMENT_REQUIRED',
-    brand_name: 'ZeusAI',
     locale: 'en-US',
     landing_page: 'GUEST_CHECKOUT',
     shipping_preference: 'NO_SHIPPING',
@@ -113,73 +126,52 @@ async function createPaypalOrderForSovereign(order) {
     return_url: returnUrl,
     cancel_url: cancelUrl,
   };
-  const body = {
-    intent: 'CAPTURE',
-    purchase_units: [{
-      reference_id: order.orderId,
-      custom_id: order.orderId,
-      description: String(order.serviceName || order.serviceId || 'ZeusAI').slice(0, 120),
-      amount: { currency_code: 'USD', value: amount.toFixed(2) },
-    }],
-    payment_source: {
-      paypal: {
-        experience_context: experience,
-      },
-    },
-    // Kept for older PayPal API compatibility when payment_source is ignored.
-    application_context: {
-      brand_name: 'ZeusAI',
-      landing_page: 'BILLING',
-      shipping_preference: 'NO_SHIPPING',
-      user_action: 'PAY_NOW',
-      return_url: returnUrl,
-      cancel_url: cancelUrl,
-    },
-  };
-  const r = await fetch(_paypalBaseUrl() + '/v2/checkout/orders', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    let detail = '';
-    try { detail = await r.text(); } catch (_) {}
-    // Fallback without payment_source if API rejects GUEST_CHECKOUT combo.
-    if (r.status === 400 && /landing_page|payment_source|experience_context/i.test(detail)) {
-      const r2 = await fetch(_paypalBaseUrl() + '/v2/checkout/orders', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          intent: 'CAPTURE',
-          purchase_units: body.purchase_units,
-          application_context: body.application_context,
-        }),
-      });
-      if (!r2.ok) {
-        let detail2 = '';
-        try { detail2 = await r2.text(); } catch (_) {}
-        throw new Error('paypal_order_create_failed:' + r2.status + (detail2 ? (':' + detail2.slice(0, 160)) : ''));
-      }
-      const d2 = await r2.json();
-      const approvalUrl2 = Array.isArray(d2.links) ? ((d2.links.find((l) => l.rel === 'approve') || {}).href || null) : null;
-      if (!approvalUrl2) throw new Error('paypal_approve_link_missing');
-      return {
-        ok: true,
-        protocol: PROTOCOL,
-        provider: 'paypal',
-        paypalOrderId: d2.id,
-        approveHref: approvalUrl2,
-        status: d2.status,
-        returnUrl,
-        cancelUrl,
-        env: paypalEnv(),
-        buyerHint: 'Use a buyer PayPal account or guest checkout — not the ZeusAI merchant login.',
-      };
-    }
-    throw new Error('paypal_order_create_failed:' + r.status + (detail ? (':' + detail.slice(0, 160)) : ''));
+  const buyerHint = 'Use a buyer PayPal account or guest checkout — not the ZeusAI merchant login.';
+
+  async function _create(payload) {
+    const res = await fetch(_paypalBaseUrl() + '/v2/checkout/orders', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text().catch(() => '');
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (_) { json = null; }
+    return { res, text, json };
   }
-  const d = await r.json();
-  // Prefer payer-action / approve link for hosted checkout redirect.
+
+  // Attempt 1: payment_source guest checkout (no brand_name in experience_context).
+  let attempt = await _create({
+    intent: 'CAPTURE',
+    purchase_units: purchaseUnits,
+    payment_source: { paypal: { experience_context: experience } },
+  });
+  // Attempt 2: classic application_context BILLING (proven path).
+  if (!attempt.res.ok) {
+    attempt = await _create({
+      intent: 'CAPTURE',
+      purchase_units: purchaseUnits,
+      application_context: applicationContext,
+    });
+  }
+  // Attempt 3: minimal NO_PREFERENCE (last resort — still valid Orders API).
+  if (!attempt.res.ok) {
+    attempt = await _create({
+      intent: 'CAPTURE',
+      purchase_units: purchaseUnits,
+      application_context: {
+        brand_name: 'ZeusAI',
+        landing_page: 'NO_PREFERENCE',
+        user_action: 'PAY_NOW',
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+      },
+    });
+  }
+  if (!attempt.res.ok) {
+    throw new Error('paypal_order_create_failed:' + attempt.res.status + (attempt.text ? (':' + attempt.text.slice(0, 160)) : ''));
+  }
+  const d = attempt.json || {};
   const links = Array.isArray(d.links) ? d.links : [];
   const approvalUrl = ((links.find((l) => l.rel === 'payer-action') || links.find((l) => l.rel === 'approve') || {}).href || null);
   if (!approvalUrl) throw new Error('paypal_approve_link_missing');
@@ -193,7 +185,7 @@ async function createPaypalOrderForSovereign(order) {
     returnUrl,
     cancelUrl,
     env: paypalEnv(),
-    buyerHint: 'Use a buyer PayPal account or guest checkout — not the ZeusAI merchant login.',
+    buyerHint,
   };
 }
 
