@@ -623,6 +623,14 @@ if pm2 describe zeus-telegram-autobind >/dev/null 2>&1; then
   pm2 delete zeus-telegram-autobind >/dev/null 2>&1 || true
   pm2 save >/dev/null 2>&1 || true
 fi
+# AetherMail Continuum — autonomous IMAP→reply agent (arms when SMTP_PASS lands)
+if [ -x "$DEPLOY_LINK/scripts/install-zeus-aethermail-agent.sh" ]; then
+  log "ensure zeus-aethermail agent (AMC/1.0) is installed"
+  chmod +x "$DEPLOY_LINK/scripts/install-zeus-aethermail-agent.sh" 2>/dev/null || true
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-aethermail-agent.sh" \
+    || log "[aethermail] non-fatal: install-zeus-aethermail-agent.sh exited non-zero"
+fi
+
 
 # SAFE full-autonomy activation: turn business autonomy ON while keeping
 # source-file mutators OFF, reload PM2 with the safe env, and install the

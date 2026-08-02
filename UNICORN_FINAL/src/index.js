@@ -4705,7 +4705,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/aethermail') || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -5373,7 +5373,7 @@ async function unicornHandler(req, res) {
     res.writeHead(301, { Location: '/status', 'Cache-Control': 'no-store' });
     return res.end();
   }
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport' || urlPath === '/pre-keys' || urlPath === '/activation' || urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group' || urlPath === '/mobdial') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport' || urlPath === '/pre-keys' || urlPath === '/activation' || urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group' || urlPath === '/mobdial' || urlPath === '/aethermail' || urlPath === '/mail') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -6241,6 +6241,47 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'telegram-mobdial' }); } catch (_) {}
       return res.end(renderPage('MobDial · Telegram Swarm · ZeusAI', body, js));
+    }
+    // AetherMail Continuum — autonomous email OS
+    if (urlPath === '/aethermail' || urlPath === '/mail') {
+      const body = `
+<section style="max-width:920px;margin:0 auto;padding:48px 20px 80px;color:#e8eef7">
+  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">AMC/1.0 · AetherMail Continuum</p>
+  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">Email that thinks with Unicorn.</h1>
+  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Intent Lattice · Reply Gravity · Epistle Dials · Deferred Arming. The agent is already running — set SMTP_PASS and the continuum arms itself.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
+    <button type="button" data-live-inspect="/api/aethermail/status" data-live-title="AetherMail status" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#c9842f,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect AetherMail live →</button>
+    <a href="/tg" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">MobDial group</a>
+    <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Catalog</a>
+  </div>
+  <p id="am-meta" style="color:#8aa0b8;margin:0 0 18px">Loading…</p>
+  <div id="am-kpis" style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px"></div>
+  <ol style="color:#cfd6ff;line-height:1.6;padding-left:1.2em">
+    <li>Create a Yahoo <strong>App Password</strong> (not your login password).</li>
+    <li>Set <code>SMTP_PASS</code> in shared <code>.env</code> (IMAP uses the same secret by default).</li>
+    <li>Agent re-hydrates env ~30s — no redeploy required — queue flushes, inbox polls.</li>
+    <li>Inbound mail → Intent Lattice → Reply Gravity → Epistle Dial CTA → autonomous reply.</li>
+  </ol>
+</section>`;
+      const js = `(function(){
+  function card(k,v){return '<div style="padding:14px 16px;border:1px solid #2a3544;background:rgba(20,28,40,.55)"><div style="color:#8aa0b8;font-size:12px">'+k+'</div><div style="font-size:1.4rem;font-weight:700;margin-top:4px">'+v+'</div></div>';}
+  fetch("/api/aethermail/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var m=document.getElementById("am-meta"); var k=document.getElementById("am-kpis");
+    if(m) m.textContent=(d.smtpArmed&&d.imapArmed?"Fully armed":(d.waitingFor&&d.waitingFor[0])||"Waiting")+" · "+(d.protocol||"AMC/1.0")+" · brain "+(d.brain||"lattice");
+    if(k) k.innerHTML=[
+      card("SMTP", d.smtpArmed?"ARMED":"waiting"),
+      card("IMAP", d.imapArmed?(d.imapOk?"OK":"armed"):"waiting"),
+      card("Inbound", d.inbound||0),
+      card("Replied", d.replied||0),
+      card("Queued", d.queued||0),
+      card("Gravity skips", d.skippedGravity||0),
+      card("Threads", d.threadCount||0),
+      card("Replies today", (d.repliesToday||0)+"/"+(d.maxReplyDay||40))
+    ].join("");
+  }).catch(function(){var m=document.getElementById("am-meta"); if(m)m.textContent="Status temporarily unreachable.";});
+})();`;
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'aethermail' }); } catch (_) {}
+      return res.end(renderPage('AetherMail Continuum · ZeusAI', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -8042,6 +8083,20 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         md.recordDialClick(dial, { templateId: q.get('utm_content') || 'landing' });
       }
     } catch (_) { /* non-blocking */ }
+  }
+
+  // AetherMail Continuum OS (AMC/1.0)
+  if (urlPath === '/api/aethermail' || urlPath === '/api/aethermail/status'
+    || urlPath === '/.well-known/aethermail.json' || urlPath === '/api/aethermail/discovery') {
+    try {
+      const amc = require('../backend/modules/aethermail-continuum-os');
+      const out = urlPath.endsWith('/discovery') ? amc.discovery() : amc.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(out));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
   }
 
   // EOP API surface on site (local-first so nginx→site path works without backend hop)
