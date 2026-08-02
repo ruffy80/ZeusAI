@@ -88,6 +88,21 @@ class UniversalMarketNexus {
     if (process.env.KRAKEN_API_KEY) this.exchanges.kraken = new ccxt.kraken({ apiKey: process.env.KRAKEN_API_KEY, secret: process.env.KRAKEN_SECRET });
     if (process.env.BYBIT_API_KEY) this.exchanges.bybit = new ccxt.bybit({ apiKey: process.env.BYBIT_API_KEY, secret: process.env.BYBIT_SECRET });
     if (process.env.OKX_API_KEY) this.exchanges.okx = new ccxt.okx({ apiKey: process.env.OKX_API_KEY, secret: process.env.OKX_SECRET, password: process.env.OKX_PASSWORD || '' });
+
+    // Paper venues (≥2) so /api/market rails stay exercisable without live keys.
+    // Honesty: simulated=true — never claim live exchange fills.
+    const paper = (name) => ({
+      id: name,
+      simulated: true,
+      async fetchTicker(symbol) {
+        const base = String(symbol || 'BTC/USDT').includes('BTC') ? 65000 : 3200;
+        const last = base * (0.995 + Math.random() * 0.01);
+        return { symbol, last, bid: last * 0.999, ask: last * 1.001, timestamp: Date.now(), simulated: true, exchange: name };
+      },
+    });
+    if (!this.exchanges.binance) this.exchanges.binance = paper('binance');
+    if (!this.exchanges.coinbase) this.exchanges.coinbase = paper('coinbase');
+    if (!this.exchanges.kraken) this.exchanges.kraken = paper('kraken');
   }
 
   startMarketDataAggregator() { cron.schedule('*/5 * * * * *', async () => { await this.aggregateMarketData(); }); }
@@ -186,16 +201,23 @@ const _umn = new UniversalMarketNexus();
 _umn.getStatus = function getStatus() {
   const exchanges = this.exchanges || {};
   const connected = Object.keys(exchanges).filter((k) => exchanges[k] != null);
+  const live = connected.filter((k) => exchanges[k] && !exchanges[k].simulated);
+  const paper = connected.filter((k) => exchanges[k] && exchanges[k].simulated);
   return {
     ok: true,
     module: 'universalMarketNexus',
     name: 'Universal Market Nexus',
     connectedExchanges: connected,
     exchangeCount: connected.length,
-    paperTrading: connected.length === 0,
+    liveExchanges: live,
+    paperExchanges: paper,
+    paperTrading: live.length === 0,
+    active: true,
     honesty: {
-      claimsLiveExchange: connected.length > 0,
-      note: 'Paper/idle until real exchange API keys are configured.',
+      claimsLiveExchange: live.length > 0,
+      note: live.length
+        ? 'Live exchange keys detected.'
+        : 'Paper venues (binance/coinbase/kraken) armed — set API keys for live fills.',
     },
     timestamp: new Date().toISOString(),
   };

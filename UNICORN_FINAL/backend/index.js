@@ -3474,6 +3474,10 @@ const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
 // quantumVault este deja încărcat la linia 66 (primul după dotenv)
 const revenueModules        = require('./modules/revenueModules');
+const productCatalog        = require('./modules/productCatalog');
+const orderManager          = require('./modules/orderManager');
+const enterpriseSales       = require('./modules/enterpriseSales');
+const braos                 = require('./modules/billion-revenue-activation-os');
 const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
 // ==================== GENERATED FUTURE MODULES ====================
 const agiSelfEvolution      = require('./generated/AGISelf-EvolutionEngine');
@@ -4151,6 +4155,22 @@ app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
 app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
 app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
 app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+
+// ── BRAOS/1.0 — Billion Revenue Activation (aliases + catalog/orders/enterprise) ──
+try {
+  productCatalog.start();
+  orderManager.start();
+  enterpriseSales.start();
+  if (marketplace && typeof marketplace.ensureRevenueSkus === 'function') marketplace.ensureRevenueSkus();
+  braos.startAll();
+  braos.mountAliases(app, {
+    adminMiddleware: adminSecretMiddleware,
+    authMiddleware: typeof authMiddleware === 'function' ? authMiddleware : adminSecretMiddleware,
+  });
+  console.log('[BRAOS] revenue rails armed · aliases /api/pay /api/global /api/market /api/orders /api/braos');
+} catch (e) {
+  console.warn('[BRAOS] activation degraded:', e && e.message);
+}
 // ── UI Auto-Builder internal health routes ──────────────────────────
 app.use('/internal/ui-builder', uiAutoBuilder.getRouter());
 // ── Unicorn Eternal Engine ──────────────────────────────────────────

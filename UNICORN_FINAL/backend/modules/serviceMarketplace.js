@@ -279,7 +279,18 @@ class ServiceMarketplace {
       { id: 'carbon_trading', name: 'Carbon Credit Trading', category: 'carbon', basePrice: 149.99 },
       { id: 'quantum_identity', name: 'Quantum Identity Shield', category: 'security', basePrice: 79.99 },
       { id: 'wealth_engine', name: 'Autonomous Wealth Engine', category: 'finance', basePrice: 199.99 },
-      { id: 'trend_analyzer', name: 'Global Trend Analyzer', category: 'analytics', basePrice: 39.99 }
+      { id: 'trend_analyzer', name: 'Global Trend Analyzer', category: 'analytics', basePrice: 39.99 },
+      // Curated revenue SKUs (BRAOS) — always present for sales flow
+      { id: 'esim-eu-5gb', name: 'Plan eSIM Europa 5GB', category: 'connectivity', basePrice: 20 },
+      { id: 'esim-global-10gb', name: 'Plan eSIM Global 10GB', category: 'connectivity', basePrice: 50 },
+      { id: 'api-access-pro', name: 'API Access Pro', category: 'api', basePrice: 99 },
+      { id: 'ai-consulting-hour', name: 'AI Consulting Hour', category: 'services', basePrice: 150 },
+      { id: 'carbon-credits-trading', name: 'Carbon Credits Trading', category: 'carbon', basePrice: 500 },
+      { id: 'quantum-identity-shield', name: 'Quantum Identity Shield', category: 'security', basePrice: 79 },
+      { id: 'autonomous-negotiation', name: 'Autonomous Negotiation', category: 'negotiation', basePrice: 199 },
+      { id: 'predictive-analytics', name: 'Predictive Analytics', category: 'analytics', basePrice: 299 },
+      { id: 'custom-module-dev', name: 'Custom Module Development', category: 'services', basePrice: 999 },
+      { id: 'enterprise-license', name: 'Enterprise License', category: 'enterprise', basePrice: 1999 },
     ];
 
     for (const svc of defaults) {
@@ -294,10 +305,18 @@ class ServiceMarketplace {
           demand: 0.5,
           popularity: 0.5,
           availability: true,
-          apiEndpoint: '/api/module/' + svc.id + '/process'
+          apiEndpoint: svc.id.startsWith('esim-') || svc.id.includes('license') || svc.id.includes('pro') || svc.id.includes('analytics') || svc.id.includes('negotiation') || svc.id.includes('consulting') || svc.id.includes('module') || svc.id.includes('carbon-credits') || svc.id.includes('identity-shield')
+            ? '/api/orders/reserve'
+            : '/api/module/' + svc.id + '/process'
         });
       }
     }
+  }
+
+  /** Ensure curated BRAOS SKUs exist even when hundreds of module files already loaded. */
+  ensureRevenueSkus() {
+    this.addDefaultServices();
+    return { ok: true, total: this.services.size };
   }
 
   startMarketAnalysis() {
