@@ -25,9 +25,9 @@ function check(name, fn) {
   console.log('\u2713', name);
 }
 
-check('discovery advertises TPG/1.0', () => {
+check('discovery advertises TPG/1.1', () => {
   const d = tpg.discovery();
-  assert.equal(d.protocol, 'TPG/1.0');
+  assert.equal(d.protocol, 'TPG/1.1');
   assert.ok(d.endpoints.status.includes('/api/telegram/group-os'));
 });
 
@@ -60,7 +60,7 @@ check('captureLead validates email', () => {
 
 check('getStatus exposes profit score without secrets', () => {
   const st = tpg.getStatus();
-  assert.equal(st.protocol, 'TPG/1.0');
+  assert.equal(st.protocol, 'TPG/1.1');
   assert.ok(typeof st.profitScore === 'number');
   const json = JSON.stringify(st);
   assert.ok(!json.includes('123456:TEST'));

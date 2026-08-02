@@ -1830,6 +1830,26 @@ async function handle(req, res, ctx) {
         })).catch(() => {});
       }
     } catch (_) {}
+    // MobDial closed-loop attribution (Telegram Dial Code → order)
+    try {
+      const dial = String(
+        (body && (body.dial || body.ref || body.utm_content))
+        || ''
+      ).trim().toUpperCase();
+      if (dial.startsWith('UDIAL-') && out.order) {
+        const md = require('../../backend/modules/telegram-mobdial-os');
+        const attr = md.attributeCheckout({
+          dial,
+          orderId: out.order.orderId || out.order.id,
+          serviceId: out.order.serviceId || (body && body.serviceId),
+          paid: false,
+          status: out.order.status || 'pending',
+        });
+        if (attr && attr.ok) {
+          out.order.mobdial = { code: dial, attributed: true, protocol: 'MDB/1.0' };
+        }
+      }
+    } catch (_) { /* mobdial best-effort */ }
     if (idemKey) _idempotencySet(idemKey, 201, out.order);
     const responseOrder = payPack
       ? Object.assign({}, out.order, { pay_pack: payPack, protocol_pios: 'PIOS/1.0' })

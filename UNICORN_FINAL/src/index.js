@@ -4705,7 +4705,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -5373,7 +5373,7 @@ async function unicornHandler(req, res) {
     res.writeHead(301, { Location: '/status', 'Cache-Control': 'no-store' });
     return res.end();
   }
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport' || urlPath === '/pre-keys' || urlPath === '/activation' || urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport' || urlPath === '/pre-keys' || urlPath === '/activation' || urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group' || urlPath === '/mobdial') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -6187,48 +6187,60 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'pre-keys' }); } catch (_) {}
       return res.end(renderPage('Pre-Keys Activation · ZeusAI', body, js));
     }
-    // Telegram Profit Group OS — human surface
-    if (urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group') {
+    // Telegram Profit Group + MobDial — human surface
+    if (urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group' || urlPath === '/mobdial') {
       const body = `
 <section style="max-width:920px;margin:0 auto;padding:48px 20px 80px;color:#e8eef7">
-  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">TPG/1.0 · Telegram Profit Group OS</p>
-  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI grows the most profitable Telegram group — autonomously.</h1>
-  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Welcome gravity, value calendar, profit score, tracked CTAs back to the Unicorn catalog. Zero human ops once the bot is group admin.</p>
+  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">MDB/1.0 · MobDial + TPG/1.1</p>
+  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI MobDial — the Telegram swarm that compounds Unicorn.</h1>
+  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Personal Dial Codes, causal echoes from live funnel hunger, swarm rank ladder, and closed-loop checkout attribution. Invented for mondial growth — not another broadcast channel.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
-    <a id="tg-join-btn" href="#" style="display:none;padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">🔗 Join the group →</a>
-    <button type="button" data-live-inspect="/api/telegram/group-os" data-live-title="Telegram group OS" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect group status live →</button>
+    <a id="tg-join-btn" href="#" style="display:none;padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">Join the MobDial group →</a>
+    <button type="button" data-live-inspect="/api/telegram/mobdial" data-live-title="MobDial OS" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect MobDial live →</button>
+    <button type="button" data-live-inspect="/api/telegram/group-os" data-live-title="Telegram group OS" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;background:transparent;cursor:pointer;font-weight:600">Inspect TPG</button>
     <a href="https://t.me/ZEUSAIIBOT" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Open @ZEUSAIIBOT</a>
     <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Catalog</a>
   </div>
   <p id="tg-meta" style="color:#8aa0b8;margin:0 0 18px">Loading…</p>
-  <div id="tg-kpis" style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:24px"></div>
-  <ol style="color:#cfd6ff;line-height:1.6;padding-left:1.2em">
-    <li>Create a Telegram group (or use @unicorn_platform channel).</li>
-    <li>Add <strong>@ZEUSAIIBOT</strong> as admin with Post Messages + Invite Users.</li>
-    <li>In the group send <code>/bindgroup</code> — Profit Group OS arms itself.</li>
-    <li>Members get welcome + tracked CTAs; value posts run on Profit Gravity.</li>
+  <div id="tg-kpis" style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px"></div>
+  <h2 style="font-size:1.2rem;margin:0 0 10px">How MobDial invents value</h2>
+  <ol style="color:#cfd6ff;line-height:1.6;padding-left:1.2em;margin:0 0 28px">
+    <li>Add <strong>@ZEUSAIIBOT</strong> as group admin → <code>/bindgroup</code> arms TPG + MobDial.</li>
+    <li>Every member gets a personal <code>UDIAL-****</code> via <code>/dial</code> — shareable CTA into the catalog.</li>
+    <li>Clicks + checkouts with that dial climb the Rank Ladder and train the Creative Genome.</li>
+    <li>Causal Echo posts mirror funnel hunger Site→Group without leaking PII.</li>
+    <li>Swarm Rate Governor keeps CVR/TPG/AMOS from stampeding the chat.</li>
   </ol>
+  <p id="tg-swarm" style="color:#8aa0b8;margin:0"></p>
 </section>`;
       const js = `(function(){
   function card(k,v){return '<div style="padding:14px 16px;border:1px solid #2a3544;background:rgba(20,28,40,.55)"><div style="color:#8aa0b8;font-size:12px">'+k+'</div><div style="font-size:1.4rem;font-weight:700;margin-top:4px">'+v+'</div></div>';}
-  fetch("/api/telegram/group-os",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+  Promise.all([
+    fetch("/api/telegram/group-os",{cache:"no-store"}).then(function(r){return r.json();}),
+    fetch("/api/telegram/mobdial",{cache:"no-store"}).then(function(r){return r.json();})
+  ]).then(function(arr){
+    var d=arr[0]||{}; var md=arr[1]||{};
     var m=document.getElementById("tg-meta"); var k=document.getElementById("tg-kpis");
-    if(m) m.textContent=(d.configured?"Armed":"Waiting for group bind")+" · protocol "+(d.protocol||"TPG/1.0")+(d.dualRail?" · dual-rail":"");
+    if(m) m.textContent=(d.configured?"Armed":"Waiting for group bind")+" · "+(d.protocol||"TPG/1.1")+" + "+(md.protocol||"MDB/1.0")+(d.dualRail?" · dual-rail":"");
     if(k) k.innerHTML=[
+      card("Swarm score",(md.swarmScore!=null?md.swarmScore:"—")+"/100"),
       card("Profit score",(d.profitScore!=null?d.profitScore:"—")+"/100"),
-      card("Posts today",(d.postsToday||0)+"/"+(d.maxPostsDay||6)),
+      card("Dials",md.dialsIssued||0),
+      card("Dial clicks",md.dialClicks||0),
+      card("Attr. checkouts",md.attributedCheckouts||0),
       card("Joins",d.joins||0),
-      card("Leads",d.leads||0),
-      card("Msgs/h",d.engagementVelocity||0),
-      card("Group",d.groupChatId||"not bound")
+      card("Posts today",(d.postsToday||0)+"/"+(d.maxPostsDay||6)),
+      card("Msgs/h",d.engagementVelocity||0)
     ].join("");
     var inviteUrl=(d.lastInviteLink&&d.lastInviteLink.url)||null;
     var joinBtn=document.getElementById("tg-join-btn");
     if(joinBtn&&inviteUrl){joinBtn.href=inviteUrl;joinBtn.style.display="inline-block";}
+    var s=document.getElementById("tg-swarm");
+    if(s) s.textContent="Members with dials: "+(md.memberCount||0)+" · Causal echoes: "+(md.echoes||0)+" · Governor blocks: "+(md.governorBlocks||0);
   }).catch(function(){var m=document.getElementById("tg-meta"); if(m)m.textContent="Status temporarily unreachable.";});
 })();`;
-      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'telegram-profit-group' }); } catch (_) {}
-      return res.end(renderPage('Telegram Profit Group · ZeusAI', body, js));
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'telegram-mobdial' }); } catch (_) {}
+      return res.end(renderPage('MobDial · Telegram Swarm · ZeusAI', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -7956,8 +7968,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
-  // TPG/1.0 — Telegram Profit Group OS
-  if (urlPath === '/api/telegram/group-os' || urlPath === '/.well-known/telegram-profit-group.json' || urlPath === '/api/telegram/group-os/discovery') {
+  // TPG/1.1 — Telegram Profit Group OS (+ /api/tpg alias)
+  if (urlPath === '/api/telegram/group-os' || urlPath === '/.well-known/telegram-profit-group.json'
+    || urlPath === '/api/telegram/group-os/discovery' || urlPath === '/api/tpg/status') {
     try {
       const tpg = require('../backend/modules/telegram-profit-group-os');
       const out = urlPath.endsWith('/discovery') ? tpg.discovery() : tpg.getStatus();
@@ -7967,6 +7980,68 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message }));
     }
+  }
+
+  // MobDial MDB/1.0 — Membership-Orchestrated Bidirectional Dial
+  if (urlPath === '/api/telegram/mobdial' || urlPath === '/.well-known/telegram-mobdial.json'
+    || urlPath === '/api/telegram/mobdial/discovery' || urlPath === '/api/tpg/mobdial') {
+    try {
+      const md = require('../backend/modules/telegram-mobdial-os');
+      const out = urlPath.endsWith('/discovery') ? md.discovery() : md.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(out));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+  if (urlPath.startsWith('/api/telegram/mobdial/resolve/') && req.method === 'GET') {
+    try {
+      const md = require('../backend/modules/telegram-mobdial-os');
+      const code = decodeURIComponent(urlPath.split('/').pop() || '');
+      const m = md.findByCode(code);
+      if (!m) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({ ok: false, error: 'unknown_dial' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({
+        ok: true, code: m.code, rankScore: m.rankScore, clicks: m.clicks,
+        checkouts: m.checkouts, paid: m.paid, url: md.buildDialUrl(m.code, 'resolve'),
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+  if ((urlPath === '/api/telegram/mobdial/click' || urlPath === '/api/telegram/mobdial/attribute') && req.method === 'POST') {
+    try {
+      const md = require('../backend/modules/telegram-mobdial-os');
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (_) { body = {}; }
+      const out = urlPath.endsWith('/click')
+        ? md.recordDialClick(body.dial || body.code || body.ref, body)
+        : md.attributeCheckout(body);
+      res.writeHead(out.ok ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(out));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // Auto-record MobDial click when landing with ?dial=UDIAL-…
+  if ((urlPath === '/services' || urlPath === '/buy' || urlPath === '/') && req.method === 'GET') {
+    try {
+      const q = requestUrl && requestUrl.searchParams;
+      const dial = q && (q.get('dial') || q.get('ref') || '');
+      if (dial && String(dial).toUpperCase().startsWith('UDIAL-')) {
+        const md = require('../backend/modules/telegram-mobdial-os');
+        md.recordDialClick(dial, { templateId: q.get('utm_content') || 'landing' });
+      }
+    } catch (_) { /* non-blocking */ }
   }
 
   // EOP API surface on site (local-first so nginx→site path works without backend hop)

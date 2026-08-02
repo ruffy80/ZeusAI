@@ -782,11 +782,91 @@ app.get('/tg', (req, res) => {
 });
 
 // GET /api/telegram/group-os — Telegram Profit Group OS status (no secrets)
-app.get(['/api/telegram/group-os', '/.well-known/telegram-profit-group.json'], (req, res) => {
+app.get(['/api/telegram/group-os', '/.well-known/telegram-profit-group.json', '/api/tpg/status'], (req, res) => {
   try {
     const tpg = require('./modules/telegram-profit-group-os');
     res.set('Cache-Control', 'no-store');
     res.json(tpg.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
+// GET /api/telegram/mobdial — MobDial OS (MDB/1.0) status + discovery
+app.get(['/api/telegram/mobdial', '/.well-known/telegram-mobdial.json', '/api/tpg/mobdial'], (req, res) => {
+  try {
+    const md = require('./modules/telegram-mobdial-os');
+    res.set('Cache-Control', 'no-store');
+    if (String(req.query.discovery || '') === '1') return res.json(md.discovery());
+    res.json(md.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/telegram/mobdial/discovery', (req, res) => {
+  try {
+    const md = require('./modules/telegram-mobdial-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(md.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/telegram/mobdial/resolve/:code', (req, res) => {
+  try {
+    const md = require('./modules/telegram-mobdial-os');
+    const m = md.findByCode(req.params.code);
+    if (!m) return res.status(404).json({ ok: false, error: 'unknown_dial' });
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      code: m.code,
+      rankScore: m.rankScore,
+      clicks: m.clicks,
+      checkouts: m.checkouts,
+      paid: m.paid,
+      url: md.buildDialUrl(m.code, 'resolve'),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/telegram/mobdial/click', express.json({ limit: '16kb' }), (req, res) => {
+  try {
+    const md = require('./modules/telegram-mobdial-os');
+    const body = req.body || {};
+    const code = body.dial || body.code || body.ref;
+    const out = md.recordDialClick(code, { templateId: body.templateId || body.utm_content });
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/telegram/mobdial/attribute', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const md = require('./modules/telegram-mobdial-os');
+    const out = md.attributeCheckout(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/tpg/tick', express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const tpg = require('./modules/telegram-profit-group-os');
+    const md = require('./modules/telegram-mobdial-os');
+    const action = String((req.body && req.body.action) || 'tick');
+    const out = {};
+    if (action === 'echo') out.mobdial = await md.postCausalEcho(!!(req.body && req.body.force));
+    else if (action === 'value') out.tpg = await tpg.postValue(!!(req.body && req.body.force));
+    else {
+      out.tpg = await tpg.tick();
+      out.mobdial = await md.tick();
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, action, ...out });
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
   }
