@@ -108,32 +108,54 @@ function _funnelReady() {
   }
 }
 
-/** Owner keys expected tomorrow — never claim armed without real env. */
+/**
+ * Owner money / channel packs.
+ * Primary live rails = BTC (baseline) + PayPal + NOWPayments.
+ * Stripe is intentionally optional/deferred — not required for Buy.
+ * Email/SMTP and social (X/Meta) are later add-ons.
+ */
 function ownerTomorrowChecklist() {
+  const paypalArmed = _envArmed('PAYPAL_CLIENT_ID')
+    && (_envArmed('PAYPAL_CLIENT_SECRET') || _envArmed('PAYPAL_SECRET'))
+    && _envArmed('PAYPAL_WEBHOOK_ID');
+  const nowArmed = _envArmed('NOWPAYMENTS_API_KEY') && _envArmed('NOWPAYMENTS_IPN_SECRET');
+  const emailArmed = _envArmed('RESEND_API_KEY') || _envArmed('BREVO_API_KEY')
+    || _envArmed('MAILERSEND_API_KEY')
+    || (_envArmed('SMTP_HOST') && _envArmed('SMTP_USER') && _envArmed('SMTP_PASS'));
   return [
     {
       id: 'nowpayments',
       title: 'NOWPayments API + IPN',
-      armed: _envArmed('NOWPAYMENTS_API_KEY') && _envArmed('NOWPAYMENTS_IPN_SECRET'),
+      armed: nowArmed,
+      primary: true,
+      optional: false,
       envVars: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
     },
     {
-      id: 'stripe',
-      title: 'Stripe secret + webhook',
-      armed: _envArmed('STRIPE_SECRET_KEY'),
-      envVars: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
-    },
-    {
       id: 'paypal',
-      title: 'PayPal client credentials',
-      armed: _envArmed('PAYPAL_CLIENT_ID') && (_envArmed('PAYPAL_CLIENT_SECRET') || _envArmed('PAYPAL_SECRET')),
+      title: 'PayPal client + webhook',
+      armed: paypalArmed,
+      primary: true,
+      optional: false,
       envVars: ['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID'],
     },
     {
+      id: 'stripe',
+      title: 'Stripe card rail (optional — not required for Buy)',
+      armed: _envArmed('STRIPE_SECRET_KEY'),
+      primary: false,
+      optional: true,
+      deferred: true,
+      envVars: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+    },
+    {
       id: 'email',
-      title: 'Transactional email (Resend/Brevo/MailerSend)',
-      armed: _envArmed('RESEND_API_KEY') || _envArmed('BREVO_API_KEY') || _envArmed('MAILERSEND_API_KEY'),
-      envVars: ['RESEND_API_KEY', 'BREVO_API_KEY', 'MAILERSEND_API_KEY'],
+      title: 'Transactional email (SMTP / Resend / Brevo) — later',
+      armed: emailArmed,
+      primary: false,
+      optional: true,
+      deferred: true,
+      envVars: ['SMTP_PASS', 'RESEND_API_KEY', 'BREVO_API_KEY', 'MAILERSEND_API_KEY'],
     },
   ];
 }
@@ -159,23 +181,41 @@ function getStatus() {
 
   const green = agentArmed.filter((c) => c.armed);
   const waitingAgents = agentArmed.filter((c) => !c.armed && !c.optional);
-  const waitingOwner = ownerTomorrow.filter((c) => !c.armed);
+  // Only primary money packs block "payment ready" — Stripe/email are deferred.
+  const primaryOwner = ownerTomorrow.filter((c) => c.primary);
+  const waitingOwnerPrimary = primaryOwner.filter((c) => !c.armed);
+  const waitingOwner = ownerTomorrow.filter((c) => !c.armed && !c.optional);
+  const deferredOwner = ownerTomorrow.filter((c) => !c.armed && c.optional);
+  const moneyReady = !!(
+    agentArmed.find((c) => c.id === 'btc_baseline' && c.armed)
+    && primaryOwner.every((c) => c.armed)
+  );
 
   return {
     ok: true,
     module: NAME,
     protocol: VERSION,
     generatedAt: new Date().toISOString(),
-    summary: waitingOwner.length
-      ? `${green.length}/${agentArmed.length} agent rails green. ${waitingOwner.length} owner key packs waiting (NOW/Stripe/PayPal/email).`
-      : `${green.length}/${agentArmed.length} agent rails green. Owner payment/email rails also armed.`,
+    moneyRails: {
+      primary: ['btc', 'paypal', 'nowpayments'],
+      stripeRequired: false,
+      ready: moneyReady,
+    },
+    summary: moneyReady
+      ? `${green.length}/${agentArmed.length} agent rails green. Primary money rails armed (BTC + PayPal + NOWPayments). Stripe/email deferred.`
+      : waitingOwnerPrimary.length
+        ? `${green.length}/${agentArmed.length} agent rails green. Waiting primary money packs: ${waitingOwnerPrimary.map((c) => c.id).join('/')}.`
+        : `${green.length}/${agentArmed.length} agent rails green.`,
     agentArmed: agentArmed.map((c) => ({
       id: c.id, title: c.title, armed: c.armed, optional: !!c.optional,
     })),
     ownerTomorrow: ownerTomorrow.map((c) => ({
-      id: c.id, title: c.title, armed: c.armed, envVars: c.envVars,
+      id: c.id, title: c.title, armed: c.armed, optional: !!c.optional,
+      primary: !!c.primary, deferred: !!c.deferred, envVars: c.envVars,
     })),
     waitingOwner,
+    waitingOwnerPrimary,
+    deferredOwner,
     waitingAgents,
     telegram,
     wacp,
