@@ -4328,6 +4328,10 @@ meshOrchestrator.register('temporalProcessor',      temporalProcessor,  { status
 meshOrchestrator.register('quantumVault',           quantumVault,       { statusFn: 'getStatus' });
 meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { statusFn: 'getStatus' });
 meshOrchestrator.register('revenueModules',         revenueModules,     { statusFn: 'getAllStatus' });
+meshOrchestrator.register('productCatalog',         productCatalog,     { statusFn: 'getStatus' });
+meshOrchestrator.register('orderManager',           orderManager,       { statusFn: 'getStatus' });
+meshOrchestrator.register('enterpriseSales',        enterpriseSales,    { statusFn: 'getStatus' });
+meshOrchestrator.register('billionRevenueActivationOs', braos,          { statusFn: 'getStatus' });
 meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statusFn: 'getStatus' });
 // ── SaaS Platform modules — înregistrate în mesh pentru comunicare autonomă ──
 meshOrchestrator.register('billingEngine',          billingEngine,       { statusFn: 'getStatus' });
