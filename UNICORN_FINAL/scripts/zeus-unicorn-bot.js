@@ -77,6 +77,8 @@ hydrateEnv();
 
 const cvr = require('../backend/modules/growthCausalitySentinel');
 const groupOs = require('../backend/modules/telegram-profit-group-os');
+let mobdial = null;
+try { mobdial = require('../backend/modules/telegram-mobdial-os'); } catch (_) { mobdial = null; }
 
 function token() {
   return process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN || '';
@@ -180,12 +182,13 @@ async function applyGroupBind(chat) {
     env: { ...process.env, HOME: process.env.HOME || '/root', PM2_HOME: process.env.PM2_HOME || '/root/.pm2' },
   });
   await reply(chat.id, [
-    '🚀 Profit Group rail bound.',
+    '🚀 Profit Group + MobDial rail bound.',
     `group_chat_id: ${chat.id}`,
-    'TPG/1.0 armed — welcome · value calendar · profit gravity · tracked CTAs.',
-    'Try /value · /profit · /invite',
+    'TPG/1.1 + MDB/1.0 armed — dials · rank · causal echoes · profit gravity.',
+    'Try /dial · /rank · /swarm · /value · /profit · /invite',
   ].join('\n'));
   try { await groupOs.postValue(true); } catch (_) { /* ignore */ }
+  try { if (mobdial && typeof mobdial.postCausalEcho === 'function') await mobdial.postCausalEcho(true); } catch (_) { /* ignore */ }
   return { ok: true, groupChatId: chat.id };
 }
 
@@ -203,22 +206,24 @@ async function handleCommand(msg) {
 
   if (cmd === '/start' || cmd === '/help') {
     await reply(chat.id, [
-      '🦄 ZeusAI Unicorn Bot — CVR + Telegram Profit Group OS',
+      '🦄 ZeusAI Unicorn Bot — CVR + TPG + MobDial',
       '',
-      'I run two autonomous engines:',
+      'Three autonomous engines:',
       '1) Causal Virality Reflex — multi-rail posts when funnel hunger clears the noise floor',
-      '2) Profit Group OS — welcome, daily value, tracked CTAs, leads, invite gravity',
+      '2) Profit Group OS (TPG/1.1) — welcome, value calendar, profit gravity',
+      '3) MobDial (MDB/1.0) — personal Dial Codes, swarm rank, causal echoes, closed-loop attribution',
       '',
       'Owner: /pulse /boost /channels /catalog /silence /resume /status /bind /bindgroup',
-      'Group: /value /profit /invite /lead you@email.com /cta',
+      'Group: /dial /rank /swarm /claim /echo /value /profit /invite /lead /cta',
       '',
-      'Site: https://zeusai.pro · Group status: https://zeusai.pro/tg',
+      'Site: https://zeusai.pro · Group: https://zeusai.pro/tg · API: /api/telegram/mobdial',
     ].join('\n'), mid);
     return;
   }
 
-  // Public group commands (no owner gate)
-  if (['/value', '/drop', '/profit', '/group', '/invite', '/lead', '/cta'].includes(cmd)) {
+  // Public group commands (no owner gate) — TPG + MobDial
+  if (['/value', '/drop', '/profit', '/group', '/invite', '/lead', '/cta',
+    '/dial', '/udial', '/rank', '/leaderboard', '/claim', '/swarm', '/mobdial', '/echo'].includes(cmd)) {
     await groupOs.handleCommand(msg);
     return;
   }
@@ -384,6 +389,11 @@ async function main() {
         { command: 'channels', description: 'List armed outbound rails' },
         { command: 'status', description: 'Machine status' },
         { command: 'catalog', description: 'Top catalog offers' },
+        { command: 'dial', description: 'Get your MobDial code (UDIAL)' },
+        { command: 'rank', description: 'MobDial swarm leaderboard' },
+        { command: 'swarm', description: 'MobDial OS status' },
+        { command: 'claim', description: 'Claim dial + email lead' },
+        { command: 'echo', description: 'Force Causal Echo post' },
         { command: 'value', description: 'Force a Profit Group value drop' },
         { command: 'profit', description: 'Group profit score' },
         { command: 'invite', description: 'Auto invite link' },
@@ -400,18 +410,24 @@ async function main() {
   log(`CVR start ${JSON.stringify(started)}`);
   const gStarted = groupOs.start({ force: false });
   log(`TPG start ${JSON.stringify(gStarted)}`);
+  if (mobdial && typeof mobdial.start === 'function') {
+    const mStarted = mobdial.start({ force: false });
+    log(`MobDial start ${JSON.stringify(mStarted)}`);
+  }
 
   // Brief owner once on boot if chat known
   const chat = process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID;
   if (token() && chat) {
     const g = groupOs.getStatus();
+    const md = mobdial && typeof mobdial.getStatus === 'function' ? mobdial.getStatus() : null;
     await reply(chat, [
       '🦄 ZeusAI Unicorn Bot online.',
-      'CVR armed + Telegram Profit Group OS (TPG/1.0) armed.',
+      'CVR + TPG/1.1 + MobDial MDB/1.0 armed.',
       g.groupChatId
         ? `Profit rail: ${g.groupChatId}${g.dualRail ? ' (dual-rail)' : ''}`
         : 'Profit rail: add me as GROUP admin + /bindgroup (or auto-bind on admin grant).',
-      'Try /pulse · /boost · /profit · /value',
+      md ? `Swarm score: ${md.swarmScore}/100 · dials: ${md.dialsIssued}` : 'MobDial waiting.',
+      'Try /dial · /swarm · /pulse · /boost · /value',
       'Human: https://zeusai.pro/tg',
     ].join('\n')).catch(() => {});
   }
@@ -420,8 +436,8 @@ async function main() {
   else setInterval(() => {}, 60_000);
 }
 
-process.on('SIGTERM', () => { cvr.stop(); groupOs.stop(); process.exit(0); });
-process.on('SIGINT', () => { cvr.stop(); groupOs.stop(); process.exit(0); });
+process.on('SIGTERM', () => { cvr.stop(); groupOs.stop(); try { if (mobdial) mobdial.stop(); } catch (_) {} process.exit(0); });
+process.on('SIGINT', () => { cvr.stop(); groupOs.stop(); try { if (mobdial) mobdial.stop(); } catch (_) {} process.exit(0); });
 
 if (require.main === module) {
   main().catch((e) => {

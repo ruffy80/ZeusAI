@@ -25,10 +25,15 @@ const fs = require('fs');
 const path = require('path');
 
 const NAME = 'telegram-profit-group-os';
-const VERSION = 'TPG/1.0';
+const VERSION = 'TPG/1.1';
 const SITE = String(
   process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://zeusai.pro'
 ).replace(/\/$/, '');
+
+/** Lazy MobDial — closed-loop member dials + swarm governor (avoids circular init). */
+function _mobdial() {
+  try { return require('./telegram-mobdial-os'); } catch (_) { return null; }
+}
 
 function _defaultDataDir() {
   const shared = '/var/www/unicorn/shared/data/telegram/group-os';
@@ -131,26 +136,43 @@ function ownerChatId() {
   return String(process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID || '').trim();
 }
 
-function buildCta(kind) {
+function buildCta(kind, dialCode) {
   const target = `${SITE}/services`;
+  const content = String(kind || 'value').slice(0, 48);
+  const dial = dialCode ? String(dialCode).toUpperCase() : '';
   const base = {
     target,
-    code: 'tg-group',
+    code: dial || 'tg-group',
     source: 'telegram',
-    medium: 'group',
-    campaign: 'profit-group-os',
-    content: String(kind || 'value').slice(0, 48),
+    medium: dial ? 'mobdial' : 'group',
+    campaign: dial ? 'mdb-1' : 'profit-group-os',
+    content,
   };
   if (_affiliate && typeof _affiliate.buildLink === 'function') {
     const built = _affiliate.buildLink(base);
-    if (built && built.ok) return built.url;
+    if (built && built.ok) {
+      if (dial) {
+        try {
+          const u = new URL(built.url);
+          u.searchParams.set('dial', dial);
+          u.searchParams.set('ref', dial);
+          return u.toString();
+        } catch (_) { /* fall through */ }
+      }
+      return built.url;
+    }
+  }
+  const mdCta = _mobdial();
+  if (dial && mdCta && typeof mdCta.buildDialUrl === 'function') {
+    return mdCta.buildDialUrl(dial, content);
   }
   const u = new URL(target);
   u.searchParams.set('utm_source', 'telegram');
-  u.searchParams.set('utm_medium', 'group');
-  u.searchParams.set('utm_campaign', 'profit-group-os');
-  u.searchParams.set('utm_content', String(kind || 'value'));
-  u.searchParams.set('ref', 'tg-group');
+  u.searchParams.set('utm_medium', dial ? 'mobdial' : 'group');
+  u.searchParams.set('utm_campaign', dial ? 'mdb-1' : 'profit-group-os');
+  u.searchParams.set('utm_content', content);
+  u.searchParams.set('ref', dial || 'tg-group');
+  if (dial) u.searchParams.set('dial', dial);
   return u.toString();
 }
 
@@ -174,6 +196,20 @@ async function sendGroup(text, opts) {
   const chat = (opts && opts.chatId) || groupChatId();
   if (!token() || !chat) return { ok: false, reason: 'not_configured' };
   if (state.silenced) return { ok: false, reason: 'silenced' };
+  // MobDial Swarm Governor — shared across TPG/CVR/AMOS senders (skip for forced owner cmds)
+  const mdGov = (!(opts && opts.skipGovernor)) ? _mobdial() : null;
+  if (mdGov && typeof mdGov.governorAllow === 'function') {
+    const gate = mdGov.governorAllow((opts && opts.sender) || (opts && opts.kind) || 'tpg');
+    if (!gate.ok) {
+      _append(LEDGER, {
+        ts: new Date().toISOString(),
+        type: 'gov_block',
+        kind: (opts && opts.kind) || 'message',
+        reason: gate.reason,
+      });
+      return { ok: false, reason: gate.reason, governor: gate };
+    }
+  }
   const payload = {
     chat_id: chat,
     text: String(text).slice(0, 3900),
@@ -186,6 +222,9 @@ async function sendGroup(text, opts) {
     };
   }
   const r = await tg('sendMessage', payload);
+  if (r && r.ok && mdGov && typeof mdGov.governorCommit === 'function') {
+    mdGov.governorCommit((opts && opts.sender) || (opts && opts.kind) || 'tpg');
+  }
   _append(LEDGER, {
     ts: new Date().toISOString(),
     type: 'send',
@@ -408,16 +447,37 @@ async function postMoneyOffers(input) {
 async function welcomeMember(member, chat) {
   if (!member || member.is_bot) return { ok: false, reason: 'bot' };
   if (Date.now() - state.lastWelcomeAt < WELCOME_COOLDOWN_MS) {
-    // still count join, skip spammy welcome burst
+    // still count join, skip spammy welcome burst — still issue dial quietly
     state.joins += 1;
+    const mdQuiet = _mobdial();
+    if (mdQuiet && typeof mdQuiet.issueDial === 'function') {
+      try { mdQuiet.issueDial(member); } catch (_) { /* ignore */ }
+    }
     _saveState();
     return { ok: true, skipped: 'cooldown' };
   }
+  // Prefer MobDial welcome (personal Dial Code + closed-loop CTA)
+  const mdWelcome = _mobdial();
+  if (mdWelcome && typeof mdWelcome.welcomeWithDial === 'function') {
+    const md = await mdWelcome.welcomeWithDial(member, chat);
+    state.joins += 1;
+    state.lastWelcomeAt = Date.now();
+    _saveState();
+    if (md && md.ok) return { ok: true, mobdial: true, dial: md.dial, result: md.result };
+  }
   const name = member.username ? `@${member.username}` : (member.first_name || 'builder');
-  const cta = buildCta('welcome');
+  let dialCode = null;
+  if (mdWelcome && typeof mdWelcome.issueDial === 'function') {
+    try {
+      const issued = mdWelcome.issueDial(member);
+      if (issued && issued.ok) dialCode = issued.member.code;
+    } catch (_) { /* ignore */ }
+  }
+  const cta = buildCta('welcome', dialCode);
   const invite = await ensureInviteLink();
   const text = [
-    `👋 Welcome ${name} — you just entered the *ZeusAI Profit Group*.`,
+    `👋 Welcome ${name} — you just entered the *ZeusAI Profit Group* + MobDial.`,
+    dialCode ? `\nYour Dial Code: \`${dialCode}\`` : '',
     '',
     'Here you get autonomous commerce drops, BTC rails, and live Unicorn product signals.',
     '',
@@ -425,18 +485,19 @@ async function welcomeMember(member, chat) {
     `▶ PoMX exchange: ${SITE}/pomx`,
     `▶ Dropship shelf: ${SITE}/dropship`,
     '',
-    'Commands: /value · /profit · /lead you@email.com · /invite',
+    'Commands: /dial · /rank · /swarm · /value · /profit · /lead you@email.com · /invite',
     invite ? `\nShare the group: ${invite}` : '',
   ].filter(Boolean).join('\n');
   const r = await sendGroup(text, {
     chatId: chat && chat.id,
     kind: 'welcome',
+    skipGovernor: true,
     buttons: [[{ text: 'Start on ZeusAI', url: cta }]],
   });
   state.joins += 1;
   state.lastWelcomeAt = Date.now();
   _saveState();
-  return { ok: !!(r && r.ok), result: r };
+  return { ok: !!(r && r.ok), result: r, dial: dialCode };
 }
 
 function captureLead(email, from) {
@@ -586,9 +647,30 @@ async function handleCommand(msg) {
   }
 
   if (cmd === '/cta') {
-    const cta = buildCta('cta_cmd');
-    await sendGroup(`▶ Direct trackable CTA:\n${cta}`, { chatId: chat.id, replyTo: mid });
-    return { ok: true, cta };
+    let dialCode = null;
+    const mdCtaCmd = _mobdial();
+    if (mdCtaCmd && typeof mdCtaCmd.issueDial === 'function') {
+      try {
+        const issued = mdCtaCmd.issueDial(msg.from);
+        if (issued && issued.ok) dialCode = issued.member.code;
+      } catch (_) { /* ignore */ }
+    }
+    const cta = buildCta('cta_cmd', dialCode);
+    await sendGroup(
+      dialCode
+        ? `▶ Your MobDial CTA (\`${dialCode}\`):\n${cta}`
+        : `▶ Direct trackable CTA:\n${cta}`,
+      { chatId: chat.id, replyTo: mid, skipGovernor: true }
+    );
+    return { ok: true, cta, dial: dialCode };
+  }
+
+  // MobDial commands — delegated when MDB is loaded
+  if (['/dial', '/udial', '/rank', '/leaderboard', '/claim', '/swarm', '/mobdial', '/echo'].includes(cmd)) {
+    const mdCmd = _mobdial();
+    if (mdCmd && typeof mdCmd.handleCommand === 'function') {
+      return mdCmd.handleCommand(msg);
+    }
   }
 
   return { ok: false, reason: 'unknown_command' };
@@ -619,14 +701,20 @@ function start(opts) {
   if (_timer.unref) _timer.unref();
   // First value post shortly after boot (non-blocking)
   setTimeout(() => { postValue(false).catch(() => {}); }, 45_000).unref?.();
+  // Boot MobDial swarm (idempotent)
+  const mdStart = _mobdial();
+  try {
+    if (mdStart && typeof mdStart.start === 'function') mdStart.start({ force: !!(opts && opts.force) });
+  } catch (_) { /* ignore */ }
   _saveState();
-  return { ok: true, module: NAME, protocol: VERSION, tickMs: TICK_MS };
+  return { ok: true, module: NAME, protocol: VERSION, tickMs: TICK_MS, mobdial: !!mdStart };
 }
 
 function stop() {
   if (_timer) clearInterval(_timer);
   _timer = null;
   _started = false;
+  try { const mdStop = _mobdial(); if (mdStop && typeof mdStop.stop === 'function') mdStop.stop(); } catch (_) { /* ignore */ }
   _saveState();
   return { ok: true };
 }
@@ -660,6 +748,11 @@ function bindGroupChat(chat) {
 
 function getStatus() {
   _computeProfitScore();
+  let mobdial = null;
+  try {
+    const mdSt = _mobdial();
+    if (mdSt && typeof mdSt.getStatus === 'function') mobdial = mdSt.getStatus();
+  } catch (_) { mobdial = { ok: false }; }
   return {
     ok: true,
     module: NAME,
@@ -683,9 +776,20 @@ function getStatus() {
     moderated: state.moderated,
     lastPost: state.lastPost,
     lastInviteLink: state.lastInviteLink ? { url: state.lastInviteLink.url, expiresAt: state.lastInviteLink.expiresAt } : null,
+    mobdial: mobdial ? {
+      protocol: mobdial.protocol,
+      swarmScore: mobdial.swarmScore,
+      dialsIssued: mobdial.dialsIssued,
+      dialClicks: mobdial.dialClicks,
+      attributedCheckouts: mobdial.attributedCheckouts,
+      attributedPaid: mobdial.attributedPaid,
+      memberCount: mobdial.memberCount,
+    } : null,
     site: SITE,
     endpoints: {
       status: '/api/telegram/group-os',
+      mobdial: '/api/telegram/mobdial',
+      tpg: '/api/tpg/status',
       human: '/tg',
     },
     generatedAt: new Date().toISOString(),
@@ -696,10 +800,12 @@ function discovery() {
   return {
     protocol: VERSION,
     name: 'Telegram Profit Group OS',
-    purpose: 'Autonomous high-signal Telegram group that compounds Unicorn traffic and checkout intent.',
+    purpose: 'Autonomous high-signal Telegram group that compounds Unicorn traffic and checkout intent — with MobDial closed-loop attribution.',
+    inventions: ['Profit Gravity', 'Welcome Gravity', 'MobDial MDB/1.0 integration'],
     endpoints: {
       status: '/api/telegram/group-os',
       wellKnown: '/.well-known/telegram-profit-group.json',
+      mobdial: '/api/telegram/mobdial',
       human: '/tg',
     },
   };
