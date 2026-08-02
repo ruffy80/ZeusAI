@@ -64,8 +64,12 @@ check('getStatus separates agent rails from owner-tomorrow keys', () => {
   assert.ok(Array.isArray(s.ownerTomorrow) && s.ownerTomorrow.length === 4);
   const ids = s.ownerTomorrow.map((c) => c.id).sort();
   assert.deepEqual(ids, ['email', 'nowpayments', 'paypal', 'stripe']);
-  // Without real payment keys, owner packs must be waiting
-  assert.ok(s.waitingOwner.length >= 3);
+  // Primary money packs (PayPal/NOW) wait when unset; Stripe/email are deferred optional.
+  assert.ok(s.waitingOwnerPrimary.length >= 2);
+  assert.ok(s.moneyRails && s.moneyRails.stripeRequired === false);
+  assert.deepEqual(s.moneyRails.primary, ['btc', 'paypal', 'nowpayments']);
+  const stripe = s.ownerTomorrow.find((c) => c.id === 'stripe');
+  assert.ok(stripe && stripe.optional === true && stripe.deferred === true);
   const funnelCap = s.agentArmed.find((c) => c.id === 'funnel_instrumentation');
   assert.ok(funnelCap && funnelCap.armed);
   const wacpCap = s.agentArmed.find((c) => c.id === 'wacp_ed25519');
@@ -81,7 +85,8 @@ check('lightning stays unconfigured without LND secrets', () => {
 check('ownerTomorrowChecklist is honest about missing keys', () => {
   const list = preKeys.ownerTomorrowChecklist();
   assert.ok(list.every((c) => typeof c.armed === 'boolean'));
-  assert.ok(list.some((c) => c.id === 'nowpayments' && c.armed === false));
+  assert.ok(list.some((c) => c.id === 'nowpayments' && c.armed === false && c.primary === true));
+  assert.ok(list.some((c) => c.id === 'stripe' && c.optional === true));
 });
 
 try { fs.unlinkSync(pemPath); } catch (_) {}
