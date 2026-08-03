@@ -872,6 +872,76 @@ app.post('/api/tpg/tick', express.json({ limit: '8kb' }), async (req, res) => {
   }
 });
 
+
+// Project Omega Ecosystem Ω/1.0 — Autonomous AI Commerce OS
+app.get(['/api/omega/status', '/api/omega', '/.well-known/omega.json'], (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/discovery', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/instance/:id', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.getInstance(req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/vault', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.getVault(req.query.email);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/vault/search', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.searchVault(req.query.email, req.query.q);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/omega/bootstrap', express.json({ limit: '64kb' }), (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.bootstrapFromOrder((req.body && req.body.order) || req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/omega/evolve', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.evolveOnce());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
 app.get('/api/activation/readiness', (req, res) => {
   const stripePricesArmed = _envArmed('STRIPE_PRICE_STARTER_MONTHLY')
     || _envArmed('STRIPE_PRICE_PRO_MONTHLY')
@@ -16536,6 +16606,15 @@ if (require.main === module) {
       autotuner.start({});
     } catch (e) {
       console.warn('[price-autotuner] could not start:', e.message);
+    }
+    try {
+      const omega = require('./modules/omega-ecosystem-os');
+      if (omega && typeof omega.start === 'function') {
+        const st = omega.start({});
+        console.log('[omega] Omega Ecosystem started:', st && st.protocol);
+      }
+    } catch (e) {
+      console.warn('[omega] could not start:', e && e.message);
     }
     // Bond Boot Accelerator — warm SUBOS/TBOS peer caches so post-deploy
     // health never falsely grades F while probes are still cold.

@@ -18,6 +18,7 @@ let _runtime = { marketplace: [], industries: [] };
 
 function _instant() { try { return require('./instant-catalog'); } catch (_) { return null; } }
 function _enterprise() { try { return require('./enterprise-catalog'); } catch (_) { return null; } }
+function _omega() { try { return require('../../backend/modules/omega-ecosystem-os'); } catch (_) { return null; } }
 
 function setRuntimeSources(sources) {
   if (!sources) return;
@@ -42,7 +43,7 @@ function _normalize(item, defaults) {
     || tier === 'enterprise'
     || /^professional-/i.test(String(item.id || ''))
     || /^ent-/i.test(String(item.id || ''));
-  return {
+  const base = {
     id: item.id || item.slug || item.title,
     title: item.title || item.name || item.id,
     tier,
@@ -56,6 +57,11 @@ function _normalize(item, defaults) {
     requiresHumanFulfillment: requiresHuman,
     buyMode: tier === 'enterprise' ? 'contact' : (tier === 'professional' ? 'reserve' : 'btc'),
   };
+  try {
+    const omega = _omega();
+    if (omega && typeof omega.enrichCatalogItem === 'function') return omega.enrichCatalogItem(base);
+  } catch (_) { /* optional */ }
+  return base;
 }
 
 function publicServiceIds() {
