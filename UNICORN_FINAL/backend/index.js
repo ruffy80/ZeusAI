@@ -878,6 +878,48 @@ app.get(['/api/aethermail/status', '/api/aethermail', '/.well-known/aethermail.j
     const amc = require('./modules/aethermail-continuum-os');
     res.set('Cache-Control', 'no-store');
     res.json(amc.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/aethermail/discovery', (req, res) => {
+  try {
+    const amc = require('./modules/aethermail-continuum-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(amc.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/aethermail/tick', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const amc = require('./modules/aethermail-continuum-os');
+    const action = String((req.body && req.body.action) || 'tick');
+    const out = await amc.process(Object.assign({}, req.body || {}, { action }));
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/aethermail/simulate', express.json({ limit: '64kb' }), async (req, res) => {
+  try {
+    const amc = require('./modules/aethermail-continuum-os');
+    const mail = (req.body && req.body.mail) || req.body || {};
+    const out = await amc.processMessage({
+      from: mail.from || 'tester@example.com',
+      fromName: mail.fromName || 'Tester',
+      subject: mail.subject || 'Hello ZeusAI',
+      text: mail.text || 'I want to buy your starter plan',
+      headers: mail.headers || '',
+      messageId: mail.messageId || `<sim-${Date.now()}@zeusai.pro>`,
+    }, mail.uid || Date.now());
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
 
 // Project Omega Ecosystem Ω/1.0 — Autonomous AI Commerce OS
 app.get(['/api/omega/status', '/api/omega', '/.well-known/omega.json'], (req, res) => {
@@ -1009,11 +1051,6 @@ app.post('/api/genome/register', express.json({ limit: '64kb' }), requireAdminSe
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
-app.get('/api/aethermail/discovery', (req, res) => {
-  try {
-    const amc = require('./modules/aethermail-continuum-os');
-    res.set('Cache-Control', 'no-store');
-    res.json(amc.discovery());
 app.post('/api/genome/evolve', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
   try {
     const genome = require('./modules/ai-genome-engine');
@@ -1023,13 +1060,6 @@ app.post('/api/genome/evolve', express.json({ limit: '8kb' }), requireAdminSecre
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
-app.post('/api/aethermail/tick', express.json({ limit: '16kb' }), async (req, res) => {
-  try {
-    const amc = require('./modules/aethermail-continuum-os');
-    const action = String((req.body && req.body.action) || 'tick');
-    const out = await amc.process(Object.assign({}, req.body || {}, { action }));
-    res.set('Cache-Control', 'no-store');
-    res.json(out);
 app.post('/api/genome/orchestrate', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
   try {
     const genome = require('./modules/ai-genome-engine');
@@ -1039,20 +1069,6 @@ app.post('/api/genome/orchestrate', express.json({ limit: '8kb' }), requireAdmin
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
-app.post('/api/aethermail/simulate', express.json({ limit: '64kb' }), async (req, res) => {
-  try {
-    const amc = require('./modules/aethermail-continuum-os');
-    const mail = (req.body && req.body.mail) || req.body || {};
-    const out = await amc.processMessage({
-      from: mail.from || 'tester@example.com',
-      fromName: mail.fromName || 'Tester',
-      subject: mail.subject || 'Hello ZeusAI',
-      text: mail.text || 'I want to buy your starter plan',
-      headers: mail.headers || '',
-      messageId: mail.messageId || `<sim-${Date.now()}@zeusai.pro>`,
-    }, mail.uid || Date.now());
-    res.set('Cache-Control', 'no-store');
-    res.json(out);
 app.post('/api/genome/migrate', express.json({ limit: '32kb' }), requireAdminSecretOrJwt, (req, res) => {
   try {
     const genome = require('./modules/ai-genome-engine');
