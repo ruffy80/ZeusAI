@@ -80,6 +80,7 @@ function moduleLoadCheck() {
   const must = [
     'backend/modules/omega-ecosystem-os.js',
     'backend/modules/ai-genome-engine.js',
+    'backend/modules/ai-dna-engine.js',
     'backend/modules/never-down-kernel.js',
     'src/commerce/post-pay-closure-os.js',
   ];
