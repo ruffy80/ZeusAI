@@ -922,7 +922,10 @@ app.get('/api/omega/vault/search', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
-app.post('/api/omega/bootstrap', express.json({ limit: '64kb' }), (req, res) => {
+// Mutating Omega control-plane — admin-gated. Settle path calls the module
+// in-process (onOrderPaid/onDeliveryFired) and does NOT need these routes.
+// Public POST was floodable (confirmed live); never recur.
+app.post('/api/omega/bootstrap', express.json({ limit: '64kb' }), requireAdminSecretOrJwt, (req, res) => {
   try {
     const omega = require('./modules/omega-ecosystem-os');
     const out = omega.bootstrapFromOrder((req.body && req.body.order) || req.body || {});
@@ -932,7 +935,7 @@ app.post('/api/omega/bootstrap', express.json({ limit: '64kb' }), (req, res) => 
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
-app.post('/api/omega/evolve', express.json({ limit: '8kb' }), (req, res) => {
+app.post('/api/omega/evolve', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
   try {
     const omega = require('./modules/omega-ecosystem-os');
     res.set('Cache-Control', 'no-store');

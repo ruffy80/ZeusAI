@@ -109,6 +109,22 @@ function renderOmegaPage(urlPath, requestUrl, renderPage, res) {
   return res.end(renderPage('Omega Ecosystem · ZeusAI', body, js));
 }
 
+/** Fail-closed admin gate for mutating Omega routes (mirrors backend). */
+function adminOk(req) {
+  const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+  const provided = String(
+    (req.headers && (req.headers['x-admin-secret'] || req.headers['x-admin-token']))
+    || String((req.headers && req.headers.authorization) || '').replace(/^Bearer\s+/i, '')
+    || ''
+  );
+  if (expected && provided && provided === expected) return { ok: true };
+  if (!expected) {
+    if (process.env.NODE_ENV === 'test') return { ok: true, mode: 'test' };
+    return { ok: false, code: 503, error: 'admin_secret_not_configured' };
+  }
+  return { ok: false, code: 401, error: 'unauthorized' };
+}
+
 async function handleApi(req, res, urlPath, requestUrl) {
   const omega = _omega();
   const json = (code, obj) => {
@@ -138,6 +154,8 @@ async function handleApi(req, res, urlPath, requestUrl) {
     return json(out && out.ok ? 200 : 400, out);
   }
   if ((urlPath === '/api/omega/bootstrap' || urlPath === '/api/omega/evolve') && req.method === 'POST') {
+    const gate = adminOk(req);
+    if (!gate.ok) return json(gate.code || 401, { ok: false, error: gate.error });
     const chunks = [];
     for await (const c of req) chunks.push(c);
     let body = {};
@@ -155,4 +173,5 @@ module.exports = {
   matchesApi,
   renderOmegaPage,
   handleApi,
+  adminOk,
 };
