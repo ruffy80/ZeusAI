@@ -171,6 +171,11 @@ function enrichCatalogItem(item) {
   if (!item || typeof item !== 'object') return item;
   if (DISABLED) return item;
   try {
+    // Idempotent: never re-stamp / re-count an already-Omega item.
+    // Prevents the hot-path catalog counter explosion (93k+ in minutes).
+    if (item.omegaReady === true && item.omega && item.omega.protocol === PROTOCOL) {
+      return item;
+    }
     const stamped = { ...item };
     stamped.omega = {
       protocol: PROTOCOL,
