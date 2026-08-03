@@ -21,8 +21,16 @@ const _counts = {
   closAcked: 0,
   saleNotifies: 0,
   referralMints: 0,
+  omegaBootstraps: 0,
+  omegaDeliveries: 0,
   errors: 0,
 };
+
+// Omega Ecosystem OS (OMEGA/1.0): every paid order becomes a living instance
+// with all 20 universal engines. Loaded lazily + fail-soft — never blocks settle.
+function _omega() {
+  try { return require('../../backend/modules/omega-ecosystem-os'); } catch (_) { return null; }
+}
 
 function _orderPayload(order) {
   const email = String((order && order.buyer && order.buyer.email) || order.email || '').trim().toLowerCase();
@@ -136,7 +144,19 @@ function onOrderPaid(order) {
     clos: null,
     referral: null,
     notify: null,
+    omega: null,
   };
+  // Omega Ecosystem OS — spin up the living instance for this order (fail-soft).
+  try {
+    const omega = _omega();
+    if (omega && typeof omega.onOrderPaid === 'function') {
+      result.omega = omega.onOrderPaid(order);
+      if (result.omega && result.omega.ok) _counts.omegaBootstraps += 1;
+    }
+  } catch (e) {
+    _counts.errors += 1;
+    result.omega = { ok: false, error: String(e && e.message || e).slice(0, 80) };
+  }
   try {
     result.clos = openClos(order);
   } catch (e) {
@@ -160,6 +180,14 @@ function onOrderPaid(order) {
  * Call when delivery pack is generated (digital ack).
  */
 function onDeliveryFired(order) {
+  // Omega Ecosystem OS — confirm the living instance is live (fail-soft).
+  try {
+    const omega = _omega();
+    if (omega && typeof omega.onDeliveryFired === 'function') {
+      const r = omega.onDeliveryFired(order);
+      if (r && r.ok) _counts.omegaDeliveries += 1;
+    }
+  } catch (_) { /* never block delivery ack */ }
   return ackClosFulfillment(order, 'digital_delivery');
 }
 
