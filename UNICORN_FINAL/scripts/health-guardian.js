@@ -79,6 +79,7 @@ function moduleLoadCheck() {
   const root = path.join(__dirname, '..');
   const must = [
     'backend/modules/omega-ecosystem-os.js',
+    'backend/modules/ai-genome-engine.js',
     'backend/modules/never-down-kernel.js',
     'src/commerce/post-pay-closure-os.js',
   ];

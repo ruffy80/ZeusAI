@@ -31,6 +31,9 @@ const _counts = {
 function _omega() {
   try { return require('../../backend/modules/omega-ecosystem-os'); } catch (_) { return null; }
 }
+function _genome() {
+  try { return require('../../backend/modules/ai-genome-engine'); } catch (_) { return null; }
+}
 
 function _orderPayload(order) {
   const email = String((order && order.buyer && order.buyer.email) || order.email || '').trim().toLowerCase();
@@ -145,6 +148,7 @@ function onOrderPaid(order) {
     referral: null,
     notify: null,
     omega: null,
+    genome: null,
   };
   // Omega Ecosystem OS — spin up the living instance for this order (fail-soft).
   try {
@@ -156,6 +160,15 @@ function onOrderPaid(order) {
   } catch (e) {
     _counts.errors += 1;
     result.omega = { ok: false, error: String(e && e.message || e).slice(0, 80) };
+  }
+  // AI Genome Engine — living DNA for the sold SKU (fail-soft).
+  try {
+    const genome = _genome();
+    if (genome && typeof genome.onOrderPaid === 'function') {
+      result.genome = genome.onOrderPaid(order);
+    }
+  } catch (e) {
+    result.genome = { ok: false, error: String(e && e.message || e).slice(0, 80) };
   }
   try {
     result.clos = openClos(order);
