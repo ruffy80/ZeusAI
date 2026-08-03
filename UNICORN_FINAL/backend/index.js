@@ -1063,6 +1063,110 @@ app.post('/api/genome/migrate', express.json({ limit: '32kb' }), requireAdminSec
   }
 });
 
+// AI DNA Engine DNA/1.0 — adaptive intelligence layer (not a user profile)
+app.get(['/api/dna/status', '/api/dna', '/.well-known/dna.json'], (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(dna.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/dna/discovery', (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(dna.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get(['/api/dna/strand', '/api/dna/dna'], (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.getDna(req.query.email || req.query.id);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/dna/search', (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(dna.searchDna(req.query.q));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/dna/personalize', (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.personalize({
+      email: req.query.email,
+      intent: req.query.intent,
+      sku: req.query.sku,
+      language: req.query.lang,
+    });
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/dna/observe', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.observeEvent((req.body && req.body.event) || req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/dna/settings', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const body = req.body || {};
+    const out = dna.updateSettings(body.email, body.settings || body);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/dna/personalize', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.personalize(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/dna/learn', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const body = req.body || {};
+    res.set('Cache-Control', 'no-store');
+    res.json(dna.learnOnce(body.customerKey || body.id));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/dna/migrate', express.json({ limit: '32kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(dna.proposePersonalizationMigration(req.body || {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
 app.get('/api/activation/readiness', (req, res) => {
   const stripePricesArmed = _envArmed('STRIPE_PRICE_STARTER_MONTHLY')
     || _envArmed('STRIPE_PRICE_PRO_MONTHLY')
@@ -16745,6 +16849,15 @@ if (require.main === module) {
       }
     } catch (e) {
       console.warn('[genome] could not start:', e && e.message);
+    }
+    try {
+      const dna = require('./modules/ai-dna-engine');
+      if (dna && typeof dna.start === 'function') {
+        const st = dna.start({});
+        console.log('[dna] AI DNA Engine started:', st && st.protocol);
+      }
+    } catch (e) {
+      console.warn('[dna] could not start:', e && e.message);
     }
     // Bond Boot Accelerator — warm SUBOS/TBOS peer caches so post-deploy
     // health never falsely grades F while probes are still cold.

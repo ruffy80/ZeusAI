@@ -34,6 +34,9 @@ function _omega() {
 function _genome() {
   try { return require('../../backend/modules/ai-genome-engine'); } catch (_) { return null; }
 }
+function _dna() {
+  try { return require('../../backend/modules/ai-dna-engine'); } catch (_) { return null; }
+}
 
 function _orderPayload(order) {
   const email = String((order && order.buyer && order.buyer.email) || order.email || '').trim().toLowerCase();
@@ -149,6 +152,7 @@ function onOrderPaid(order) {
     notify: null,
     omega: null,
     genome: null,
+    dna: null,
   };
   // Omega Ecosystem OS — spin up the living instance for this order (fail-soft).
   try {
@@ -169,6 +173,20 @@ function onOrderPaid(order) {
     }
   } catch (e) {
     result.genome = { ok: false, error: String(e && e.message || e).slice(0, 80) };
+  }
+  // AI DNA Engine — adaptive intelligence strand for the buyer (fail-soft).
+  // Omega/genome results are passed through so the strand bonds to the ids
+  // already computed above instead of re-resolving them.
+  try {
+    const dna = _dna();
+    if (dna && typeof dna.onOrderPaid === 'function') {
+      result.dna = dna.onOrderPaid(Object.assign({}, order, {
+        omega: result.omega,
+        genome: result.genome,
+      }));
+    }
+  } catch (e) {
+    result.dna = { ok: false, error: String(e && e.message || e).slice(0, 80) };
   }
   try {
     result.clos = openClos(order);
