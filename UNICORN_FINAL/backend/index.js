@@ -878,6 +878,133 @@ app.get(['/api/aethermail/status', '/api/aethermail', '/.well-known/aethermail.j
     const amc = require('./modules/aethermail-continuum-os');
     res.set('Cache-Control', 'no-store');
     res.json(amc.getStatus());
+
+// Project Omega Ecosystem Ω/1.0 — Autonomous AI Commerce OS
+app.get(['/api/omega/status', '/api/omega', '/.well-known/omega.json'], (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/discovery', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/instance/:id', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.getInstance(req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/vault', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.getVault(req.query.email);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/omega/vault/search', (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.searchVault(req.query.email, req.query.q);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+// Mutating Omega control-plane — admin-gated. Settle path calls the module
+// in-process (onOrderPaid/onDeliveryFired) and does NOT need these routes.
+// Public POST was floodable (confirmed live); never recur.
+app.post('/api/omega/bootstrap', express.json({ limit: '64kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.bootstrapFromOrder((req.body && req.body.order) || req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/omega/evolve', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const omega = require('./modules/omega-ecosystem-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(omega.evolveOnce());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
+
+// AI Genome Engine GENOME/1.0 — Digital DNA of ZeusAI
+app.get(['/api/genome/status', '/api/genome', '/.well-known/genome.json'], (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/genome/discovery', (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.discovery());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/genome/graph', (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.getGraph({ sku: req.query.sku }));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/genome/search', (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.searchGenomes(req.query.q));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.get('/api/genome/:id', (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    const out = genome.getGenome(req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/genome/register', express.json({ limit: '64kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    const out = genome.registerProduct((req.body && req.body.product) || req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
   }
@@ -887,6 +1014,11 @@ app.get('/api/aethermail/discovery', (req, res) => {
     const amc = require('./modules/aethermail-continuum-os');
     res.set('Cache-Control', 'no-store');
     res.json(amc.discovery());
+app.post('/api/genome/evolve', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.evolveOnce());
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
   }
@@ -898,6 +1030,11 @@ app.post('/api/aethermail/tick', express.json({ limit: '16kb' }), async (req, re
     const out = await amc.process(Object.assign({}, req.body || {}, { action }));
     res.set('Cache-Control', 'no-store');
     res.json(out);
+app.post('/api/genome/orchestrate', express.json({ limit: '8kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.orchestrateOnce());
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
   }
@@ -916,6 +1053,11 @@ app.post('/api/aethermail/simulate', express.json({ limit: '64kb' }), async (req
     }, mail.uid || Date.now());
     res.set('Cache-Control', 'no-store');
     res.json(out);
+app.post('/api/genome/migrate', express.json({ limit: '32kb' }), requireAdminSecretOrJwt, (req, res) => {
+  try {
+    const genome = require('./modules/ai-genome-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(genome.planMigration(req.body || {}));
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
   }
@@ -16585,6 +16727,24 @@ if (require.main === module) {
       autotuner.start({});
     } catch (e) {
       console.warn('[price-autotuner] could not start:', e.message);
+    }
+    try {
+      const omega = require('./modules/omega-ecosystem-os');
+      if (omega && typeof omega.start === 'function') {
+        const st = omega.start({});
+        console.log('[omega] Omega Ecosystem started:', st && st.protocol);
+      }
+    } catch (e) {
+      console.warn('[omega] could not start:', e && e.message);
+    }
+    try {
+      const genome = require('./modules/ai-genome-engine');
+      if (genome && typeof genome.start === 'function') {
+        const st = genome.start({});
+        console.log('[genome] AI Genome Engine started:', st && st.protocol);
+      }
+    } catch (e) {
+      console.warn('[genome] could not start:', e && e.message);
     }
     // Bond Boot Accelerator — warm SUBOS/TBOS peer caches so post-deploy
     // health never falsely grades F while probes are still cold.

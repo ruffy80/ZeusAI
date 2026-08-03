@@ -44,7 +44,10 @@ function classify(serviceId) {
   if (id.includes('growth') || id.includes('viral') || id.includes('aura') || id.includes('outreach')) return 'report+automation';
   if (id.includes('api') || id.includes('engine') || id.includes('blocks') || id.includes('predictive')) return 'api+task';
   if (id.includes('os') || id.includes('vertical') || id.includes('enterprise')) return 'workspace+onboarding';
-  return 'license+onboarding';
+  // Omega universal default: every SKU (even brand-new, unknown ones) gets a
+  // workspace + onboarding deliverable so the Omega Ecosystem OS can attach its
+  // living instance with zero per-SKU integration code.
+  return 'workspace+onboarding';
 }
 
 function deliverableSet(receipt, serviceId) {
