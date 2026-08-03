@@ -191,6 +191,11 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const ORDERS = new Map();     // orderId -> order (in-memory; persisted on change)
 const AMT_INDEX = new Map();  // amountSats -> orderId (pending only; fast match)
 const SEEN_TXIDS = new Set(); // crediting txs already applied (from state file)
+// Byte offset of ORDERS_FILE already replayed into the in-memory ORDERS map.
+// Used by syncOrdersFromLog() to cheaply pull in records appended by *other*
+// PM2 cluster workers (see below). -1 means "not yet initialised" (loadState
+// sets it to the file size after the initial full replay).
+let _ordersLogOffset = -1;
 const CATALOG_SEEN = new Map(); // serviceId -> firstSeenAtMs (for /api/catalog/diff)
 const PAYMENT_EXCEPTIONS = new Map(); // txid -> latest payment exception
 
@@ -209,14 +214,73 @@ function loadState() {
       for (const l of lines) {
         try { const o = JSON.parse(l); if (o && o.orderId) latest.set(o.orderId, o); } catch {}
       }
-      for (const o of latest.values()) {
-        ORDERS.set(o.orderId, o);
-        if (o.status === 'pending' && Date.now() < o.expires_at_ms) {
-          AMT_INDEX.set(o.amount_sats, o.orderId);
-        }
-      }
+      for (const o of latest.values()) _applyOrderRecord(o);
+      // Everything up to the current end of file is now in memory; subsequent
+      // syncOrdersFromLog() calls only need to read bytes appended after this.
+      try { _ordersLogOffset = fs.statSync(ORDERS_FILE).size; } catch { _ordersLogOffset = 0; }
+    } else {
+      _ordersLogOffset = 0;
     }
   } catch (e) { console.warn('[commerce] replay error:', e.message); }
+}
+
+// Apply a single order record (from the durable JSONL log) into the in-memory
+// maps. Last-write-wins matches the append-only log's chronological order, with
+// one monotonic guard: a replayed 'pending' record must never downgrade an
+// order this process already knows is settled/terminal (protects against a
+// self-appended older line being re-read after the newer state is in memory).
+function _applyOrderRecord(o) {
+  if (!o || !o.orderId) return;
+  const prev = ORDERS.get(o.orderId);
+  const TERMINAL = { paid: 1, delivered: 1, refunded: 1, revoked: 1 };
+  if (prev && TERMINAL[prev.status] && o.status === 'pending') return;
+  ORDERS.set(o.orderId, o);
+  if (o.status === 'pending' && Date.now() < (o.expires_at_ms || 0)) {
+    AMT_INDEX.set(o.amount_sats, o.orderId);
+  } else if (AMT_INDEX.get(o.amount_sats) === o.orderId) {
+    // Order left the pending state — release its sats slot so the BTC watcher
+    // does not keep matching an already-settled / expired invoice.
+    AMT_INDEX.delete(o.amount_sats);
+  }
+}
+
+// Cross-cluster consistency primitive. `unicorn-site` runs as a PM2 cluster, so
+// each worker holds its own ORDERS map. Writes are appended to the shared
+// ORDERS_FILE (data/commerce/orders.jsonl), but reads only ever consulted the
+// local map — an order created on worker A therefore 404'd when the buyer's
+// status/checkout poll round-robined to worker B. This replays any records
+// appended since the last call so every worker converges on the latest durable
+// state for each order. It is cheap: it reads only the bytes added since the
+// previous offset (usually zero), so it is safe to call on every commerce read.
+function syncOrdersFromLog() {
+  try {
+    if (_ordersLogOffset < 0) return; // loadState() has not run yet
+    if (!fs.existsSync(ORDERS_FILE)) return;
+    const size = fs.statSync(ORDERS_FILE).size;
+    if (size <= _ordersLogOffset) {
+      // File shrank/rotated (e.g. compaction) — re-baseline from scratch.
+      if (size < _ordersLogOffset) { _ordersLogOffset = 0; }
+      else return; // no new bytes
+    }
+    const fd = fs.openSync(ORDERS_FILE, 'r');
+    try {
+      const len = size - _ordersLogOffset;
+      const buf = Buffer.allocUnsafe(len);
+      const read = fs.readSync(fd, buf, 0, len, _ordersLogOffset);
+      if (read <= 0) return;
+      // Only consume up to the last complete line (a concurrent append may be
+      // mid-flight); the trailing partial is picked up on the next call.
+      const lastNl = buf.lastIndexOf(0x0a, read - 1);
+      if (lastNl < 0) return; // no complete newline-terminated record yet
+      const consume = lastNl + 1;
+      const text = buf.toString('utf8', 0, consume);
+      for (const line of text.split('\n')) {
+        if (!line) continue;
+        try { _applyOrderRecord(JSON.parse(line)); } catch (_) { /* skip bad line */ }
+      }
+      _ordersLogOffset += consume;
+    } finally { fs.closeSync(fd); }
+  } catch (_) { /* best-effort: a read must never fail because of log sync */ }
 }
 function loadPaymentExceptions() {
   try {
@@ -1084,6 +1148,9 @@ function revokeOrderFromProvider(orderId, proof) {
 // ── Payment watcher (mempool.space) ─────────────────────────────────────────
 const WATCH_STATE = { lastScanAt: 0, lastScanOk: false, lastError: null, totalScans: 0, totalMatched: 0 };
 async function scanIncoming() {
+  // Pull in orders created by sibling cluster workers so this watcher can match
+  // their incoming payments too (AMT_INDEX is per-worker otherwise).
+  syncOrdersFromLog();
   WATCH_STATE.totalScans++;
   WATCH_STATE.lastScanAt = Date.now();
   const scanNow = Date.now();
@@ -1751,6 +1818,17 @@ function escapeHtml(s) {
 // ── Handler ─────────────────────────────────────────────────────────────────
 async function handle(req, res, ctx) {
   const url = (req.url || '/').split('?')[0];
+
+  // Cross-cluster order visibility: before touching the in-memory ORDERS map
+  // for any order/checkout/commerce route, replay records appended by other
+  // PM2 workers. This is what makes a checkout created on one worker readable
+  // (and up to date) when the buyer's status poll lands on a different worker.
+  // Gated by prefix so unrelated site traffic never pays for the stat().
+  if (url.indexOf('/api/order/') === 0 || url.indexOf('/checkout/') === 0 ||
+      url.indexOf('/api/checkout/') === 0 || url.indexOf('/api/commerce/') === 0 ||
+      url.indexOf('/api/entitlements/') === 0) {
+    syncOrdersFromLog();
+  }
 
   // --- /api/checkout/create -------------------------------------------------
   if (url === '/api/checkout/create' && req.method === 'POST') {
@@ -2740,4 +2818,4 @@ setInterval(() => {
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, AMT_INDEX, PAYMENT_EXCEPTIONS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending, markOrderPaidFromProvider, revokeOrderFromProvider };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, AMT_INDEX, PAYMENT_EXCEPTIONS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending, markOrderPaidFromProvider, revokeOrderFromProvider, syncOrdersFromLog };
