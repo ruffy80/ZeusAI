@@ -44,9 +44,10 @@ jobs:
           DISABLE_SELF_MUTATION: '1'
           NODE_ENV: test
           UNICORN_RUNTIME_PROFILE: stable
-          HEALTH_GUARDIAN_RETRIES: '4'
-          HEALTH_GUARDIAN_TIMEOUT_MS: '15000'
-          HEALTH_GUARDIAN_RETRY_MS: '2000'
+          # Extra patience for public edge; optional probes no longer hard-fail.
+          HEALTH_GUARDIAN_RETRIES: '5'
+          HEALTH_GUARDIAN_TIMEOUT_MS: '20000'
+          HEALTH_GUARDIAN_RETRY_MS: '2500'
         run: npm run heal
 
       - name: Continuum smoke

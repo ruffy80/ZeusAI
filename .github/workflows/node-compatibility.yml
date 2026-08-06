@@ -91,6 +91,10 @@ jobs:
 
       - name: 🔍 Lint backend + site
         working-directory: ./UNICORN_FINAL
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
         run: npm run lint
 
       - name: 🧪 Run tests
@@ -101,6 +105,10 @@ jobs:
         env:
           # Surface which Node major failed in job summaries / annotations.
           NODE_COMPAT_MATRIX: ${{ matrix.node }}
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
+          ZACC_ENABLE_ESCUELA: '0'
 
       - name: 🏗️ Build frontend
         working-directory: ./UNICORN_FINAL/client
