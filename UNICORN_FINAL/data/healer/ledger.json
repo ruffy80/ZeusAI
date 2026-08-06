@@ -1,13 +1,3 @@
 {
-  "events": [
-    {
-      "type": "predictive-warning",
-      "severity": "critical",
-      "prediction": {
-        "severity": "critical",
-        "reason": "unit-test"
-      },
-      "ts": "2026-08-06T19:48:51.445Z"
-    }
-  ]
+  "events": []
 }
