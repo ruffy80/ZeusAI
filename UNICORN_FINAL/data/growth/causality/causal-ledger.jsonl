@@ -1,1 +1,0 @@
-{"ts":"2026-08-06T19:28:59.878Z","type":"cycle","at":"2026-08-06T19:28:59.878Z","gate":{"act":false,"reason":"infra_down"},"action":{"ok":false,"reason":"infra_down","id":null},"attrib":{"ok":true,"skipped":true},"starvingStage":"traffic","starvingScore":10,"hookId":null}
