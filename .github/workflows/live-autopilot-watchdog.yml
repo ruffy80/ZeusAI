@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: live-autopilot-watchdog
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
