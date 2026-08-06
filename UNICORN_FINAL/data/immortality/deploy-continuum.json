@@ -1,0 +1,29 @@
+{
+  "protocol": "DCA/1.0",
+  "state": {
+    "startedAt": "2026-08-06T20:00:42.146Z",
+    "liveSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+    "lastPromoteAt": "2026-08-06T20:01:32.937Z",
+    "lastCanaryFailAt": null,
+    "lastCanaryFailSha": null,
+    "lastCanaryFailReason": null,
+    "quarantined": [],
+    "knownGoodSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+    "commitsBehindHint": 0,
+    "events": [
+      {
+        "kind": "promote",
+        "at": "2026-08-06T20:01:32.937Z",
+        "sha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+        "note": "boot_attestation"
+      },
+      {
+        "kind": "promote",
+        "at": "2026-08-06T20:00:42.151Z",
+        "sha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+        "note": "boot_attestation"
+      }
+    ]
+  },
+  "updatedAt": "2026-08-06T20:01:32.937Z"
+}
