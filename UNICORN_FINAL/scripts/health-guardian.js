@@ -36,6 +36,7 @@ const LOCAL_SITE = process.env.HEALTH_GUARDIAN_SITE_URL || 'http://127.0.0.1:300
 const TIMEOUT_MS = Math.max(3000, Number(process.env.HEALTH_GUARDIAN_TIMEOUT_MS) || 12000);
 const PUBLIC_RETRIES = Math.max(1, Number(process.env.HEALTH_GUARDIAN_RETRIES || 3));
 const RETRY_BASE_MS = Math.max(250, Number(process.env.HEALTH_GUARDIAN_RETRY_MS || 1500));
+const TRANSIENT_NETWORK_RE = /(?:^|[^A-Za-z0-9])(timeout|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED|getaddrinfo|socket(?:[ _]+hang[ _]+up|[ _]+timeout|[ _]+closed)?|network(?:[ _]+error|[ _]+unreachable)?)(?:$|[^A-Za-z0-9])/i;
 
 function log(...args) {
   console.log('[HealthGuardian]', new Date().toISOString(), ...args);
@@ -43,6 +44,10 @@ function log(...args) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientNetworkReason(reason) {
+  return TRANSIENT_NETWORK_RE.test(String(reason || ''));
 }
 
 function fetchJsonOnce(url) {
@@ -91,7 +96,7 @@ async function fetchJson(url, { retries = 1 } = {}) {
     // eslint-disable-next-line no-await-in-loop
     last = await fetchJsonOnce(url);
     if (last.ok) return last;
-    const transient = /timeout|ECONNRESET|EAI_AGAIN|ENOTFOUND|network|socket|ECONNREFUSED/i.test(String(last.reason || ''));
+    const transient = isTransientNetworkReason(last.reason);
     if (!transient || i === attempts - 1) return last;
     // eslint-disable-next-line no-await-in-loop
     await sleep(RETRY_BASE_MS * (i + 1));
@@ -198,7 +203,7 @@ async function runOnce() {
   const criticalNetworkOnly = criticalPublicProbes.every(([name]) => {
     const p = report.probes[name];
     if (!p || p.ok) return true;
-    return /timeout|ECONNRESET|EAI_AGAIN|ENOTFOUND|network|socket|ECONNREFUSED|getaddrinfo/i.test(String(p.reason || ''));
+    return isTransientNetworkReason(p.reason);
   });
   if (isCi && modFail.length === 0 && !criticalPublicOk && criticalNetworkOnly) {
     report.ok = true;
@@ -212,8 +217,8 @@ async function runOnce() {
   const siteProbe = report.probes.site_health;
   const apiProbe = report.probes.api_health;
   const apiNetworkOnly = !!apiProbe && !apiProbe.ok
-    && /timeout|ECONNRESET|EAI_AGAIN|ENOTFOUND|network|socket|ECONNREFUSED|getaddrinfo/i.test(String(apiProbe.reason || ''));
-  if (isCi && modFail.length === 0 && siteProbe && siteProbe.ok && apiNetworkOnly) {
+    && isTransientNetworkReason(apiProbe.reason);
+  if (!report.ciSoftPass && isCi && modFail.length === 0 && siteProbe && siteProbe.ok && apiNetworkOnly) {
     report.ok = true;
     report.ciSoftPass = 'api_health_timeout_with_site_ok';
     log('CI soft-pass: api_health timed out while site_health is green; modules OK');
