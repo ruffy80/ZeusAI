@@ -193,26 +193,35 @@ function main() {
       }
     }
 
-    // Dynamic relative loaders: require(rel) where rel comes from string tables
-    // like integrations/index.js MODULES = ['./predictive-healing-bridge', ...].
-    const dynRelRx = /['"](\.\/[A-Za-z0-9_./-]+)['"]/g;
-    let dm;
-    const dir = path.dirname(f);
-    while ((dm = dynRelRx.exec(c)) !== null) {
-      const raw = dm[1];
-      const cands = [raw, raw + '.js', path.join(raw, 'index.js')].map((r) => path.resolve(dir, r));
-      const found = cands.find((cand) => fs.existsSync(cand) && fs.statSync(cand).isFile());
-      if (found && path.resolve(found) !== path.resolve(f)) {
-        importCount.set(found, (importCount.get(found) || 0) + 1);
+    // Dynamic relative loaders: only scan known string-table / pool hosts so
+    // large SSR/HTML blobs do not contribute spurious './...' hits.
+    const relPath = rel(f);
+    const isDynLoaderHost = /(?:integrations\/index|ModuleLoader|adaptiveEnginePool|module-loader|capability-registry|essential-modules-continuum)\.js$/.test(relPath)
+      || /\/integrations\/index\.js$/.test(relPath);
+    if (isDynLoaderHost) {
+      const dynRelRx = /['"](\.\/[A-Za-z0-9_./-]+)['"]/g;
+      let dm;
+      const dir = path.dirname(f);
+      while ((dm = dynRelRx.exec(c)) !== null) {
+        const raw = dm[1];
+        const cands = [raw, raw + '.js', path.join(raw, 'index.js')].map((r) => path.resolve(dir, r));
+        const found = cands.find((cand) => fs.existsSync(cand) && fs.statSync(cand).isFile());
+        if (found && path.resolve(found) !== path.resolve(f)) {
+          importCount.set(found, (importCount.get(found) || 0) + 1);
+        }
       }
     }
 
-    // backend/index.js capability name tables: 'unicorn-commerce-connector'
-    const nameTableRx = /['"]([a-z][a-z0-9_-]{2,})['"]/g;
-    let nm;
-    if (/backend\/index\.js$/.test(rel(f)) || /essential-modules-continuum|total-ecosystem-perfection|module-reality|iak\//.test(rel(f))) {
+    // Capability name tables: only array / object-value string literals that
+    // look like module basenames (kebab or camel), not every short string.
+    // Matches: ['foo-bar', "bazModule"] or name: 'foo-bar'
+    if (/backend\/index\.js$/.test(relPath) || /essential-modules-continuum|total-ecosystem-perfection|module-reality|iak\//.test(relPath)) {
+      const nameTableRx = /(?:[\[,:]\s*|^\s*)['"]([a-z][a-zA-Z0-9_-]{2,})['"]\s*[,\]}]/gm;
+      let nm;
       while ((nm = nameTableRx.exec(c)) !== null) {
         const base = nm[1];
+        // Skip common non-module tokens.
+        if (/^(get|post|put|delete|patch|head|options|true|false|null|undefined|ok|error|status|json|html|utf-8)$/i.test(base)) continue;
         for (const target of byBase.get(base) || []) {
           if (path.resolve(target) !== path.resolve(f)) {
             importCount.set(target, (importCount.get(target) || 0) + 1);
@@ -250,12 +259,15 @@ function main() {
   const DYNAMIC_POOL_RE = /(?:^|\/)(?:AdaptiveModule|Engine)\d+\.js$/;
   // Intentional thin aliases that re-export supreme adapters (still production entrypoints).
   const INTENTIONAL_ALIAS_RE = /(?:ops-watchdog|predictive-healing|quantum-healing|recovery-engine|recovery-orchestrator|self-healing-engine|service-watchdog|auto-optimize|autonomousInnovation|evolution-core|ui-evolution|tenantBilling|tenantProvisioning)\.js$/;
+  // Alternate process entrypoints (PM2/node start targets), not library imports.
+  const STANDALONE_ENTRY_RE = /(?:^|\/)(?:social-orchestrator\/service)\.js$/;
   const deadModules = allModuleFiles
     .filter((f) => (importCount.get(f) || 0) === 0)
     .map(rel)
     .filter((r) => !/index\.js$/.test(r))
     .filter((r) => !DYNAMIC_POOL_RE.test(r))
-    .filter((r) => !INTENTIONAL_ALIAS_RE.test(r));
+    .filter((r) => !INTENTIONAL_ALIAS_RE.test(r))
+    .filter((r) => !STANDALONE_ENTRY_RE.test(r));
 
   const architecture = detectArchitecture(files, contentMap);
   const revenue = classifyRevenue(files);

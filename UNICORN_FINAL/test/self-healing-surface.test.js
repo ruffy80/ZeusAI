@@ -21,7 +21,12 @@ const bridge = require('../backend/modules/integrations/predictive-healing-bridg
 
 let passed = 0;
 function check(name, fn) {
-  fn();
+  try {
+    fn();
+  } catch (err) {
+    console.error('  ✗', name, err && err.message ? err.message : err);
+    throw err;
+  }
   passed += 1;
   console.log('  ✓', name);
 }
