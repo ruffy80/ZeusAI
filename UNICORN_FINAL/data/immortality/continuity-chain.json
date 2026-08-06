@@ -1,0 +1,103 @@
+{
+  "protocol": "CAC/1.0",
+  "tipHash": "0eeed98d6cba0352d3455add109c521af97ad101f1728eb4877c0a6ba0164c43",
+  "seq": 4,
+  "startedAt": "2026-08-06T20:00:42.147Z",
+  "beats": [
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 1,
+      "prevHash": "genesis:CAC/1.0",
+      "at": "2026-08-06T20:00:42.149Z",
+      "buildSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "cac_start"
+      ],
+      "hash": "379e0d2bb8fd76a8f5c9525b24f55d081d7f3e40f61683fc818480c95e0e3591",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "/veWKiTzm316/jd1dE6wjlnYq9dEJsNzsHWsjIAp9q8="
+      }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 2,
+      "prevHash": "379e0d2bb8fd76a8f5c9525b24f55d081d7f3e40f61683fc818480c95e0e3591",
+      "at": "2026-08-06T20:00:42.150Z",
+      "buildSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "icp_start"
+      ],
+      "hash": "3136d797260001ad31f1e74d4f0ddeb727e13178200f3fe5ef765a62b1b78478",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "rDx7Ftt1eWfMlLIkyCqY9zh3xOfBVxQUwD9pCPID/vs="
+      }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 3,
+      "prevHash": "3136d797260001ad31f1e74d4f0ddeb727e13178200f3fe5ef765a62b1b78478",
+      "at": "2026-08-06T20:01:32.936Z",
+      "buildSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "icp_start"
+      ],
+      "hash": "a29975f84fbf21f9cdd739ab396bebc2ba025789b0cc88c27a38e9ab682ae34a",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "BLRnl3oefUyvS9bgsUbAfvtgo1h0XsWHb0XB0+QaSOo="
+      }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 4,
+      "prevHash": "a29975f84fbf21f9cdd739ab396bebc2ba025789b0cc88c27a38e9ab682ae34a",
+      "at": "2026-08-06T20:03:02.931Z",
+      "buildSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [],
+      "hash": "0eeed98d6cba0352d3455add109c521af97ad101f1728eb4877c0a6ba0164c43",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "deq/F/5Jt4DvgHQL1LkcmOs/GR0z3rGBKs29UTStaEA="
+      }
+    }
+  ],
+  "updatedAt": "2026-08-06T20:03:02.931Z"
+}

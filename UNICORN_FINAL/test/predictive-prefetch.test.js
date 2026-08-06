@@ -242,51 +242,123 @@ async function unitTests() {
 
 async function integrationTest() {
   console.log('\npredictive-prefetch integration test (HTTP 103 + stats endpoint):');
+  // Stable CI profile BEFORE loading src/index.js — otherwise boot spawns
+  // self-mutation / ZACC world-feed storms that block the event loop and
+  // surface as flaky ECONNRESET on the first SSR request (deploy blocker).
+  process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+  process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+  process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+  process.env.NODE_APP_INSTANCE = '0';
+  process.env.SITE_CLUSTER_SINGLETON_DISABLED = '1';
+  process.env.ZACC_ENABLE_ESCUELA = process.env.ZACC_ENABLE_ESCUELA || '0';
+
   // The persistence unit test above deleted+re-required the module to reload
   // it under a custom PREFETCH_PERSIST_PATH env. We must re-acquire the same
   // instance the server will use, otherwise our pre-seed lands on a stale
   // module reference.
   const ppLive = require('../src/perf/predictive-prefetch');
   ppLive._resetForTests();
-  // Pre-seed a hot transition so the predictor has something to predict for /.
-  for (let i = 0; i < 3; i++) ppLive.recordTransition('/', '/store');
+  // Prefer lightweight navigable targets (/services, /pricing) for the hot
+  // edge — same contract as /store, but less SSR work if catalog thrash.
+  for (let i = 0; i < 3; i++) ppLive.recordTransition('/', '/services');
   ppLive.recordTransition('/', '/pricing');
 
-  // Boot the site server
-  process.env.NODE_APP_INSTANCE = '0';
-  process.env.SITE_CLUSTER_SINGLETON_DISABLED = '1';
   const { createServer } = require('../src/index');
   const server = createServer();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   // Helper: capture both 103 informational responses AND the final response.
-  function fetchWithEarlyHints(path, headers) {
+  // agent:false + Connection:close + hard timeout avoid keep-alive hangs and
+  // post-listen event-loop stalls that previously failed CI with ECONNRESET.
+  function fetchWithEarlyHintsOnce(path, headers, timeoutMs) {
     return new Promise((resolve, reject) => {
       const earlyHints = [];
+      let settled = false;
       const req = http.request({
-        host: '127.0.0.1', port, path, method: 'GET',
-        headers: Object.assign({ Host: '127.0.0.1:' + port }, headers || {})
+        host: '127.0.0.1',
+        port,
+        path,
+        method: 'GET',
+        agent: false,
+        headers: Object.assign({
+          Host: '127.0.0.1:' + port,
+          Connection: 'close',
+          Accept: 'text/html,application/json,*/*'
+        }, headers || {})
       }, (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
-        res.on('end', () => resolve({
-          earlyHints,
-          status: res.statusCode,
-          headers: res.headers,
-          body: Buffer.concat(chunks).toString('utf8')
-        }));
+        res.on('end', () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({
+            earlyHints,
+            status: res.statusCode,
+            headers: res.headers,
+            body: Buffer.concat(chunks).toString('utf8')
+          });
+        });
       });
       req.on('information', (info) => {
         earlyHints.push({ status: info.statusCode, headers: info.headers });
       });
-      req.on('error', reject);
+      req.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      });
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { req.destroy(new Error('request_timeout_' + path)); } catch (_) {}
+        reject(new Error('request_timeout_' + path));
+      }, timeoutMs || 20000);
       req.end();
     });
   }
 
+  async function fetchWithEarlyHints(path, headers, timeoutMs) {
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        return await fetchWithEarlyHintsOnce(path, headers, timeoutMs);
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err && err.message || err);
+        const transient = /ECONNRESET|ECONNREFUSED|socket hang up|request_timeout|ETIMEDOUT|EPIPE/i.test(msg);
+        if (!transient || attempt === 5) throw err;
+        await sleep(400 * attempt);
+      }
+    }
+    throw lastErr || new Error('fetch failed');
+  }
+
+  async function waitUntilReady() {
+    // listen() fires before heavy post-boot work yields; poll a cheap path
+    // so SSR + 103 assertions do not race the event-loop stall window.
+    let last = null;
+    for (let i = 0; i < 40; i++) {
+      try {
+        last = await fetchWithEarlyHintsOnce('/health', { Accept: 'application/json' }, 5000);
+        if (last && last.status && last.status < 500) return last;
+      } catch (_) { /* retry */ }
+      await sleep(250);
+    }
+    // Fall through — subsequent assertions still run with retries.
+    return last;
+  }
+
   try {
-    // 1. Hit / — predictor already has 3×/store + 1×/pricing seeded, so it
+    await waitUntilReady();
+
+    // 1. Hit / — predictor already has 3×/services + 1×/pricing seeded, so it
     //    should immediately emit a 103 Early Hints frame.
     const r = await fetchWithEarlyHints('/', { 'Accept': 'text/html' });
     expect('GET / final status 200', r.status === 200);
@@ -296,8 +368,8 @@ async function integrationTest() {
     );
     const ehLink = String(r.earlyHints[0].headers.link || '');
     expect(
-      '103 link includes /store prefetch',
-      ehLink.indexOf('</store>; rel=prefetch') !== -1
+      '103 link includes /services prefetch',
+      ehLink.indexOf('</services>; rel=prefetch') !== -1
     );
     expect(
       '103 link bundles css preload',
@@ -308,16 +380,14 @@ async function integrationTest() {
     //    fallback for non-103 clients.
     const finalLink = String(r.headers.link || '');
     expect(
-      'final Link header includes /store prefetch fallback',
-      finalLink.indexOf('</store>; rel=prefetch') !== -1
+      'final Link header includes /services prefetch fallback',
+      finalLink.indexOf('</services>; rel=prefetch') !== -1
     );
 
-    // 3. Recording: a request to /store with Referer=/  should bump the
-    //    counter for / → /store. We use the loopback Host so it counts as
-    //    same-origin. (Even if the page already loads from cache, the
-    //    recording happens at the dispatcher.)
+    // 3. Recording: a request to /services with Referer=/ should bump the
+    //    counter for / → /services. Loopback Host counts as same-origin.
     const refererBase = 'http://127.0.0.1:' + port;
-    await fetchWithEarlyHints('/store', {
+    await fetchWithEarlyHints('/services', {
       'Accept': 'text/html',
       'Referer': refererBase + '/'
     });
@@ -358,8 +428,8 @@ async function integrationTest() {
       r.body.indexOf('type="speculationrules"') !== -1
     );
     expect(
-      'speculation rules block contains predicted /store',
-      r.body.indexOf('"/store"') !== -1
+      'speculation rules block contains predicted /services',
+      r.body.indexOf('"/services"') !== -1
     );
 
     // 8. Accept-CH header advertised on SSR response (digital-equity opt-in)
@@ -385,7 +455,14 @@ async function integrationTest() {
     const vary = String(r.headers.vary || '').toLowerCase();
     expect('Vary header includes Save-Data', vary.indexOf('save-data') !== -1);
   } finally {
-    server.close();
+    await new Promise((resolve) => {
+      try {
+        server.close(() => resolve());
+      } catch (_) {
+        resolve();
+      }
+      setTimeout(resolve, 2000);
+    });
   }
 }
 

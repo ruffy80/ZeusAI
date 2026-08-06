@@ -1,0 +1,15 @@
+{
+  "startedAt": null,
+  "registrations": 50,
+  "genomesBorn": 50,
+  "edgesCreated": 230,
+  "opportunities": 32,
+  "evolutions": 0,
+  "orchestratorTicks": 0,
+  "maintenanceOps": 0,
+  "migrationsPlanned": 0,
+  "errors": 0,
+  "lastOrchestratorAt": null,
+  "lastEvolveAt": null,
+  "savedAt": "2026-08-06T20:04:50.977Z"
+}

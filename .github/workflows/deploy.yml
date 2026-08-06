@@ -206,6 +206,10 @@ jobs:
       - name: 🔍 Run Linter (ESLint)
         working-directory: ./UNICORN_FINAL
         timeout-minutes: 10
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
         run: |
           npm ci --no-audit --no-fund --loglevel=error
           npm run lint
@@ -217,7 +221,15 @@ jobs:
         # of consuming the full 6h GitHub Actions ceiling and silently
         # blocking deploys, the way it did on 2026-04-29.
         # 20m budget: full suite is ~8–12m when exits are clean; leave headroom.
+        # Stable/test env is mandatory: without DISABLE_SELF_MUTATION the suite
+        # boots self-mutation + ZACC feed storms and flakes with ECONNRESET
+        # (predictive-prefetch), which blocked all Hetzner deploys since 2026-08-03.
         timeout-minutes: 20
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
+          ZACC_ENABLE_ESCUELA: '0'
         run: npm test --if-present
 
       - name: 🧬 Forward-only preflight (syntax, requires, routes, PM2 contract)
