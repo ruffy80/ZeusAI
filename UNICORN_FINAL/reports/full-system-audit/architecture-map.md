@@ -1,10 +1,10 @@
 # Full Architecture Map
 
-Generated: 2026-07-07T17:47:57.079Z
+Generated: 2026-08-06T19:42:31.727Z
 
 ## Core map
 - Core engine: backend/index.js
-- Backend modules: 425
+- Backend modules: 620
 - Site modules: 7
 
 ## Orchestration
@@ -19,23 +19,24 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/autonomousLegalEntity.js
 - backend/modules/autonomousMAdvisor.js
 - backend/modules/autonomousMoneyMachine.js
+- backend/modules/autonomousWealthEngine.js
+- backend/modules/autonomy-action-continuum-os.js
 - backend/modules/autonomy-spine.js
+- backend/modules/autonomyChain.js
 - backend/modules/billion-scale-activation-orchestrator.js
 - backend/modules/central-orchestrator.js
 - backend/modules/evolution-core.js
 - backend/modules/innovation/selfEvolvingProtocol.js
+- backend/modules/integrated-autonomy-kernel.js
 - backend/modules/integrations/evolution-executor.js
+- backend/modules/meshOrchestrator.js
+- backend/modules/neural-autonomy-os.js
 - backend/modules/orchestrator-v4.js
 - backend/modules/recovery-orchestrator.js
-- backend/modules/saas-orchestrator-v4.js
-- backend/modules/salesOrchestrator.js
-- backend/modules/self-evolving-engine.js
-- backend/modules/sovereign_innovations/selfEvolvingLawEngine.js
-- backend/modules/sovereign_innovations/universalAutonomousNegotiationProtocol.js
-- backend/modules/ui-evolution.js
 
 ## Event systems
 - backend/middleware/webhook-emitter.js
+- backend/modules/essential-modules-continuum.js
 - backend/modules/improvements-pack/webhook-idempotency.js
 - backend/modules/marketing-innovations/viral-feed-sse.js
 - src/site/v2/assets/vendor/three.min.js
@@ -44,9 +45,13 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/adi-core/provider-catalog.js
 - backend/modules/adi-core/registry.js
 - backend/modules/innovations-50y/schema-registry.js
+- backend/modules/productCatalog.js
 - backend/modules/serviceCatalog.js
+- backend/modules/temporalAbiRegistry.js
+- backend/modules/zacc/catalog-curated.js
 - src/commerce/enterprise-catalog.js
 - src/commerce/instant-catalog.js
+- src/commerce/public-catalog-filter.js
 - src/commerce/unified-catalog.js
 
 ## AI router
@@ -73,6 +78,8 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/innovation/quantumMemory.js
 - backend/modules/memory-fabric-engine.js
 - backend/modules/memory-guardian.js
+- backend/modules/memory-pressure-guardian.js
+- backend/modules/proof-of-delivery-ledger.js
 - backend/modules/route-cache.js
 - backend/modules/sovereign_innovations/globalValueLedger.js
 - backend/modules/unicorn-super-intelligence/memory.js
@@ -92,10 +99,17 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/tenant-billing.js
 - backend/modules/tenantBilling.js
 - backend/modules/zacc/payments.js
+- src/commerce/payment-innovation-os.js
+- src/commerce/universal-payment-rails.js
 - src/site/unicorn-checkout.js
 
 ## Delivery systems
 - backend/modules/autoDeploy.js
+- backend/modules/immortality/deploy-continuum-attestor.js
+- backend/modules/oob-deploy.js
+- backend/modules/proof-of-delivery-ledger.js
+- backend/modules/social-orchestrator/health-guardian.js
+- backend/modules/world-standard/delivery-passport-standard.js
 - src/modules/auto-deploy-orchestrator/index.js
 - src/site/v2/delivery-registry.js
 
@@ -103,35 +117,38 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/adi-core/provider-catalog.js
 - backend/modules/ai-marketplace.js
 - backend/modules/ai-personalized-pricing-auto.js
+- backend/modules/closed-loop-commerce-os.js
 - backend/modules/dynamic-pricing.js
 - backend/modules/integrations/module-marketplace.js
 - backend/modules/live-pricing-broker.js
 - backend/modules/offer-factory.js
+- backend/modules/productCatalog.js
 - backend/modules/serviceCatalog.js
 - backend/modules/serviceMarketplace.js
 - backend/modules/sovereign_innovations/interplanetaryCommerceMesh.js
 - backend/modules/unicorn-commerce-connector.js
 - backend/modules/universalAITrainingMarketplace.js
+- backend/modules/world-ai-commerce-protocol.js
+- backend/modules/world-standard/commerce-twin-portable.js
+- backend/modules/zacc/catalog-curated.js
 - backend/modules/zacc/pricing.js
+- src/commerce/ai-dna-engine.js
+- src/commerce/ai-genome-engine.js
+- src/commerce/alt-rails-os.js
+- src/commerce/autonomous-enterprise-closure-os.js
+- src/commerce/autonomous-enterprise-deal-orchestrator.js
+- src/commerce/autonomy-money-surface-os.js
+- src/commerce/billion-autonomy-loop-os.js
+- src/commerce/billion-profit-path-os.js
+- src/commerce/buy-immortal.js
+- src/commerce/canonical-settle-bridge.js
+- src/commerce/commerce-buyability.js
+- src/commerce/commerce-pressure-gate.js
 - src/commerce/contract-generator.js
 - src/commerce/customer-portal.js
 - src/commerce/customer-portal.legacy.js
 - src/commerce/enterprise-catalog.js
-- src/commerce/governance.js
-- src/commerce/instant-catalog.js
-- src/commerce/negotiation-engine.js
-- src/commerce/notifier.js
-- src/commerce/outreach-engine.js
-- src/commerce/product-engine.js
-- src/commerce/provisioner.js
-- src/commerce/referral-engine-real.js
-- src/commerce/revenue-vault.js
-- src/commerce/transactional-email.js
-- src/commerce/uaic.js
-- src/commerce/unified-catalog.js
-- src/commerce/whale-tracker.js
-- src/modules/unicornCommerceConnector.js
-- src/site/sovereign-commerce.js
+- src/commerce/enterprise-proposal-pack.js
 
 ## Evolution systems
 - backend/modules/ai-self-healing.js
@@ -154,8 +171,10 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/innovation/neuroUx.js
 - backend/modules/innovation/quantumMemory.js
 - backend/modules/innovation/selfEvolvingProtocol.js
+- backend/modules/innovation-ship-gate.js
 - backend/modules/innovationEngine.js
 - backend/modules/innovations-100y/index.js
+- backend/modules/innovations-30y.js
 - backend/modules/innovations-50y/crypto-agility.js
 - backend/modules/innovations-50y/did-web.js
 - backend/modules/innovations-50y/index.js
@@ -167,5 +186,3 @@ Generated: 2026-07-07T17:47:57.079Z
 - backend/modules/innovations-50y/tamper-evident-audit.js
 - backend/modules/integrations/evolution-executor.js
 - backend/modules/marketing-innovations/abuse-shield.js
-- backend/modules/marketing-innovations/admin-toggle.js
-- backend/modules/marketing-innovations/affiliate-revenue.js

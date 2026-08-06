@@ -39,12 +39,20 @@ function _persist(entry) {
 function _forwardToHealer(prediction) {
   try {
     const healer = require('../self-healing-engine');
+    let acted = false;
+    if (healer && typeof healer.handlePredictiveWarning === 'function') {
+      healer.handlePredictiveWarning(prediction);
+      acted = true;
+    }
     if (healer && typeof healer.emit === 'function') {
       healer.emit('predictive:warning', prediction);
-    } else if (healer && typeof healer.handlePredictiveWarning === 'function') {
-      healer.handlePredictiveWarning(prediction);
+      acted = true;
     }
-    _state.forwarded += 1;
+    if (healer && typeof healer.forceHeal === 'function' && !acted) {
+      healer.forceHeal();
+      acted = true;
+    }
+    if (acted) _state.forwarded += 1;
   } catch (e) { _state.lastError = e && e.message; }
 }
 
