@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "module": "growthCausalitySentinel",
+  "started": true,
+  "silenced": false,
+  "cycles": 1,
+  "postsToday": 0,
+  "cadenceMs": 5400000,
+  "pending": null,
+  "hookScores": {},
+  "lastCycle": {
+    "at": "2026-08-06T19:28:59.878Z",
+    "gate": {
+      "act": false,
+      "reason": "infra_down"
+    },
+    "action": {
+      "ok": false,
+      "reason": "infra_down",
+      "id": null
+    },
+    "attrib": {
+      "ok": true,
+      "skipped": true
+    },
+    "starvingStage": "traffic",
+    "starvingScore": 10,
+    "hookId": null
+  },
+  "snapshot": {
+    "healthOk": false,
+    "siteOk": false,
+    "catalogCount": 0,
+    "stages": {
+      "traffic": 10,
+      "capture": 15,
+      "convert": 15,
+      "monetize": 12,
+      "expand": 20,
+      "retain": 20,
+      "infra": 10
+    },
+    "starvingStage": "traffic",
+    "starvingScore": 10,
+    "outboundReady": true,
+    "channels": [
+      "rss"
+    ],
+    "channelsArmed": 1,
+    "networkChannelsArmed": 0
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "protocol": "EBS/1.0",
+  "module": "edge-bond-signal",
+  "updatedAt": "2026-08-06T19:28:07.741Z",
+  "localSiteOk": true,
+  "localBackendOk": true,
+  "publicEdgeOk": null,
+  "triadScore": 100,
+  "bonded": true,
+  "reasons": [],
+  "recommendation": "serve_normally",
+  "honesty": {
+    "rewritesNginx": false,
+    "multiRegion": false,
+    "note": "Signal file for operators/optional nginx map — never auto-rewires upstreams."
+  }
+}
