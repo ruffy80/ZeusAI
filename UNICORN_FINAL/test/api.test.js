@@ -21,17 +21,32 @@ let port;
 let userToken;
 let adminToken;
 
-async function apiRequest(method, path, body, headers = {}) {
+async function apiRequest(method, path, body, headers = {}, { retries = 2 } = {}) {
   const url = `http://127.0.0.1:${port}${path}`;
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json', ...headers },
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  let json = null;
-  try { json = await res.json(); } catch (_) { /* empty */ }
-  return { status: res.status, body: json, headers: res.headers };
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const res = await fetch(url, opts);
+      let json = null;
+      try { json = await res.json(); } catch (_) { /* empty */ }
+      return { status: res.status, body: json, headers: res.headers };
+    } catch (err) {
+      lastErr = err;
+      // Boot-time event-loop pressure can briefly refuse connections; retry
+      // transient network failures only (never hide assertion failures).
+      const msg = String(err && err.message || err || '');
+      if (!/fetch failed|ECONNRESET|ECONNREFUSED|socket|timed out|network/i.test(msg)) throw err;
+      if (attempt === retries) break;
+      await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+    }
+  }
+  throw lastErr || new Error('apiRequest failed');
 }
 
 async function setup() {

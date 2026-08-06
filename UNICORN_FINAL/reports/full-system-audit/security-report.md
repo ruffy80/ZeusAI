@@ -1,12 +1,12 @@
 # Security Report
 
-Generated: 2026-07-07T17:47:57.083Z
+Generated: 2026-08-06T19:47:04.141Z
 
 ## Findings
 - Rate-limiting and auth middleware detected in backend routes: yes
 - Webhook signature handlers detected: yes
 - Potential eval/new Function usage files: 2
-- Potential sync/blocking IO files: 140
+- Potential sync/blocking IO files: 195
 
 ## Potential risks
 - Possible weak webhook compare files: 0

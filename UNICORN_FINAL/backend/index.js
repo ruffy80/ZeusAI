@@ -2365,7 +2365,11 @@ const sovereignModules = {
   quantumVault: require('./modules/quantumVault'),
   unicornMeshOrchestrator: (() => { try { return require('./modules/unicornMeshOrchestrator'); } catch { return null; } })(),
   sovereignAccessGuardian: (() => { try { return require('./modules/sovereign_innovations/sovereignAccessGuardian'); } catch { return null; } })(),
-  // Adaugă aici alte module după nevoie
+  // Real vertical engines (merit-order energy, clinical calculators, address/DID checks)
+  energyTrading: (() => { try { return require('./modules/energyTrading'); } catch { return null; } })(),
+  healthcareAI: (() => { try { return require('./modules/healthcareAI'); } catch { return null; } })(),
+  web3Identity: (() => { try { return require('./modules/web3Identity'); } catch { return null; } })(),
+  godmodeCompletionOs: (() => { try { return require('./modules/godmode-completion-os'); } catch { return null; } })(),
 };
 
 app.get('/api/module/:module/process', (req, res) => {
@@ -3752,6 +3756,41 @@ try {
   });
 } catch (e) {
   console.warn('[zero-defect] surface OS disabled:', e && e.message);
+}
+// Godmode Completion OS — honest profit-loop wiring audit (observe-only).
+let godmodeCompletionOs = null;
+try {
+  godmodeCompletionOs = require('./modules/godmode-completion-os');
+  app.get('/api/godmode/status', (_req, res) => {
+    try { return res.json(godmodeCompletionOs.getStatus()); }
+    catch (err) { return res.status(500).json({ ok: false, error: err && err.message }); }
+  });
+  console.log('[godmode] completion OS loaded');
+} catch (e) {
+  console.warn('[godmode] completion OS disabled:', e && e.message);
+}
+// Vertical engines status surface (also reachable via /api/module/:module/process)
+for (const vert of ['energyTrading', 'healthcareAI', 'web3Identity']) {
+  app.get(`/api/${vert}/status`, (req, res) => {
+    const mod = sovereignModules[vert];
+    if (!mod || typeof mod.getStatus !== 'function') {
+      return res.status(503).json({ ok: false, module: vert, reason: 'not_loaded' });
+    }
+    try { return res.json({ ok: true, module: vert, ...mod.getStatus() }); }
+    catch (err) { return res.status(500).json({ ok: false, module: vert, error: err && err.message }); }
+  });
+  app.post(`/api/${vert}/process`, express.json({ limit: '32kb' }), async (req, res) => {
+    const mod = sovereignModules[vert];
+    if (!mod || typeof mod.process !== 'function') {
+      return res.status(503).json({ ok: false, module: vert, reason: 'not_loaded' });
+    }
+    try {
+      const result = await Promise.resolve(mod.process(req.body || {}));
+      return res.json({ ok: true, module: vert, result });
+    } catch (err) {
+      return res.status(500).json({ ok: false, module: vert, error: err && err.message });
+    }
+  });
 }
 try { revenueFlywheel = require('./modules/revenue-flywheel'); } catch (e) { console.warn('[revenue-flywheel] disabled:', e && e.message); }
 
@@ -9547,7 +9586,7 @@ function _autoUpsertModule(meta) {
 })();
 
 // Periodic price refresh + SSE heartbeat (every 5s)
-setInterval(() => {
+const _autonomousPriceInterval = setInterval(() => {
   try {
     const all = (typeof dynamicPricing !== 'undefined' && dynamicPricing.getAllPrices) ? dynamicPricing.getAllPrices() : {};
     const updates = [];
@@ -9569,6 +9608,7 @@ setInterval(() => {
     }
   } catch (_) { /* never crash */ }
 }, 5000);
+if (typeof _autonomousPriceInterval.unref === 'function') _autonomousPriceInterval.unref();
 
 // GET /api/modules/list — public catalog snapshot
 app.get('/api/modules/list', (req, res) => {
@@ -16244,21 +16284,31 @@ app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
 let adiCore = null;
 try {
   adiCore = require('./modules/adi-core');
-  // Start periodic ADI-Core run loop (every 5 min)
-  setInterval(() => {
-    adiCore.runADI().catch(e => console.warn('[ADI-Core] run error:', e && e.message));
-  }, 5 * 60 * 1000);
-  // Initial run at boot
-  adiCore.runADI().catch(e => console.warn('[ADI-Core] initial run error:', e && e.message));
-  // World scanner: vaneaza AI-uri publice la fiecare 30 min, primul scan la 60s dupa boot.
-  setTimeout(() => {
-    adiCore.worldScan().then(r => console.log('[ADI-Core] world-scan boot:', r && r.report && r.report.learnedCount, 'learned'))
-      .catch(e => console.warn('[ADI-Core] world-scan boot error:', e && e.message));
-  }, 60 * 1000);
-  setInterval(() => {
-    adiCore.worldScan().catch(e => console.warn('[ADI-Core] world-scan error:', e && e.message));
-  }, 30 * 60 * 1000);
-  console.log('[ADI-Core] loaded and periodic run loop started');
+  const adiDisabled = process.env.NODE_ENV === 'test'
+    || process.env.ADI_CORE_DISABLED === '1'
+    || process.env.DISABLE_SELF_MUTATION === '1';
+  if (!adiDisabled) {
+    // Start periodic ADI-Core run loop (every 5 min)
+    const adiRunTimer = setInterval(() => {
+      adiCore.runADI().catch(e => console.warn('[ADI-Core] run error:', e && e.message));
+    }, 5 * 60 * 1000);
+    if (typeof adiRunTimer.unref === 'function') adiRunTimer.unref();
+    // Initial run at boot
+    adiCore.runADI().catch(e => console.warn('[ADI-Core] initial run error:', e && e.message));
+    // World scanner: vaneaza AI-uri publice la fiecare 30 min, primul scan la 60s dupa boot.
+    const adiBootScan = setTimeout(() => {
+      adiCore.worldScan().then(r => console.log('[ADI-Core] world-scan boot:', r && r.report && r.report.learnedCount, 'learned'))
+        .catch(e => console.warn('[ADI-Core] world-scan boot error:', e && e.message));
+    }, 60 * 1000);
+    if (typeof adiBootScan.unref === 'function') adiBootScan.unref();
+    const adiScanTimer = setInterval(() => {
+      adiCore.worldScan().catch(e => console.warn('[ADI-Core] world-scan error:', e && e.message));
+    }, 30 * 60 * 1000);
+    if (typeof adiScanTimer.unref === 'function') adiScanTimer.unref();
+    console.log('[ADI-Core] loaded and periodic run loop started');
+  } else {
+    console.log('[ADI-Core] loaded (periodic loops idle under test/safe boot)');
+  }
 } catch (e) {
   console.warn('[ADI-Core] not loaded:', e && e.message);
 }

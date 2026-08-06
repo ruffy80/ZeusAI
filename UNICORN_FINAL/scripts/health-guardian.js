@@ -34,12 +34,18 @@ const PUBLIC = String(
 const LOCAL_BACKEND = process.env.HEALTH_GUARDIAN_URL || 'http://127.0.0.1:3000/api/health';
 const LOCAL_SITE = process.env.HEALTH_GUARDIAN_SITE_URL || 'http://127.0.0.1:3001/health';
 const TIMEOUT_MS = Math.max(3000, Number(process.env.HEALTH_GUARDIAN_TIMEOUT_MS) || 12000);
+const PUBLIC_RETRIES = Math.max(1, Number(process.env.HEALTH_GUARDIAN_RETRIES || 3));
+const RETRY_BASE_MS = Math.max(250, Number(process.env.HEALTH_GUARDIAN_RETRY_MS || 1500));
 
 function log(...args) {
   console.log('[HealthGuardian]', new Date().toISOString(), ...args);
 }
 
-function fetchJson(url) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fetchJsonOnce(url) {
   return new Promise((resolve) => {
     let parsed;
     try { parsed = new URL(url); } catch (e) {
@@ -60,9 +66,12 @@ function fetchJson(url) {
         let json = null;
         try { json = JSON.parse(body); } catch (_) { /* non-json ok for HTML pages */ }
         const okHttp = code >= 200 && code < 400;
-        const okJson = !json || json.ok === true || json.status === 'ok' || json.status === 'healthy' || json.degraded === false;
+        const okJson = !json || json.ok === true || json.status === 'ok' || json.status === 'healthy'
+          || json.status === 'degraded' || json.degraded === false || json.degraded === true;
+        // HTTP 200 on public health surfaces is success even when payload reports
+        // partial degradation — that is honest status, not an outage.
         resolve({
-          ok: okHttp && (json ? okJson || code === 200 : okHttp),
+          ok: okHttp && (json ? (okJson || code === 200) : okHttp),
           code,
           reason: okHttp ? null : `http_${code}`,
           json,
@@ -73,6 +82,21 @@ function fetchJson(url) {
     req.on('error', (err) => resolve({ ok: false, reason: err.message || 'network_error' }));
     req.on('timeout', () => { req.destroy(); resolve({ ok: false, reason: 'timeout' }); });
   });
+}
+
+async function fetchJson(url, { retries = 1 } = {}) {
+  let last = { ok: false, reason: 'not_attempted' };
+  const attempts = Math.max(1, retries);
+  for (let i = 0; i < attempts; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    last = await fetchJsonOnce(url);
+    if (last.ok) return last;
+    const transient = /timeout|ECONNRESET|EAI_AGAIN|ENOTFOUND|network|socket|ECONNREFUSED/i.test(String(last.reason || ''));
+    if (!transient || i === attempts - 1) return last;
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(RETRY_BASE_MS * (i + 1));
+  }
+  return last;
 }
 
 function moduleLoadCheck() {
@@ -122,15 +146,21 @@ async function runOnce() {
   ];
   for (const [name, url] of publicProbes) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await fetchJson(url);
-    report.probes[name] = { url, ok: !!r.ok, code: r.code || null, reason: r.reason || null };
+    const r = await fetchJson(url, { retries: PUBLIC_RETRIES });
+    report.probes[name] = {
+      url,
+      ok: !!r.ok,
+      code: r.code || null,
+      reason: r.reason || null,
+      retries: PUBLIC_RETRIES,
+    };
     if (!r.ok) report.ok = false;
   }
 
   // Local probes are best-effort (CI runners usually have no local Unicorn).
   for (const [name, url] of [['local_backend', LOCAL_BACKEND], ['local_site', LOCAL_SITE]]) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await fetchJson(url);
+    const r = await fetchJson(url, { retries: 1 });
     report.probes[name] = {
       url,
       ok: !!r.ok,

@@ -137,22 +137,59 @@ function processGuardian() {
 function watchdogDaemon() {
   const mem = process.memoryUsage();
   const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
-  if (heapMB > 1024) {
-    appendLedger({ type: 'watchdog-warn', heapMB });
-    healerBus.emit('healer:watchdog', { heapMB });
+  const rssMB = Math.round(mem.rss / 1024 / 1024);
+  let ndk = null;
+  try {
+    const kernel = require('./never-down-kernel');
+    if (kernel && typeof kernel.getStatus === 'function') ndk = kernel.getStatus();
+    if (kernel && typeof kernel.registerCleaner === 'function' && !state._ndkCleanerBound) {
+      kernel.registerCleaner('unicornSelfHealer-gc-hint', () => {
+        if (global.gc) {
+          try { global.gc(); return { ok: true, action: 'gc' }; } catch (_) { /* optional */ }
+        }
+        return { ok: true, action: 'noop' };
+      });
+      state._ndkCleanerBound = true;
+    }
+  } catch (_) { /* NDK optional during early boot */ }
+
+  const lagMs = ndk && Number(ndk.lagMs || 0);
+  const health = (ndk && ndk.health) || (heapMB > 1536 ? 'critical' : heapMB > 1024 ? 'degraded' : 'good');
+  if (heapMB > 1024 || (Number.isFinite(lagMs) && lagMs > 1500) || health !== 'good') {
+    appendLedger({ type: 'watchdog-warn', heapMB, rssMB, lagMs, health });
+    healerBus.emit('healer:watchdog', { heapMB, rssMB, lagMs, health });
   }
-  return { heapMB, uptime: process.uptime() };
+  return { heapMB, rssMB, uptime: process.uptime(), lagMs: lagMs || 0, ndkHealth: health };
 }
 
 // predictiveHealer — predicție pe baza istoricului (sursă: predictive-healing.js)
 function predictiveHealer() {
   const recent = state.history.slice(-20);
   const errRate = recent.filter(e => e.type === 'error').length / Math.max(1, recent.length);
+  const prediction = {
+    severity: errRate > 0.5 ? 'critical' : errRate > 0.3 ? 'high' : errRate > 0.1 ? 'medium' : 'low',
+    errRate,
+    source: 'unicornSelfHealer.predictiveHealer',
+    at: new Date().toISOString(),
+  };
   if (errRate > 0.3) {
-    appendLedger({ type: 'predictive-alert', errRate });
-    healerBus.emit('healer:predict', { errRate });
+    appendLedger({ type: 'predictive-alert', errRate, severity: prediction.severity });
+    healerBus.emit('healer:predict', prediction);
+    healerBus.emit('prediction', prediction);
   }
-  return { errRate };
+  return prediction;
+}
+
+function handlePredictiveWarning(prediction = {}) {
+  const severity = String(prediction.severity || 'medium').toLowerCase();
+  appendLedger({ type: 'predictive-warning', severity, prediction });
+  healerBus.emit('healer:predictive-warning', prediction);
+  if (severity === 'critical' || severity === 'high') {
+    try { mainCycle(); } catch (_) { /* cycle already defensive */ }
+    state.healings += 1;
+    return { ok: true, acted: true, severity };
+  }
+  return { ok: true, acted: false, severity };
 }
 
 // disasterRecovery — recuperare în caz de crash (sursă: disaster-recovery.js)
@@ -271,6 +308,10 @@ function forceHeal() {
   catch (e) { return { ok: false, error: e.message }; }
 }
 function getBus() { return healerBus; }
+function on(event, listener) { return healerBus.on(event, listener); }
+function once(event, listener) { return healerBus.once(event, listener); }
+function off(event, listener) { return healerBus.off(event, listener); }
+function emit(event, payload) { return healerBus.emit(event, payload); }
 function getLedger() {
   try {
     ensureLedger();
@@ -278,14 +319,24 @@ function getLedger() {
   } catch (_) { return { events: [] }; }
 }
 
+function init() {
+  return start();
+}
+
 module.exports = {
   start,
   stop,
+  init,
   getStatus,
   getHistory,
   getModules,
   forceHeal,
   getBus,
+  on,
+  once,
+  off,
+  emit,
+  handlePredictiveWarning,
   getLedger,
   // Sub-componente expuse pentru testare
   moduleScanner,

@@ -31,17 +31,25 @@ jobs:
           npm --prefix UNICORN_FINAL ci --no-audit --no-fund --loglevel=error
 
       - name: 🔎 Run full audit
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
         run: |
           npm --prefix UNICORN_FINAL run audit:full
 
       - name: ✅ Fast regression checks
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
         run: |
           npm --prefix UNICORN_FINAL run lint:syntax
           npm --prefix UNICORN_FINAL run test:health
           npm --prefix UNICORN_FINAL run test:api
 
       - name: 📦 Upload audit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: full-system-audit-reports
           path: UNICORN_FINAL/reports/full-system-audit/

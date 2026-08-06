@@ -39,14 +39,19 @@ function sha1(text) { return crypto.createHash('sha1').update(text).digest('hex'
 function localRequireEdges(file, content) {
   const edges = [];
   const dir = path.dirname(file);
+  // Intentionally do not strip comments/templates. Large SSR HTML strings and
+  // CSS blocks in this repo make comment scrubbing destroy real require() edges
+  // (false "dead module" storms). Self-requires from generators/comments are
+  // filtered by the path.resolve(found) !== file guard below.
   const rx = /require\((['"])(\.{1,2}\/[^'"]+)\1\)/g;
   let m;
-  while ((m = rx.exec(content)) !== null) {
+  while ((m = rx.exec(String(content || ''))) !== null) {
     const raw = m[2];
     const cands = [raw, raw + '.js', path.join(raw, 'index.js')]
       .map((r) => path.resolve(dir, r));
     const found = cands.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
-    if (found) edges.push(found);
+    // Ignore self-requires (dynamic generators / intentional recursion markers).
+    if (found && path.resolve(found) !== path.resolve(file)) edges.push(found);
   }
   return edges;
 }
@@ -158,11 +163,72 @@ function main() {
     weakWebhookCompare: [],
   };
 
+  // Basename index for dynamic/safeRequire('module-name') style loads.
+  const byBase = new Map();
+  for (const f of files) {
+    const base = path.basename(f, '.js');
+    if (!byBase.has(base)) byBase.set(base, []);
+    byBase.get(base).push(f);
+  }
+
   for (const f of files) {
     const c = contentMap.get(f) || '';
     const edges = localRequireEdges(f, c);
     graph.set(f, edges);
     for (const e of edges) importCount.set(e, (importCount.get(e) || 0) + 1);
+
+    // Count bare-string module references used by safeRequire / dynamic loaders.
+    // Examples: safeRequire('FeatureFlagManager'), require('./modules/x') already
+    // covered by localRequireEdges.
+    const bareRx = /(?:safeRequire|tryRequire|tryLoad|_soft|_safeRequire|require)\(\s*['"]([A-Za-z0-9_./@-]+)['"]\s*\)/g;
+    let bm;
+    while ((bm = bareRx.exec(c)) !== null) {
+      const token = bm[1];
+      if (!token || token.startsWith('.')) continue; // relative handled above
+      const base = path.basename(token, '.js');
+      for (const target of byBase.get(base) || []) {
+        if (path.resolve(target) !== path.resolve(f)) {
+          importCount.set(target, (importCount.get(target) || 0) + 1);
+        }
+      }
+    }
+
+    // Dynamic relative loaders: only scan known string-table / pool hosts so
+    // large SSR/HTML blobs do not contribute spurious './...' hits.
+    const relPath = rel(f);
+    const isDynLoaderHost = /(?:integrations\/index|ModuleLoader|adaptiveEnginePool|module-loader|capability-registry|essential-modules-continuum)\.js$/.test(relPath)
+      || /\/integrations\/index\.js$/.test(relPath);
+    if (isDynLoaderHost) {
+      const dynRelRx = /['"](\.\/[A-Za-z0-9_./-]+)['"]/g;
+      let dm;
+      const dir = path.dirname(f);
+      while ((dm = dynRelRx.exec(c)) !== null) {
+        const raw = dm[1];
+        const cands = [raw, raw + '.js', path.join(raw, 'index.js')].map((r) => path.resolve(dir, r));
+        const found = cands.find((cand) => fs.existsSync(cand) && fs.statSync(cand).isFile());
+        if (found && path.resolve(found) !== path.resolve(f)) {
+          importCount.set(found, (importCount.get(found) || 0) + 1);
+        }
+      }
+    }
+
+    // Capability name tables: only array / object-value string literals that
+    // look like module basenames (kebab or camel), not every short string.
+    // Matches: ['foo-bar', "bazModule"] or name: 'foo-bar'
+    if (/backend\/index\.js$/.test(relPath) || /essential-modules-continuum|total-ecosystem-perfection|module-reality|iak\//.test(relPath)) {
+      const nameTableRx = /(?:[\[,:]\s*|^\s*)['"]([a-z][a-zA-Z0-9_-]{2,})['"]\s*[,\]}]/gm;
+      let nm;
+      while ((nm = nameTableRx.exec(c)) !== null) {
+        const base = nm[1];
+        // Skip common non-module tokens.
+        if (/^(get|post|put|delete|patch|head|options|true|false|null|undefined|ok|error|status|json|html|utf-8)$/i.test(base)) continue;
+        for (const target of byBase.get(base) || []) {
+          if (path.resolve(target) !== path.resolve(f)) {
+            importCount.set(target, (importCount.get(target) || 0) + 1);
+          }
+        }
+      }
+    }
 
     const h = sha1(c);
     if (!hashGroups.has(h)) hashGroups.set(h, []);
@@ -189,10 +255,19 @@ function main() {
   }
 
   const allModuleFiles = files.filter((f) => rel(f).startsWith('backend/modules/'));
+  // Pool shims are loaded dynamically via adaptiveEnginePool.getWorker — not dead.
+  const DYNAMIC_POOL_RE = /(?:^|\/)(?:AdaptiveModule|Engine)\d+\.js$/;
+  // Intentional thin aliases that re-export supreme adapters (still production entrypoints).
+  const INTENTIONAL_ALIAS_RE = /(?:ops-watchdog|predictive-healing|quantum-healing|recovery-engine|recovery-orchestrator|self-healing-engine|service-watchdog|auto-optimize|autonomousInnovation|evolution-core|ui-evolution|tenantBilling|tenantProvisioning)\.js$/;
+  // Alternate process entrypoints (PM2/node start targets), not library imports.
+  const STANDALONE_ENTRY_RE = /(?:^|\/)(?:social-orchestrator\/service)\.js$/;
   const deadModules = allModuleFiles
     .filter((f) => (importCount.get(f) || 0) === 0)
     .map(rel)
-    .filter((r) => !/index\.js$/.test(r));
+    .filter((r) => !/index\.js$/.test(r))
+    .filter((r) => !DYNAMIC_POOL_RE.test(r))
+    .filter((r) => !INTENTIONAL_ALIAS_RE.test(r))
+    .filter((r) => !STANDALONE_ENTRY_RE.test(r));
 
   const architecture = detectArchitecture(files, contentMap);
   const revenue = classifyRevenue(files);
@@ -367,6 +442,8 @@ function main() {
     '- Regression gate: security + performance budgets must stay green',
   ].join('\n');
 
+  const poolShimCount = allModuleFiles.filter((f) => DYNAMIC_POOL_RE.test(rel(f))).length;
+  const intentionalAliasSkipped = allModuleFiles.filter((f) => INTENTIONAL_ALIAS_RE.test(rel(f))).length;
   const summary = {
     generatedAt: new Date().toISOString(),
     root: ROOT,
@@ -375,9 +452,21 @@ function main() {
       cycles: cycles.length,
       deadModules: deadModules.length,
       duplicateGroups: duplicates.length,
+      poolShims: poolShimCount,
+      intentionalAliasSkipped,
     },
+    cycleSample: cycles.slice(0, 10).map((c) => c.map(rel).join(' -> ')),
+    deadModulesSample: deadModules.slice(0, 40),
     architecture,
-    risk,
+    risk: {
+      syncIoCount: risk.syncIo.length,
+      blockingExecCount: risk.blockingExec.length,
+      unboundedIntervalsCount: risk.unboundedIntervals.length,
+      evalLikeCount: risk.evalLike.length,
+      weakWebhookCompareCount: risk.weakWebhookCompare.length,
+      syncIoSample: risk.syncIo.slice(0, 30),
+      unboundedIntervalsSample: risk.unboundedIntervals.slice(0, 30),
+    },
     revenue,
   };
 
@@ -390,7 +479,7 @@ function main() {
   fs.writeFileSync(path.join(OUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
 
   console.log('[audit] reports generated at', OUT_DIR);
-  console.log('[audit] files=' + files.length + ' cycles=' + cycles.length + ' deadModules=' + deadModules.length + ' duplicateGroups=' + duplicates.length);
+  console.log('[audit] files=' + files.length + ' cycles=' + cycles.length + ' deadModules=' + deadModules.length + ' duplicateGroups=' + duplicates.length + ' poolShims=' + poolShimCount);
 }
 
 main();

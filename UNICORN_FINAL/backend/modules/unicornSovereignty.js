@@ -91,7 +91,14 @@ function loadOrCreateKeypair() {
 }
 
 function rotateIfNeeded() {
-  try { const st = fs.statSync(LEDGER); if (st.size > ROTATE_BYTES) fs.renameSync(LEDGER, LEDGER + '.' + Date.now() + '.bak'); } catch (e) { console.warn('[unicornSovereignty] ledger rotation failed:', e.message); }
+  try {
+    ensureDir();
+    if (!fs.existsSync(LEDGER)) return;
+    const st = fs.statSync(LEDGER);
+    if (st.size > ROTATE_BYTES) fs.renameSync(LEDGER, LEDGER + '.' + Date.now() + '.bak');
+  } catch (e) {
+    console.warn('[unicornSovereignty] ledger rotation failed:', e.message);
+  }
 }
 
 function snapshot() {

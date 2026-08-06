@@ -25,6 +25,17 @@ const adapter = {
   forceHeal: () => forceHealSafe(),
   getBus: () => (typeof core.getBus === 'function' ? core.getBus() : null),
   getLedger: () => (typeof core.getLedger === 'function' ? core.getLedger() : { events: [] }),
+  // Event surface used by predictive-healing-bridge and IAK guardians
+  on: (...args) => (typeof core.on === 'function' ? core.on(...args) : undefined),
+  once: (...args) => (typeof core.once === 'function' ? core.once(...args) : undefined),
+  off: (...args) => (typeof core.off === 'function' ? core.off(...args) : undefined),
+  emit: (...args) => (typeof core.emit === 'function' ? core.emit(...args) : false),
+  handlePredictiveWarning: (p) => (
+    typeof core.handlePredictiveWarning === 'function'
+      ? core.handlePredictiveWarning(p)
+      : forceHealSafe()
+  ),
+  init: () => (typeof core.init === 'function' ? core.init() : (typeof core.start === 'function' ? core.start() : { ok: true })),
 
   // Legacy compatibility aliases — delegate to core start/stop (Boot Immortal).
   start: () => (typeof core.start === 'function' ? core.start() : { ok: true, active: true, status: typeof core.getStatus === 'function' ? core.getStatus() : {} }),

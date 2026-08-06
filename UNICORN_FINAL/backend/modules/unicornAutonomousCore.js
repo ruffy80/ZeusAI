@@ -431,6 +431,26 @@ class UnicornAutonomousCore {
     ];
   }
 
+  /**
+   * Load the real vertical engines that market-trend innovation already names.
+   * Prefer existing production modules over generating empty stubs.
+   */
+  loadVerticalEngines() {
+    if (this._verticalEngines) return this._verticalEngines;
+    const names = ['healthcareAI', 'web3Identity', 'energyTrading'];
+    const out = {};
+    for (const n of names) {
+      try {
+        // Dynamic vertical loader — real engines preferred over stub generation.
+        out[n] = require(path.join(__dirname, n + '.js'));
+      } catch (e) {
+        out[n] = { ok: false, error: String(e && e.message || e) };
+      }
+    }
+    this._verticalEngines = out;
+    return out;
+  }
+
   async fullSystemOptimization() {
     this.log('⚡ Pornire optimizare completă a sistemului...');
     try { execSync('npx prettier --write "src/**/*.js"', { stdio: 'ignore' }); this.log('✅ Cod formatat cu Prettier'); } catch(e) {}
@@ -441,12 +461,24 @@ class UnicornAutonomousCore {
 
   getStatus() {
     const modulesCount = this.getAllModules().length;
+    const verticals = this.loadVerticalEngines();
+    const verticalStatus = {};
+    for (const [name, mod] of Object.entries(verticals)) {
+      try {
+        verticalStatus[name] = (mod && typeof mod.getStatus === 'function')
+          ? mod.getStatus()
+          : { ok: false, reason: 'no_getStatus' };
+      } catch (e) {
+        verticalStatus[name] = { ok: false, error: String(e && e.message || e) };
+      }
+    }
     return {
       status: this.status,
       modulesCount,
       lastFullScan: this.status.lastFullScan,
       isRunning: this.status.isRunning,
-      health: modulesCount > 10 ? 'excellent' : 'good'
+      health: modulesCount > 10 ? 'excellent' : 'good',
+      verticalEngines: verticalStatus,
     };
   }
 }

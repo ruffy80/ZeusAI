@@ -1,11 +1,11 @@
 # Scalability Report
 
-Generated: 2026-07-07T17:47:57.083Z
+Generated: 2026-08-06T19:47:04.141Z
 
-- Node JS files scanned: 489
-- Route-bearing files: 18
-- Circular dependency cycles: 1
-- Potential dead modules: 85
+- Node JS files scanned: 725
+- Route-bearing files: 28
+- Circular dependency cycles: 6
+- Potential dead modules: 0
 
 ## 100x readiness actions
 - Move long-running async workloads to queue workers (BullMQ/Redis or equivalent)
