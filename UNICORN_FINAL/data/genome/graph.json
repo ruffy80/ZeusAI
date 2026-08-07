@@ -6,7 +6,7 @@
       "sku": "instant-website-audit",
       "title": "Instant Website Audit (AI)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.953Z"
+      "updatedAt": "2026-08-07T02:18:11.311Z"
     },
     "omega_continuum": {
       "id": "omega_continuum",
@@ -20,7 +20,7 @@
       "sku": "instant-logo-kit",
       "title": "Instant Brand Logo Kit",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.954Z"
+      "updatedAt": "2026-08-07T02:18:11.312Z"
     },
     "gnm_8f38645e700d20a7b8": {
       "id": "gnm_8f38645e700d20a7b8",
@@ -28,7 +28,7 @@
       "sku": "instant-pitch-deck",
       "title": "Instant Pitch Deck (10 slides)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.956Z"
+      "updatedAt": "2026-08-07T02:18:11.314Z"
     },
     "gnm_52540b16af78d8924e": {
       "id": "gnm_52540b16af78d8924e",
@@ -36,7 +36,7 @@
       "sku": "instant-seo-content-pack",
       "title": "Instant SEO Content Pack (10 articles)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.957Z"
+      "updatedAt": "2026-08-07T02:18:11.316Z"
     },
     "gnm_ffde2fb3c9f434c801": {
       "id": "gnm_ffde2fb3c9f434c801",
@@ -44,7 +44,7 @@
       "sku": "instant-landing-page",
       "title": "Instant Landing Page (HTML + copy)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.959Z"
+      "updatedAt": "2026-08-07T02:18:11.317Z"
     },
     "gnm_d19ca7ae84f7e37925": {
       "id": "gnm_d19ca7ae84f7e37925",
@@ -52,7 +52,7 @@
       "sku": "instant-brand-voice",
       "title": "Instant Brand Voice & Messaging Guide",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.960Z"
+      "updatedAt": "2026-08-07T02:18:11.319Z"
     },
     "gnm_29b536618507691e3b": {
       "id": "gnm_29b536618507691e3b",
@@ -60,7 +60,7 @@
       "sku": "instant-social-media-kit",
       "title": "Instant Social Media Kit (30 posts)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.962Z"
+      "updatedAt": "2026-08-07T02:18:11.320Z"
     },
     "gnm_ce87f9827bdfbf65b8": {
       "id": "gnm_ce87f9827bdfbf65b8",
@@ -68,7 +68,7 @@
       "sku": "instant-email-sequence",
       "title": "Instant 7-Email Onboarding Sequence",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.963Z"
+      "updatedAt": "2026-08-07T02:18:11.322Z"
     },
     "gnm_1393b2c8ef8e9586e8": {
       "id": "gnm_1393b2c8ef8e9586e8",
@@ -76,7 +76,7 @@
       "sku": "instant-product-naming",
       "title": "Instant Product Naming Sprint (25 names + domains)",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.965Z"
+      "updatedAt": "2026-08-07T02:18:11.324Z"
     },
     "gnm_9b7ad11853064fcf69": {
       "id": "gnm_9b7ad11853064fcf69",
@@ -84,7 +84,7 @@
       "sku": "instant-resume-makeover",
       "title": "Instant Resume + LinkedIn Makeover",
       "tier": "instant",
-      "updatedAt": "2026-08-06T20:04:50.966Z"
+      "updatedAt": "2026-08-07T02:18:11.325Z"
     },
     "gnm_bb6dbef06b09686258": {
       "id": "gnm_bb6dbef06b09686258",
@@ -92,7 +92,7 @@
       "sku": "professional-saas-mvp",
       "title": "SaaS MVP Build Engagement (≈7 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.968Z"
+      "updatedAt": "2026-08-07T02:18:11.327Z"
     },
     "gnm_2d9589dcfbe8a00c62": {
       "id": "gnm_2d9589dcfbe8a00c62",
@@ -100,7 +100,7 @@
       "sku": "professional-ai-agent",
       "title": "Custom AI Agent Build Engagement (≈10 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.969Z"
+      "updatedAt": "2026-08-07T02:18:11.328Z"
     },
     "gnm_594e2d25e0dc935224": {
       "id": "gnm_594e2d25e0dc935224",
@@ -108,7 +108,7 @@
       "sku": "professional-mobile-app",
       "title": "Mobile App Build Engagement (iOS + Android, ≈14 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.973Z"
+      "updatedAt": "2026-08-07T02:18:11.330Z"
     },
     "gnm_cdfd77e3b7536eea90": {
       "id": "gnm_cdfd77e3b7536eea90",
@@ -116,7 +116,7 @@
       "sku": "professional-ecommerce-store",
       "title": "E-commerce Store Build Engagement (≈10 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.974Z"
+      "updatedAt": "2026-08-07T02:18:11.331Z"
     },
     "gnm_11413dbf3815fc4a46": {
       "id": "gnm_11413dbf3815fc4a46",
@@ -124,7 +124,7 @@
       "sku": "professional-ai-chatbot",
       "title": "RAG Chatbot Build Engagement (≈7 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.976Z"
+      "updatedAt": "2026-08-07T02:18:11.333Z"
     },
     "gnm_b9f190264fc8aaa386": {
       "id": "gnm_b9f190264fc8aaa386",
@@ -132,7 +132,7 @@
       "sku": "professional-data-pipeline",
       "title": "Data Pipeline + Dashboard Engagement (≈14 days)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.932Z"
+      "updatedAt": "2026-08-07T02:18:11.334Z"
     },
     "gnm_1bf7b7cbd3e3245cb1": {
       "id": "gnm_1bf7b7cbd3e3245cb1",
@@ -140,7 +140,7 @@
       "sku": "professional-ai-marketing",
       "title": "90-day Marketing Engine Engagement (≈7 days setup)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.934Z"
+      "updatedAt": "2026-08-07T02:18:11.336Z"
     },
     "gnm_e2530d7c8ee2d9aee8": {
       "id": "gnm_e2530d7c8ee2d9aee8",
@@ -148,7 +148,7 @@
       "sku": "professional-investor-package",
       "title": "Investor Package Engagement (deck + model + memo)",
       "tier": "professional",
-      "updatedAt": "2026-08-06T20:04:50.938Z"
+      "updatedAt": "2026-08-07T02:18:11.337Z"
     },
     "gnm_2a3b997cbb6a874bf6": {
       "id": "gnm_2a3b997cbb6a874bf6",
@@ -156,7 +156,7 @@
       "sku": "ent-platform-license",
       "title": "Unicorn Platform — Enterprise License",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.940Z"
+      "updatedAt": "2026-08-07T02:18:11.339Z"
     },
     "gnm_5e47db9d2949b40745": {
       "id": "gnm_5e47db9d2949b40745",
@@ -164,7 +164,7 @@
       "sku": "ent-acquisition-pack",
       "title": "Unicorn Acquisition Pack — Source Code + IP",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.941Z"
+      "updatedAt": "2026-08-07T02:18:11.340Z"
     },
     "gnm_bea236ca0dd7d35835": {
       "id": "gnm_bea236ca0dd7d35835",
@@ -172,7 +172,7 @@
       "sku": "ent-revenue-share",
       "title": "Unicorn Revenue-Share Partnership",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.945Z"
+      "updatedAt": "2026-08-07T02:18:11.342Z"
     },
     "gnm_e3793dcbf3448dd14e": {
       "id": "gnm_e3793dcbf3448dd14e",
@@ -180,7 +180,7 @@
       "sku": "ent-private-cloud",
       "title": "Unicorn Private Cloud — Dedicated Tenant",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.947Z"
+      "updatedAt": "2026-08-07T02:18:11.344Z"
     },
     "gnm_6695d18c5afa8ba7cd": {
       "id": "gnm_6695d18c5afa8ba7cd",
@@ -188,7 +188,7 @@
       "sku": "ent-ai-transformation",
       "title": "Unicorn AI Transformation Programme (12 months)",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.948Z"
+      "updatedAt": "2026-08-07T02:18:11.345Z"
     },
     "gnm_374b498afa37d5cc61": {
       "id": "gnm_374b498afa37d5cc61",
@@ -196,7 +196,7 @@
       "sku": "ent-white-label",
       "title": "Unicorn White-Label Platform",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.950Z"
+      "updatedAt": "2026-08-07T02:18:11.347Z"
     },
     "gnm_5b6b2cbc108758e38d": {
       "id": "gnm_5b6b2cbc108758e38d",
@@ -204,7 +204,7 @@
       "sku": "ent-sovereign-deployment",
       "title": "Unicorn Sovereign Deployment (on-prem + audit suite)",
       "tier": "enterprise",
-      "updatedAt": "2026-08-06T20:04:50.951Z"
+      "updatedAt": "2026-08-07T02:18:11.348Z"
     }
   },
   "edges": [

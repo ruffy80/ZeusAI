@@ -30,17 +30,31 @@ const app = require('../backend/index');
 let server;
 let port;
 
-async function req(method, path, body) {
+async function req(method, path, body, { retries = 5 } = {}) {
   const url = `http://127.0.0.1:${port}${path}`;
   const opts = { method, headers: { Accept: 'application/json' } };
   if (body) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(url, opts);
-  let data = null;
-  try { data = await res.json(); } catch (_) { /* non-json ok */ }
-  return { status: res.status, body: data };
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const res = await fetch(url, opts);
+      let data = null;
+      try { data = await res.json(); } catch (_) { /* non-json ok */ }
+      return { status: res.status, body: data };
+    } catch (err) {
+      lastErr = err;
+      const message = String(err?.message || err || '');
+      if (!/fetch failed|ECONNRESET|ECONNREFUSED|socket|timed out|network/i.test(message)
+        || attempt === retries) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100 * (2 ** attempt)));
+    }
+  }
+  throw lastErr || new Error('request failed');
 }
 
 async function setup() {

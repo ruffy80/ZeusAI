@@ -1,7 +1,7 @@
 {
   "protocol": "CAC/1.0",
-  "tipHash": "0eeed98d6cba0352d3455add109c521af97ad101f1728eb4877c0a6ba0164c43",
-  "seq": 4,
+  "tipHash": "cf8b19ad90552cf3c7e431d0e8e00f27c07f0afcafa31804f58a5ad8e9c817b1",
+  "seq": 6,
   "startedAt": "2026-08-06T20:00:42.147Z",
   "beats": [
     {
@@ -97,7 +97,55 @@
         "keyId": "hmac:env",
         "signature": "deq/F/5Jt4DvgHQL1LkcmOs/GR0z3rGBKs29UTStaEA="
       }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 5,
+      "prevHash": "0eeed98d6cba0352d3455add109c521af97ad101f1728eb4877c0a6ba0164c43",
+      "at": "2026-08-07T02:16:07.248Z",
+      "buildSha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "icp_start"
+      ],
+      "hash": "418e538f0118a28849e598c9f82573b73d126c7d15aa61bafb9692daccc5de58",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "1Gfl9Fo9JPYg/J5BwbWKKliXjvFHLOV+ZvJi/fJGTkQ="
+      }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 6,
+      "prevHash": "418e538f0118a28849e598c9f82573b73d126c7d15aa61bafb9692daccc5de58",
+      "at": "2026-08-07T02:17:32.023Z",
+      "buildSha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "icp_start"
+      ],
+      "hash": "cf8b19ad90552cf3c7e431d0e8e00f27c07f0afcafa31804f58a5ad8e9c817b1",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:env",
+        "signature": "EUKrmwLET2hafUuH+cUU01D7cmJzO8qyi6BgWNjc7eQ="
+      }
     }
   ],
-  "updatedAt": "2026-08-06T20:03:02.931Z"
+  "updatedAt": "2026-08-07T02:17:32.023Z"
 }

@@ -2,15 +2,27 @@
   "protocol": "DCA/1.0",
   "state": {
     "startedAt": "2026-08-06T20:00:42.146Z",
-    "liveSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
-    "lastPromoteAt": "2026-08-06T20:01:32.937Z",
+    "liveSha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
+    "lastPromoteAt": "2026-08-07T02:17:32.024Z",
     "lastCanaryFailAt": null,
     "lastCanaryFailSha": null,
     "lastCanaryFailReason": null,
     "quarantined": [],
-    "knownGoodSha": "ae24699cce7972b378cebfe05cd7a171677b9cf5",
+    "knownGoodSha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
     "commitsBehindHint": 0,
     "events": [
+      {
+        "kind": "promote",
+        "at": "2026-08-07T02:17:32.024Z",
+        "sha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
+        "note": "boot_attestation"
+      },
+      {
+        "kind": "promote",
+        "at": "2026-08-07T02:16:07.250Z",
+        "sha": "63ac08dc21959cfa210f8c87e1de837a26d0a111",
+        "note": "boot_attestation"
+      },
       {
         "kind": "promote",
         "at": "2026-08-06T20:01:32.937Z",
@@ -25,5 +37,5 @@
       }
     ]
   },
-  "updatedAt": "2026-08-06T20:01:32.937Z"
+  "updatedAt": "2026-08-07T02:17:32.024Z"
 }
