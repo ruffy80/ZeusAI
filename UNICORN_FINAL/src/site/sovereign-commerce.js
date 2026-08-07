@@ -445,7 +445,7 @@ function httpJson(url, timeoutMs = 8000) {
         });
       });
       req.on('error', (e) => finish({ ok: false, error: String(e) }));
-      req.on('timeout', () => { finish({ ok: false, error: 'timeout' }); req.destroy(); });
+      req.on('timeout', () => { req.destroy(new Error('timeout')); finish({ ok: false, error: 'timeout' }); });
     } catch (e) { finish({ ok: false, error: String(e) }); }
   });
 }
