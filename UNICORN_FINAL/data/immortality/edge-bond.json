@@ -1,7 +1,7 @@
 {
   "protocol": "EBS/1.0",
   "module": "edge-bond-signal",
-  "updatedAt": "2026-08-06T20:03:02.931Z",
+  "updatedAt": "2026-08-07T02:16:07.248Z",
   "localSiteOk": true,
   "localBackendOk": true,
   "publicEdgeOk": null,
