@@ -46,12 +46,12 @@ async function req(method, path, body, { retries = 5 } = {}) {
       return { status: res.status, body: data };
     } catch (err) {
       lastErr = err;
-      const message = String(err && err.message || err || '');
+      const message = String(err?.message || err || '');
       if (!/fetch failed|ECONNRESET|ECONNREFUSED|socket|timed out|network/i.test(message)
         || attempt === retries) {
         throw err;
       }
-      await new Promise((resolve) => setTimeout(resolve, 100 * (1 << attempt)));
+      await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, attempt)));
     }
   }
   throw lastErr || new Error('request failed');
