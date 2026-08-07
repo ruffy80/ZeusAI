@@ -51,7 +51,10 @@ function _httpGetJson(url, timeoutMs = 1500) {
         });
       });
       req.on('error', () => finish({ ok: false, error: 'request_error' }));
-      req.on('timeout', () => { req.destroy(); finish({ ok: false, error: 'timeout' }); });
+      req.on('timeout', () => {
+        try { req.destroy(); } catch (_) {}
+        finish({ ok: false, error: 'timeout' });
+      });
       req.end();
     } catch (_) { finish({ ok: false, error: 'invalid_url' }); }
   });
