@@ -30,7 +30,7 @@ const app = require('../backend/index');
 let server;
 let port;
 
-async function req(method, path, body, { retries = 3 } = {}) {
+async function req(method, path, body, { retries = 5 } = {}) {
   const url = `http://127.0.0.1:${port}${path}`;
   const opts = { method, headers: { Accept: 'application/json' } };
   if (body) {
@@ -51,7 +51,7 @@ async function req(method, path, body, { retries = 3 } = {}) {
         || attempt === retries) {
         throw err;
       }
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, 100 * (1 << attempt)));
     }
   }
   throw lastErr || new Error('request failed');
