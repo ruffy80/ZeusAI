@@ -51,7 +51,7 @@ async function req(method, path, body, { retries = 5 } = {}) {
         || attempt === retries) {
         throw err;
       }
-      await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, attempt)));
+      await new Promise((resolve) => setTimeout(resolve, 100 * (2 ** attempt)));
     }
   }
   throw lastErr || new Error('request failed');
