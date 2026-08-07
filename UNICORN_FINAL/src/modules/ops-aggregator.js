@@ -24,6 +24,12 @@ const DEPLOY_LINK = process.env.DEPLOY_LINK || '/var/www/unicorn/UNICORN_FINAL';
 
 function _httpGetJson(url, timeoutMs = 1500) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     try {
       const u = new URL(url);
       const req = http.request({
@@ -37,17 +43,17 @@ function _httpGetJson(url, timeoutMs = 1500) {
         let buf = '';
         res.on('data', (c) => { buf += c; });
         res.on('end', () => {
-          try { resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body: JSON.parse(buf || 'null') }); }
-          catch (_) { resolve({ ok: false, status: res.statusCode, body: null }); }
+          try { finish({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body: JSON.parse(buf || 'null') }); }
+          catch (_) { finish({ ok: false, status: res.statusCode, body: null }); }
         });
         res.on('close', () => {
-          if (!res.complete) resolve({ ok: false, error: 'response_closed' });
+          if (!res.complete) finish({ ok: false, error: 'response_closed' });
         });
       });
-      req.on('error', () => resolve({ ok: false, error: 'request_error' }));
-      req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve({ ok: false, error: 'timeout' }); });
+      req.on('error', () => finish({ ok: false, error: 'request_error' }));
+      req.on('timeout', () => { try { req.destroy(); } catch (_) {} finish({ ok: false, error: 'timeout' }); });
       req.end();
-    } catch (_) { resolve({ ok: false, error: 'invalid_url' }); }
+    } catch (_) { finish({ ok: false, error: 'invalid_url' }); }
   });
 }
 
