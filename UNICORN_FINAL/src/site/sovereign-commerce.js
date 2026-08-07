@@ -419,6 +419,12 @@ function verifyEntitlement(ent) {
 // ── HTTP helpers ────────────────────────────────────────────────────────────
 function httpJson(url, timeoutMs = 8000) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     try {
       const u = new URL(url);
       const mod = u.protocol === 'https:' ? https : http;
@@ -428,16 +434,22 @@ function httpJson(url, timeoutMs = 8000) {
         res.on('end', () => {
           const body = Buffer.concat(chunks).toString('utf8');
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try { resolve({ ok: true, data: JSON.parse(body) }); }
-            catch { resolve({ ok: true, data: body }); }
+            try { finish({ ok: true, data: JSON.parse(body) }); }
+            catch { finish({ ok: true, data: body }); }
           } else {
-            resolve({ ok: false, status: res.statusCode, body });
+            finish({ ok: false, status: res.statusCode, body });
           }
         });
+        res.on('close', () => {
+          if (!res.complete) finish({ ok: false, error: 'response_closed' });
+        });
       });
-      req.on('error', (e) => resolve({ ok: false, error: String(e) }));
-      req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'timeout' }); });
-    } catch (e) { resolve({ ok: false, error: String(e) }); }
+      req.on('error', (e) => finish({ ok: false, error: String(e) }));
+      req.on('timeout', () => {
+        try { req.destroy(); } catch (_) {}
+        finish({ ok: false, error: 'timeout' });
+      });
+    } catch (e) { finish({ ok: false, error: String(e) }); }
   });
 }
 
@@ -2723,11 +2735,22 @@ loadState();
 loadPaymentExceptions();
 loadCatalogSeen();
 // Initial non-blocking price warm-up + first scan
-setTimeout(() => { getBtcPrice().catch((e) => console.warn('[commerce] initial BTC price fetch error:', e.message)); scanIncoming().catch((e) => console.warn('[commerce] initial scan error:', e.message)); }, 3000);
+setTimeout(() => {
+  getBtcPrice().catch((e) => {
+    _metricInc('btc_price_fetch_error');
+    console.error('[commerce] initial BTC price fetch error:', e instanceof Error ? e.message : String(e));
+  });
+  scanIncoming().catch((e) => console.warn('[commerce] initial scan error:', e instanceof Error ? e.message : String(e)));
+}, 3000);
 // Recurring watcher
 setInterval(() => { scanIncoming().catch((e) => console.warn('[commerce] scan error:', e.message)); }, WATCH_MS).unref();
 // Price refresh independent of watcher
-setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC price refresh error:', e.message)); }, 5 * 60 * 1000).unref();
+setInterval(() => {
+  getBtcPrice().catch((e) => {
+    _metricInc('btc_price_fetch_error');
+    console.error('[commerce] BTC price refresh error:', e instanceof Error ? e.message : String(e));
+  });
+}, 5 * 60 * 1000).unref();
 // Abandoned sovereign invoice recovery (always-on — not gated on revenue autopilot)
 setTimeout(() => {
   Promise.resolve(recoverStuckPending({ dryRun: false }))
