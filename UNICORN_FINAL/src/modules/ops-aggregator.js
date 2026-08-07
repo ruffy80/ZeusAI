@@ -40,6 +40,9 @@ function _httpGetJson(url, timeoutMs = 1500) {
           try { resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body: JSON.parse(buf || 'null') }); }
           catch (_) { resolve({ ok: false, status: res.statusCode, body: null }); }
         });
+        res.on('close', () => {
+          if (!res.complete) resolve({ ok: false, error: 'response_closed' });
+        });
       });
       req.on('error', () => resolve({ ok: false, error: 'request_error' }));
       req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve({ ok: false, error: 'timeout' }); });
