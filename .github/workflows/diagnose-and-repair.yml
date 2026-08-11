@@ -109,13 +109,14 @@ jobs:
             rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled
 
             APP_DIR=""
+            # Prefer the live symlink target (current/live) over a stale flat copy.
             for candidate in \
-              /var/www/unicorn/UNICORN_FINAL \
               /var/www/unicorn/current/UNICORN_FINAL \
-              /var/www/unicorn/live/UNICORN_FINAL
+              /var/www/unicorn/live/UNICORN_FINAL \
+              /var/www/unicorn/UNICORN_FINAL
             do
               if [ -f "$candidate/ecosystem.config.js" ]; then
-                APP_DIR="$candidate"
+                APP_DIR="$(readlink -f "$candidate" 2>/dev/null || echo "$candidate")"
                 break
               fi
             done
@@ -125,6 +126,7 @@ jobs:
             fi
             echo "[heal] APP_DIR=$APP_DIR"
             cd "$APP_DIR"
+            echo "[heal] git HEAD=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
             echo '[heal] hard reset PM2 daemon/dump'
             timeout 10s pm2 stop all 2>/dev/null || true
@@ -182,20 +184,51 @@ jobs:
 
             # Prefer /health/live (process-only) so a busy event loop does not
             # look like a dead process during warm-up.
-            BACKEND_HEALTHY=0
-            SITE_HEALTHY=0
-            wait_for_live backend http://127.0.0.1:3000/health/live 12 3 && BACKEND_HEALTHY=1
-            wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
+            dump_backend_diag() {
+              echo '::group::Backend boot diagnostics'
+              timeout 15s pm2 describe unicorn-backend 2>&1 | tail -80 || true
+              timeout 15s pm2 logs unicorn-backend --err --lines 100 --nostream 2>&1 | tail -120 || true
+              timeout 15s pm2 logs unicorn-backend --out --lines 60 --nostream 2>&1 | tail -80 || true
+              ss -tlnp 2>/dev/null | grep -E ':3000|:3001' || echo '[ss] no 3000/3001 listeners'
+              echo '::endgroup::'
+            }
 
-            if [ "$BACKEND_HEALTHY" != "1" ]; then
-              echo '[heal] backend retry (canonical only — never rescue)'
+            # SIGKILL a PM2-online but non-serving backend (accept-but-hang / stuck boot).
+            force_kill_backend() {
+              echo '[heal] SIGKILL unicorn-backend (stuck boot / hang)'
+              local pid
+              pid="$(pm2 jlist 2>/dev/null | node -e '
+                let s=""; process.stdin.on("data",d=>s+=d); process.stdin.on("end",()=>{
+                  try {
+                    const apps=JSON.parse(s||"[]");
+                    const a=apps.find(x=>x&&x.name==="unicorn-backend");
+                    const p=a&&a.pid; if (p) process.stdout.write(String(p));
+                  } catch (_) {}
+                });
+              ' 2>/dev/null || true)"
+              if [ -n "${pid:-}" ]; then kill -9 "$pid" 2>/dev/null || true; fi
               timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
               for PORT in 3000; do
                 PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
                 for PID in $PIDS; do kill -9 "$PID" 2>/dev/null || true; done
               done
+            }
+
+            BACKEND_HEALTHY=0
+            SITE_HEALTHY=0
+            # Backend cold boot can exceed 36s under world-catalog work; allow ~80s.
+            wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
+            wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
+
+            if [ "$BACKEND_HEALTHY" != "1" ]; then
+              echo '[heal] backend retry (canonical only — never rescue)'
+              dump_backend_diag
+              force_kill_backend
               timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
-              wait_for_live backend http://127.0.0.1:3000/health/live 10 3 && BACKEND_HEALTHY=1
+              wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
+              if [ "$BACKEND_HEALTHY" != "1" ]; then
+                dump_backend_diag
+              fi
             fi
 
             if [ "$SITE_HEALTHY" != "1" ]; then
@@ -249,7 +282,7 @@ jobs:
 
           echo "::group::Smoke (backend-direct via SSH on 127.0.0.1:3000)"
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes root@"$HETZNER_HOST" \
-            'cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || cd /var/www/unicorn/current/UNICORN_FINAL; BASE_URL=http://127.0.0.1:3000 SKIP_PUBLIC=1 REQUIRE_PM2=1 bash scripts/smoke-forward-only.sh'
+            'cd /var/www/unicorn/current/UNICORN_FINAL 2>/dev/null || cd /var/www/unicorn/UNICORN_FINAL; BASE_URL=http://127.0.0.1:3000 SKIP_PUBLIC=1 REQUIRE_PM2=1 AUTOSTART_LOCAL=0 bash scripts/smoke-forward-only.sh'
           echo "[backend-direct] PASS"
           echo "::endgroup::"
 
