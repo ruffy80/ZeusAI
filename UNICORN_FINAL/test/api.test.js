@@ -81,11 +81,20 @@ async function runTests() {
 
   // ── Health ──────────────────────────────────────────────────────────────────
   console.log('Health endpoint:');
-  await test('GET /api/health returns ok (redacted public contract)', async () => {
+  await test('GET /api/health returns truthful status (redacted public contract)', async () => {
     const r = await apiRequest('GET', '/api/health');
+    // Endpoint always answers 200 (uptime monitors), but status/ok/dbConnected
+    // are now TRUTHFUL: derived from durable persistence + drain state rather
+    // than hard-coded. This suite forces DB_PATH=':memory:' (non-durable), so
+    // the contract must report a degraded, non-connected DB — not a fake 'ok'.
     assert.equal(r.status, 200);
-    assert.equal(r.body.status, 'ok');
-    assert.equal(r.body.ok, true);
+    assert.ok(r.body.status === 'ok' || r.body.status === 'degraded', 'status must be a real health verdict');
+    assert.equal(r.body.ok, r.body.status === 'ok', 'ok must mirror status === ok');
+    assert.equal(typeof r.body.dbConnected, 'boolean', 'dbConnected must be a boolean');
+    // In-memory fallback is not durable → must report degraded + disconnected.
+    assert.equal(r.body.dbConnected, false, 'in-memory fallback must report dbConnected:false');
+    assert.equal(r.body.status, 'degraded', 'non-durable persistence must be degraded');
+    assert.equal(r.body.ok, false, 'non-durable persistence must not claim ok');
     assert.ok(typeof r.body.uptime === 'number', 'uptime must stay numeric seconds (canary reads j.uptime)');
     assert.ok(r.body.version);
     assert.ok('buildSha' in r.body);

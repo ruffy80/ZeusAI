@@ -119,6 +119,13 @@ module.exports = {
         // after cold-boot settle is proven stable.
         QIS_AUTO_HEAL_ENABLED: process.env.QIS_AUTO_HEAL_ENABLED || 'false',
         QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site',
+        // Ops dashboard used to execSync('pm2 jlist') on every /api/ops/dashboard
+        // poll and freeze the event loop (live outage 2026-08-11). Keep the
+        // async path's boot-grace + short TTL cache on in production so cold
+        // boots and healer bursts cannot re-block /api/health.
+        OPS_PM2_BOOT_GRACE_MS: process.env.OPS_PM2_BOOT_GRACE_MS || '120000',
+        OPS_PM2_CACHE_TTL_MS: process.env.OPS_PM2_CACHE_TTL_MS || '15000',
+        OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '0',
         // Innovation generation + auto-ship OFF under safe/stable (Commercial Cycle).
         // Arm only after money path is proven: INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1
         // under UNICORN_RUNTIME_PROFILE=growth.
@@ -227,6 +234,13 @@ module.exports = {
         // Loopback-only; nginx is the only publicly reachable surface for the site.
         BIND_HOST: process.env.BIND_HOST || '127.0.0.1',
         BACKEND_API_URL: 'http://127.0.0.1:3000',
+        // Site health monitor + proxy target (documented separately from BACKEND_API_URL).
+        UNICORN_SITE_INTERNAL_BACKEND: process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health',
+        BACKEND_ORIGIN: process.env.BACKEND_ORIGIN || 'http://127.0.0.1:3000',
+        // Same ops-pm2 guards as backend — site also serves /api/ops/dashboard.
+        OPS_PM2_BOOT_GRACE_MS: process.env.OPS_PM2_BOOT_GRACE_MS || '120000',
+        OPS_PM2_CACHE_TTL_MS: process.env.OPS_PM2_CACHE_TTL_MS || '15000',
+        OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '0',
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
         PUBLIC_APP_URL: 'https://zeusai.pro',

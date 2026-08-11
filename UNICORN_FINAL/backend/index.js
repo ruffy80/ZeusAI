@@ -2065,6 +2065,7 @@ const {
   passkeys: dbPasskeys,
   meta: dbMeta,
 } = require('./db');
+const { deriveHealthStatus } = require('./health-status');
 const emailService = require('./email');
 try {
   if (emailService && typeof emailService.startOutboxReplay === 'function') {
@@ -5111,12 +5112,19 @@ function buildHealthResponse() {
   const modulesLoaded = keyModules.filter((m) => {
     try { require.resolve('./modules/' + m); return true; } catch (_) { return false; }
   });
+  // Truthful health: status/dbConnected derived from durable persistence and
+  // drain state instead of hard-coded truthiness. Under normal production
+  // (durable sqlite-file, not draining) this stays 'ok' / true.
+  const { status: healthStatus, dbConnected } = deriveHealthStatus({
+    durable: persistence.durable,
+    drainMode: _drainMode,
+  });
   return {
-    status: 'ok',
+    status: healthStatus,
     uptime: s,
     uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
-    dbConnected: true,
+    dbConnected,
     modules: modulesLoaded,
     modulesTotal: keyModules.length,
     persistence: {

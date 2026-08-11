@@ -28,11 +28,15 @@ const MIN_PROCS = Math.max(1, parseInt(process.env.PREDICTIVE_SCALER_MIN || '1',
 const MIN_FREE_MB = parseInt(process.env.PREDICTIVE_SCALER_MIN_FREE_MB || '1200', 10);
 const SCALE_UP_LOAD_RATIO = parseFloat(process.env.PREDICTIVE_SCALER_UP_LOAD || '0.85'); // loadavg/core
 const SCALE_DOWN_LOAD_RATIO = parseFloat(process.env.PREDICTIVE_SCALER_DOWN_LOAD || '0.35');
+// Hard upper bound on how long any PM2 shell-out may block the event loop.
+// autoScale() runs on a 2-min interval; a hung `pm2 jlist`/`pm2 scale` (e.g.
+// PM2 daemon wedged) must never stall the process indefinitely.
+const PM2_CMD_TIMEOUT_MS = Math.max(1000, parseInt(process.env.PREDICTIVE_SCALER_PM2_TIMEOUT_MS || '5000', 10));
 
 function hasPm2() {
   if (pm2Available !== undefined) return pm2Available;
   try {
-    execSync('command -v pm2', { stdio: 'ignore' });
+    execSync('command -v pm2', { stdio: 'ignore', timeout: PM2_CMD_TIMEOUT_MS });
     pm2Available = true;
   } catch (_) {
     pm2Available = false;
@@ -77,7 +81,7 @@ function autoScale() {
     if (!hasPm2()) return;
     // Snapshot real PM2 state once and decide off it. Counting instances by
     // name covers cluster mode where pm2 jlist returns N rows (one per worker).
-    const list = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const list = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'], timeout: PM2_CMD_TIMEOUT_MS }).toString();
     const apps = JSON.parse(list || '[]');
     const matches = apps.filter(app => app && app.name === PM2_SCALE_APP);
     if (matches.length === 0) {
@@ -92,7 +96,7 @@ function autoScale() {
       return;
     }
     try {
-      execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`, { stdio: ['ignore', 'pipe', 'pipe'] });
+      execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`, { stdio: ['ignore', 'pipe', 'pipe'], timeout: PM2_CMD_TIMEOUT_MS });
       console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} ${currentRunning}\u2192${needed} procs (loadRatio=${metrics.loadRatio.toFixed(2)}, free=${metrics.freeMb}MB)`);
     } catch (e) {
       const out = String((e && (e.stderr || e.stdout || e.message)) || '');

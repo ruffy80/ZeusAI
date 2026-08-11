@@ -357,7 +357,25 @@ app.get('/health/live', (req, res) => {
 app.get('/health/ready', (req, res) => {
   res.set('Cache-Control', 'no-store');
   if (_siteDrainMode) return res.status(503).json({ ok: false, ready: false, reason: 'draining', role: 'site' });
-  res.json({ ok: true, ready: true, role: 'site', pid: process.pid });
+  // Site readiness requires the backend monitor to be green once it has run.
+  // Before the first probe (lastTs=0) we stay ready so cold boot is not
+  // flapped by healers; after the monitor has observed failures, report 503.
+  const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, lastTs: 0 };
+  const backendReady = !!mon.ok;
+  const monitorWarmed = Number(mon.lastTs) > 0;
+  const ready = !monitorWarmed || backendReady;
+  const body = {
+    ok: ready,
+    ready,
+    role: 'site',
+    pid: process.pid,
+    siteReady: true,
+    backendReady,
+    degraded: !backendReady,
+    reason: ready ? null : 'backend_unhealthy',
+  };
+  if (!ready) return res.status(503).json(body);
+  return res.json(body);
 });
 app.get('/health/deep', (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -790,7 +808,12 @@ function siteProxyToUnicorn(routePath, opts) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
       try {
-        const target = backendUrl.replace(/\/$/, '') + routePath;
+        // Preserve the inbound query string so proxied routes that depend on
+        // it (pagination, filters, cache-bust tokens) behave identically.
+        const inboundUrl = req.originalUrl || req.url || '';
+        const qsIndex = inboundUrl.indexOf('?');
+        const qs = qsIndex >= 0 ? inboundUrl.slice(qsIndex) : '';
+        const target = backendUrl.replace(/\/$/, '') + routePath + qs;
         const init = {
           method,
           headers: { Accept: 'application/json' },
@@ -806,18 +829,25 @@ function siteProxyToUnicorn(routePath, opts) {
           init.body = JSON.stringify(req.body || {});
         }
         const r = await fetch(target, init);
-        clearTimeout(timer);
         if (r.ok) {
-          _cbRecordSuccess();
+          // Keep the abort timeout armed until the body is fully consumed —
+          // a stalled body read must still trip the AbortController.
           const data = await r.json();
+          _cbRecordSuccess();
           return res.json(_normalizeProxyShape(routePath, data));
         }
-        _cbRecordFailure();
+        // Only 5xx (upstream fault) counts against the breaker. 4xx are client
+        // contract issues — fall back to the mock but do NOT trip the breaker.
+        if (r.status >= 500) {
+          _cbRecordFailure();
+        }
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' upstream ' + r.status + ' → fallback mock');
       } catch (err) {
-        clearTimeout(timer);
+        // Network/timeout/abort errors are genuine backend-unreachable signals.
         _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
+      } finally {
+        clearTimeout(timer);
       }
     } else if (!backendUrl) {
       console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
