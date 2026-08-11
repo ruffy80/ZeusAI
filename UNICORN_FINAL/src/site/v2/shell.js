@@ -6496,7 +6496,10 @@ main#app a{color:var(--blue2)}
   // otherwise some browsers treat trailing scripts inconsistently and the
   // dropship catalog never paints even when /api/dropship/products returns 200.
   const ttPolicy = `<script${N}>(function(){try{if(window.trustedTypes&&window.trustedTypes.createPolicy){window.trustedTypes.createPolicy("default",{createHTML:function(s){return s},createScript:function(s){return s},createScriptURL:function(s){return s}});}}catch(_){}})();</script>`;
-  const healthJs = `<script${N}>(function(){var f=0;function c(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){f=0;var b=document.getElementById("degraded-banner");if(b)b.classList.remove("show");}else{throw 0;}}).catch(function(){f++;if(f>=3){var b=document.getElementById("degraded-banner");if(b)b.classList.add("show");}});}c();setInterval(c,10000);})();</script>`;
+  // Inspect JSON status too — nginx can return HTTP 200 with a maintenance HTML
+  // body, and site /health returns HTTP 200 with status:"degraded" when the
+  // backend monitor is down. Relying on response.ok alone hides real outages.
+  const healthJs = `<script${N}>(function(){var f=0;function show(on){var b=document.getElementById("degraded-banner");if(b){if(on)b.classList.add("show");else b.classList.remove("show");}}function c(){fetch("/health",{cache:"no-store"}).then(function(r){var ct=(r.headers.get("content-type")||"");if(!r.ok||ct.indexOf("application/json")<0)throw 0;return r.json();}).then(function(j){var bad=!j||j.ok===false||j.degraded===true||j.status==="degraded"||(j.backend&&j.backend.ok===false);if(bad)throw 0;f=0;show(false);}).catch(function(){f++;if(f>=3)show(true);});}c();setInterval(c,10000);})();</script>`;
   const pageJs = pageScript ? `<script${N}>${pageScript}</script>` : '';
   const foot = footer(route, o);
   const closeAt = Math.max(foot.lastIndexOf('</body>'), foot.lastIndexOf('</html>'));

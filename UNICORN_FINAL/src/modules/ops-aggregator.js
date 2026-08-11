@@ -16,11 +16,24 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 const BACKEND_URL = process.env.BACKEND_API_URL || 'http://127.0.0.1:3000';
 const SHARED_DIR = process.env.UNICORN_KEY_DIR || '/var/www/unicorn/shared';
 const DEPLOY_LINK = process.env.DEPLOY_LINK || '/var/www/unicorn/UNICORN_FINAL';
+
+// Process start time — used for the pm2 boot-grace window so a cold-booting
+// service does not spam `pm2 jlist` while the daemon is still settling.
+const MODULE_STARTED_AT = Date.now();
+
+// TTL cache for the pm2 snapshot. `pm2 jlist` spawns a child process and the
+// dashboard endpoint can be polled in bursts; caching the result for a short
+// window keeps us from fork-bombing pm2 (and blocking on it) under load.
+const PM2_CACHE_TTL_MS = Number(process.env.OPS_PM2_CACHE_TTL_MS || 15000);
+let _pm2Cache = { at: 0, value: null };
 
 function _httpGetJson(url, timeoutMs = 1500) {
   return new Promise((resolve) => {
@@ -60,12 +73,39 @@ function _httpGetJson(url, timeoutMs = 1500) {
   });
 }
 
-function _pm2Snapshot() {
+// Async pm2 snapshot — never blocks the event loop.
+//
+// * Honors OPS_PM2_CHECK_DISABLED=1 (operator kill-switch) and a boot-grace
+//   window (OPS_PM2_BOOT_GRACE_MS, default 120s) exactly like QIS does, so a
+//   cold-booting process does not spam `pm2 jlist` while the daemon settles.
+// * Uses async execFile with a hard timeout + bounded maxBuffer instead of the
+//   old synchronous execSync('pm2 jlist') that blocked the event loop (and made
+//   /api/health time out during pm2 hiccups — the root cause of the outage).
+// * Results are cached for OPS_PM2_CACHE_TTL_MS so dashboard polling bursts do
+//   not fork pm2 repeatedly.
+async function _pm2Snapshot() {
+  if (process.env.OPS_PM2_CHECK_DISABLED === '1') {
+    return { available: false, ok: null, reason: 'pm2_check_disabled' };
+  }
+  const bootMs = Number(process.env.OPS_PM2_BOOT_GRACE_MS || 120000);
+  if (bootMs > 0 && (Date.now() - MODULE_STARTED_AT) < bootMs) {
+    return { available: false, ok: null, reason: 'pm2_boot_grace' };
+  }
+
+  // Serve from the TTL cache when fresh so bursts don't spam pm2.
+  if (_pm2Cache.value && (Date.now() - _pm2Cache.at) < PM2_CACHE_TTL_MS) {
+    return _pm2Cache.value;
+  }
+
   // Best-effort: fork-mode children CAN run pm2 jlist; cluster workers
   // cannot. Return a graceful 'unknown' instead of false-positive missing.
+  let result;
   try {
-    const raw = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString('utf8');
-    const list = JSON.parse(raw || '[]');
+    const { stdout } = await execFileAsync('pm2', ['jlist'], {
+      timeout: 3000,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const list = JSON.parse(stdout || '[]');
     let expectedCwd = null;
     try { expectedCwd = fs.realpathSync(DEPLOY_LINK); } catch (_) {}
     const procs = list.map((p) => {
@@ -87,7 +127,7 @@ function _pm2Snapshot() {
     });
     const drifted = procs.filter((p) => p.cwdDrift).map((p) => p.name);
     const offline = procs.filter((p) => p.status && p.status !== 'online').map((p) => p.name);
-    return {
+    result = {
       available: true,
       expectedCwd,
       processes: procs,
@@ -96,8 +136,10 @@ function _pm2Snapshot() {
       ok: drifted.length === 0 && offline.length === 0,
     };
   } catch (e) {
-    return { available: false, ok: null, reason: 'pm2_jlist_unavailable_from_worker' };
+    result = { available: false, ok: null, reason: 'pm2_jlist_unavailable_from_worker' };
   }
+  _pm2Cache = { at: Date.now(), value: result };
+  return result;
 }
 
 function _heap() {
@@ -139,7 +181,7 @@ function _deployProvenance() {
 async function collect(opts = {}) {
   const t0 = Date.now();
   const heap = _heap();
-  const pm2 = _pm2Snapshot();
+  const pm2 = await _pm2Snapshot();
   const deploy = _deployProvenance();
 
   // QIS status from the backend (canonical source).

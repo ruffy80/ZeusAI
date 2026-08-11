@@ -421,16 +421,72 @@ if [ -n "$DRIFTED_APPS" ]; then
   sleep 10
 fi
 
-# Prove the LIVE backend on :3000 is the freshly started process — not a 28h orphan.
-log "verify backend process is fresh (uptime < 180s)"
-BACKEND_UPTIME="$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | node -e '
-  let b=""; process.stdin.on("data",d=>b+=d); process.stdin.on("end",()=>{
-    try { const j=JSON.parse(b||"{}"); process.stdout.write(String(j.uptime||999999)); }
-    catch(_) { process.stdout.write("999999"); }
-  });
-' || echo 999999)"
-if [ "${BACKEND_UPTIME:-999999}" -gt 180 ]; then
-  log "backend uptime=${BACKEND_UPTIME}s looks stale — killing :3000 and respawning unicorn-backend"
+# ── Prove the LIVE backend on :3000 is fresh — WITHOUT false-stale trips ─────
+# ROOT CAUSE (outage): the old logic treated an unreachable /api/health as
+# uptime=999999 and failed the whole deploy ("backend still stale after
+# force-respawn (uptime=999999...)"). During a PM2 respawn the HTTP health can
+# legitimately be slow to answer for a few seconds; reading a missing uptime as
+# a huge sentinel turned a transient slow-start into a hard deploy failure and
+# left nginx serving the maintenance page. We now distinguish three real
+# outcomes and never conflate "unreachable" with "stale":
+#   (a) healthy + fresh  (uptime <= BACKEND_FRESH_MAX)  → accept
+#   (b) healthy + stale  (uptime  > BACKEND_FRESH_MAX)  → orphan survived; kill+respawn ONCE
+#   (c) unreachable                                     → wait/retry up to ~90s,
+#                                                         then fail with a clear
+#                                                         "health unreachable"
+BACKEND_FRESH_MAX="${BACKEND_FRESH_MAX_SECONDS:-180}"
+BACKEND_HEALTH_WAIT="${BACKEND_HEALTH_WAIT_SECONDS:-90}"
+
+# Reads backend uptime (seconds) from HTTP /health/live. Prints an integer on
+# success or the literal "unreachable" — NEVER a fake 999999 sentinel.
+http_backend_uptime() {
+  local body
+  body="$(curl -fsS --max-time 5 http://127.0.0.1:3000/health/live 2>/dev/null)" \
+    || body="$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null)" \
+    || { printf 'unreachable'; return 0; }
+  printf '%s' "$body" | node -e '
+    let b=""; process.stdin.on("data",d=>b+=d); process.stdin.on("end",()=>{
+      try { const j=JSON.parse(b||"{}"); if (typeof j.uptime === "number") process.stdout.write(String(Math.floor(j.uptime))); else process.stdout.write("unreachable"); }
+      catch(_) { process.stdout.write("unreachable"); }
+    });
+  ' 2>/dev/null || printf 'unreachable'
+}
+
+# Secondary confirmation: read unicorn-backend uptime (seconds) from PM2's
+# pm_uptime (epoch ms of last (re)start). Prints integer seconds or "unknown".
+# Used when HTTP health is slow to answer right after a respawn.
+pm2_backend_uptime() {
+  pm2 jlist 2>/dev/null | node -e '
+    let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+      try {
+        const list = JSON.parse(b || "[]");
+        const p = list.find(x => x && x.name === "unicorn-backend");
+        const u = p && p.pm2_env && p.pm2_env.pm_uptime;
+        if (u) process.stdout.write(String(Math.floor((Date.now() - u) / 1000)));
+        else process.stdout.write("unknown");
+      } catch (_) { process.stdout.write("unknown"); }
+    });
+  ' 2>/dev/null || printf 'unknown'
+}
+
+# Echoes one of: "fresh:<s>", "stale:<s>", "unreachable".
+backend_health_state() {
+  local up
+  up="$(http_backend_uptime)"
+  if [ "$up" = "unreachable" ]; then
+    # HTTP slow/unavailable → fall back to PM2 pm_uptime as secondary signal.
+    local pu
+    pu="$(pm2_backend_uptime)"
+    if [ "$pu" != "unknown" ]; then up="$pu"; else printf 'unreachable'; return 0; fi
+  fi
+  if [ "$up" -le "$BACKEND_FRESH_MAX" ] 2>/dev/null; then
+    printf 'fresh:%s' "$up"
+  else
+    printf 'stale:%s' "$up"
+  fi
+}
+
+respawn_backend() {
   pm2 delete unicorn-backend >/dev/null 2>&1 || true
   if command -v fuser >/dev/null 2>&1; then fuser -k 3000/tcp >/dev/null 2>&1 || true; fi
   sleep 2
@@ -443,16 +499,51 @@ if [ "${BACKEND_UPTIME:-999999}" -gt 180 ]; then
     ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
     SW_VERSION="${GITHUB_SHA:-}" \
     pm2 start ecosystem.config.js --only unicorn-backend --update-env
-  sleep 12
-  BACKEND_UPTIME="$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | node -e '
-    let b=""; process.stdin.on("data",d=>b+=d); process.stdin.on("end",()=>{
-      try { const j=JSON.parse(b||"{}"); process.stdout.write(String(j.uptime||999999)); }
-      catch(_) { process.stdout.write("999999"); }
-    });
-  ' || echo 999999)"
-  [ "${BACKEND_UPTIME:-999999}" -le 180 ] || fail "backend still stale after force-respawn (uptime=${BACKEND_UPTIME}s)"
-fi
-log "backend fresh — uptime=${BACKEND_UPTIME}s"
+  # Never leave TWO unicorn-backend fork instances after a respawn.
+  cleanup_pm2_topology
+}
+
+log "verify backend on :3000 is fresh (poll /health/live up to ${BACKEND_HEALTH_WAIT}s, fresh<=${BACKEND_FRESH_MAX}s)"
+BACKEND_STATE="unreachable"
+RESPAWNED_ONCE=0
+DEADLINE=$(( $(date +%s) + BACKEND_HEALTH_WAIT ))
+while :; do
+  BACKEND_STATE="$(backend_health_state)"
+  case "$BACKEND_STATE" in
+    fresh:*)
+      log "backend fresh — uptime=${BACKEND_STATE#fresh:}s"
+      break
+      ;;
+    stale:*)
+      if [ "$RESPAWNED_ONCE" = "0" ]; then
+        log "backend healthy but stale (uptime=${BACKEND_STATE#stale:}s > ${BACKEND_FRESH_MAX}s) — orphan survived; kill :3000 and respawn once"
+        respawn_backend
+        RESPAWNED_ONCE=1
+        sleep 12
+        DEADLINE=$(( $(date +%s) + BACKEND_HEALTH_WAIT ))
+        continue
+      fi
+      log "backend still stale after single respawn (uptime=${BACKEND_STATE#stale:}s) — waiting for fresh process to claim :3000"
+      ;;
+    unreachable)
+      log "backend health unreachable — waiting/retrying ($(( DEADLINE - $(date +%s) ))s left before giving up)"
+      ;;
+  esac
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+    break
+  fi
+  sleep 3
+done
+
+case "$BACKEND_STATE" in
+  fresh:*)
+    : ;;
+  stale:*)
+    fail "backend health still stale after respawn (uptime=${BACKEND_STATE#stale:}s) — an orphan on :3000 refused to die" ;;
+  *)
+    tail -60 "$CANARY_LOG" >&2 2>/dev/null || true
+    fail "backend health unreachable on :3000 after ${BACKEND_HEALTH_WAIT}s — NOT treating as stale; investigate backend boot" ;;
+esac
 
 # ── Never leave production on rescue-backend.js ─────────────────────────────
 # A prior thrash left PM2 pointing at scripts/rescue-backend.js (minimal API,

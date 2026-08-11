@@ -76,6 +76,13 @@ function compute() {
 
 let _id = compute();
 
+// Module-level caches. Asset sources are immutable for the lifetime of a
+// deploy, so hashing every asset on every render (build-id.resolveAssetPath is
+// on the hot SSR path) is wasted work. We cache per-logical-path hashes and the
+// full versioned-entries manifest, and invalidate both in refresh().
+let _hashCache = new Map();
+let _entriesCache = null;
+
 function readAssetSource(logicalPath) {
   if (VERSIONED_INLINE_ASSETS[logicalPath]) {
     return Buffer.from(String(VERSIONED_INLINE_ASSETS[logicalPath]() || ''), 'utf8');
@@ -86,11 +93,16 @@ function readAssetSource(logicalPath) {
 }
 
 function assetHash(logicalPath) {
+  if (_hashCache.has(logicalPath)) return _hashCache.get(logicalPath);
   const payload = readAssetSource(logicalPath);
+  let hash;
   if (!payload) {
-    return String(_id || 'latest').replace(/[^a-z0-9]/gi, '').slice(0, 10).toLowerCase() || 'latest';
+    hash = String(_id || 'latest').replace(/[^a-z0-9]/gi, '').slice(0, 10).toLowerCase() || 'latest';
+  } else {
+    hash = crypto.createHash('sha256').update(payload).digest('hex').slice(0, 10);
   }
-  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 10);
+  _hashCache.set(logicalPath, hash);
+  return hash;
 }
 
 function assetPath(logicalPath) {
@@ -102,10 +114,12 @@ function assetPath(logicalPath) {
 }
 
 function versionedAssetEntries() {
+  if (_entriesCache) return _entriesCache;
   const entries = {};
   for (const logicalPath of Object.keys(VERSIONED_INLINE_ASSETS).concat(Object.keys(VERSIONED_FILE_ASSETS))) {
     entries[logicalPath] = assetPath(logicalPath);
   }
+  _entriesCache = entries;
   return entries;
 }
 
@@ -116,6 +130,11 @@ function resolveAssetPath(requestPath) {
     if (entries[logicalPath] === requestPath) return logicalPath;
   }
   return requestPath;
+}
+
+function _clearAssetCaches() {
+  _hashCache = new Map();
+  _entriesCache = null;
 }
 
 function browserAssetManifest() {
@@ -135,7 +154,7 @@ function browserAssetManifest() {
 
 module.exports = {
   get BUILD_ID() { return _id; },
-  refresh() { _id = compute(); return _id; },
+  refresh() { _id = compute(); _clearAssetCaches(); return _id; },
   assetHash,
   assetPath,
   browserAssetManifest,

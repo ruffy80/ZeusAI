@@ -12,9 +12,11 @@ screen again.
 
 Effect: injects a single `include /etc/nginx/snippets/zeus-maintenance.conf;`
 into every server { ... } block whose server_name covers zeusai.pro (or
-www.zeusai.pro). The snippet declares `error_page 500 502 503 504 =
-@zeus_maintenance;` plus an `internal` named location that does
-`try_files /index.html =503` from /var/www/maintenance.
+www.zeusai.pro). The snippet declares
+`error_page 500 502 503 504 =503 @zeus_maintenance;` (the `=503` is
+mandatory — without it nginx rewrites the status to HTTP 200 and monitors
+treat the maintenance page as healthy) plus an `internal` named location
+that does `try_files /index.html =503` from /var/www/maintenance.
 
 Usage (must run as root on the Hetzner host):
   sudo python3 nginx-patch-maintenance.py \
