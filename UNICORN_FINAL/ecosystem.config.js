@@ -123,9 +123,30 @@ module.exports = {
         // poll and freeze the event loop (live outage 2026-08-11). Keep the
         // async path's boot-grace + short TTL cache on in production so cold
         // boots and healer bursts cannot re-block /api/health.
-        OPS_PM2_BOOT_GRACE_MS: process.env.OPS_PM2_BOOT_GRACE_MS || '120000',
+        OPS_PM2_BOOT_GRACE_MS: process.env.OPS_PM2_BOOT_GRACE_MS || '180000',
         OPS_PM2_CACHE_TTL_MS: process.env.OPS_PM2_CACHE_TTL_MS || '15000',
-        OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '0',
+        // Default ON for single-node 8GB: execSync(pm2 jlist) freezes /api/health.
+        OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '1',
+        // Loops that still run under stable and starve the event loop on one VPS.
+        AACOS_DISABLED: process.env.AACOS_DISABLED || '1',
+        TAOS_DISABLED: process.env.TAOS_DISABLED || '1',
+        GROWTH_STACK_DISABLED: process.env.GROWTH_STACK_DISABLED || '1',
+        ADI_CORE_DISABLED: process.env.ADI_CORE_DISABLED || '1',
+        DEEPSEEK_LOOP_ENABLED: process.env.DEEPSEEK_LOOP_ENABLED || '0',
+        UNICORN_REVENUE_AUTOPILOT_DISABLED: process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED || '1',
+        WATCHDOG_DISABLED: process.env.WATCHDOG_DISABLED || '1',
+        // ZACC dropship continuum is heavy at boot; keep commerce catalog via
+        // existing DB/shelf. Re-arm with ZACC_ENABLED=1 after money path is green.
+        ZACC_ENABLED: process.env.ZACC_ENABLED || '0',
+        ZACC_ENABLE_ESCUELA: process.env.ZACC_ENABLE_ESCUELA || '0',
+        ZACC_WORLD_CONTINUUM_MS: process.env.ZACC_WORLD_CONTINUUM_MS || '3600000',
+        IAK_HARMONIC_MS: process.env.IAK_HARMONIC_MS || '120000',
+        IAK_SYNC_EVERY: process.env.IAK_SYNC_EVERY || '30',
+        IAK_CONTINUUM_EVERY: process.env.IAK_CONTINUUM_EVERY || '60',
+        // PCL / BALOS — default off under stable (see profit-control-loop + index.js)
+        PCL_DISABLED: process.env.PCL_DISABLED || '1',
+        PROFIT_LOOP_AUTOSTART: process.env.PROFIT_LOOP_AUTOSTART || '0',
+        DISABLE_BILLION_AUTONOMY_LOOP: process.env.DISABLE_BILLION_AUTONOMY_LOOP || '1',
         // Innovation generation + auto-ship OFF under safe/stable (Commercial Cycle).
         // Arm only after money path is proven: INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1
         // under UNICORN_RUNTIME_PROFILE=growth.
@@ -281,8 +302,12 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 
-    // ── 4. Autoscaler (auto-restart, log scaling) ─────────────────────────────
-    {
+    // ── Optional side-cars (OFF by default) ─────────────────────────────────
+    // Bare `pm2 start ecosystem.config.js` previously launched these and
+    // competed with backend/site on the 8GB VPS (CPU starve → HTTP hang).
+    // Deploy already uses `--only unicorn-backend,unicorn-site`. Gate here so
+    // a naive start cannot resurrect retired processes.
+    ...((process.env.AUTOSCALE_PM2 || '0') === '1' ? [{
       name: 'autoscaler',
       script: 'scripts/autoscale.js',
       cwd: APP_DIR,
@@ -294,10 +319,6 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
-        // Hard caps (2026-05-26): unbounded scaling on an 8-core box took the
-        // server to 11 GB site RSS → OOM → nginx 503 maintenance page. Default
-        // to DISABLED + cap=2 so the worst case is now bounded even if the
-        // operator flips AUTOSCALE_DISABLED=0.
         AUTOSCALE_DISABLED: process.env.AUTOSCALE_DISABLED || '1',
         AUTOSCALE_MAX: process.env.AUTOSCALE_MAX || '2',
         AUTOSCALE_MIN_FREE_MB: process.env.AUTOSCALE_MIN_FREE_MB || '800',
@@ -305,10 +326,9 @@ module.exports = {
       error_file: 'logs/autoscale-error.log',
       out_file:   'logs/autoscale-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
-    },
+    }] : []),
 
-    // ── 5. Module Mesh Guardian — continuous inter-module communication guard
-    {
+    ...((process.env.MESH_GUARDIAN_PM2 || '0') === '1' ? [{
       name: 'module-mesh-guardian',
       script: 'scripts/module-mesh-guardian.js',
       cwd: APP_DIR,
@@ -331,10 +351,9 @@ module.exports = {
       error_file: 'logs/mesh-guardian-error.log',
       out_file:   'logs/mesh-guardian-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
-    },
+    }] : []),
 
-    // ── 6. Live Sync Forward — safe file-change→reload bridge ───────────────
-    {
+    ...((process.env.LIVE_SYNC_PM2 || '0') === '1' ? [{
       name: 'unicorn-live-sync',
       script: 'scripts/live-sync-forward.js',
       cwd: APP_DIR,
@@ -347,9 +366,6 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
-        // Default OFF — startOrRestart of the whole ecosystem on any .js mtime
-        // change suicide-looped unicorn-backend during hot-patches / UEE writes.
-        // Arm explicitly with LIVE_SYNC_ENABLED=1 only on dedicated staging hosts.
         LIVE_SYNC_ENABLED: process.env.LIVE_SYNC_ENABLED || '0',
         LIVE_SYNC_ROOT: APP_DIR,
         LIVE_SYNC_INTERVAL_MS: process.env.LIVE_SYNC_INTERVAL_MS || '10000',
@@ -361,7 +377,7 @@ module.exports = {
       error_file: 'logs/live-sync-error.log',
       out_file:   'logs/live-sync-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
-    },
+    }] : []),
 
     // ── 3. Guardian — DISABLED (set UNICORN_GUARDIAN=1 to enable) ────────────
     // Guardian keeps tar snapshots and performs auto-rollback by extracting
