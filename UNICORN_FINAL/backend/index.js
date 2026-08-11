@@ -1132,6 +1132,20 @@ app.get('/api/dna/personalize', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
+app.get('/api/dna/:id', (req, res) => {
+  try {
+    const dna = require('./modules/ai-dna-engine');
+    const reserved = new Set(['status', 'discovery', 'strand', 'dna', 'search', 'personalize', 'observe', 'settings', 'learn', 'migrate']);
+    if (reserved.has(String(req.params.id || '').toLowerCase())) {
+      return res.status(404).json({ ok: false, error: 'dna_route_not_found' });
+    }
+    const out = dna.getDna(req.params.id, { create: false });
+    res.set('Cache-Control', 'no-store');
+    return res.status(out && out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
 app.post('/api/dna/observe', express.json({ limit: '32kb' }), (req, res) => {
   try {
     const dna = require('./modules/ai-dna-engine');

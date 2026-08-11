@@ -37,11 +37,23 @@ check('discovery: DNA/1.0, not a user profile, forbidden traits listed', () => {
 });
 
 check('stripForbidden removes sensitive keys', () => {
-  const clean = dna._stripForbidden({ language: 'en', gender: 'x', age: 30, tone: 'warm' });
+  const clean = dna._stripForbidden({
+    language: 'en',
+    gender: 'x',
+    age: 30,
+    tone: 'warm',
+    preferences: [
+      { channel: 'email', ethnicity: 'must_not_store' },
+      { nested: { precise_location: 'must_not_store', safe: true } },
+    ],
+  });
   assert.equal(clean.language, 'en');
   assert.equal(clean.tone, 'warm');
   assert.equal(clean.gender, undefined);
   assert.equal(clean.age, undefined);
+  assert.ok(!JSON.stringify(clean).includes('must_not_store'));
+  assert.equal(clean.preferences[0].channel, 'email');
+  assert.equal(clean.preferences[1].nested.safe, true);
 });
 
 check('onOrderPaid builds DNA strand + ecosystem bonds', () => {
@@ -68,6 +80,18 @@ check('ensureDna is idempotent for same email', () => {
   assert.ok(a.ok && b.ok);
   assert.equal(a.dna.id, b.dna.id);
   assert.equal(dna.getStatus().counts.strandsBorn, 1);
+});
+
+check('getDna strict lookup reads existing ids without creating unknown strands', () => {
+  const existing = dna.getDna('buyer@example.com');
+  const before = dna.getStatus().counts.strandsBorn;
+  const direct = dna.getDna(existing.dna.id, { create: false });
+  const missing = dna.getDna('dna_missing_for_test', { create: false });
+  assert.ok(direct.ok);
+  assert.equal(direct.dna.id, existing.dna.id);
+  assert.equal(missing.ok, false);
+  assert.equal(missing.reason, 'not_found');
+  assert.equal(dna.getStatus().counts.strandsBorn, before);
 });
 
 check('observeEvent records interaction + feature adoption', () => {
@@ -154,6 +178,21 @@ check('site dna-http adminOk fails closed without secret', () => {
   const http = require('../src/site/dna-http');
   assert.equal(http.adminOk({ headers: {} }).ok, false);
   assert.equal(http.adminOk({ headers: { 'x-admin-secret': 'test-dna-admin' } }).ok, true);
+});
+
+check('source wiring: backend + site DNA routes, boot, and PPCOS hook exist', () => {
+  const backend = fs.readFileSync(path.join(__dirname, '..', 'backend', 'index.js'), 'utf8');
+  const site = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  const ppcos = fs.readFileSync(path.join(__dirname, '..', 'src', 'commerce', 'post-pay-closure-os.js'), 'utf8');
+  const healthGuardian = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'health-guardian.js'), 'utf8');
+  assert.ok(backend.includes("app.get(['/api/dna/status', '/api/dna', '/.well-known/dna.json']"));
+  assert.ok(backend.includes("app.get('/api/dna/:id'"));
+  assert.ok(backend.includes("const dna = require('./modules/ai-dna-engine');"));
+  assert.ok(backend.includes("console.log('[dna] AI DNA Engine started:'"));
+  assert.ok(site.includes("urlPath.startsWith('/api/dna') || urlPath === '/.well-known/dna.json'"));
+  assert.ok(site.includes("const dnaHttp = require('./site/dna-http');"));
+  assert.ok(ppcos.includes('result.dna = dna.onOrderPaid'));
+  assert.ok(healthGuardian.includes("'backend/modules/ai-dna-engine.js'"));
 });
 
 console.log('\n✅ ai-dna-engine:', passed, 'tests passed');

@@ -183,10 +183,13 @@ function _isForbiddenKey(k) {
 
 function _stripForbidden(obj) {
   if (!obj || typeof obj !== 'object') return {};
+  if (Array.isArray(obj)) {
+    return obj.map((v) => (v && typeof v === 'object' ? _stripForbidden(v) : v));
+  }
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
     if (_isForbiddenKey(k)) continue;
-    if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = _stripForbidden(v);
+    if (v && typeof v === 'object') out[k] = _stripForbidden(v);
     else out[k] = v;
   }
   return out;
@@ -744,12 +747,32 @@ function personalize(context) {
   }
 }
 
-function getDna(emailOrId) {
+function getDna(emailOrId, opts) {
   if (DISABLED) return { ok: false, reason: 'disabled' };
-  const keyGuess = String(emailOrId || '');
+  const options = opts || {};
+  const keyGuess = String(emailOrId || '').trim();
+  if (!keyGuess) return { ok: false, reason: 'email_required' };
   const cacheKey = `dna:${keyGuess}`;
   const cached = _cacheGet(cacheKey);
   if (cached) return { ok: true, cached: true, dna: cached };
+
+  const normalized = _normEmail(keyGuess);
+  const customerKey = keyGuess.startsWith('dna_')
+    ? keyGuess
+    : (normalized.includes('@') ? _customerKey(normalized) : null);
+  if (customerKey && strands[customerKey]) {
+    const pub = _publicStrand(strands[customerKey]);
+    _cacheSet(`dna:${customerKey}`, pub, customerKey);
+    _cacheSet(cacheKey, pub, customerKey);
+    return {
+      ok: true,
+      cached: false,
+      dna: pub,
+      learning: strands[customerKey].learning,
+      settingsKeys: Object.keys(strands[customerKey].settings || {}),
+    };
+  }
+  if (options.create === false) return { ok: false, reason: 'not_found' };
 
   const ensured = ensureDna(emailOrId);
   if (!ensured.ok) return ensured;

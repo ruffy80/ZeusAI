@@ -149,6 +149,12 @@ async function handleApi(req, res, urlPath, requestUrl) {
     });
     return json(out && out.ok ? 200 : 400, out);
   }
+  if (urlPath.startsWith('/api/dna/') && req.method === 'GET'
+    && !['status', 'discovery', 'strand', 'dna', 'search', 'personalize', 'observe', 'settings', 'learn', 'migrate'].includes(urlPath.split('/')[3])) {
+    const id = decodeURIComponent(urlPath.split('/').pop() || '');
+    const out = dna.getDna(id, { create: false });
+    return json(out && out.ok ? 200 : 404, out);
+  }
   if ((urlPath === '/api/dna/observe' || urlPath === '/api/dna/settings'
     || urlPath === '/api/dna/personalize' || urlPath === '/api/dna/learn'
     || urlPath === '/api/dna/migrate') && req.method === 'POST') {
