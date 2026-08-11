@@ -127,6 +127,15 @@ check('deploy-atomic-forward does not treat unreachable health as stale uptime',
   assert.ok(src.includes('/health/live') || src.includes('health/live'), 'must probe /health/live');
 });
 
+check('deploy canary probes /health/live and reclaims hung live workers', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
+  assert.ok(src.includes('live_health_reachable'), 'must detect hung live before canary');
+  assert.ok(src.includes('reclaiming PM2/ports'), 'must reclaim resources when live is down');
+  assert.ok(/canary.*health\/live|health\/live.*canary/i.test(src) || src.includes('probed /health/live'),
+    'canary must probe /health/live');
+  assert.ok(/CANARY_TIMEOUT_SECONDS:-180/.test(src), 'default canary timeout must be >=180s');
+});
+
 check('nginx maintenance page preserves HTTP 503 (not rewritten to 200)', () => {
   const conf = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-unicorn.conf'), 'utf8');
   const snip = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-maintenance.snippet.conf'), 'utf8');

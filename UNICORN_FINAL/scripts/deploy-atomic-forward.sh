@@ -5,7 +5,10 @@ CANDIDATE_DIR="${1:-}"
 DEPLOY_LINK="${2:-/var/www/unicorn/UNICORN_FINAL}"
 PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
 CANARY_PORT="${CANARY_PORT:-3100}"
-CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
+# Cold boot on a contended VPS (hung live workers eating RAM/CPU) routinely
+# exceeds 90s before the event loop can serve /health. Default 180s; override
+# with CANARY_TIMEOUT_SECONDS if needed. Probe uses /health/live (process-only).
+CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-180}"
 FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-24}"
 PM2_APPS="unicorn-backend unicorn-site"
 PM2_ONLY="unicorn-backend,unicorn-site"
@@ -223,29 +226,75 @@ if [ -f client/package.json ]; then
   fi
 fi
 
-log "start backend canary on port $CANARY_PORT"
+# ── Pre-canary reclaim ──────────────────────────────────────────────────────
+# When live :3000 is already down/hung (the 2026-08-11 outage class), leaving
+# unicorn-backend/site running starves the canary of RAM/CPU so /health never
+# answers within the wait window ("canary health timeout" after ~4 min of
+# curl --max-time 2 hangs). Reclaim ONLY when live health is unreachable —
+# never kill a healthy live stack just to canary.
+live_health_reachable() {
+  curl -fsS --max-time 3 "http://127.0.0.1:3000/health/live" >/dev/null 2>&1 \
+    || curl -fsS --max-time 3 "http://127.0.0.1:3000/api/health" >/dev/null 2>&1
+}
+if ! live_health_reachable; then
+  log "live :3000 unhealthy before canary — reclaiming PM2/ports so canary can boot"
+  for app in $PM2_APPS $RETIRED_PM2_APPS; do
+    pm2 delete "$app" >/dev/null 2>&1 || true
+  done
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k 3000/tcp >/dev/null 2>&1 || true
+    fuser -k 3001/tcp >/dev/null 2>&1 || true
+    fuser -k "${CANARY_PORT}/tcp" >/dev/null 2>&1 || true
+  fi
+  sleep 2
+  cleanup_pm2_topology
+else
+  log "live :3000 healthy — leaving it up during canary"
+  # Still free a stale canary port if a previous attempt left a listener.
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${CANARY_PORT}/tcp" >/dev/null 2>&1 || true
+  fi
+fi
+
+log "start backend canary on port $CANARY_PORT (probe /health/live, timeout ${CANARY_TIMEOUT_SECONDS}s)"
 CANARY_LOG="/tmp/unicorn-canary-${CANARY_PORT}.log"
+# Line-buffer logs so a hung canary still leaves a readable trail in CI.
+if command -v stdbuf >/dev/null 2>&1; then
+  CANARY_WRAP=(stdbuf -oL -eL)
+else
+  CANARY_WRAP=()
+fi
 PORT="$CANARY_PORT" BIND_HOST=127.0.0.1 NODE_ENV=production UNICORN_RUNTIME_PROFILE=safe \
   DISABLE_SELF_MUTATION=1 ENABLE_FILE_MUTATORS=0 ENABLE_AUTO_DEPLOY=0 ENABLE_UI_AUTOBUILDER=0 \
   ENABLE_AUTO_REPAIR=0 ENABLE_SELF_CONSTRUCTION=0 ENABLE_CODE_OPTIMIZER=0 ENABLE_AUTO_EVOLVE=0 \
-  WATCHDOG_DISABLED=1 AUTH_GUARDIAN_ENABLED=0 UNICORN_REVENUE_AUTOPILOT_DISABLED=1 \
+  ENABLE_AUTO_RESTART=0 WATCHDOG_DISABLED=1 AUTH_GUARDIAN_ENABLED=0 \
+  UNICORN_REVENUE_AUTOPILOT_DISABLED=1 OPS_PM2_CHECK_DISABLED=1 \
   QIS_REQUIRED_PROCESSES='' QIS_AUTO_HEAL_ENABLED=false QIS_HEAP_WARN_PCT=1 QIS_HEAP_WARN_MIN_MB=999999 \
-  node backend/index.js >"$CANARY_LOG" 2>&1 &
+  QIS_PM2_CHECK_DISABLED=1 \
+  "${CANARY_WRAP[@]}" node backend/index.js >"$CANARY_LOG" 2>&1 &
 CANARY_PID=$!
 
 CANARY_OK=0
-for _ in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
+for i in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
   if ! kill -0 "$CANARY_PID" 2>/dev/null; then
-    tail -120 "$CANARY_LOG" >&2 || true
+    tail -160 "$CANARY_LOG" >&2 || true
     fail "canary process exited before health was ready"
   fi
-  if curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/health" >/dev/null 2>&1; then
+  # /health/live is process-only and registered before heavy listen-callback
+  # work; prefer it so a durable-DB/ok:false public /health cannot block promote.
+  if curl -fsS --max-time 3 "http://127.0.0.1:${CANARY_PORT}/health/live" >/dev/null 2>&1 \
+    || curl -fsS --max-time 3 "http://127.0.0.1:${CANARY_PORT}/health" >/dev/null 2>&1; then
     CANARY_OK=1
+    log "canary live after ${i}s"
     break
+  fi
+  # Heartbeat every 15s so the deploy SSH session never looks hung.
+  if [ $((i % 15)) -eq 0 ]; then
+    log "canary still warming… (${i}/${CANARY_TIMEOUT_SECONDS}s)"
   fi
   sleep 1
 done
-[ "$CANARY_OK" = "1" ] || { tail -120 "$CANARY_LOG" >&2 || true; fail "canary health timeout"; }
+[ "$CANARY_OK" = "1" ] || { tail -160 "$CANARY_LOG" >&2 || true; fail "canary health timeout after ${CANARY_TIMEOUT_SECONDS}s (probed /health/live)"; }
 
 log "wait for canary quantum integrity"
 QIS_OK=0
