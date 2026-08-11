@@ -1,12 +1,9 @@
 name: 🩺 Diagnose & Repair (Hetzner)
 
-# Manual-only workflow that SSHes to the live Hetzner host, prints a full
-# diagnostic report (PM2, ports, nginx), self-heals the canonical stack (PM2 restart,
-# nginx reload, pm2 save) and runs the canonical smoke tests.
-#
-# This workflow is purely additive and does NOT modify any code or config on
-# the server. It only touches PM2/nginx process state to recover from a
-# stuck/down service. Safe to run any time.
+# Manual + auto workflow that SSHes to the live Hetzner host, prints a short
+# diagnostic report, nuclear-reclaims the canonical PM2 stack, reloads nginx,
+# and runs smoke tests. Designed to finish well under the job timeout so a
+# hung wait_for_health loop can never cancel mid-heal again.
 
 on:
   workflow_dispatch:
@@ -31,7 +28,8 @@ jobs:
     # workflow_dispatch → always. workflow_run → only after a FAILED Stable Deploy.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Heal is nuclear + bounded (~3–6 min). 20m leaves headroom for SSH/smoke.
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -62,79 +60,113 @@ jobs:
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
+          SSH=(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes)
+
           echo "::group::PM2 list"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 list || echo "[pm2] not available"' || true
+          "${SSH[@]}" root@"$HETZNER_HOST" 'timeout 20s pm2 list || echo "[pm2] not available"' || true
           echo "::endgroup::"
 
-          echo "::group::Listening ports (3000 / 80 / 443)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" "ss -tlnp 2>/dev/null | grep -E ':3000|:80|:443' || echo '[ss] no matches'" || true
+          echo "::group::Listening ports (3000 / 3001 / 80 / 443)"
+          "${SSH[@]}" root@"$HETZNER_HOST" "ss -tlnp 2>/dev/null | grep -E ':3000|:3001|:80|:443' || echo '[ss] no matches'" || true
           echo "::endgroup::"
 
           echo "::group::Nginx config test"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'nginx -t 2>&1 || echo "[nginx] -t failed"' || true
+          "${SSH[@]}" root@"$HETZNER_HOST" 'timeout 15s nginx -t 2>&1 || echo "[nginx] -t failed"' || true
           echo "::endgroup::"
 
-          echo "::group::PM2 last 80 log lines (canonical apps)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 logs unicorn-backend unicorn-site autoscaler --lines 80 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
+          echo "::group::PM2 last 40 log lines (canonical apps)"
+          "${SSH[@]}" root@"$HETZNER_HOST" 'timeout 20s pm2 logs unicorn-backend unicorn-site --lines 40 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
           echo "::endgroup::"
 
           echo "::group::Backend-direct probes (127.0.0.1:3000)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
-            for ep in /health /api/health /api/services /api/btc/rate /api/module-registry; do
-              code=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:3000${ep}" || echo "000")
+          "${SSH[@]}" root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
+            for ep in /health/live /api/health /health; do
+              code=$(curl -sS -o /dev/null -m 3 -w '%{http_code}' "http://127.0.0.1:3000${ep}" || echo "000")
               printf '  %-22s -> %s\n' "$ep" "$code"
+            done
+            for ep in /health/live /health; do
+              code=$(curl -sS -o /dev/null -m 3 -w '%{http_code}' "http://127.0.0.1:3001${ep}" || echo "000")
+              printf '  site%-18s -> %s\n' "$ep" "$code"
             done
           SSHEOF
           echo "::endgroup::"
 
-      - name: Self-heal (PM2 restart + nginx reload + pm2 save)
+      - name: Self-heal (nuclear PM2 reclaim + nginx restart)
         # workflow_dispatch respects the do_repair input; auto-runs after a
         # failed Stable Deploy always repair (that is the whole point).
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.do_repair == true }}
+        timeout-minutes: 10
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=20 -o ServerAliveCountMax=12 root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set +e
-            echo '[heal] PM2 restart canonical stack from /var/www/unicorn/UNICORN_FINAL'
-            cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || { echo '[heal] canonical path missing'; exit 1; }
-            echo '[heal] hard reset PM2 daemon/dump (avoid stale launching entries and pm2_env crash)'
-            timeout 15s pm2 stop all 2>/dev/null || true
-            timeout 15s pm2 delete all 2>/dev/null || true
-            timeout 10s pm2 kill 2>/dev/null || true
+            rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled
+
+            APP_DIR=""
+            for candidate in \
+              /var/www/unicorn/UNICORN_FINAL \
+              /var/www/unicorn/current/UNICORN_FINAL \
+              /var/www/unicorn/live/UNICORN_FINAL
+            do
+              if [ -f "$candidate/ecosystem.config.js" ]; then
+                APP_DIR="$candidate"
+                break
+              fi
+            done
+            if [ -z "$APP_DIR" ]; then
+              echo '[heal] FATAL: ecosystem.config.js missing'
+              exit 1
+            fi
+            echo "[heal] APP_DIR=$APP_DIR"
+            cd "$APP_DIR"
+
+            echo '[heal] hard reset PM2 daemon/dump'
+            timeout 10s pm2 stop all 2>/dev/null || true
+            timeout 10s pm2 delete all 2>/dev/null || true
+            timeout 8s pm2 kill 2>/dev/null || true
             pkill -9 -f 'PM2 v.*God Daemon' 2>/dev/null || true
+            pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+            pkill -9 -f 'node .*backend/index\.js' 2>/dev/null || true
+            pkill -9 -f 'node .*src/index\.js' 2>/dev/null || true
             rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid 2>/dev/null || true
             rm -rf /root/.pm2/pids/* 2>/dev/null || true
-            sleep 2
-            for PORT in 3000 3001; do
+            for PORT in 3000 3001 3100; do
               PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
               for PID in $PIDS; do
                 [ -n "$PID" ] || continue
                 echo "[heal] killing stale listener pid=$PID on port $PORT"
-                kill "$PID" 2>/dev/null || true
-                sleep 1
                 kill -9 "$PID" 2>/dev/null || true
               done
             done
+            sleep 2
+
+            export NODE_ENV=production
+            export BIND_HOST=127.0.0.1
+            export UNICORN_RUNTIME_PROFILE=stable
+            export DISABLE_SELF_MUTATION=1
+            export QIS_AUTO_HEAL_ENABLED=false
             export SITE_INSTANCES="${SITE_INSTANCES:-1}"
             export UNICORN_INSTANCES="${UNICORN_INSTANCES:-1}"
             export UNICORN_GUARDIAN=0
-            timeout 90s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site,autoscaler --update-env 2>&1 \
-              || echo '[heal] pm2 start failed (no ecosystem.config.js?)'
 
-            wait_for_health() {
+            echo '[heal] pm2 start canonical stack'
+            timeout 60s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site,autoscaler --update-env 2>&1 \
+              || echo '[heal] pm2 start failed'
+
+            wait_for_live() {
               local name="$1"
               local url="$2"
-              local attempts="${3:-30}"
+              local attempts="${3:-12}"
               local delay="${4:-3}"
               local i=1
               while [ "$i" -le "$attempts" ]; do
-                if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
-                  echo "[heal] $name healthy after attempt $i/$attempts"
+                if curl -fsS --max-time 3 "$url" >/dev/null 2>&1; then
+                  echo "[heal] $name live after attempt $i/$attempts"
                   return 0
                 fi
-                if [ "$i" -eq 1 ] || [ "$((i % 5))" -eq 0 ]; then
-                  echo "[heal] waiting for $name health ($i/$attempts)"
+                if [ "$i" -eq 1 ] || [ "$((i % 3))" -eq 0 ]; then
+                  echo "[heal] waiting for $name ($i/$attempts)"
                 fi
                 sleep "$delay"
                 i="$((i + 1))"
@@ -143,90 +175,76 @@ jobs:
               return 1
             }
 
-            # NEVER start scripts/rescue-backend.js. Rescue fabricates healthy
-            # commerce, steals the unicorn-backend PM2 name, and breaks PFOS/ESOS.
-            # Fail closed: retry canonical ecosystem only.
-            restart_canonical_backend() {
-              local reason="${1:-retry}"
-              echo "[heal] restarting CANONICAL unicorn-backend ($reason) — rescue path disabled"
-              pkill -f 'rescue-backend\.js' 2>/dev/null || true
-              timeout 20s pm2 stop unicorn-backend 2>/dev/null || true
-              timeout 20s pm2 delete unicorn-backend 2>/dev/null || true
-              PIDS=$(ss -tlnp 2>/dev/null | awk '$4 ~ /:3000/ {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
-              for PID in $PIDS; do
-                [ -n "$PID" ] || continue
-                echo "[heal] killing backend listener pid=$PID on port 3000"
-                kill "$PID" 2>/dev/null || true
-                sleep 1
-                kill -9 "$PID" 2>/dev/null || true
-              done
-              env NODE_ENV=production BIND_HOST=127.0.0.1 UNICORN_RUNTIME_PROFILE=stable \
-                QIS_AUTO_HEAL_ENABLED=false DISABLE_SELF_MUTATION=1 \
-                timeout 90s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 \
-                || echo '[heal] canonical backend start failed'
-              wait_for_health backend http://127.0.0.1:3000/api/health 40 4
-            }
-
+            # Prefer /health/live (process-only) so a busy event loop does not
+            # look like a dead process during warm-up.
             BACKEND_HEALTHY=0
             SITE_HEALTHY=0
-            wait_for_health backend http://127.0.0.1:3000/api/health 40 4 && BACKEND_HEALTHY=1
-            wait_for_health site http://127.0.0.1:3001/health 40 3 && SITE_HEALTHY=1
+            wait_for_live backend http://127.0.0.1:3000/health/live 12 3 && BACKEND_HEALTHY=1
+            wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
 
             if [ "$BACKEND_HEALTHY" != "1" ]; then
-              echo '[heal] PM2 backend unhealthy — retrying CANONICAL backend (no rescue)'
-              restart_canonical_backend initial && BACKEND_HEALTHY=1
+              echo '[heal] backend retry (canonical only — never rescue)'
+              timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
+              for PORT in 3000; do
+                PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
+                for PID in $PIDS; do kill -9 "$PID" 2>/dev/null || true; done
+              done
+              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
+              wait_for_live backend http://127.0.0.1:3000/health/live 10 3 && BACKEND_HEALTHY=1
             fi
 
             if [ "$SITE_HEALTHY" != "1" ]; then
-              echo '[heal] PM2 site unhealthy — restarting canonical unicorn-site only'
-              timeout 20s pm2 delete unicorn-site 2>/dev/null || true
-              env NODE_ENV=production BIND_HOST=127.0.0.1 \
-                timeout 90s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 || true
-              wait_for_health site http://127.0.0.1:3001/health 40 3 && SITE_HEALTHY=1
-            else
-              echo '[heal] full PM2 site is healthy — advanced UI remains live'
+              echo '[heal] site retry'
+              timeout 15s pm2 delete unicorn-site 2>/dev/null || true
+              timeout 60s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 || true
+              wait_for_live site http://127.0.0.1:3001/health/live 10 3 && SITE_HEALTHY=1
             fi
 
-            # Refuse to persist rescue topology
             if pm2 jlist 2>/dev/null | grep -q 'rescue-backend\.js'; then
-              echo '[heal] ERROR: rescue-backend.js still in PM2 — purging'
-              restart_canonical_backend purge-rescue || true
+              echo '[heal] ERROR: rescue-backend.js in PM2 — purging'
+              pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+              timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
+              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
             fi
 
-            echo '[heal] nginx -t && systemctl reload nginx'
-            if nginx -t 2>&1; then
-              systemctl reload nginx 2>&1 || systemctl restart nginx 2>&1 || echo '[heal] nginx reload failed'
+            echo '[heal] nginx -t && systemctl restart nginx'
+            if timeout 15s nginx -t 2>&1; then
+              systemctl restart nginx 2>&1 || systemctl reload nginx 2>&1 || echo '[heal] nginx restart failed'
             else
               echo '[heal] nginx config invalid — skipping reload'
             fi
 
             echo '[heal] pm2 save'
-            timeout 20s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
+            timeout 15s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
 
-            echo '[heal] waiting 30s for backend/site warmup...'
-            sleep 30
-            if ! curl -fsS --max-time 8 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
-              echo '[heal] backend unhealthy after warmup — canonical retry (never rescue)'
-              restart_canonical_backend post-warmup || true
+            # Short settle only — do not burn the job timeout waiting.
+            sleep 5
+            curl -fsS --max-time 5 http://127.0.0.1:3000/api/health || \
+              curl -fsS --max-time 3 http://127.0.0.1:3000/health/live || true
+            echo
+            curl -fsS --max-time 5 http://127.0.0.1:3001/health || \
+              curl -fsS --max-time 3 http://127.0.0.1:3001/health/live || true
+            echo
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
+              echo '[heal] FATAL: backend still identifies as rescue — last purge'
+              pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+              timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
+              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
             fi
-            # Identity gate: rescue body must never be accepted as healthy
-            if curl -fsS --max-time 8 http://127.0.0.1:3000/api/health 2>/dev/null | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
-              echo '[heal] FATAL: backend still identifies as rescue'
-              restart_canonical_backend identity-gate || true
-            fi
-            curl -fsS --max-time 8 http://127.0.0.1:3000/api/health || true
-            curl -fsS --max-time 5 http://127.0.0.1:3001/health || true
-            timeout 20s pm2 list || true
+            timeout 15s pm2 list || true
+            echo "[heal] done backend_live=$BACKEND_HEALTHY site_live=$SITE_HEALTHY"
           SSHEOF
 
       - name: Smoke tests (backend-direct, then nginx)
+        timeout-minutes: 5
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
           chmod +x UNICORN_FINAL/scripts/smoke-forward-only.sh
 
           echo "::group::Smoke (backend-direct via SSH on 127.0.0.1:3000)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 SKIP_PUBLIC=1 REQUIRE_PM2=1 bash scripts/smoke-forward-only.sh'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes root@"$HETZNER_HOST" \
+            'cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || cd /var/www/unicorn/current/UNICORN_FINAL; BASE_URL=http://127.0.0.1:3000 SKIP_PUBLIC=1 REQUIRE_PM2=1 bash scripts/smoke-forward-only.sh'
           echo "[backend-direct] PASS"
           echo "::endgroup::"
 

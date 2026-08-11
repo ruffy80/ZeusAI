@@ -145,6 +145,23 @@ check('live autopilot watchdog dispatches repair after failed deploys', () => {
   assert.ok(src.includes('diagnose-and-repair.yml'), 'watchdog must dispatch diagnose-and-repair');
 });
 
+check('deploy skips full suite block during live outage (critical gate fallback)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'deploy.yml'), 'utf8');
+  assert.ok(src.includes('live_down'), 'deploy must probe live_down');
+  assert.ok(src.includes('LIVE OUTAGE'), 'deploy must document outage bypass');
+  assert.ok(src.includes('critical gate'), 'deploy must fall back to critical gate');
+  assert.ok(src.includes('server-never-recur.test.js'), 'critical gate must include never-recur guards');
+});
+
+check('diagnose-and-repair heal is nuclear and bounded (no 15m hang)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'diagnose-and-repair.yml'), 'utf8');
+  assert.ok(src.includes('ConnectTimeout=10'), 'SSH must have ConnectTimeout');
+  assert.ok(src.includes('/health/live'), 'heal must prefer /health/live');
+  assert.ok(!/wait_for_health[\s\S]{0,80}40\s+4/.test(src), 'must not use 40×4s health waits');
+  assert.ok(src.includes('pm2 kill') || src.includes('hard reset PM2'), 'must hard-reset PM2');
+  assert.ok(/timeout-minutes:\s*10/.test(src), 'self-heal step must be time-bounded');
+});
+
 check('nginx maintenance page preserves HTTP 503 (not rewritten to 200)', () => {
   const conf = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-unicorn.conf'), 'utf8');
   const snip = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-maintenance.snippet.conf'), 'utf8');
