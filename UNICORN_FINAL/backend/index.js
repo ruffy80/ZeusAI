@@ -17060,14 +17060,22 @@ if (require.main === module) {
       }
     }
 
-    // Billion Autonomy Loop — always-on digital flywheel (IndexNow money URLs,
-    // enterprise notify hook, CJ arm watch). Independent of revenue-autopilot
-    // so stable runtime still acquires discovery traffic honestly.
+    // Billion Autonomy Loop — IndexNow / enterprise notify / CJ watch.
+    // Under stable/safe keep it IDLE: the boot tick + telegram posts were
+    // starving /api/health on the 8GB VPS (live hang 2026-08-11). Arm with
+    // DISABLE_BILLION_AUTONOMY_LOOP=0 + BILLION_AUTONOMY_LOOP_FORCE=1, or
+    // switch to UNICORN_RUNTIME_PROFILE=growth once money path is green.
     try {
-      const balos = require('../src/commerce/billion-autonomy-loop-os');
-      if (balos && typeof balos.start === 'function') {
-        const st = balos.start({ bootDelayMs: 90000 });
-        console.log('♾️ Billion Autonomy Loop: ' + (st && st.ok ? 'ACTIVE' : ('IDLE ' + (st && st.reason || ''))));
+      const _balosOff = process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1'
+        || (_stableRuntime && process.env.BILLION_AUTONOMY_LOOP_FORCE !== '1');
+      if (_balosOff) {
+        console.log('♾️ Billion Autonomy Loop: IDLE under stable (set BILLION_AUTONOMY_LOOP_FORCE=1 to arm)');
+      } else {
+        const balos = require('../src/commerce/billion-autonomy-loop-os');
+        if (balos && typeof balos.start === 'function') {
+          const st = balos.start({ bootDelayMs: 90000 });
+          console.log('♾️ Billion Autonomy Loop: ' + (st && st.ok ? 'ACTIVE' : ('IDLE ' + (st && st.reason || ''))));
+        }
       }
     } catch (e) {
       console.warn('[BALOS] start failed:', e && e.message);

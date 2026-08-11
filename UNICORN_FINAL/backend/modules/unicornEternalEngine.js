@@ -1,12 +1,3 @@
-// ...existing code...
-// MeshOrchestrator expects a status function (getStatus)
-module.exports.getStatus = function() {
-  return {
-    status: 'active',
-    readiness: typeof this.verifySiteFutureReadiness === 'function' ? this.verifySiteFutureReadiness() : undefined,
-    time: new Date().toISOString()
-  };
-};
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -1744,12 +1735,16 @@ export default function QuantumLoader() {
 
 
 const instance = new UnicornEternalEngine();
-// MeshOrchestrator expects a status function (getStatus)
+// MeshOrchestrator / IAK poll getStatus on a short harmonic. NEVER kick off
+// verifySiteFutureReadiness() here — that async work logged "Site Future
+// Readiness" dozens of times per tick and starved the event loop on the
+// single-node VPS (live hang 2026-08-11). Readiness is on-demand via the
+// /site/readiness route only.
 instance.getStatus = function() {
   return {
-    status: 'active',
-    readiness: typeof this.verifySiteFutureReadiness === 'function' ? this.verifySiteFutureReadiness() : undefined,
-    time: new Date().toISOString()
+    status: instance._stableIdle && instance._stableIdle() ? 'idle-stable' : 'active',
+    readiness: null,
+    time: new Date().toISOString(),
   };
 };
 // Alias pentru orchestrator: statusFn

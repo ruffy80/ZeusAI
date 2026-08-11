@@ -263,6 +263,27 @@ class ProfitControlLoop {
 }
 
 const loop = new ProfitControlLoop();
-loop.start();
+// Do NOT auto-start on require under stable/safe — PCL ticks compete with
+// /api/health on the single-node VPS and freeze the event loop. Arm explicitly
+// with PROFIT_LOOP_AUTOSTART=1 (or growth/full profile).
+(function _maybeAutostart() {
+  const profile = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+  const stable = profile === 'stable' || profile === 'safe'
+    || String(process.env.DISABLE_SELF_MUTATION || '') === '1';
+  const forcedOff = process.env.PCL_DISABLED === '1' || process.env.PROFIT_LOOP_AUTOSTART === '0';
+  const forcedOn = process.env.PROFIT_LOOP_AUTOSTART === '1';
+  if (forcedOff) {
+    console.log('[PCL] idle (PCL_DISABLED/PROFIT_LOOP_AUTOSTART=0)');
+    return;
+  }
+  if (stable && !forcedOn) {
+    console.log('[PCL] idle under stable/safe (set PROFIT_LOOP_AUTOSTART=1 to arm)');
+    return;
+  }
+  if (process.env.NODE_ENV === 'test' && !forcedOn) return;
+  try { loop.start(); } catch (e) {
+    console.warn('[PCL] autostart failed:', e && e.message);
+  }
+})();
 module.exports = loop;
 module.exports.ProfitControlLoop = ProfitControlLoop;

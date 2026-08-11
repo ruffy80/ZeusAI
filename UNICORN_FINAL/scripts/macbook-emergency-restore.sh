@@ -28,6 +28,7 @@ rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled /etc/zeus-hang-wat
 
 APP_DIR=""
 for candidate in \
+  /var/www/unicorn/current \
   /var/www/unicorn/current/UNICORN_FINAL \
   /var/www/unicorn/live/UNICORN_FINAL \
   /var/www/unicorn/UNICORN_FINAL
@@ -43,6 +44,18 @@ if [ -z "$APP_DIR" ]; then
 fi
 echo "[restore] APP_DIR=$APP_DIR HEAD=$(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 cd "$APP_DIR"
+
+echo '[restore] pause thrash healers/crons during reclaim'
+touch /etc/zeus-hang-watchdog.disabled /etc/zeus-unicorn-healer.disabled 2>/dev/null || true
+systemctl stop hang-watchdog.timer hang-watchdog.service unicorn-healer.timer unicorn-healer.service 2>/dev/null || true
+# Comment thrash crons if still armed (idempotent)
+if crontab -l 2>/dev/null | grep -qE 'autoheal-min\.sh|never-down-watch\.sh|unicorn-health-watch\.sh'; then
+  crontab -l 2>/dev/null | sed -E \
+    -e 's|^([^#].*autoheal-min\.sh.*)$|# DISABLED thrash: \1|' \
+    -e 's|^([^#].*never-down-watch\.sh.*)$|# DISABLED thrash: \1|' \
+    -e 's|^([^#].*unicorn-health-watch\.sh.*)$|# DISABLED thrash: \1|' \
+    | crontab - 2>/dev/null || true
+fi
 
 echo '[restore] hard reset PM2'
 timeout 10s pm2 stop all 2>/dev/null || true
@@ -72,9 +85,22 @@ export QIS_AUTO_HEAL_ENABLED=false
 export SITE_INSTANCES="${SITE_INSTANCES:-1}"
 export UNICORN_INSTANCES="${UNICORN_INSTANCES:-1}"
 export UNICORN_GUARDIAN=0
+export AUTOSCALE_DISABLED=1
+export LIVE_SYNC_ENABLED=0
+export AACOS_DISABLED=1
+export TAOS_DISABLED=1
+export GROWTH_STACK_DISABLED=1
+export OPS_PM2_CHECK_DISABLED=1
+export ZACC_ENABLED="${ZACC_ENABLED:-0}"
+export WATCHDOG_DISABLED=1
+export WATCHDOG_AUTOSTART=0
 
-echo '[restore] pm2 start canonical stack'
-timeout 60s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site,autoscaler --update-env
+echo '[restore] pm2 start canonical stack (backend+site only)'
+timeout 60s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site --update-env
+# Retire side-cars if an old dump resurrected them
+for a in autoscaler module-mesh-guardian unicorn-live-sync unicorn-guardian; do
+  timeout 10s pm2 delete "$a" 2>/dev/null || true
+done
 
 wait_live() {
   local name="$1" url="$2" n="${3:-24}" d="${4:-4}"
