@@ -11,8 +11,16 @@ EnvironmentFile=-/var/www/unicorn/.env.healer
 # Wrong URL caused a 30s suicide loop: probe fail → pm2 restart → never-finish boot.
 Environment=HEALTH_URL=http://127.0.0.1:3000/api/health
 Environment=SITE_HEALTH_URL=http://127.0.0.1:3001/health
-# Only restart the app that failed the probe path; leave site/autoscaler alone.
-Environment=PM2_APPS=unicorn-backend
+# The healer restarts ONLY the app whose probe failed (backend→unicorn-backend,
+# site→unicorn-site). PM2_APPS is just the fallback set used when the failed-app
+# mapping is empty. It MUST include unicorn-site — a site-only outage previously
+# never recovered because the healer probed the site but only ever restarted the
+# backend.
+Environment=PM2_APPS=unicorn-backend unicorn-site
+# APP_DIR/ECOSYSTEM_CFG let the healer RECREATE a crashed app from config via
+# `pm2 startOrRestart` when a plain `pm2 restart` fails (app absent/errored).
+Environment=APP_DIR=/var/www/unicorn/UNICORN_FINAL
+Environment=ECOSYSTEM_CFG=/var/www/unicorn/UNICORN_FINAL/ecosystem.config.js
 Environment=PM2_BIN=/usr/bin/pm2
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=FAIL_THRESHOLD=5
