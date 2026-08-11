@@ -5,8 +5,10 @@
 1. Open https://console.hetzner.cloud → server `204.168.230.142` → **Console**
 2. Login as `root`
 3. Paste the **entire** contents of [`PHONE_CONSOLE_RECOVERY.sh`](./PHONE_CONSOLE_RECOVERY.sh)
-   (hardcoded keys — no curl / no MacBook)
-4. Cloud Agent SSHes in within ~1 min and runs `deploy-local.sh`
+   (hardcoded keys — no curl / no MacBook). This **hard-restarts PM2 + nginx**
+   and should bring `https://zeusai.pro` back within ~1 minute.
+4. Then run GitHub Actions → **Diagnose & Repair** with `do_repair=true`, or
+   wait for Stable Deploy after merge.
 
 Pubkey source: [`cursor-cloud-deploy_key.pub`](./cursor-cloud-deploy_key.pub)
 

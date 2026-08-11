@@ -36,9 +36,28 @@ const app = require('../backend/index');
 let server;
 let port;
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchRetry(url, opts = {}, attempts = 5) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      lastErr = err;
+      // CI flake: under load the freshly-booted backend can reset the first
+      // connection ("TypeError: fetch failed") and abort the whole deploy.
+      if (i < attempts) await sleep(50 * i * i);
+    }
+  }
+  throw lastErr;
+}
+
 async function get(path) {
   const url = `http://127.0.0.1:${port}${path}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const res = await fetchRetry(url, { headers: { Accept: 'application/json' } });
   let body = null;
   try { body = await res.json(); } catch (_) { /* non-json ok */ }
   return { status: res.status, body };
@@ -47,6 +66,9 @@ async function get(path) {
 async function setup() {
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   port = server.address().port;
+  // Brief settle so listen-callback modules finish before the first probe.
+  await sleep(100);
+  await fetchRetry(`http://127.0.0.1:${port}/health/live`, {}, 8);
 }
 
 async function teardown() {
@@ -113,7 +135,7 @@ async function run() {
     try {
       // (a) Warm the per-tier last-good cache with a healthy request first.
       const warmUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=instant`;
-      const warm = await fetch(warmUrl, { headers: { Accept: 'application/json' } });
+      const warm = await fetchRetry(warmUrl, { headers: { Accept: 'application/json' } });
       assert.strictEqual(warm.status, 200, 'warm-up must be 200');
       const warmBody = await warm.json();
       assert.ok(Array.isArray(warmBody.products) && warmBody.products.length > 0,
@@ -125,7 +147,7 @@ async function run() {
       // stale-after-error rather than a 5xx.
       unifiedCatalog.publicView = function () { throw new Error('forced-test-throw'); };
       const staleUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=instant`;
-      const stale = await fetch(staleUrl, { headers: { Accept: 'application/json' } });
+      const stale = await fetchRetry(staleUrl, { headers: { Accept: 'application/json' } });
       assert.strictEqual(stale.status, 200, 'stale-after-error must still be 200, got ' + stale.status);
       const staleHeader = stale.headers.get('x-catalog-source') || '';
       assert.ok(
@@ -139,7 +161,7 @@ async function run() {
       // (c) Empty-after-error branch — unknown tier with no warmed cache —
       // must still be 200 with empty products[] (never 5xx).
       const emptyUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=does-not-exist`;
-      const empty = await fetch(emptyUrl, { headers: { Accept: 'application/json' } });
+      const empty = await fetchRetry(emptyUrl, { headers: { Accept: 'application/json' } });
       assert.strictEqual(empty.status, 200, 'empty-after-error must still be 200');
       const emptyBody = await empty.json();
       assert.ok(Array.isArray(emptyBody.products), 'empty-after-error must expose products[]');
