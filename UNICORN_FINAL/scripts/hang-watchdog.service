@@ -22,9 +22,12 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Short HTTP timeout so a real hang is caught fast; boot-grace + threshold +
 # cooldown keep it from thrashing pm2 during cold boots.
 Environment=HANG_WATCHDOG_HTTP_TIMEOUT_MS=5000
-Environment=HANG_WATCHDOG_FAIL_THRESHOLD=3
-Environment=HANG_WATCHDOG_BOOT_GRACE_SEC=90
-Environment=HANG_WATCHDOG_COOLDOWN_SEC=180
+# Threshold 2 + healthy-clear hysteresis: intermittent hang (healthy flicker
+# between frozen ticks) still accumulates to actuation within ~90s of timer.
+Environment=HANG_WATCHDOG_FAIL_THRESHOLD=2
+Environment=HANG_WATCHDOG_HEALTHY_CLEAR=2
+Environment=HANG_WATCHDOG_BOOT_GRACE_SEC=60
+Environment=HANG_WATCHDOG_COOLDOWN_SEC=120
 # Kill-switch: `touch /etc/zeus-hang-watchdog.disabled` makes the run a no-op.
 ExecStartPre=/bin/sh -c '[ ! -f /etc/zeus-hang-watchdog.disabled ]'
 ExecStart=/usr/bin/env node /var/www/unicorn/UNICORN_FINAL/scripts/hang-watchdog.js --once
