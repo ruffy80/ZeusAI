@@ -301,13 +301,24 @@ async function tick() {
   const state = readState();
   const now = Math.floor(Date.now() / 1000);
 
-  // Track consecutive fails per app.
+  // Track consecutive fails per app WITH hysteresis.
+  // A single flapping "healthy" tick between two hangs used to reset the
+  // counter to 0, so a oneshot systemd timer (every ~45s) never reached
+  // threshold and never SIGKILL'd a intermittently-frozen backend. Require
+  // HEALTHY_CLEAR consecutive healthy observations before clearing fails.
+  const HEALTHY_CLEAR = Math.max(1, Number(process.env.HANG_WATCHDOG_HEALTHY_CLEAR) || 2);
   const failing = new Set(decision.apps);
   state.fails = state.fails || {};
+  state.okStreak = state.okStreak || {};
   state.lastAction = state.lastAction || {};
   for (const t of TARGETS) {
-    if (failing.has(t.app)) state.fails[t.app] = Number(state.fails[t.app] || 0) + 1;
-    else state.fails[t.app] = 0;
+    if (failing.has(t.app)) {
+      state.fails[t.app] = Number(state.fails[t.app] || 0) + 1;
+      state.okStreak[t.app] = 0;
+    } else {
+      state.okStreak[t.app] = Number(state.okStreak[t.app] || 0) + 1;
+      if (state.okStreak[t.app] >= HEALTHY_CLEAR) state.fails[t.app] = 0;
+    }
   }
 
   if (decision.apps.length === 0) {

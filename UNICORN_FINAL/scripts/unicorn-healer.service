@@ -16,7 +16,7 @@ Environment=SITE_HEALTH_URL=http://127.0.0.1:3001/health
 # mapping is empty. It MUST include unicorn-site — a site-only outage previously
 # never recovered because the healer probed the site but only ever restarted the
 # backend.
-Environment=PM2_APPS=unicorn-backend unicorn-site
+Environment="PM2_APPS=unicorn-backend unicorn-site"
 # APP_DIR/ECOSYSTEM_CFG let the healer RECREATE a crashed app from config via
 # `pm2 startOrRestart` when a plain `pm2 restart` fails (app absent/errored).
 Environment=APP_DIR=/var/www/unicorn/UNICORN_FINAL

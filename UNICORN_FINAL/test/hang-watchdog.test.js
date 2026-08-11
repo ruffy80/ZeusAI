@@ -265,6 +265,12 @@ function opsArtifacts() {
   assert.ok(/DISABLE_SELF_MUTATION/.test(wd), 'watchdog must set DISABLE_SELF_MUTATION on restart');
   assert.ok(/SIGKILL/.test(wd), 'watchdog must escalate a hung app to SIGKILL');
   assert.ok(/reloadNginx|systemctl.*nginx/.test(wd), 'watchdog must reload nginx after recovery');
+  assert.ok(/HEALTHY_CLEAR|okStreak/.test(wd),
+    'watchdog must use healthy-streak hysteresis so flapping hang↔healthy reaches threshold');
+
+  const healerSvc = fs.readFileSync(path.join(root, 'scripts', 'unicorn-healer.service'), 'utf8');
+  assert.ok(/Environment="PM2_APPS=unicorn-backend unicorn-site"/.test(healerSvc),
+    'systemd Environment= must quote PM2_APPS (unquoted value drops unicorn-site)');
 
   assert.ok(/timeout .*540s|timeout --signal=KILL 540s/.test(diagnose),
     'diagnose-and-repair self-heal SSH must be hard-bounded so it cannot hang forever');
