@@ -99,7 +99,12 @@ jobs:
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          # Hard outer bound (540s < the 10m step budget): even if the SSH
+          # stream stalls mid-heal despite ServerAlive*, `timeout` reaps it so
+          # this step can NEVER hang forever. Non-zero from the bound is logged
+          # but not fatal, so the smoke step still runs and surfaces the truth.
+          timeout --signal=KILL 540s \
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes root@"$HETZNER_HOST" bash -s <<'SSHEOF' || echo "[heal] self-heal SSH ended (rc=$? — hard-bounded, continuing to smoke)"
             set +e
             rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled
 

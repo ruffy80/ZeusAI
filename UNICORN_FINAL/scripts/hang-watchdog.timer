@@ -1,0 +1,17 @@
+# /etc/systemd/system/hang-watchdog.timer
+# Runs hang-watchdog.service on a short cadence. The event-loop-freeze
+# outage takes the whole site down, so we probe more often than the
+# general healer (every 45s) while still giving cold boots room via the
+# watchdog's own boot-grace gate.
+[Unit]
+Description=ZeusAI Unicorn Hang Watchdog Timer
+Requires=hang-watchdog.service
+
+[Timer]
+OnBootSec=90
+OnUnitInactiveSec=45
+AccuracySec=10
+Unit=hang-watchdog.service
+
+[Install]
+WantedBy=timers.target
