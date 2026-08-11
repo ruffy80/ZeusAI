@@ -302,6 +302,37 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 
+    // ── Phoenix Continuity OS — immortality edge (ALWAYS ON) ───────────────
+    // Separate process that NEVER loads UEE/IAK/PCL. Answers /phoenix/live
+    // even when backend/site event loops are frozen, proxies commerce with
+    // last-known-good fallback so the public never sees nginx 0-byte hangs.
+    // Kill-switch: UNICORN_PHOENIX=0
+    ...((process.env.UNICORN_PHOENIX || '1') === '1' ? [{
+      name: 'unicorn-phoenix',
+      script: 'backend/phoenix-edge.js',
+      cwd: APP_DIR,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_memory_restart: '128M',
+      max_restarts: 50,
+      min_uptime: '5s',
+      restart_delay: 1000,
+      watch: false,
+      kill_timeout: 3000,
+      env: {
+        NODE_ENV: 'production',
+        PHOENIX_PORT: process.env.PHOENIX_PORT || '3002',
+        PHOENIX_BIND: process.env.PHOENIX_BIND || '127.0.0.1',
+        PHOENIX_BRAIN_ORIGIN: process.env.PHOENIX_BRAIN_ORIGIN || 'http://127.0.0.1:3000',
+        PHOENIX_PROXY_TIMEOUT_MS: process.env.PHOENIX_PROXY_TIMEOUT_MS || '2500',
+        PHOENIX_FROZEN_MS: process.env.PHOENIX_FROZEN_MS || '4000',
+      },
+      error_file: 'logs/phoenix-error.log',
+      out_file:   'logs/phoenix-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    }] : []),
+
     // ── Optional side-cars (OFF by default) ─────────────────────────────────
     // Bare `pm2 start ecosystem.config.js` previously launched these and
     // competed with backend/site on the 8GB VPS (CPU starve → HTTP hang).
