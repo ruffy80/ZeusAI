@@ -26,8 +26,8 @@ Environment=HANG_WATCHDOG_HTTP_TIMEOUT_MS=5000
 # between frozen ticks) still accumulates to actuation within ~90s of timer.
 Environment=HANG_WATCHDOG_FAIL_THRESHOLD=2
 Environment=HANG_WATCHDOG_HEALTHY_CLEAR=2
-Environment=HANG_WATCHDOG_BOOT_GRACE_SEC=60
-Environment=HANG_WATCHDOG_COOLDOWN_SEC=120
+Environment=HANG_WATCHDOG_BOOT_GRACE_SEC=150
+Environment=HANG_WATCHDOG_COOLDOWN_SEC=60
 # Kill-switch: `touch /etc/zeus-hang-watchdog.disabled` makes the run a no-op.
 ExecStartPre=/bin/sh -c '[ ! -f /etc/zeus-hang-watchdog.disabled ]'
 ExecStart=/usr/bin/env node /var/www/unicorn/UNICORN_FINAL/scripts/hang-watchdog.js --once
