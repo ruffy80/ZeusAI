@@ -1992,7 +1992,12 @@ const globalPublicRateLimit = rateLimit({
   // 429 the image plane and look like "no product images".
   skip: (req) => {
     const p = String(req.path || '');
+    // /health/live + /health/ready MUST stay exempt — healers/watchdogs poll
+    // them every ~20–30s and a 429 makes the box look hung and suicide-loops
+    // recovery (seen live 2026-08-11).
     return p === '/health' || p === '/api/health'
+      || p === '/health/live' || p === '/health/ready'
+      || p === '/api/health/live' || p === '/api/health/ready'
       || p.startsWith('/api/dropship/cover/')
       || p.startsWith('/api/dropship/cover');
   },
