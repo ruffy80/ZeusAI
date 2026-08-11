@@ -130,10 +130,19 @@ check('deploy-atomic-forward does not treat unreachable health as stale uptime',
 check('deploy canary probes /health/live and reclaims hung live workers', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
   assert.ok(src.includes('live_health_reachable'), 'must detect hung live before canary');
-  assert.ok(src.includes('reclaiming PM2/ports'), 'must reclaim resources when live is down');
+  assert.ok(src.includes('hard_reclaim_pm2'), 'must hard-reclaim PM2 when live is down');
+  assert.ok(src.includes('EMERGENCY OUTAGE MODE') || src.includes('EMERGENCY_OUTAGE_PROMOTE'),
+    'must emergency-promote when live is already down');
   assert.ok(/canary.*health\/live|health\/live.*canary/i.test(src) || src.includes('probed /health/live'),
     'canary must probe /health/live');
   assert.ok(/CANARY_TIMEOUT_SECONDS:-180/.test(src), 'default canary timeout must be >=180s');
+});
+
+check('live autopilot watchdog dispatches repair after failed deploys', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'live-autopilot-watchdog.yml'), 'utf8');
+  assert.ok(src.includes("workflow_run.conclusion == 'failure'"),
+    'watchdog must run after failed Stable Deploy');
+  assert.ok(src.includes('diagnose-and-repair.yml'), 'watchdog must dispatch diagnose-and-repair');
 });
 
 check('nginx maintenance page preserves HTTP 503 (not rewritten to 200)', () => {
