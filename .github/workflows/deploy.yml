@@ -259,11 +259,13 @@ jobs:
           bash scripts/ci-green-preflight.sh
 
           set +e
-          npm test --if-present
+          # TTS/1.0 — per-file retry on ECONNRESET so flaky boot storms do not
+          # block Hetzner deploys while real assertion failures still refuse.
+          npm run test:ci --if-present
           rc=$?
           set -e
           if [ "$rc" -eq 0 ]; then
-            echo "✅ full suite passed"
+            echo "✅ full suite passed (TTS)"
             exit 0
           fi
           if [ "${LIVE_DOWN:-false}" = "true" ]; then
