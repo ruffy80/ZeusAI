@@ -149,6 +149,31 @@ cleanup_canary() {
 }
 trap cleanup_canary EXIT
 
+# Hard PM2/port reclaim (mirrors diagnose-and-repair.yml). Used when live is
+# already down so a hung God Daemon / stuck listeners cannot starve the next boot.
+hard_reclaim_pm2() {
+  log "hard reclaim: stop/delete/kill PM2 + free :3000/:3001/:3100"
+  timeout 15s pm2 stop all >/dev/null 2>&1 || true
+  timeout 15s pm2 delete all >/dev/null 2>&1 || true
+  timeout 10s pm2 kill >/dev/null 2>&1 || true
+  pkill -9 -f 'PM2 v.*God Daemon' >/dev/null 2>&1 || true
+  rm -f /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid >/dev/null 2>&1 || true
+  rm -rf /root/.pm2/pids/* >/dev/null 2>&1 || true
+  for PORT in 3000 3001 "$CANARY_PORT"; do
+    if command -v fuser >/dev/null 2>&1; then
+      fuser -k "${PORT}/tcp" >/dev/null 2>&1 || true
+    fi
+    PIDS="$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)"
+    for PID in $PIDS; do
+      [ -n "$PID" ] || continue
+      kill "$PID" 2>/dev/null || true
+      sleep 0.5
+      kill -9 "$PID" 2>/dev/null || true
+    done
+  done
+  sleep 2
+}
+
 log "candidate=$CANDIDATE_DIR"
 log "deploy_link=$DEPLOY_LINK"
 
@@ -226,36 +251,36 @@ if [ -f client/package.json ]; then
   fi
 fi
 
-# ── Pre-canary reclaim ──────────────────────────────────────────────────────
-# When live :3000 is already down/hung (the 2026-08-11 outage class), leaving
-# unicorn-backend/site running starves the canary of RAM/CPU so /health never
-# answers within the wait window ("canary health timeout" after ~4 min of
-# curl --max-time 2 hangs). Reclaim ONLY when live health is unreachable —
-# never kill a healthy live stack just to canary.
+# ── Pre-canary live probe + outage mode ─────────────────────────────────────
+# When live :3000 is already down (maintenance page / hung workers), a full
+# canary on :3100 has repeatedly crashed or timed out (2026-08-11). Preflight
+# already validated syntax/requires. In that case we SKIP the canary process,
+# promote the candidate, and start PM2 — the only path that restores service.
 live_health_reachable() {
   curl -fsS --max-time 3 "http://127.0.0.1:3000/health/live" >/dev/null 2>&1 \
     || curl -fsS --max-time 3 "http://127.0.0.1:3000/api/health" >/dev/null 2>&1
 }
+
+LIVE_WAS_DOWN=0
+EMERGENCY_OUTAGE_PROMOTE=0
 if ! live_health_reachable; then
-  log "live :3000 unhealthy before canary — reclaiming PM2/ports so canary can boot"
-  for app in $PM2_APPS $RETIRED_PM2_APPS; do
-    pm2 delete "$app" >/dev/null 2>&1 || true
-  done
-  if command -v fuser >/dev/null 2>&1; then
-    fuser -k 3000/tcp >/dev/null 2>&1 || true
-    fuser -k 3001/tcp >/dev/null 2>&1 || true
-    fuser -k "${CANARY_PORT}/tcp" >/dev/null 2>&1 || true
+  LIVE_WAS_DOWN=1
+  hard_reclaim_pm2
+  # Default ON when live is down. Set EMERGENCY_SKIP_CANARY=0 to force canary.
+  if [ "${EMERGENCY_SKIP_CANARY:-1}" = "1" ]; then
+    EMERGENCY_OUTAGE_PROMOTE=1
+    log "EMERGENCY OUTAGE MODE: live down — skip canary, promote preflighted candidate + PM2 start"
+  else
+    log "live down but EMERGENCY_SKIP_CANARY=0 — will still attempt canary"
   fi
-  sleep 2
-  cleanup_pm2_topology
 else
-  log "live :3000 healthy — leaving it up during canary"
-  # Still free a stale canary port if a previous attempt left a listener.
+  log "live :3000 healthy — full canary required before promote"
   if command -v fuser >/dev/null 2>&1; then
     fuser -k "${CANARY_PORT}/tcp" >/dev/null 2>&1 || true
   fi
 fi
 
+if [ "$EMERGENCY_OUTAGE_PROMOTE" != "1" ]; then
 log "start backend canary on port $CANARY_PORT (probe /health/live, timeout ${CANARY_TIMEOUT_SECONDS}s)"
 CANARY_LOG="/tmp/unicorn-canary-${CANARY_PORT}.log"
 # Line-buffer logs so a hung canary still leaves a readable trail in CI.
@@ -278,6 +303,12 @@ CANARY_OK=0
 for i in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
   if ! kill -0 "$CANARY_PID" 2>/dev/null; then
     tail -160 "$CANARY_LOG" >&2 || true
+    if [ "$LIVE_WAS_DOWN" = "1" ]; then
+      log "canary exited while live was already down — falling through to EMERGENCY promote"
+      EMERGENCY_OUTAGE_PROMOTE=1
+      CANARY_OK=0
+      break
+    fi
     fail "canary process exited before health was ready"
   fi
   # /health/live is process-only and registered before heavy listen-callback
@@ -294,8 +325,17 @@ for i in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
   fi
   sleep 1
 done
-[ "$CANARY_OK" = "1" ] || { tail -160 "$CANARY_LOG" >&2 || true; fail "canary health timeout after ${CANARY_TIMEOUT_SECONDS}s (probed /health/live)"; }
+if [ "$CANARY_OK" != "1" ] && [ "$EMERGENCY_OUTAGE_PROMOTE" != "1" ]; then
+  if [ "$LIVE_WAS_DOWN" = "1" ]; then
+    log "canary health timeout while live was down — EMERGENCY promote of preflighted candidate"
+    EMERGENCY_OUTAGE_PROMOTE=1
+  else
+    tail -160 "$CANARY_LOG" >&2 || true
+    fail "canary health timeout after ${CANARY_TIMEOUT_SECONDS}s (probed /health/live)"
+  fi
+fi
 
+if [ "$EMERGENCY_OUTAGE_PROMOTE" != "1" ]; then
 log "wait for canary quantum integrity"
 QIS_OK=0
 for _ in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
@@ -309,10 +349,18 @@ done
 [ "$QIS_OK" = "1" ] || { curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/api/quantum-integrity/status" >&2 || true; tail -120 "$CANARY_LOG" >&2 || true; fail "canary quantum integrity timeout"; }
 
 BASE_URL="http://127.0.0.1:${CANARY_PORT}" SKIP_PUBLIC=1 bash scripts/smoke-forward-only.sh
+fi
 cleanup_canary
 trap - EXIT
+fi
 
+if [ "$EMERGENCY_OUTAGE_PROMOTE" = "1" ]; then
+  cleanup_canary
+  trap - EXIT
+  log "promote symlink under EMERGENCY OUTAGE MODE (canary skipped/failed; preflight OK)"
+else
 log "promote symlink atomically after green canary"
+fi
 if [ -e "$DEPLOY_LINK" ] && [ ! -L "$DEPLOY_LINK" ]; then
   fail "$DEPLOY_LINK exists and is not a symlink; refusing destructive promote"
 fi

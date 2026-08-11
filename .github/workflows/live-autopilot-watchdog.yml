@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   verify-live:
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Also run after FAILED Stable Deploys — that is exactly when production is
+    # most likely stuck on the nginx maintenance page and needs Diagnose & Repair.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:

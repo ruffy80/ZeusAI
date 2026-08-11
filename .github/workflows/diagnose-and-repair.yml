@@ -15,6 +15,12 @@ on:
         description: 'Run self-heal actions (pm2 restart, nginx reload, pm2 save). If false, only diagnose.'
         type: boolean
         default: true
+  # Auto-heal when Stable Deploy fails — production is typically on the nginx
+  # maintenance page at that point and needs a hard PM2 reclaim without waiting
+  # for a human to click "Run workflow".
+  workflow_run:
+    workflows: ["🚀 Unicorn Stable Deploy"]
+    types: [completed]
 
 concurrency:
   group: zeusai-diagnose-repair
@@ -22,6 +28,8 @@ concurrency:
 
 jobs:
   diagnose-and-repair:
+    # workflow_dispatch → always. workflow_run → only after a FAILED Stable Deploy.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -80,7 +88,9 @@ jobs:
           echo "::endgroup::"
 
       - name: Self-heal (PM2 restart + nginx reload + pm2 save)
-        if: ${{ inputs.do_repair == true }}
+        # workflow_dispatch respects the do_repair input; auto-runs after a
+        # failed Stable Deploy always repair (that is the whole point).
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.do_repair == true }}
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
