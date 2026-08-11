@@ -336,6 +336,20 @@ const PORT = process.env.PORT || 3000;
 // (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR) and can destabilize the process.
 app.set('trust proxy', 1);
 
+// ── Phoenix Continuity OS — heartbeat lease (PCOS/1.0) ────────────────
+// Written BEFORE heavy module boot so the immortality edge can witness a
+// freeze during cold start. Separate PM2 process `unicorn-phoenix` reads
+// this tick and ALWAYS answers /phoenix/live even when our event loop dies.
+try {
+  const _phoenixHb = require('./lib/phoenix-heartbeat');
+  const _phWriter = _phoenixHb.startWriter({ role: 'backend' });
+  if (_phWriter && _phWriter.path) {
+    console.log(`[phoenix] heartbeat → ${_phWriter.path}`);
+  }
+} catch (e) {
+  console.warn('[phoenix] heartbeat writer failed:', e && e.message);
+}
+
 // ── Runtime data directories — ensure ledger/state dirs exist at boot so the
 // economy & sovereignty engines (and genome backups) don't emit ENOENT noise
 // on their first write. Best-effort: never block boot on a mkdir failure.

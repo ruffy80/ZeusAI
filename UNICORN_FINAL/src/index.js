@@ -95,6 +95,13 @@ process.on('unhandledRejection', (reason) => {
 const express = require('express');
 const app = express();
 
+// Phoenix Continuity OS — site heartbeat lease (PCOS/1.0). Witnessed by
+// unicorn-phoenix so a frozen site event loop is distinguishable from death.
+try {
+  const _phoenixHb = require('../backend/lib/phoenix-heartbeat');
+  _phoenixHb.startWriter({ role: 'site' });
+} catch (_) { /* best-effort — site must boot even if phoenix lib missing */ }
+
 // === C2: Enable Brotli compression if available (forward-only) ===
 let brotliCompression = null;
 try {

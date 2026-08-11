@@ -66,10 +66,14 @@ const PM2_BIN = process.env.PM2_BIN || 'pm2';
 
 const BACKEND_APP = process.env.HANG_WATCHDOG_BACKEND_APP || 'unicorn-backend';
 const SITE_APP = process.env.HANG_WATCHDOG_SITE_APP || 'unicorn-site';
+const PHOENIX_HOST = process.env.HANG_WATCHDOG_PHOENIX_HOST || '127.0.0.1';
+const PHOENIX_PORT = Number(process.env.HANG_WATCHDOG_PHOENIX_PORT || 3002);
 
 // Probe targets. Endpoints match the outage runbook: backend /api/health,
 // site /health. `liveUrl` (process-only /health/live) is a corroborating
 // signal: hang on BOTH the app health and /health/live ⇒ truly frozen.
+// Phoenix Continuity OS (:3002) is the immortality witness — never SIGKILL it
+// when the brain is frozen; consult /phoenix/status.frozen instead.
 const TARGETS = [
   {
     name: 'backend',
@@ -141,6 +145,42 @@ function httpGet(host, port, pathName, timeoutMs) {
     req.on('timeout', () => { req.destroy(); resolve({ responded: false, timedOut: true, code: 0 }); });
     req.on('error', () => resolve({ responded: false, timedOut: false, code: 0 }));
   });
+}
+
+async function probePhoenixStatus() {
+  // Immortality witness — must answer even when brain is frozen.
+  const tcpOk = await tcpConnect(PHOENIX_HOST, PHOENIX_PORT, TCP_TIMEOUT_MS);
+  if (!tcpOk) return { ok: false, frozen: null, missing: true, body: null };
+  const http1 = await httpGet(PHOENIX_HOST, PHOENIX_PORT, '/phoenix/status', Math.min(HTTP_TIMEOUT_MS, 3000));
+  if (!http1.responded) return { ok: false, frozen: null, missing: false, hung: true, body: null };
+  let body = null;
+  try {
+    // httpGet currently returns only code — re-fetch tiny JSON with raw http
+    body = await new Promise((resolve) => {
+      const req = http.get({
+        host: PHOENIX_HOST,
+        port: PHOENIX_PORT,
+        path: '/phoenix/status',
+        timeout: 2000,
+      }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+          catch (_) { resolve(null); }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+    });
+  } catch (_) { body = null; }
+  return {
+    ok: true,
+    frozen: !!(body && body.frozen),
+    backendFrozen: !!(body && body.brain && body.brain.backend && body.brain.backend.frozen),
+    siteFrozen: !!(body && body.brain && body.brain.site && body.brain.site.frozen),
+    body,
+  };
 }
 
 async function probeTarget(t) {
@@ -291,8 +331,26 @@ async function tick() {
     results.push(await probeTarget(t));
   }
 
+  // PCOS witness: if phoenix reports brain frozen but primary probe flapped
+  // healthy, still treat the matching app as hung (heartbeat age > threshold).
+  // Never add unicorn-phoenix itself to restart targets from this signal.
+  const phoenix = await probePhoenixStatus();
+  if (phoenix && phoenix.ok && phoenix.frozen) {
+    for (const r of results) {
+      const roleFrozen = (r.name === 'backend' && phoenix.backendFrozen)
+        || (r.name === 'site' && phoenix.siteFrozen);
+      if (roleFrozen && r.classification && !r.classification.hung) {
+        // Upgrade to hang so SIGKILL escalation is allowed.
+        r.classification = { state: 'hang', actionable: true, hung: true };
+        r.phoenixFrozen = true;
+      }
+    }
+  }
+
   const summary = results.map((r) => `${r.name}=${r.classification.state}`
-    + `(tcp=${r.tcpOk ? 1 : 0},code=${r.httpCode},live=${r.liveResponded ? 1 : 0})`).join(' ');
+    + `(tcp=${r.tcpOk ? 1 : 0},code=${r.httpCode},live=${r.liveResponded ? 1 : 0}`
+    + `${r.phoenixFrozen ? ',phoenix=frozen' : ''})`).join(' ')
+    + ` phoenix=${phoenix && phoenix.ok ? (phoenix.frozen ? 'frozen' : 'ok') : 'down'}`;
 
   const decision = lib.decideRestartTargets(
     results.map((r) => ({ name: r.name, app: r.app, classification: r.classification }))

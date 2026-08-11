@@ -95,12 +95,16 @@ export ZACC_ENABLED="${ZACC_ENABLED:-0}"
 export WATCHDOG_DISABLED=1
 export WATCHDOG_AUTOSTART=0
 
-echo '[restore] pm2 start canonical stack (backend+site only)'
-timeout 60s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site --update-env
+echo '[restore] pm2 start canonical stack (phoenix + backend + site)'
+timeout 60s pm2 start ecosystem.config.js --only unicorn-phoenix,unicorn-backend,unicorn-site --update-env
 # Retire side-cars if an old dump resurrected them
 for a in autoscaler module-mesh-guardian unicorn-live-sync unicorn-guardian; do
   timeout 10s pm2 delete "$a" 2>/dev/null || true
 done
+# Arm Phoenix Continuity OS nginx + autodeploy when installer present
+if [ -f "$APP_DIR/scripts/install-phoenix-continuity.sh" ]; then
+  bash "$APP_DIR/scripts/install-phoenix-continuity.sh" 2>&1 | tail -40 || true
+fi
 
 wait_live() {
   local name="$1" url="$2" n="${3:-24}" d="${4:-4}"

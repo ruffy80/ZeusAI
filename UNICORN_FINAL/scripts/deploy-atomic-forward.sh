@@ -10,8 +10,8 @@ CANARY_PORT="${CANARY_PORT:-3100}"
 # with CANARY_TIMEOUT_SECONDS if needed. Probe uses /health/live (process-only).
 CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-180}"
 FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-24}"
-PM2_APPS="unicorn-backend unicorn-site"
-PM2_ONLY="unicorn-backend,unicorn-site"
+PM2_APPS="unicorn-backend unicorn-site unicorn-phoenix"
+PM2_ONLY="unicorn-backend,unicorn-site,unicorn-phoenix"
 # module-mesh-guardian is ACTIVE (works together with ZAC systemd) — do not retire.
 RETIRED_PM2_APPS="autoscaler unicorn-live-sync unicorn-guardian"
 
