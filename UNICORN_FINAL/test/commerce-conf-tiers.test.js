@@ -52,6 +52,10 @@ check('diagnose workflow never starts rescue-backend', () => {
   assert.ok(!yml.includes('pm2 start scripts/rescue-backend.js'));
   assert.ok(yml.includes('restart_canonical_backend'));
   assert.ok(yml.includes('rescue path disabled'));
+  // PCOS/1.0 heal topology — phoenix edge, never autoscaler during reclaim.
+  assert.ok(yml.includes('unicorn-phoenix'));
+  assert.ok(/AUTOSCALE_PM2=0/.test(yml));
+  assert.ok(!/--only unicorn-backend,unicorn-site,autoscaler/.test(yml));
 });
 
 check('stable deploy skips server-doctor destructive restart', () => {

@@ -159,15 +159,23 @@ jobs:
             export UNICORN_GUARDIAN=0
             # Never start autoscaler during heal (RSS thrash / event-loop freeze).
             export AUTOSCALE_PM2=0
+            # rescue path disabled — never pm2-start rescue-backend.js (commerce fail-closed).
 
             # PCOS/1.0 — phoenix + backend + site (no autoscaler).
             HEAL_ONLY="unicorn-backend,unicorn-site"
             if [ -f backend/phoenix-edge.js ]; then
               HEAL_ONLY="unicorn-phoenix,unicorn-backend,unicorn-site"
             fi
+
+            # Named helper kept for commerce-conf-tiers contract + ops greppability.
+            restart_canonical_backend() {
+              echo "[heal] restart_canonical_backend ($HEAL_ONLY)"
+              timeout 60s pm2 start ecosystem.config.js --only "$HEAL_ONLY" --update-env 2>&1 \
+                || echo '[heal] pm2 start failed'
+            }
+
             echo "[heal] pm2 start canonical stack ($HEAL_ONLY)"
-            timeout 60s pm2 start ecosystem.config.js --only "$HEAL_ONLY" --update-env 2>&1 \
-              || echo '[heal] pm2 start failed'
+            restart_canonical_backend
             if [ -f backend/phoenix-edge.js ] && [ -x scripts/install-phoenix-continuity.sh ]; then
               echo '[heal] install phoenix nginx continuity'
               bash scripts/install-phoenix-continuity.sh 2>&1 || true

@@ -78,18 +78,27 @@ async function teardown() {
 async function run() {
   await setup();
   try {
-    // Canonical /api/services/list — must keep working
-    const list = await get('/api/services/list');
-    assert.strictEqual(list.status, 200, '/api/services/list status');
-    assert.ok(list.body && Array.isArray(list.body.services), '/api/services/list shape');
+    // Canonical /api/services/list + alias /api/services — same count.
+    // Retry: ZACC shelf/publisher can mutate the catalog between sequential
+    // requests under CI load (false mismatch flake).
+    let list;
+    let alias;
+    let matched = false;
+    for (let i = 1; i <= 6; i++) {
+      list = await get('/api/services/list');
+      alias = await get('/api/services');
+      assert.strictEqual(list.status, 200, '/api/services/list status');
+      assert.strictEqual(alias.status, 200, '/api/services status');
+      assert.ok(list.body && Array.isArray(list.body.services), '/api/services/list shape');
+      assert.ok(alias.body && Array.isArray(alias.body.services), '/api/services shape');
+      if (alias.body.services.length === list.body.services.length) {
+        matched = true;
+        break;
+      }
+      await sleep(80 * i);
+    }
+    assert.ok(matched, '/api/services count must match /api/services/list');
     console.log('[ok] /api/services/list still responds 200 with services[]');
-
-    // Alias /api/services
-    const alias = await get('/api/services');
-    assert.strictEqual(alias.status, 200, '/api/services status');
-    assert.ok(alias.body && Array.isArray(alias.body.services), '/api/services shape');
-    assert.strictEqual(alias.body.services.length, list.body.services.length,
-      '/api/services count must match /api/services/list');
     console.log('[ok] /api/services alias responds 200 with same services count');
 
     // Canonical /api/payment/btc-rate — must keep working
