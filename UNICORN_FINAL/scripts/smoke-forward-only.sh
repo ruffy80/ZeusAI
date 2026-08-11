@@ -38,6 +38,14 @@ ensure_local_backend() {
   script_dir="$(cd "$(dirname "$0")" && pwd)"
   app_dir="$(cd "$script_dir/.." && pwd)"
 
+  # Production SSH smoke (REQUIRE_PM2=1) must never spawn a shadow backend —
+  # that masks a dead PM2 stack and burns minutes waiting for a hung boot.
+  if [ "$REQUIRE_PM2" = "1" ]; then
+    echo "❌ backend missing on :3000 and REQUIRE_PM2=1 — refusing auto-start" >&2
+    echo "   Inspect: pm2 list; pm2 logs unicorn-backend --lines 80 --nostream" >&2
+    return 1
+  fi
+
   echo "ℹ local backend missing on :3000 — attempting auto-start for smoke"
   (
     cd "$app_dir"
