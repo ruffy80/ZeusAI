@@ -47,15 +47,32 @@ check() {
 }
 
 echo "[live-smoke] probing $DOMAIN (retries=$MAX_ATTEMPTS, curl-max=${CURL_MAX_TIME}s)"
+# PCOS/1.0 — phoenix edge must answer publicly when continuity is installed.
+# Non-fatal if the route is absent on older releases (404/502 → warn only).
+phoenix_code="$(http_code "https://${HOST}/phoenix/live")"
+if [ "$phoenix_code" = "200" ]; then
+  echo "✅ phoenix live → HTTP 200"
+elif [ "$phoenix_code" = "404" ] || [ "$phoenix_code" = "000" ]; then
+  echo "⚠ phoenix live → HTTP $phoenix_code (optional on pre-PCOS releases)"
+else
+  echo "⏳ phoenix live → HTTP $phoenix_code (continuing; commerce checks are authoritative)"
+fi
 check "health" "https://${HOST}/health" 200
 check "api health" "https://${HOST}/api/health" 200
 # Reject rescue topology even when it returns HTTP 200.
-api_body="$(curl -fsS --connect-timeout 8 --max-time 20 "https://${HOST}/api/health" || true)"
+api_body="$(curl -fsS --connect-timeout 8 --max-time 20 -D /tmp/live-smoke-api.hdr "https://${HOST}/api/health" || true)"
 if printf '%s' "$api_body" | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
   echo "❌ api health identifies as RESCUE — refusing green smoke"
   exit 1
 fi
-echo "✅ api health is canonical (not rescue)"
+# Prefer live brain; LKG via phoenix is acceptable during cold boot.
+if grep -qiE '^X-Phoenix:[[:space:]]*lkg' /tmp/live-smoke-api.hdr 2>/dev/null; then
+  echo "✅ api health via phoenix LKG (brain warming — accepted)"
+elif grep -qiE '^X-Phoenix:[[:space:]]*live' /tmp/live-smoke-api.hdr 2>/dev/null; then
+  echo "✅ api health via phoenix live proxy"
+else
+  echo "✅ api health is canonical (not rescue)"
+fi
 check "pricing" "https://${HOST}/api/pricing/all" 200
 check "catalog" "https://${HOST}/api/catalog" 200
 check "services" "https://${HOST}/services" 200

@@ -254,6 +254,10 @@ jobs:
           ZACC_ENABLE_ESCUELA: '0'
           LIVE_DOWN: ${{ steps.live_outage.outputs.live_down }}
         run: |
+          # CGP/1.0 — fail-fast before the 8–12m full suite (trust-sync + phoenix).
+          chmod +x scripts/ci-green-preflight.sh
+          bash scripts/ci-green-preflight.sh
+
           set +e
           npm test --if-present
           rc=$?
@@ -264,6 +268,7 @@ jobs:
           fi
           if [ "${LIVE_DOWN:-false}" = "true" ]; then
             echo "::warning::Full suite failed (exit $rc) during LIVE OUTAGE — running critical gate only"
+            bash scripts/ci-green-preflight.sh
             node test/health.test.js
             node test/backend-health-truth.test.js
             node test/ops-aggregator.test.js
