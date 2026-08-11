@@ -88,7 +88,9 @@ jobs:
           echo "::endgroup::"
 
       - name: Self-heal (PM2 restart + nginx reload + pm2 save)
-        if: ${{ inputs.do_repair == true }}
+        # workflow_dispatch respects the do_repair input; auto-runs after a
+        # failed Stable Deploy always repair (that is the whole point).
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.do_repair == true }}
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
