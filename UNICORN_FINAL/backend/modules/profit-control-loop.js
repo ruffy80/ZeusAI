@@ -175,11 +175,9 @@ class ProfitControlLoop {
   }
 
   _promoteShadowVariants() {
-    // shadow-tester resolves to the supreme-innovator-adapter Proxy, whose
-    // unsupported methods (getAllVariants is one) return an object
-    // ({ ok:false, error:'unsupported_method', ... }) rather than throwing.
-    // Guard against any non-iterable so the PCL tick never crashes with
-    // "variants is not iterable" (which previously aborted every cycle).
+    // shadowTester is the real ShadowTester module again (IAK statusFn=
+    // getMetrics). Still guard non-iterables so a future shim/regression
+    // cannot abort the PCL tick with "variants is not iterable".
     const raw = (typeof shadowTester.getAllVariants === 'function')
       ? shadowTester.getAllVariants()
       : [];
