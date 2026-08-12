@@ -265,13 +265,40 @@ async function run() {
   process.env.ADMIN_MASTER_PASSWORD = 'TestAdmin2026!';
   process.env.ADMIN_2FA_CODE = '999999';
   process.env.DEEPSEEK_LOOP_ADMIN_TOKEN = 'deepseek-test-token';
+  process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+  process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
   const app = require('../backend/index');
+
+  async function fetchRetry(url, opts = {}, attempts = 6) {
+    let lastErr;
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        return await fetch(url, {
+          ...opts,
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch (err) {
+        lastErr = err;
+        const msg = String((err && err.message) || err);
+        const name = String((err && err.name) || '');
+        const transient = /fetch failed|ECONNRESET|ECONNREFUSED|socket|aborted|TimeoutError|ETIMEDOUT/i.test(`${name} ${msg}`);
+        if (!transient || i === attempts) break;
+        await new Promise((r) => setTimeout(r, 80 * i * i));
+      }
+    }
+    throw lastErr || new Error('fetchRetry failed');
+  }
+
   await new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', async () => {
       const port = srv.address().port;
       try {
+        // Settle listen-callback storms before the first probe (Node 24 flake).
+        await new Promise((r) => setTimeout(r, 200));
+        await fetchRetry(`http://127.0.0.1:${port}/health/live`, {}, 10).catch(() => null);
+
         await test('POST /api/admin/deepseek/act without token → 401', async () => {
-          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/act`, {
+          const r = await fetchRetry(`http://127.0.0.1:${port}/api/admin/deepseek/act`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'none', requestId: 'http-1' }),
@@ -279,11 +306,11 @@ async function run() {
           assert.equal(r.status, 401);
         });
         await test('GET /api/admin/deepseek/status without token → 401', async () => {
-          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/status`);
+          const r = await fetchRetry(`http://127.0.0.1:${port}/api/admin/deepseek/status`);
           assert.equal(r.status, 401);
         });
         await test('POST /api/admin/deepseek/act with loop token → 200', async () => {
-          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/act`, {
+          const r = await fetchRetry(`http://127.0.0.1:${port}/api/admin/deepseek/act`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer deepseek-test-token' },
             body: JSON.stringify({ action: 'none', requestId: 'http-loop-token' }),
@@ -291,12 +318,15 @@ async function run() {
           assert.equal(r.status, 200);
         });
         await test('GET /api/admin/deepseek/status with loop token → 200', async () => {
-          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/status`, {
+          const r = await fetchRetry(`http://127.0.0.1:${port}/api/admin/deepseek/status`, {
             headers: { Authorization: 'Bearer deepseek-test-token' },
           });
           assert.equal(r.status, 200);
         });
       } finally {
+        try {
+          if (typeof srv.closeAllConnections === 'function') srv.closeAllConnections();
+        } catch (_) { /* ignore */ }
         srv.close(resolve);
       }
     });
