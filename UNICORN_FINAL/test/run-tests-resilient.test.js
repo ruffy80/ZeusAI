@@ -55,5 +55,14 @@ check('background log alone without uncaught error is NOT transient', () => {
   assert.strictEqual(isTransientFailure(out), false);
 });
 
+check('spawnSync file timeout meta is transient (one retry)', () => {
+  assert.strictEqual(isTransientFailure('', { timedOut: true }), true);
+});
+
+check('FILE_TIMEOUT_MS is a positive number', () => {
+  const { FILE_TIMEOUT_MS } = require('../scripts/run-tests-resilient');
+  assert.ok(Number(FILE_TIMEOUT_MS) >= 30_000);
+});
+
 console.log(`\n✅ run-tests-resilient: ${passed} tests passed\n`);
 process.exit(0);
