@@ -461,8 +461,12 @@ jobs:
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ root@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
 
+          # ZEUS_CI_VERIFIED_UPGRADE=1: the Freshness + anti-downgrade step above
+          # already proved live→candidate ancestry on a full clone. Without this,
+          # a stale /opt/zeus-autodeploy/repo mirror false-fails as DIVERGENT/
+          # INCOMPLETE within ~9s (Actions tip not fetched yet).
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "set -euo pipefail; chmod +x '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.sh '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.js 2>/dev/null || true; GITHUB_SHA='${{ github.sha }}' PUBLIC_URL='https://zeusai.pro' bash '$RELEASE_PATH/UNICORN_FINAL/scripts/deploy-atomic-forward.sh' '$RELEASE_PATH/UNICORN_FINAL' '$DEPLOY_LINK'"
+            "set -euo pipefail; chmod +x '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.sh '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.js 2>/dev/null || true; GITHUB_SHA='${{ github.sha }}' ZEUS_CI_VERIFIED_UPGRADE=1 PUBLIC_URL='https://zeusai.pro' bash '$RELEASE_PATH/UNICORN_FINAL/scripts/deploy-atomic-forward.sh' '$RELEASE_PATH/UNICORN_FINAL' '$DEPLOY_LINK'"
 
       - name: 🔬 Verify rsync replicated source
         # Catch silent rsync failures: pick a few canonical files from the

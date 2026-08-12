@@ -180,6 +180,12 @@ case "$DECISION" in
     log "REFUSED: DOWNGRADE blocked forever (candidate $NEW is ancestor of live $CUR) — no deploy"
     exit 1
     ;;
+  INCOMPLETE)
+    # Mirror just fetched; if objects still don't connect, wait for next tick
+    # rather than demanding [force-deploy] on a linear main tip.
+    log "incomplete ancestry graph after fetch (live=${CUR:-none} → $NEW) — retry next tick"
+    exit 0
+    ;;
   *)
     log "REFUSED: divergent/non-upgrade live=${CUR:-none} → $NEW (need [force-deploy] for reunite only) — no deploy"
     exit 1

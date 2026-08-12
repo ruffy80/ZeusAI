@@ -86,11 +86,27 @@ fi
 # Divergent reunite is allowed when caller set ZEUS_ALLOW_DIVERGENT_REUNITE=1
 # or the candidate subject contains [force-deploy]. Requires a git mirror with
 # both objects — skipped cleanly when unavailable (cold / archive-only).
+#
+# Actions path: deploy.yml already proved live→candidate ancestry with a full
+# clone. Pass ZEUS_CI_VERIFIED_UPGRADE=1 so a stale/shallow on-box mirror cannot
+# false-fail as DIVERGENT/INCOMPLETE (the classic 9s Deploy-to-Server death).
+# True DOWNGRADE from the mirror is still always refused.
 if type upgrade_only_guard >/dev/null 2>&1 && [ -n "${GITHUB_SHA:-}" ]; then
   LIVE_SHA="$(upgrade_only_live_sha "$DEPLOY_LINK")"
   SUBJ=""
   MIRROR="${ZEUS_MIRROR_DIR:-/opt/zeus-autodeploy/repo}"
   if [ -d "$MIRROR/.git" ]; then
+    # Refresh so brand-new merge tips resolve before the ancestry probe.
+    if git -C "$MIRROR" fetch --no-tags --prune origin main >/dev/null 2>&1 \
+      || git -C "$MIRROR" fetch --no-tags --prune origin >/dev/null 2>&1; then
+      log "upgrade-only: mirror fetched"
+    else
+      log "upgrade-only: mirror fetch skipped/failed (non-fatal; may use CI trust)"
+    fi
+    # Best-effort: materialize the exact candidate object if still missing.
+    if ! git -C "$MIRROR" cat-file -e "${GITHUB_SHA}^{commit}" 2>/dev/null; then
+      git -C "$MIRROR" fetch --no-tags origin "$GITHUB_SHA" >/dev/null 2>&1 || true
+    fi
     SUBJ="$(git -C "$MIRROR" log -1 --format=%s "$GITHUB_SHA" 2>/dev/null || true)"
     DEC="$(
       cd "$MIRROR" && upgrade_only_guard "$LIVE_SHA" "$GITHUB_SHA" "$SUBJ" || true
@@ -100,14 +116,34 @@ if type upgrade_only_guard >/dev/null 2>&1 && [ -n "${GITHUB_SHA:-}" ]; then
         fail "UPGRADE-ONLY: refusing downgrade live=${LIVE_SHA:-none} → candidate=$GITHUB_SHA"
         ;;
       DIVERGENT)
-        fail "UPGRADE-ONLY: refusing divergent promote without [force-deploy] live=${LIVE_SHA:-none} → $GITHUB_SHA"
+        if [ "${ZEUS_CI_VERIFIED_UPGRADE:-}" = "1" ]; then
+          log "upgrade-only: CI-verified forward past stale-mirror DIVERGENT (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
+        else
+          fail "UPGRADE-ONLY: refusing divergent promote without [force-deploy] live=${LIVE_SHA:-none} → $GITHUB_SHA"
+        fi
+        ;;
+      INCOMPLETE)
+        if [ "${ZEUS_CI_VERIFIED_UPGRADE:-}" = "1" ]; then
+          log "upgrade-only: CI-verified forward past incomplete mirror (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
+        elif [ "${ZEUS_ALLOW_DIVERGENT_REUNITE:-}" = "1" ]; then
+          log "upgrade-only: incomplete mirror allowed via ZEUS_ALLOW_DIVERGENT_REUNITE (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
+        else
+          fail "UPGRADE-ONLY: incomplete git mirror for live=${LIVE_SHA:-none} → $GITHUB_SHA (fetch mirror or set ZEUS_CI_VERIFIED_UPGRADE=1)"
+        fi
         ;;
       UPGRADE|SAME|COLD|REUNITE|'')
         log "upgrade-only pre-canary: ${DEC:-skip} (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
         ;;
+      *)
+        fail "UPGRADE-ONLY: unknown decision '$DEC' live=${LIVE_SHA:-none} → $GITHUB_SHA"
+        ;;
     esac
   else
-    log "upgrade-only: no git mirror at $MIRROR — SHA ancestry check deferred to caller"
+    if [ "${ZEUS_CI_VERIFIED_UPGRADE:-}" = "1" ]; then
+      log "upgrade-only: no git mirror — CI already verified ancestry (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
+    else
+      log "upgrade-only: no git mirror at $MIRROR — SHA ancestry check deferred to caller"
+    fi
   fi
 fi
 
