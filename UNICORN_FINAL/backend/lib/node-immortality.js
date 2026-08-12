@@ -58,17 +58,21 @@ function assertEngines() {
   if (strict) process.exit(78);
 }
 
+function defaultBoundMs(envKey, prodDefault, testDefault) {
+  if (process.env[envKey]) {
+    return Math.max(1_000, Number(process.env[envKey]) || prodDefault);
+  }
+  // Test/CI boots full Express graphs; 30s is too tight for cold listen+settle
+  // and was aborting site-commerce-smoke under NIX (TTS exit 124 / TimeoutError).
+  const isTest = process.env.NODE_ENV === 'test' || process.env.CI === 'true';
+  return isTest ? testDefault : prodDefault;
+}
+
 function sealUndici() {
   if (state.undiciSealed) return;
   if (process.env.NIX_UNDICI === '0') return;
-  const headersTimeout = Math.max(
-    5_000,
-    Number(process.env.NIX_HEADERS_TIMEOUT_MS || 30_000) || 30_000
-  );
-  const bodyTimeout = Math.max(
-    5_000,
-    Number(process.env.NIX_BODY_TIMEOUT_MS || 30_000) || 30_000
-  );
+  const headersTimeout = defaultBoundMs('NIX_HEADERS_TIMEOUT_MS', 30_000, 120_000);
+  const bodyTimeout = defaultBoundMs('NIX_BODY_TIMEOUT_MS', 30_000, 120_000);
   const connectTimeout = Math.max(
     1_000,
     Number(process.env.NIX_CONNECT_TIMEOUT_MS || 10_000) || 10_000
@@ -100,10 +104,7 @@ function sealFetch() {
     state.fetchSealed = true;
     return;
   }
-  const timeoutMs = Math.max(
-    1_000,
-    Number(process.env.NIX_FETCH_TIMEOUT_MS || 30_000) || 30_000
-  );
+  const timeoutMs = defaultBoundMs('NIX_FETCH_TIMEOUT_MS', 30_000, 120_000);
   const raw = globalThis.fetch.bind(globalThis);
   function sealedFetch(input, init) {
     const opts = init == null ? {} : { ...init };

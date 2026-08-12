@@ -57,7 +57,17 @@ module.exports = new Proxy(adapter, {
     if (core && prop in core) return core[prop];
     if (typeof prop === 'string') {
       return function unsupported() {
-        return { ok: false, error: 'unsupported_method', method: prop, adapter: 'supreme-innovator-adapter' };
+        // Observe-only — never ok:false. IAK statusFns that still hit a
+        // unify shim must not spam "Modul degradat" (shadowTester /
+        // unicornInnovationSuite regression class). Callers that need a
+        // hard miss check `note === 'unsupported_method'`.
+        return {
+          ok: true,
+          health: 'observe',
+          note: 'unsupported_method',
+          method: prop,
+          adapter: 'supreme-innovator-adapter',
+        };
       };
     }
     return undefined;

@@ -86,6 +86,53 @@ async function main() {
     assert.equal(e3.errors, 0);
   });
 
+  await check('shadowTester is a real module (not innovator shim) and getMetrics is healthy', () => {
+    const st = require('../backend/modules/shadow-tester');
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'backend/modules/shadow-tester.js'), 'utf8');
+    assert.ok(!src.includes('supreme-innovator-adapter'), 'must not re-export innovator adapter');
+    assert.equal(typeof st.getMetrics, 'function');
+    assert.equal(typeof st.registerVariant, 'function');
+    assert.equal(typeof st.runShadow, 'function');
+    const m = st.getMetrics();
+    assert.equal(m.ok, true);
+    assert.equal(m.health, 'ok');
+    assert.equal(iak._isHealthy(m), true);
+  });
+
+  await check('unicornInnovationSuite is real and getAffiliateStats is healthy', () => {
+    const uis = require('../backend/modules/unicornInnovationSuite');
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'backend/modules/unicornInnovationSuite.js'), 'utf8');
+    assert.ok(!src.includes('supreme-innovator-adapter'), 'must not re-export innovator adapter');
+    assert.equal(typeof uis.getAffiliateStats, 'function');
+    assert.equal(typeof uis.createReferral, 'function');
+    assert.equal(typeof uis.getTrustStatus, 'function');
+    const s = uis.getAffiliateStats();
+    assert.equal(s.ok, true);
+    assert.equal(s.health, 'ok');
+    assert.equal(iak._isHealthy(s), true);
+  });
+
+  await check('IAK does not degrade shadowTester / unicornInnovationSuite', () => {
+    const st = require('../backend/modules/shadow-tester');
+    const uis = require('../backend/modules/unicornInnovationSuite');
+    iak.register('shadowTester', st, { statusFn: 'getMetrics' });
+    iak.register('unicornInnovationSuite', uis, { statusFn: 'getAffiliateStats' });
+    iak._phaseHealth();
+    assert.equal(iak.registry.get('shadowTester').healthy, true);
+    assert.equal(iak.registry.get('unicornInnovationSuite').healthy, true);
+    assert.equal(iak.registry.get('shadowTester').errors, 0);
+    assert.equal(iak.registry.get('unicornInnovationSuite').errors, 0);
+  });
+
+  await check('supreme-innovator unsupported_method is observe-healthy (no IAK spam)', () => {
+    const adapter = require('../backend/modules/supreme-innovator-adapter');
+    const s = adapter.getMetrics(); // intentional miss on adapter surface
+    assert.equal(s.ok, true);
+    assert.equal(s.health, 'observe');
+    assert.equal(s.note, 'unsupported_method');
+    assert.equal(iak._isHealthy(s), true);
+  });
+
   console.log(`✅ iak-status-surface-heal: ${passed} tests passed`);
   process.exit(0);
 }
