@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Transient Test Shield (TTS/1.0)
+ * Transient Test Shield (TTS/1.1)
  * --------------------------------
  * Runs the package.json `test` chain file-by-file. On the known CI flake class
  * (uncaught ECONNRESET / fetch failed / socket hang up while a heavy Express
@@ -12,18 +12,33 @@
  * Real assertion failures still fail immediately — incidental log lines that
  * mention ECONNRESET (e.g. background BTC rate fetch) must NOT trigger a
  * retry. Used by Node Compatibility Matrix + Stable Deploy.
+ *
+ * TTS/1.1: each file has a hard wall-clock budget (default 120s). Without this,
+ * undici's 300s headersTimeout × retries in a single test file can burn the
+ * whole 20m Node-compat job (observed on Node 24 / api.test.js).
  */
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+/** Per-file wall clock (ms). Override with TTS_FILE_TIMEOUT_MS. */
+const FILE_TIMEOUT_MS = Math.max(
+  30_000,
+  Number(process.env.TTS_FILE_TIMEOUT_MS || 120_000) || 120_000
+);
+
 /**
  * Only retry when the process failure itself looks like an uncaught network
  * error near the end of output — not when AssertionError fired and some
  * background module also logged "fetch failed" / ECONNRESET.
  */
-function isTransientFailure(out) {
+function isTransientFailure(out, meta = {}) {
+  if (meta.timedOut) {
+    // Hang / unbounded fetch under load — one retry is safe; a second hang
+    // still fails the file within 2× FILE_TIMEOUT_MS.
+    return true;
+  }
   const tail = String(out || '').slice(-8000);
   // Explicit assertion / contract failures → never retry.
   if (/\bAssertionError\b/.test(tail)) return false;
@@ -43,10 +58,11 @@ function isTransientFailure(out) {
     || /\bUND_ERR_SOCKET\b/.test(tail)
     || /Error:\s*.*ETIMEDOUT/.test(tail)
     || /Error:\s*.*\bEPIPE\b/.test(tail)
+    || /AbortError|TimeoutError|The operation was aborted/i.test(tail)
   );
 }
 
-module.exports = { isTransientFailure };
+module.exports = { isTransientFailure, FILE_TIMEOUT_MS };
 
 function main() {
   const ROOT = path.join(__dirname, '..');
@@ -71,17 +87,24 @@ function main() {
         ZACC_ENABLE_ESCUELA: process.env.ZACC_ENABLE_ESCUELA || '0',
       },
       maxBuffer: 32 * 1024 * 1024,
+      timeout: FILE_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
     });
     if (r.stdout) process.stdout.write(r.stdout);
     if (r.stderr) process.stderr.write(r.stderr);
+    const timedOutStrict = Boolean(r.error && r.error.code === 'ETIMEDOUT');
+    if (timedOutStrict) {
+      console.warn(`[tts] TIMEOUT ${file} after ${FILE_TIMEOUT_MS}ms`);
+    }
     return {
-      status: r.status == null ? 1 : r.status,
-      out: `${r.stdout || ''}\n${r.stderr || ''}`,
+      status: timedOutStrict ? 124 : (r.status == null ? 1 : r.status),
+      out: `${r.stdout || ''}\n${r.stderr || ''}\n${timedOutStrict ? 'Error: TTS_FILE_TIMEOUT\n' : ''}`,
       signal: r.signal,
+      timedOut: timedOutStrict,
     };
   }
 
-  console.log(`[tts] Transient Test Shield — ${files.length} files`);
+  console.log(`[tts] Transient Test Shield — ${files.length} files (per-file timeout ${FILE_TIMEOUT_MS}ms)`);
   let passed = 0;
   let retried = 0;
 
@@ -91,7 +114,7 @@ function main() {
       passed += 1;
       continue;
     }
-    if (isTransientFailure(result.out)) {
+    if (isTransientFailure(result.out, { timedOut: result.timedOut })) {
       console.warn(`[tts] transient failure in ${file} — retrying once`);
       retried += 1;
       result = runOne(file);
@@ -101,7 +124,7 @@ function main() {
         continue;
       }
     }
-    console.error(`[tts] FAILED ${file} (exit ${result.status}${result.signal ? ` signal=${result.signal}` : ''})`);
+    console.error(`[tts] FAILED ${file} (exit ${result.status}${result.signal ? ` signal=${result.signal}` : ''}${result.timedOut ? ' timedOut' : ''})`);
     process.exit(result.status || 1);
   }
 

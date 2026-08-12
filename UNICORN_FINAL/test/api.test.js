@@ -23,24 +23,46 @@ let adminToken;
 
 async function apiRequest(method, path, body, headers = {}, { retries = 2 } = {}) {
   const url = `http://127.0.0.1:${port}${path}`;
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json', ...headers },
-  };
-  if (body) opts.body = JSON.stringify(body);
-
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    // Fresh AbortSignal per attempt — a timed-out signal stays aborted forever
+    // and would poison every retry if reused from the outer scope.
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      // Cap undici's default 300s headersTimeout — without this, a hung accept
+      // under Node 24 burns ~15m (3×300s) and cancels the compat matrix job.
+      signal: AbortSignal.timeout(15_000),
+    };
+    if (body) opts.body = JSON.stringify(body);
     try {
       const res = await fetch(url, opts);
       let json = null;
+      const ct = String(res.headers.get('content-type') || '');
       try { json = await res.json(); } catch (_) { /* empty */ }
+      // JSON APIs that advertise application/json must not silently return
+      // null bodies on 2xx — treat as transient and retry (Node 22 CI flake).
+      if (
+        res.status >= 200 && res.status < 300
+        && json == null
+        && /application\/json/i.test(ct)
+        && attempt < retries
+      ) {
+        await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+        continue;
+      }
       return { status: res.status, body: json, headers: res.headers };
     } catch (err) {
       lastErr = err;
       // Boot-time event-loop pressure can briefly refuse connections; retry
       // transient network failures only (never hide assertion failures).
       const msg = String(err && err.message || err || '');
+      const name = String((err && err.name) || '');
+      if (name === 'TimeoutError' || name === 'AbortError' || /aborted|TimeoutError/i.test(msg)) {
+        if (attempt === retries) break;
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+        continue;
+      }
       if (!/fetch failed|ECONNRESET|ECONNREFUSED|socket|timed out|network/i.test(msg)) throw err;
       if (attempt === retries) break;
       await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
@@ -57,9 +79,17 @@ async function setup() {
 }
 
 async function teardown() {
-  await new Promise((resolve, reject) => {
-    server.close((err) => (err ? reject(err) : resolve()));
-  });
+  if (!server) return;
+  try {
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+    else if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
+  } catch (_) { /* Node version variance */ }
+  await Promise.race([
+    new Promise((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    }),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
 }
 
 async function runTests() {
@@ -119,10 +149,11 @@ async function runTests() {
   });
 
   await test('GET /api/health has security headers', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
-    assert.ok(res.headers.get('x-content-type-options') === 'nosniff');
-    assert.ok(res.headers.get('x-frame-options'));
-    assert.ok(res.headers.get('content-security-policy'));
+    const r = await apiRequest('GET', '/api/health');
+    assert.equal(r.status, 200);
+    assert.ok(r.headers.get('x-content-type-options') === 'nosniff');
+    assert.ok(r.headers.get('x-frame-options'));
+    assert.ok(r.headers.get('content-security-policy'));
   });
 
   // ── LEGACY AUTH RETIRED — replaced by Ed25519 cryptoauth ──────────────────
@@ -154,8 +185,16 @@ async function runTests() {
     });
   }
   await test('GET /api/cryptoauth/manifest → 200 with pack=zeus-cryptoauth', async () => {
-    const r = await apiRequest('GET', '/api/cryptoauth/manifest');
+    // Under CI event-loop pressure the first JSON parse can yield null even
+    // on HTTP 200 (partial body / aborted reader). Retry via apiRequest.
+    let r = null;
+    for (let i = 0; i < 4; i++) {
+      r = await apiRequest('GET', '/api/cryptoauth/manifest', null, {}, { retries: 1 });
+      if (r.status === 200 && r.body && r.body.pack) break;
+      await new Promise((resolve) => setTimeout(resolve, 200 * (i + 1)));
+    }
     assert.equal(r.status, 200);
+    assert.ok(r.body && typeof r.body === 'object', 'manifest must return a JSON object');
     assert.equal(r.body.pack, 'zeus-cryptoauth');
     assert.ok(/ed25519/i.test(String(r.body.algorithm)));
     assert.ok(r.body.endpoints && Object.keys(r.body.endpoints).length >= 6);
@@ -493,8 +532,9 @@ async function runTests() {
   // ── Rate limiting ─────────────────────────────────────────────────────────────
   console.log('\nSecurity:');
   await test('GET /api/health returns Content-Security-Policy header', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
-    const csp = res.headers.get('content-security-policy');
+    const r = await apiRequest('GET', '/api/health');
+    assert.equal(r.status, 200);
+    const csp = r.headers.get('content-security-policy');
     assert.ok(csp && csp.includes("default-src 'self'"), 'CSP header missing or wrong');
   });
 

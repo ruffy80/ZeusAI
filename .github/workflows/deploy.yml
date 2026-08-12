@@ -237,7 +237,8 @@ jobs:
         # while production modules keep intervals alive) fails fast instead
         # of consuming the full 6h GitHub Actions ceiling and silently
         # blocking deploys, the way it did on 2026-04-29.
-        # 20m budget: full suite is ~8–12m when exits are clean; leave headroom.
+        # 35m budget: TTS per-file caps prevent one hung fetch from burning
+        # the job; leave headroom for Node 24 matrix parity with compat.yml.
         # Stable/test env is mandatory: without DISABLE_SELF_MUTATION the suite
         # boots self-mutation + ZACC feed storms and flakes with ECONNRESET
         # (predictive-prefetch), which blocked all Hetzner deploys since 2026-08-03.
@@ -246,7 +247,7 @@ jobs:
         # (e.g. api-aliases TypeError: fetch failed) must NOT prevent the
         # emergency promote path from reaching the VPS. Fall back to a short
         # critical gate, then continue deploy.
-        timeout-minutes: 20
+        timeout-minutes: 35
         env:
           DISABLE_SELF_MUTATION: '1'
           NODE_ENV: test
