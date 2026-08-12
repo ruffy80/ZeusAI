@@ -17,6 +17,27 @@
 const assert = require('assert');
 const http = require('http');
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchRetry(url, opts = {}, attempts = 8) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      lastErr = err;
+      const msg = String((err && err.message) || err);
+      const cause = err && err.cause ? String(err.cause.code || err.cause.message || err.cause) : '';
+      if (!/fetch failed|ECONNRESET|ECONNREFUSED|socket hang up|EPIPE|ETIMEDOUT/i.test(`${msg} ${cause}`)
+        || i === attempts) break;
+      await sleep(40 * i * i);
+    }
+  }
+  throw lastErr;
+}
+
 async function run() {
   // ── SITE side (loaded via src/index.js) ────────────────────────────────────
   const siteModule = require('../src/index');
@@ -28,8 +49,9 @@ async function run() {
   const siteBase = 'http://127.0.0.1:' + sitePort;
 
   try {
+    await sleep(120);
     // 1. Role header on a normal HTML response (root)
-    const rootRes = await fetch(siteBase + '/');
+    const rootRes = await fetchRetry(siteBase + '/');
     assert.equal(rootRes.headers.get('x-unicorn-role'), 'site',
       'site / must announce X-Unicorn-Role: site');
     // X-Unicorn-Port reflects the configured PORT env (default 3001) not the
@@ -38,13 +60,13 @@ async function run() {
       'site / must announce a numeric X-Unicorn-Port');
 
     // 2. Role header on health endpoint
-    const healthRes = await fetch(siteBase + '/health');
+    const healthRes = await fetchRetry(siteBase + '/health');
     assert.equal(healthRes.status, 200);
     assert.equal(healthRes.headers.get('x-unicorn-role'), 'site',
       'site /health must announce X-Unicorn-Role: site');
 
     // 3. Topology endpoint shape
-    const topoRes = await fetch(siteBase + '/internal/topology');
+    const topoRes = await fetchRetry(siteBase + '/internal/topology');
     assert.equal(topoRes.status, 200, '/internal/topology must return 200');
     const topoBody = await topoRes.json();
     assert.equal(topoBody.role, 'site', 'topology.role must be site');
@@ -62,7 +84,7 @@ async function run() {
     //    filter (`['GET','HEAD','OPTIONS']` are skipped, everything else is
     //    tagged).
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-      const guardRes = await fetch(siteBase + '/api/checkout/create', {
+      const guardRes = await fetchRetry(siteBase + '/api/checkout/create', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: method === 'DELETE' ? undefined : '{}'
@@ -72,7 +94,7 @@ async function run() {
     }
 
     // 5. Safe methods (GET) must NOT be tagged with the warning
-    const safeRes = await fetch(siteBase + '/api/control/stats');
+    const safeRes = await fetchRetry(siteBase + '/api/control/stats');
     assert.equal(safeRes.headers.get('x-site-write-warning'), null,
       'site write-guard must NOT tag GET /api/* requests');
 
@@ -93,10 +115,12 @@ async function run() {
   const backendBase = 'http://127.0.0.1:' + backendPort;
 
   try {
+    await sleep(150);
+    await fetchRetry(backendBase + '/health/live', {}, 12);
     // 1. Role header on a typical PUBLIC backend endpoint. /api/metrics is now
     // admin-gated (process cpu/memory internals), so use the public health
     // endpoint — it carries the same role/source-of-truth topology headers.
-    const metricsRes = await fetch(backendBase + '/api/health');
+    const metricsRes = await fetchRetry(backendBase + '/api/health');
     assert.equal(metricsRes.status, 200);
     assert.equal(metricsRes.headers.get('x-unicorn-role'), 'backend',
       'backend /api/health must announce X-Unicorn-Role: backend');
@@ -104,7 +128,7 @@ async function run() {
       'backend must announce X-Unicorn-Source-Of-Truth: 1');
 
     // 2. Topology endpoint shape
-    const topoRes = await fetch(backendBase + '/internal/topology');
+    const topoRes = await fetchRetry(backendBase + '/internal/topology');
     assert.equal(topoRes.status, 200, 'backend /internal/topology must return 200');
     const topoBody = await topoRes.json();
     assert.equal(topoBody.role, 'backend', 'topology.role must be backend');

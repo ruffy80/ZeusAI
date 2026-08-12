@@ -106,10 +106,50 @@ case "$BASE_URL" in
     ;;
 esac
 
+# Cold-boot / event-loop settle: wait for /health/live before heavy /api/health.
+# Without this, diagnose-and-repair smoke races a 60–90s backend boot and fails
+# with curl exit 28 (0 bytes) even though PM2 shows "online".
+_SMOKE_LIVE_URL="$BASE_URL/health/live"
+_SMOKE_WAIT_ATTEMPTS="${SMOKE_LIVE_WAIT_ATTEMPTS:-30}"
+_SMOKE_WAIT_SLEEP="${SMOKE_LIVE_WAIT_SLEEP_SEC:-3}"
+if curl -fsS --max-time 3 "$_SMOKE_LIVE_URL" >/dev/null 2>&1 \
+  || [ "$REQUIRE_PM2" = "1" ] \
+  || [[ "$BASE_URL" == http://127.0.0.1:* ]] \
+  || [[ "$BASE_URL" == http://localhost:* ]]; then
+  _live_ok=0
+  for _i in $(seq 1 "$_SMOKE_WAIT_ATTEMPTS"); do
+    if curl -fsS --max-time 3 "$_SMOKE_LIVE_URL" >/dev/null 2>&1; then
+      _live_ok=1
+      echo "✅ process live ($_SMOKE_LIVE_URL) attempt=$_i"
+      break
+    fi
+    sleep "$_SMOKE_WAIT_SLEEP"
+  done
+  if [ "$_live_ok" != "1" ]; then
+    echo "❌ process never became live at $_SMOKE_LIVE_URL" >&2
+    exit 1
+  fi
+fi
+
 # Prefer /api/health (canonical). Fall back to /health for older probes.
+# Phoenix Continuity OS may front public /api/health — when BASE_URL is the
+# brain (:3000) we still want the real payload; retry briefly after live.
 _SMOKE_HEALTH_URL="$BASE_URL/api/health"
-if ! curl -fsS --max-time 8 "$_SMOKE_HEALTH_URL" >/dev/null 2>&1; then
-  _SMOKE_HEALTH_URL="$BASE_URL/health"
+_health_ok=0
+for _i in $(seq 1 10); do
+  if curl -fsS --max-time 12 "$_SMOKE_HEALTH_URL" >/dev/null 2>&1; then
+    _health_ok=1
+    break
+  fi
+  sleep 2
+done
+if [ "$_health_ok" != "1" ]; then
+  if curl -fsS --max-time 8 "$BASE_URL/health" >/dev/null 2>&1; then
+    _SMOKE_HEALTH_URL="$BASE_URL/health"
+  else
+    echo "❌ neither /api/health nor /health answered at $BASE_URL" >&2
+    exit 1
+  fi
 fi
 
 assert_node_json "backend is NOT rescue mode" "$_SMOKE_HEALTH_URL" \
@@ -152,6 +192,14 @@ if command -v pm2 >/dev/null 2>&1 && { [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT
   node -e '
     const list = JSON.parse(process.argv[1]);
     const names = ["unicorn-backend", "unicorn-site"];
+    // PCOS/1.0 — require phoenix when the script is present in the release
+    // (forward-only: older releases without phoenix-edge.js stay green).
+    const fs = require("fs");
+    const path = require("path");
+    const cwdHint = (list.find((p) => p && p.name === "unicorn-backend") || {}).pm2_env;
+    const appCwd = cwdHint && (cwdHint.pm_cwd || cwdHint.cwd);
+    const phoenixScript = appCwd ? path.join(appCwd, "backend", "phoenix-edge.js") : "";
+    if (phoenixScript && fs.existsSync(phoenixScript)) names.push("unicorn-phoenix");
     const apps = list.filter((p) => names.includes(p.name));
     const byName = new Map();
     for (const app of apps) {

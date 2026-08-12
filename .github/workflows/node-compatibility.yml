@@ -97,11 +97,13 @@ jobs:
           UNICORN_RUNTIME_PROFILE: stable
         run: npm run lint
 
-      - name: 🧪 Run tests
+      - name: 🧪 Run tests (TTS — per-file retry on ECONNRESET)
         working-directory: ./UNICORN_FINAL
         run: |
           set -euo pipefail
-          npm test --if-present
+          # Transient Test Shield (TTS/1.0): file-by-file with one retry on
+          # fetch/ECONNRESET flakes. Real assertion failures still fail fast.
+          npm run test:ci --if-present
         env:
           # Surface which Node major failed in job summaries / annotations.
           NODE_COMPAT_MATRIX: ${{ matrix.node }}

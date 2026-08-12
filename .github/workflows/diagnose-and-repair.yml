@@ -138,7 +138,8 @@ jobs:
             pkill -9 -f 'node .*src/index\.js' 2>/dev/null || true
             rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid 2>/dev/null || true
             rm -rf /root/.pm2/pids/* 2>/dev/null || true
-            for PORT in 3000 3001 3100; do
+            # Include phoenix edge :3002 — accept-but-hang orphans freeze heal.
+            for PORT in 3000 3001 3002 3100; do
               PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
               for PID in $PIDS; do
                 [ -n "$PID" ] || continue
@@ -156,10 +157,29 @@ jobs:
             export SITE_INSTANCES="${SITE_INSTANCES:-1}"
             export UNICORN_INSTANCES="${UNICORN_INSTANCES:-1}"
             export UNICORN_GUARDIAN=0
+            # Never start autoscaler during heal (RSS thrash / event-loop freeze).
+            export AUTOSCALE_PM2=0
+            # rescue path disabled — never pm2-start rescue-backend.js (commerce fail-closed).
 
-            echo '[heal] pm2 start canonical stack'
-            timeout 60s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site,autoscaler --update-env 2>&1 \
-              || echo '[heal] pm2 start failed'
+            # PCOS/1.0 — phoenix + backend + site (no autoscaler).
+            HEAL_ONLY="unicorn-backend,unicorn-site"
+            if [ -f backend/phoenix-edge.js ]; then
+              HEAL_ONLY="unicorn-phoenix,unicorn-backend,unicorn-site"
+            fi
+
+            # Named helper kept for commerce-conf-tiers contract + ops greppability.
+            restart_canonical_backend() {
+              echo "[heal] restart_canonical_backend ($HEAL_ONLY)"
+              timeout 60s pm2 start ecosystem.config.js --only "$HEAL_ONLY" --update-env 2>&1 \
+                || echo '[heal] pm2 start failed'
+            }
+
+            echo "[heal] pm2 start canonical stack ($HEAL_ONLY)"
+            restart_canonical_backend
+            if [ -f backend/phoenix-edge.js ] && [ -x scripts/install-phoenix-continuity.sh ]; then
+              echo '[heal] install phoenix nginx continuity'
+              bash scripts/install-phoenix-continuity.sh 2>&1 || true
+            fi
 
             wait_for_live() {
               local name="$1"
@@ -189,7 +209,7 @@ jobs:
               timeout 15s pm2 describe unicorn-backend 2>&1 | tail -80 || true
               timeout 15s pm2 logs unicorn-backend --err --lines 100 --nostream 2>&1 | tail -120 || true
               timeout 15s pm2 logs unicorn-backend --out --lines 60 --nostream 2>&1 | tail -80 || true
-              ss -tlnp 2>/dev/null | grep -E ':3000|:3001' || echo '[ss] no 3000/3001 listeners'
+              ss -tlnp 2>/dev/null | grep -E ':3000|:3001|:3002' || echo '[ss] no 3000/3001/3002 listeners'
               echo '::endgroup::'
             }
 
@@ -214,8 +234,21 @@ jobs:
               done
             }
 
+            PHOENIX_HEALTHY=0
             BACKEND_HEALTHY=0
             SITE_HEALTHY=0
+            # Phoenix must answer first (LKG commerce surface while brain warms).
+            if [ -f backend/phoenix-edge.js ]; then
+              wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 10 2 && PHOENIX_HEALTHY=1
+              if [ "$PHOENIX_HEALTHY" != "1" ]; then
+                echo '[heal] phoenix retry'
+                timeout 15s pm2 delete unicorn-phoenix 2>/dev/null || true
+                timeout 60s pm2 start ecosystem.config.js --only unicorn-phoenix --update-env 2>&1 || true
+                wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 8 2 && PHOENIX_HEALTHY=1
+              fi
+            else
+              PHOENIX_HEALTHY=1
+            fi
             # Backend cold boot can exceed 36s under world-catalog work; allow ~80s.
             wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
             wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
@@ -256,8 +289,12 @@ jobs:
             timeout 15s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
 
             # Short settle only — do not burn the job timeout waiting.
+            # Prefer phoenix /api/health (LKG-safe) then brain /health/live.
             sleep 5
-            curl -fsS --max-time 5 http://127.0.0.1:3000/api/health || \
+            curl -fsS --max-time 5 http://127.0.0.1:3002/phoenix/live || true
+            echo
+            curl -fsS --max-time 5 http://127.0.0.1:3002/api/health || \
+              curl -fsS --max-time 5 http://127.0.0.1:3000/api/health || \
               curl -fsS --max-time 3 http://127.0.0.1:3000/health/live || true
             echo
             curl -fsS --max-time 5 http://127.0.0.1:3001/health || \
@@ -270,7 +307,7 @@ jobs:
               timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
             fi
             timeout 15s pm2 list || true
-            echo "[heal] done backend_live=$BACKEND_HEALTHY site_live=$SITE_HEALTHY"
+            echo "[heal] done phoenix_live=$PHOENIX_HEALTHY backend_live=$BACKEND_HEALTHY site_live=$SITE_HEALTHY"
           SSHEOF
 
       - name: Smoke tests (backend-direct, then nginx)
