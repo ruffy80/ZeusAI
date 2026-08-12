@@ -1,3 +1,6 @@
+// NIX/1.0 — Node Immortality eXtension (belt-and-suspenders with PM2 NODE_OPTIONS).
+try { require('../backend/lib/node-immortality'); } catch (_) { /* boot must continue */ }
+
 // ==================== CLUSTER SINGLETON GUARD (site worker, PM2 cluster mode) ====================
 // `unicorn-site` runs in PM2 cluster mode (instances:'max'); every worker re-runs
 // this require chain. Modules with global write side-effects (PM2 scaling,

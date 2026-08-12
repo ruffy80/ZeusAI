@@ -15,6 +15,19 @@ const path = require('path');
 const APP_DIR = __dirname;
 const SNAP_DIR = path.join(APP_DIR, 'snapshots');
 
+// NIX/1.0 — seal Node (undici/fetch timeouts + engines pin) for every PM2 app.
+const NIX_REQUIRE = path.join(APP_DIR, 'backend', 'lib', 'node-immortality.js');
+function withNixNodeOptions(extra) {
+  const parts = [];
+  const existing = String(process.env.NODE_OPTIONS || '').trim();
+  if (!existing.includes('node-immortality')) {
+    parts.push(`--require=${NIX_REQUIRE}`);
+  }
+  if (extra) parts.push(String(extra).trim());
+  if (existing) parts.push(existing);
+  return parts.filter(Boolean).join(' ');
+}
+
 // Backend runs in FORK mode with 1 instance. SQLite (data/unicorn.db) and
 // many in-memory singletons (orchestrator, cron, sidecars) are NOT safe under
 // PM2 cluster — two workers silently deadlock on sqlite file locks and exit
@@ -76,6 +89,9 @@ module.exports = {
       exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
+        // NIX/1.0 — Node Immortality eXtension (seal undici 300s + fetch + engines).
+        NODE_OPTIONS: withNixNodeOptions('--no-deprecation'),
+        NIX_STRICT: process.env.NIX_STRICT || '1',
         // ── RUNTIME PROFILE ─────────────────────────────────────────────────
         // 'safe' / 'stable' (DEFAULT): business loops paused. Growth-engine
         //   routes (/api/growth/*, /sitemap.xml, /robots.txt) stay mounted
@@ -251,6 +267,9 @@ module.exports = {
       listen_timeout: 10000,
       env: {
         NODE_ENV: 'production',
+        // NIX/1.0 — same hermetic Node seal as backend.
+        NODE_OPTIONS: withNixNodeOptions('--no-deprecation'),
+        NIX_STRICT: process.env.NIX_STRICT || '1',
         PORT: 3001,
         // Loopback-only; nginx is the only publicly reachable surface for the site.
         BIND_HOST: process.env.BIND_HOST || '127.0.0.1',
@@ -322,6 +341,8 @@ module.exports = {
       kill_timeout: 3000,
       env: {
         NODE_ENV: 'production',
+        NODE_OPTIONS: withNixNodeOptions('--no-deprecation'),
+        NIX_STRICT: process.env.NIX_STRICT || '1',
         PHOENIX_PORT: process.env.PHOENIX_PORT || '3002',
         PHOENIX_BIND: process.env.PHOENIX_BIND || '127.0.0.1',
         PHOENIX_BRAIN_ORIGIN: process.env.PHOENIX_BRAIN_ORIGIN || 'http://127.0.0.1:3000',

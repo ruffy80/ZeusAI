@@ -25,7 +25,8 @@ if [ -f test/phoenix-continuity.test.js ]; then
 fi
 node test/commerce-conf-tiers.test.js
 node test/run-tests-resilient.test.js
-# TTS/1.0 must be wired (Node compat + deploy use test:ci).
+node test/node-immortality.test.js
+# TTS/1.1 + NIX/1.0 must be wired (npm test AND test:ci both use TTS).
 node <<'NODE'
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -33,12 +34,21 @@ if (!pkg.scripts || !/run-tests-resilient/.test(pkg.scripts['test:ci'] || '')) {
   console.error('[ci-green-preflight] missing scripts.test:ci → run-tests-resilient.js');
   process.exit(1);
 }
+if (!pkg.scripts || !/run-tests-resilient/.test(pkg.scripts.test || '')) {
+  console.error('[ci-green-preflight] scripts.test must be TTS (NIX: local==CI)');
+  process.exit(1);
+}
+const chain = String(pkg.scripts['test:chain'] || pkg.scripts.test || '');
 const re = /node\s+(test\/[^\s'"]+\.test\.js)/g;
-const files = [...String(pkg.scripts.test || '').matchAll(re)].map((m) => m[1]);
+const files = [...chain.matchAll(re)].map((m) => m[1]);
 if (files.length < 100) {
   console.error('[ci-green-preflight] TTS parse too few files:', files.length);
   process.exit(1);
 }
-console.log('[ci-green-preflight] TTS wired · files=', files.length);
+if (!fs.existsSync('backend/lib/node-immortality.js')) {
+  console.error('[ci-green-preflight] missing NIX/1.0 backend/lib/node-immortality.js');
+  process.exit(1);
+}
+console.log('[ci-green-preflight] TTS+NIX wired · files=', files.length);
 NODE
 echo "[ci-green-preflight] OK"

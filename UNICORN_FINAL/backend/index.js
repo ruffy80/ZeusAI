@@ -1,3 +1,6 @@
+// NIX/1.0 — Node Immortality eXtension (belt-and-suspenders with PM2 NODE_OPTIONS).
+try { require('./lib/node-immortality'); } catch (_) { /* boot must continue */ }
+
 // --- SaaS Catalog (REAL): derived dynamically from the autonomous registry,
 // the module marketplace, and the dynamic-pricing engine. If every source is
 // unavailable the endpoint returns 503 instead of synthetic services.
@@ -5180,6 +5183,14 @@ function buildHealthResponse() {
         return icp.healthEnvelope();
       } catch (_) {
         return { protocol: 'ICP/1.0', available: false, neverKill: true, claimsAbsoluteUptime: false };
+      }
+    })(),
+    nodeImmortality: (function () {
+      try {
+        const nix = require('./lib/node-immortality');
+        return nix.healthEnvelope();
+      } catch (_) {
+        return { protocol: 'NIX/1.0', available: false, ok: false };
       }
     })(),
     totalAutonomy: (function () {

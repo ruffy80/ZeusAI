@@ -65,6 +65,17 @@ fail() {
   exit 1
 }
 
+# NIX/1.0 — refuse promote on a host Node outside engines (>=22 <26).
+# Wrong binary is a silent source of native-module / undici / ABI "mystery" reds.
+_NIX_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [ -n "${_NIX_MAJOR}" ] && [ "${_NIX_MAJOR}" -eq "${_NIX_MAJOR}" ] 2>/dev/null; then
+  if [ "${_NIX_MAJOR}" -lt 22 ] || [ "${_NIX_MAJOR}" -ge 26 ]; then
+    fail "NIX/1.0: host Node major ${_NIX_MAJOR} outside engines >=22 <26 (node=$(node -v 2>/dev/null || echo unknown))"
+  fi
+  log "NIX/1.0: host Node $(node -v 2>/dev/null || echo '?') within engines"
+fi
+unset _NIX_MAJOR
+
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/lib/upgrade-only-guard.sh" ]; then
   # shellcheck source=lib/upgrade-only-guard.sh
