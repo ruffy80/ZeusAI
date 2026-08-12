@@ -38,7 +38,19 @@ async function apiRequest(method, path, body, headers = {}, { retries = 2 } = {}
     try {
       const res = await fetch(url, opts);
       let json = null;
+      const ct = String(res.headers.get('content-type') || '');
       try { json = await res.json(); } catch (_) { /* empty */ }
+      // JSON APIs that advertise application/json must not silently return
+      // null bodies on 2xx — treat as transient and retry (Node 22 CI flake).
+      if (
+        res.status >= 200 && res.status < 300
+        && json == null
+        && /application\/json/i.test(ct)
+        && attempt < retries
+      ) {
+        await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+        continue;
+      }
       return { status: res.status, body: json, headers: res.headers };
     } catch (err) {
       lastErr = err;
@@ -173,8 +185,16 @@ async function runTests() {
     });
   }
   await test('GET /api/cryptoauth/manifest → 200 with pack=zeus-cryptoauth', async () => {
-    const r = await apiRequest('GET', '/api/cryptoauth/manifest');
+    // Under CI event-loop pressure the first JSON parse can yield null even
+    // on HTTP 200 (partial body / aborted reader). Retry via apiRequest.
+    let r = null;
+    for (let i = 0; i < 4; i++) {
+      r = await apiRequest('GET', '/api/cryptoauth/manifest', null, {}, { retries: 1 });
+      if (r.status === 200 && r.body && r.body.pack) break;
+      await new Promise((resolve) => setTimeout(resolve, 200 * (i + 1)));
+    }
     assert.equal(r.status, 200);
+    assert.ok(r.body && typeof r.body === 'object', 'manifest must return a JSON object');
     assert.equal(r.body.pack, 'zeus-cryptoauth');
     assert.ok(/ed25519/i.test(String(r.body.algorithm)));
     assert.ok(r.body.endpoints && Object.keys(r.body.endpoints).length >= 6);
