@@ -48,6 +48,11 @@ check('phone recovery is curl-free with hardcoded recover pubkey', () => {
   // Prefer no network dependency for the critical path
   assert.ok(!/^curl /m.test(src) && !src.includes('curl -fsSL'),
     'phone recovery must not depend on curl (offline console paste)');
+  // Offline probe must require HTTP 2xx (not any HTTP/* including 502/404).
+  assert.ok(/HTTP\/\[0-9\.\*\]\*\\ 2\[0-9\]\[0-9\]\*/.test(src) || src.includes('2[0-9][0-9]*'),
+    'http_probe must accept only HTTP 2xx');
+  assert.ok(!/HTTP\/\*\)\s*return 0/.test(src),
+    'http_probe must not treat every HTTP/* response as live');
 });
 
 console.log(`\n✅ zeus-trust-sync: ${passed} tests passed\n`);

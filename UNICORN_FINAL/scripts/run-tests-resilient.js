@@ -5,12 +5,13 @@
  * Transient Test Shield (TTS/1.0)
  * --------------------------------
  * Runs the package.json `test` chain file-by-file. On the known CI flake class
- * (ECONNRESET / fetch failed / socket hang up while a heavy Express app is
- * still settling listen-callbacks), retries that single file once before
- * failing the job.
+ * (uncaught ECONNRESET / fetch failed / socket hang up while a heavy Express
+ * app is still settling listen-callbacks), retries that single file once
+ * before failing the job.
  *
- * Real assertion failures still fail immediately (no blind double-run of the
- * whole suite). Used by Node Compatibility Matrix + Stable Deploy.
+ * Real assertion failures still fail immediately — incidental log lines that
+ * mention ECONNRESET (e.g. background BTC rate fetch) must NOT trigger a
+ * retry. Used by Node Compatibility Matrix + Stable Deploy.
  */
 
 const { spawnSync } = require('child_process');
@@ -27,7 +28,27 @@ if (!files.length) {
   process.exit(2);
 }
 
-const TRANSIENT_RE = /ECONNRESET|fetch failed|ECONNREFUSED|socket hang up|ETIMEDOUT|EPIPE|UND_ERR_SOCKET/i;
+/**
+ * Only retry when the process failure itself looks like an uncaught network
+ * error near the end of output — not when AssertionError fired and some
+ * background module also logged "fetch failed" / ECONNRESET.
+ */
+function isTransientFailure(out) {
+  const tail = String(out || '').slice(-8000);
+  // Explicit assertion / contract failures → never retry.
+  if (/\bAssertionError\b/.test(tail)) return false;
+  if (/\bERR_ASSERTION\b/.test(tail)) return false;
+  // Uncaught network aborts that kill the test process.
+  return (
+    /^TypeError: fetch failed/m.test(tail)
+    || /\[cause\]:\s*Error:\s*read ECONNRESET/.test(tail)
+    || /Error:\s*connect ECONNREFUSED/.test(tail)
+    || /Error:\s*socket hang up/.test(tail)
+    || /\bUND_ERR_SOCKET\b/.test(tail)
+    || /Error:\s*.*ETIMEDOUT/.test(tail)
+    || /Error:\s*.*\bEPIPE\b/.test(tail)
+  );
+}
 
 function runOne(file) {
   const r = spawnSync(process.execPath, [file], {
@@ -61,7 +82,7 @@ for (const file of files) {
     passed += 1;
     continue;
   }
-  if (TRANSIENT_RE.test(result.out)) {
+  if (isTransientFailure(result.out)) {
     console.warn(`[tts] transient failure in ${file} — retrying once`);
     retried += 1;
     result = runOne(file);
