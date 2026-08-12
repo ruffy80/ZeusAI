@@ -24,6 +24,7 @@ if [ -f test/phoenix-continuity.test.js ]; then
   node test/phoenix-continuity.test.js
 fi
 node test/commerce-conf-tiers.test.js
+node test/run-tests-resilient.test.js
 # TTS/1.0 must be wired (Node compat + deploy use test:ci).
 node <<'NODE'
 const fs = require('fs');
