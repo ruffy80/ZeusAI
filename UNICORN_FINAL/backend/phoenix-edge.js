@@ -19,6 +19,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+try { require('./lib/node-immortality'); } catch (_) { /* NIX optional on edge */ }
 const hb = require('./lib/phoenix-heartbeat');
 
 const PROTOCOL = 'PCOS/1.0';

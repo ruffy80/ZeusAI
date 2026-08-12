@@ -117,5 +117,17 @@ check('CTOS/1.1 instant autofix + GitHub repair workflow are forever-wired', () 
   assert.ok(aw.includes('compat-truth-autofix.js'));
 });
 
+check('NIX/1.0 Node Immortality is forever-wired (seal undici/fetch + engines)', () => {
+  assert.ok(fs.existsSync(path.join(ROOT, 'backend/lib/node-immortality.js')));
+  const nix = fs.readFileSync(path.join(ROOT, 'backend/lib/node-immortality.js'), 'utf8');
+  assert.ok(nix.includes('NIX/1.0'));
+  assert.ok(nix.includes('setGlobalDispatcher') || nix.includes('headersTimeout'));
+  assert.ok(pkg.scripts.test && /run-tests-resilient/.test(pkg.scripts.test),
+    'npm test must be TTS so local==CI under NIX');
+  assert.ok(pkg.scripts['test:chain'], 'raw suite list must live in test:chain');
+  const client = JSON.parse(fs.readFileSync(path.join(ROOT, 'client/package.json'), 'utf8'));
+  assert.strictEqual(client.engines && client.engines.node, '>=22 <26');
+});
+
 console.log('node-compat-contract.test.js: ' + passed + ' passed · node=' + process.versions.node);
 process.exit(0);

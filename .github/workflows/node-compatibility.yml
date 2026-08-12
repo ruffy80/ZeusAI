@@ -111,6 +111,9 @@ jobs:
           NODE_ENV: test
           UNICORN_RUNTIME_PROFILE: stable
           ZACC_ENABLE_ESCUELA: '0'
+          # NIX/1.0 — hermetic Node seal (undici/fetch timeouts) for matrix runs.
+          NODE_OPTIONS: --no-deprecation --require=./backend/lib/node-immortality.js
+          NIX_QUIET: '1'
 
       - name: 🏗️ Build frontend
         working-directory: ./UNICORN_FINAL/client

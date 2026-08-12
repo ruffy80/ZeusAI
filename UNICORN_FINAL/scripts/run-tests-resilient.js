@@ -62,16 +62,28 @@ function isTransientFailure(out, meta = {}) {
   );
 }
 
-module.exports = { isTransientFailure, FILE_TIMEOUT_MS };
+module.exports = { isTransientFailure, FILE_TIMEOUT_MS, resolveTestChain, nixNodeOptions };
+
+function resolveTestChain(pkg) {
+  // NIX/1.0: `npm test` itself is TTS; the raw file list lives in test:chain.
+  return String((pkg.scripts && (pkg.scripts['test:chain'] || pkg.scripts.test)) || '');
+}
+
+function nixNodeOptions(existing) {
+  const flag = '--require=./backend/lib/node-immortality.js';
+  const cur = String(existing || '').trim();
+  if (cur.includes('node-immortality')) return cur || flag;
+  return cur ? `${flag} ${cur}` : flag;
+}
 
 function main() {
   const ROOT = path.join(__dirname, '..');
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const script = String((pkg.scripts && pkg.scripts.test) || '');
+  const script = resolveTestChain(pkg);
   const files = [...script.matchAll(/node\s+(test\/[^\s'"]+\.test\.js)/g)].map((m) => m[1]);
 
   if (!files.length) {
-    console.error('[tts] no test files found in package.json scripts.test');
+    console.error('[tts] no test files found in package.json scripts.test:chain (or scripts.test)');
     process.exit(2);
   }
 
@@ -85,6 +97,9 @@ function main() {
         NODE_ENV: process.env.NODE_ENV || 'test',
         UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'stable',
         ZACC_ENABLE_ESCUELA: process.env.ZACC_ENABLE_ESCUELA || '0',
+        // NIX/1.0 — seal undici/fetch timeouts inside every test child.
+        NODE_OPTIONS: nixNodeOptions(process.env.NODE_OPTIONS),
+        NIX_QUIET: process.env.NIX_QUIET || '1',
       },
       maxBuffer: 32 * 1024 * 1024,
       timeout: FILE_TIMEOUT_MS,

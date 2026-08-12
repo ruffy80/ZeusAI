@@ -254,14 +254,17 @@ jobs:
           UNICORN_RUNTIME_PROFILE: stable
           ZACC_ENABLE_ESCUELA: '0'
           LIVE_DOWN: ${{ steps.live_outage.outputs.live_down }}
+          # NIX/1.0 — seal undici/fetch at process birth (cwd=UNICORN_FINAL).
+          NODE_OPTIONS: --no-deprecation --require=./backend/lib/node-immortality.js
+          NIX_QUIET: '1'
         run: |
           # CGP/1.0 — fail-fast before the 8–12m full suite (trust-sync + phoenix).
           chmod +x scripts/ci-green-preflight.sh
           bash scripts/ci-green-preflight.sh
 
           set +e
-          # TTS/1.0 — per-file retry on ECONNRESET so flaky boot storms do not
-          # block Hetzner deploys while real assertion failures still refuse.
+          # TTS/1.1 + NIX/1.0 — per-file retry + hermetic Node seal so undici
+          # 300s / forgotten AbortSignal cannot burn the job again.
           npm run test:ci --if-present
           rc=$?
           set -e

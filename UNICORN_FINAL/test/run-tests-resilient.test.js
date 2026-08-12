@@ -64,5 +64,11 @@ check('FILE_TIMEOUT_MS is a positive number', () => {
   assert.ok(Number(FILE_TIMEOUT_MS) >= 30_000);
 });
 
+check('NIX helper injects --require node-immortality into NODE_OPTIONS', () => {
+  const { nixNodeOptions } = require('../scripts/run-tests-resilient');
+  assert.match(nixNodeOptions(''), /node-immortality/);
+  assert.match(nixNodeOptions('--no-deprecation'), /no-deprecation/);
+});
+
 console.log(`\n✅ run-tests-resilient: ${passed} tests passed\n`);
 process.exit(0);
