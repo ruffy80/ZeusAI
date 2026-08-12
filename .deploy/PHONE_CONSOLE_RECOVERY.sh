@@ -38,14 +38,15 @@ install_pub 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKM/g65kFDsOTtWH6nb9cjmhXvqN00J
 # Clear kill-switches so poller + healer can run
 rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled /etc/zeus-hang-watchdog.disabled
 
-# Offline HTTP probe via bash /dev/tcp (no curl dependency)
+# Offline HTTP probe via bash /dev/tcp (no curl dependency).
+# Success = HTTP 2xx only (404/502/503 must NOT count as "live").
 http_probe() {
-  # usage: http_probe HOST PORT PATH  → exit 0 if HTTP response bytes arrive
+  # usage: http_probe HOST PORT PATH  → exit 0 iff status is 2xx
   local host="$1" port="$2" path="$3"
   local resp
   resp=$(timeout 3 bash -c "exec 3<>/dev/tcp/${host}/${port} && printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' '${path}' '${host}' >&3 && head -c 64 <&3" 2>/dev/null || true)
   case "$resp" in
-    HTTP/*) return 0 ;;
+    HTTP/[0-9.]*\ 2[0-9][0-9]*) return 0 ;;
     *) return 1 ;;
   esac
 }
