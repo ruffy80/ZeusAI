@@ -10,7 +10,7 @@
 #   1  refuse (true downgrade, or unapproved divergent)
 #
 # Prints one token on stdout for logging: UPGRADE | SAME | COLD | REUNITE |
-# DOWNGRADE | DIVERGENT
+# DOWNGRADE | DIVERGENT | INCOMPLETE
 #
 # Rules (immutable):
 #   1. NEW is a descendant of CUR          → UPGRADE (always allow)
@@ -22,18 +22,22 @@
 #      allow ONLY if subject contains [force-deploy]
 #      OR ZEUS_ALLOW_DIVERGENT_REUNITE=1
 #      (squash/SSH reunite — canary still gates the promote)
+#   6. Candidate SHA missing from mirror / ancestry graph incomplete
+#      → INCOMPLETE (NOT DIVERGENT). Callers must fetch or trust CI.
+#      Never treat a missing brand-new Actions tip as "need [force-deploy]".
 # ---------------------------------------------------------------------------
 
 upgrade_only_guard() {
   local CUR="${1:-}"
   local NEW="${2:-}"
   local SUBJECT="${3:-}"
+  local MB=""
 
   CUR="$(printf '%s' "$CUR" | tr -d '[:space:]')"
   NEW="$(printf '%s' "$NEW" | tr -d '[:space:]')"
 
   if [ -z "$NEW" ]; then
-    printf 'DIVERGENT\n'
+    printf 'INCOMPLETE\n'
     return 1
   fi
   if [ -z "$CUR" ]; then
@@ -52,7 +56,9 @@ upgrade_only_guard() {
     return 0
   fi
   if ! git cat-file -e "${NEW}^{commit}" 2>/dev/null; then
-    printf 'DIVERGENT\n'
+    # Brand-new Actions tip often arrives before the on-box mirror fetches.
+    # That is NOT a history fork — callers refresh the mirror or trust CI.
+    printf 'INCOMPLETE\n'
     return 1
   fi
 
@@ -64,6 +70,14 @@ upgrade_only_guard() {
   # True downgrade: candidate is strictly behind live. NEVER bypass.
   if git merge-base --is-ancestor "$NEW" "$CUR" 2>/dev/null; then
     printf 'DOWNGRADE\n'
+    return 1
+  fi
+
+  # If there is no merge-base at all, the object graph is shallow/incomplete
+  # (or truly unrelated). Do not mislabel that as DIVERGENT+[force-deploy].
+  MB="$(git merge-base "$CUR" "$NEW" 2>/dev/null || true)"
+  if [ -z "$MB" ]; then
+    printf 'INCOMPLETE\n'
     return 1
   fi
 

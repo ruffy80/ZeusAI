@@ -112,6 +112,31 @@ check('divergent with ZEUS_ALLOW_DIVERGENT_REUNITE=1 allowed', () => {
   assert.strictEqual(r.rc, 0);
 });
 
+check('missing candidate SHA is INCOMPLETE not DIVERGENT', () => {
+  const fake = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const r = decide(tmp, A, fake, 'Merge pull request #999');
+  assert.strictEqual(r.decision, 'INCOMPLETE');
+  assert.strictEqual(r.rc, 1);
+});
+
+check('empty candidate is INCOMPLETE not DIVERGENT', () => {
+  const r = decide(tmp, A, '', 'x');
+  assert.strictEqual(r.decision, 'INCOMPLETE');
+  assert.strictEqual(r.rc, 1);
+});
+
+check('deploy-atomic-forward trusts ZEUS_CI_VERIFIED_UPGRADE', () => {
+  const body = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
+  assert.match(body, /ZEUS_CI_VERIFIED_UPGRADE/);
+  assert.match(body, /mirror fetched|git -C "\$MIRROR" fetch/);
+  assert.match(body, /INCOMPLETE/);
+});
+
+check('deploy.yml passes ZEUS_CI_VERIFIED_UPGRADE=1 into forward deploy', () => {
+  const wf = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'deploy.yml'), 'utf8');
+  assert.match(wf, /ZEUS_CI_VERIFIED_UPGRADE=1/);
+});
+
 check('rollback-last-backup.sh permanently refuses', () => {
   const script = path.join(__dirname, '..', 'scripts', 'rollback-last-backup.sh');
   const r = spawnSync('bash', [script], {

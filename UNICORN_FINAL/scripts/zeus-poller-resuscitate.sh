@@ -91,6 +91,9 @@ case "$DECISION" in
   UPGRADE|COLD|REUNITE)
     log "upgrade-only: $DECISION (live=${CUR:-none} → $SHA)"
     ;;
+  INCOMPLETE)
+    log "upgrade-only: INCOMPLETE treated as REUNITE for resuscitate (live=${CUR:-none} → $SHA)"
+    ;;
   DOWNGRADE)
     log "REFUSED: DOWNGRADE blocked forever (candidate $SHA is ancestor of live $CUR)"
     exit 1
@@ -120,7 +123,7 @@ CAND="$REL/UNICORN_FINAL"
 chmod +x "$CAND/scripts/"*.sh 2>/dev/null || true
 
 log "invoking deploy-atomic-forward.sh (canary+smoke gated)…"
-if GITHUB_SHA="$SHA" PUBLIC_URL="$PUBLIC_URL" bash "$CAND/scripts/deploy-atomic-forward.sh" "$CAND" "$DEPLOY_LINK"; then
+if GITHUB_SHA="$SHA" ZEUS_ALLOW_DIVERGENT_REUNITE=1 PUBLIC_URL="$PUBLIC_URL" bash "$CAND/scripts/deploy-atomic-forward.sh" "$CAND" "$DEPLOY_LINK"; then
   log "✅ promoted $SHA live"
 else
   log "❌ deploy failed — live symlink unchanged (canary gated). Inspect output above."

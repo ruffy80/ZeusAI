@@ -85,6 +85,10 @@ case "$DECISION" in
   UPGRADE|COLD|REUNITE)
     log "upgrade-only: $DECISION (live=${CUR:-none} → $SHA)"
     ;;
+  INCOMPLETE)
+    # OOB is the recovery path; incomplete mirror must not block reunite.
+    log "upgrade-only: INCOMPLETE treated as REUNITE for OOB (live=${CUR:-none} → $SHA)"
+    ;;
   DOWNGRADE)
     log "REFUSED: DOWNGRADE blocked forever (candidate $SHA is ancestor of live $CUR)"
     exit 1
@@ -117,7 +121,7 @@ CANDIDATE="$RELEASE_PATH/UNICORN_FINAL"
 chmod +x "$CANDIDATE/scripts/"*.sh 2>/dev/null || true
 
 log "invoking deploy-atomic-forward.sh (canary+smoke gated) for $SHA"
-if GITHUB_SHA="$SHA" PUBLIC_URL="$PUBLIC_URL" bash "$CANDIDATE/scripts/deploy-atomic-forward.sh" "$CANDIDATE" "$DEPLOY_LINK" >>"$LOG_FILE" 2>&1; then
+if GITHUB_SHA="$SHA" ZEUS_ALLOW_DIVERGENT_REUNITE=1 PUBLIC_URL="$PUBLIC_URL" bash "$CANDIDATE/scripts/deploy-atomic-forward.sh" "$CANDIDATE" "$DEPLOY_LINK" >>"$LOG_FILE" 2>&1; then
   log "✅ OOB deploy promoted $SHA live"
 else
   rc=$?
