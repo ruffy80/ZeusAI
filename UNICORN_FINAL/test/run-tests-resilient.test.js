@@ -64,6 +64,13 @@ check('FILE_TIMEOUT_MS is a positive number', () => {
   assert.ok(Number(FILE_TIMEOUT_MS) >= 30_000);
 });
 
+check('api.test.js gets a longer TTS wall clock (≥180s)', () => {
+  const { fileTimeoutMs, FILE_TIMEOUT_MS } = require('../scripts/run-tests-resilient');
+  assert.ok(fileTimeoutMs('test/api.test.js') >= 180_000);
+  assert.ok(fileTimeoutMs('test/api.test.js') >= FILE_TIMEOUT_MS);
+  assert.equal(fileTimeoutMs('test/health.test.js'), FILE_TIMEOUT_MS);
+});
+
 check('NIX helper injects --require node-immortality into NODE_OPTIONS', () => {
   const { nixNodeOptions } = require('../scripts/run-tests-resilient');
   assert.match(nixNodeOptions(''), /node-immortality/);

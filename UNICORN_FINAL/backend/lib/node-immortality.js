@@ -152,20 +152,20 @@ function startLagSampler() {
  */
 function sealNodeCron() {
   if (process.env.NIX_CRON_SEAL === '0') return;
-  if (state.cronSealed || globalThis.__nixCronSealed) {
-    state.cronSealed = true;
-    return;
-  }
-  globalThis.__nixCronSealed = true;
 
   const isCronNoise = (message) => {
     const m = String(message || '');
-    return /\[NODE-CRON\]/i.test(m)
-      && /missed execution|overlap prevention|still running, new execution blocked/i.test(m);
+    // Match with or without ANSI colour codes around [NODE-CRON].
+    return (
+      (/\[NODE-CRON\]/i.test(m) || /NODE-CRON/i.test(m))
+      && /missed execution|overlap prevention|still running, new execution blocked/i.test(m)
+    ) || /missed execution at .*Possible blocking IO/i.test(m);
   };
 
+  // Always re-wrap when console.warn was replaced AFTER the first seal
+  // (CI children inherit NODE_OPTIONS=--require NIX, then tests swap console.warn).
   // 1) console.warn filter — works for every node-cron version that logs there.
-  if (typeof console.warn === 'function' && !console.warn.__nixCronSealed) {
+  if (typeof console.warn !== 'function' || !console.warn.__nixCronSealed) {
     const origWarn = console.warn.bind(console);
     function sealedConsoleWarn(...args) {
       try {
@@ -175,16 +175,7 @@ function sealNodeCron() {
           if (a instanceof Error) return a.message || String(a);
           try { return String(a); } catch (_) { return ''; }
         }).join(' ');
-        if (isCronNoise(joined) || (
-          /missed execution at .*Possible blocking IO/i.test(joined)
-          && /node-cron|NODE-CRON/i.test(joined)
-        )) {
-          state.cronMissedSuppressed += 1;
-          return;
-        }
-        // Also catch the bare message if logger prefixes separately in args[0].
-        if (args.length && /missed execution at .*Possible blocking IO/i.test(String(args[0] || ''))
-            && /NODE-CRON|node-cron/i.test(joined)) {
+        if (isCronNoise(joined)) {
           state.cronMissedSuppressed += 1;
           return;
         }
@@ -194,6 +185,8 @@ function sealNodeCron() {
     sealedConsoleWarn.__nixCronSealed = true;
     console.warn = sealedConsoleWarn;
   }
+
+  globalThis.__nixCronSealed = true;
 
   // 2) Patch package logger (node-cron@4 dist layout).
   try {
@@ -234,7 +227,11 @@ function sealNodeCron() {
 }
 
 function install(opts = {}) {
-  if (state.sealed && !opts.force) return state;
+  if (state.sealed && !opts.force) {
+    // Re-assert cron seal — tests / tooling may have replaced console.warn.
+    sealNodeCron();
+    return state;
+  }
   assertEngines();
   sealUndici();
   sealFetch();
