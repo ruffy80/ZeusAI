@@ -964,8 +964,9 @@ jobs:
               "nginx -t 2>&1 && systemctl restart nginx && echo '✅ Nginx restarted' || true; ss -tlnp | grep ':80\|:443' || true; pm2 list 2>/dev/null | tail -5 || true"
           else
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
+            # Filter NODE-CRON missed-execution spam (NIX seals it at source; belt for old releases).
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@"$HETZNER_HOST" \
-              "pm2 list && pm2 logs unicorn-backend unicorn-site --lines 30 --nostream" || true
+              "pm2 list; pm2 logs unicorn-backend unicorn-site --lines 40 --nostream 2>&1 | grep -vE '\\[NODE-CRON\\]|missed execution at' | tail -30" || true
           fi
           if [ "$DOMAIN_HTTP" = "200" ] || [ "$DOMAIN_HTTPS" = "200" ]; then
             echo "✅ Domeniu zeusai.pro accesibil (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS)"

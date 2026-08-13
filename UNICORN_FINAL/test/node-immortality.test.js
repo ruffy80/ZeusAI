@@ -131,5 +131,62 @@ check('wrong Node major exits 78 under NIX_STRICT', () => {
   assert.match(src, /process\.exit\(78\)/);
 });
 
+check('NIX seals node-cron — missed execution WARN never reaches console', () => {
+  const src = fs.readFileSync(NIX, 'utf8');
+  assert.match(src, /sealNodeCron/);
+  assert.match(src, /NIX_CRON_SEAL/);
+  assert.match(src, /missed execution/);
+
+  const r = spawnSync(process.execPath, ['-e', `
+    process.env.NIX_QUIET = '1';
+    // Install a sink UNDER the seal: NIX will wrap console.warn around this spy.
+    let leaked = 0;
+    const raw = console.warn.bind(console);
+    console.warn = (...args) => {
+      const s = args.map(String).join(' ');
+      if (/missed execution|\\[NODE-CRON\\]/i.test(s)) leaked += 1;
+      return raw(...args);
+    };
+    const nix = require(${JSON.stringify(NIX)});
+    const ts = new Date().toISOString();
+    // Exact shape node-cron@4 emits via console.warn.
+    console.warn(
+      '[' + ts + '] [PID: ' + process.pid + '] \\x1b[32m[NODE-CRON]\\x1b[32m \\x1b[33m[WARN]\\x1b[0m '
+      + 'missed execution at ' + ts + '! Possible blocking IO or high CPU user at the same process used by node-cron.'
+    );
+    try {
+      const loggerPath = require.resolve('node-cron/dist/cjs/logger.js');
+      const logger = require(loggerPath).default || require(loggerPath);
+      logger.warn('missed execution at ' + ts + '! Possible blocking IO or high CPU user at the same process used by node-cron.');
+    } catch (_) {}
+    const s = nix.status();
+    if (!s.cronSealed) process.exit(2);
+    if (leaked !== 0) {
+      console.error('LEAKED_TO_SINK', leaked);
+      process.exit(3);
+    }
+    if (!(s.cronMissedSuppressed >= 1)) process.exit(4);
+    console.log(JSON.stringify({ cronSealed: s.cronSealed, suppressed: s.cronMissedSuppressed, leaked }));
+  `], { encoding: 'utf8', cwd: ROOT, env: { ...process.env, NIX_QUIET: '1', NIX_STRICT: '0' } });
+  assert.strictEqual(r.status, 0, r.stderr || r.stdout);
+  const out = JSON.parse((r.stdout || '').trim().split('\n').pop());
+  assert.strictEqual(out.cronSealed, true);
+  assert.strictEqual(out.leaked, 0);
+  assert.ok(out.suppressed >= 1);
+});
+
+check('universalMarketNexus never uses second-precision node-cron', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/universalMarketNexus.js'), 'utf8');
+  assert.ok(!/require\(['"]node-cron['"]\)/.test(src), 'must not require node-cron');
+  // Strip comments so historical "*/5 * * * * *" notes do not trip the guard.
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  assert.ok(!/cron\.schedule\s*\(\s*['"][^'"]*\*\s+\*\s+\*\s+\*\s+\*/.test(code),
+    'must not cron.schedule second-precision expressions');
+  assert.ok(!/cron\.schedule\s*\(\s*['"]\*\/\d+/.test(code), 'must not cron.schedule */N …');
+  assert.match(src, /_startBusyInterval/);
+});
+
 console.log(`\n✅ node-immortality: ${passed} tests passed · node=${process.versions.node}\n`);
 process.exit(0);

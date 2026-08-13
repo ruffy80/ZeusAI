@@ -117,11 +117,12 @@ check('CTOS/1.1 instant autofix + GitHub repair workflow are forever-wired', () 
   assert.ok(aw.includes('compat-truth-autofix.js'));
 });
 
-check('NIX/1.0 Node Immortality is forever-wired (seal undici/fetch + engines)', () => {
+check('NIX/1.0 Node Immortality is forever-wired (seal undici/fetch + engines + cron)', () => {
   assert.ok(fs.existsSync(path.join(ROOT, 'backend/lib/node-immortality.js')));
   const nix = fs.readFileSync(path.join(ROOT, 'backend/lib/node-immortality.js'), 'utf8');
   assert.ok(nix.includes('NIX/1.0'));
   assert.ok(nix.includes('setGlobalDispatcher') || nix.includes('headersTimeout'));
+  assert.ok(nix.includes('sealNodeCron'), 'must seal node-cron missed-execution spam forever');
   assert.ok(pkg.scripts.test && /run-tests-resilient/.test(pkg.scripts.test),
     'npm test must be TTS so local==CI under NIX');
   assert.ok(pkg.scripts['test:chain'], 'raw suite list must live in test:chain');

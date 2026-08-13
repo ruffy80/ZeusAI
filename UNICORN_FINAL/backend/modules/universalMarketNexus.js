@@ -48,11 +48,11 @@
 // =====================================================================
 
 const ccxt = require('ccxt');
-const cron = require('node-cron');
 
 class UniversalMarketNexus {
   constructor() {
-    this.cache = new Map(); this.cacheTTL = 60000; 
+    this.cache = new Map(); this.cacheTTL = 60000;
+    this._busyTimers = Object.create(null);
     this.exchanges = {
       binance: null,
       coinbase: null,
@@ -105,9 +105,39 @@ class UniversalMarketNexus {
     if (!this.exchanges.kraken) this.exchanges.kraken = paper('kraken');
   }
 
-  startMarketDataAggregator() { cron.schedule('*/5 * * * * *', async () => { await this.aggregateMarketData(); }); }
-  startArbitrageEngine() { cron.schedule('*/10 * * * * *', async () => { await this.executeArbitrage(); }); }
-  startPredictiveMarketMaking() { cron.schedule('*/30 * * * * *', async () => { await this.updateMarketMakingOrders(); }); }
+  // Busy-safe interval (NOT node-cron seconds).
+  // Second-precision node-cron (every 5/10/30s) was the permanent source of
+  // [NODE-CRON] missed-execution spam under a busy event loop — every heartbeat
+  // miss flooded Deploy Health Check / pm2 logs. Intervals with a busy-gate
+  // never "miss"; they simply skip overlapping ticks.
+  _startBusyInterval(name, ms, fn) {
+    if (this._busyTimers[name]) return this._busyTimers[name];
+    let busy = false;
+    const tick = () => {
+      if (busy) return;
+      busy = true;
+      Promise.resolve()
+        .then(() => fn())
+        .catch(() => {})
+        .finally(() => { busy = false; });
+    };
+    const iv = setInterval(tick, ms);
+    if (typeof iv.unref === 'function') iv.unref();
+    this._busyTimers[name] = iv;
+    setImmediate(tick);
+    return iv;
+  }
+
+  // Paper/live market rails: 30s / 60s / 90s is plenty; never sub-second cron.
+  startMarketDataAggregator() {
+    this._startBusyInterval('market', 30_000, () => this.aggregateMarketData());
+  }
+  startArbitrageEngine() {
+    this._startBusyInterval('arb', 60_000, () => this.executeArbitrage());
+  }
+  startPredictiveMarketMaking() {
+    this._startBusyInterval('mm', 90_000, () => this.updateMarketMakingOrders());
+  }
 
   async aggregateMarketData() {
     const symbols = ['BTC/USDT', 'ETH/USDT', 'AAPL', 'GOOGL', 'TSLA', 'GOLD', 'EUR/USD'];
