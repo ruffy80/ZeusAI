@@ -3067,6 +3067,44 @@ async function enrichServicesWithLivePricing(services) {
   });
 }
 
+/**
+ * Single public storefront catalog (SoT) for /api/services AND /api/services/list.
+ * Homepage Sync Drift + api-aliases require identical ID sets — never compare
+ * internal marketplace sync arrays against a different list builder.
+ */
+async function buildPublicStorefrontServices(requestUrl) {
+  const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+  let services = [];
+  try {
+    const cat = await getCachedMasterCatalog({ includeSynthetic });
+    services = (cat && Array.isArray(cat.items)) ? cat.items.map((it) => ({
+      id: it.id,
+      title: it.title,
+      group: it.group,
+      segment: it.segment,
+      kpi: it.kpi,
+      description: it.description,
+      priceUsd: it.priceUsd,
+      priceBtc: it.priceBtc,
+      currency: it.currency || 'USD',
+      buyUrl: it.buyUrl,
+      btcUri: it.btcUri,
+      autoPublished: !!it.autoPublished,
+      synthetic: !!it.synthetic,
+    })) : [];
+  } catch (_) { /* fall through */ }
+  if (!services.length) {
+    const baseServices = unifiedCatalogToServices();
+    const runtimeServices = getRuntimeDataSources().services || [];
+    services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+    services = publicCatalogFilter.filterPublicCatalogItems(services, { includeSynthetic });
+  }
+  try {
+    services = await enrichServicesWithLivePricing(services);
+  } catch (_) { /* keep unenriched rather than fail the storefront */ }
+  return { services, includeSynthetic, source: 'zeusai-site' };
+}
+
 function normalizeMarketplaceServices(payload) {
   const services = Array.isArray(payload && payload.services) ? payload.services : [];
   if (!services.length) return null;
@@ -7587,63 +7625,23 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }, null, 2));
   }
 
-  // Unified service catalogue for the v2 site.
-  // Source-of-truth is the canonical 25-product / 3-tier `unifiedCatalog`.
-  // We additionally enrich with backend-supplied live pricing when available,
-  // but never exceed the 25-product / 3-tier contract — so /services and
-  // /pricing pages always render the full catalogue, never a stub.
-  if (urlPath === '/api/services/list') {
-    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
-    const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+  // Public storefront catalogue — ONE builder for /api/services and
+  // /api/services/list so homepage Sync Drift stays at 0 mismatch.
+  if (urlPath === '/api/services/list' || urlPath === '/api/services') {
+    if (process.env.BACKEND_API_URL) {
+      await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
+    }
+    const built = await buildPublicStorefrontServices(requestUrl);
     const snapshot = buildSnapshot();
-    const baseServices = unifiedCatalogToServices();
-    const runtimeServices = publicCatalogFilter.filterPublicCatalogItems(snapshot.services || [], { includeSynthetic });
-    const merged = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
-    const services = await enrichServicesWithLivePricing(
-      publicCatalogFilter.filterPublicCatalogItems(merged, { includeSynthetic })
-    );
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({
       updatedAt: new Date().toISOString(),
-      source: 'zeusai',
+      source: built.source,
       sourceLegacy: 'unicorn',
       sync: snapshot.source,
-      includeSynthetic,
-      services
-    }));
-  }
-  if (urlPath === '/api/services') {
-    // Hydrate from the master catalog (auto-includes marketplace modules,
-    // activation products, strategic packages, frontier deliverables, vertical
-    // OSes, connector items). Falls back to the curated unifiedCatalog if the
-    // master build fails for any reason.
-    // Default storefront excludes zacc/synthetic clones; opt-in via ?includeSynthetic=1.
-    const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
-    let services = [];
-    try {
-      const cat = await getCachedMasterCatalog({ includeSynthetic });
-      services = (cat && Array.isArray(cat.items)) ? cat.items.map(it => ({
-        id: it.id, title: it.title, group: it.group, segment: it.segment,
-        kpi: it.kpi, description: it.description,
-        priceUsd: it.priceUsd, priceBtc: it.priceBtc, currency: it.currency || 'USD',
-        buyUrl: it.buyUrl, btcUri: it.btcUri,
-        autoPublished: !!it.autoPublished,
-        synthetic: !!it.synthetic
-      })) : [];
-    } catch (_) { /* fall through */ }
-    if (!services.length) {
-      const baseServices = unifiedCatalogToServices();
-      const runtimeServices = getRuntimeDataSources().services || [];
-      services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
-      services = publicCatalogFilter.filterPublicCatalogItems(services, { includeSynthetic });
-    }
-    res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify({
-      updatedAt: new Date().toISOString(),
-      source: 'zeusai-site',
-      count: services.length,
-      includeSynthetic,
-      services
+      count: built.services.length,
+      includeSynthetic: built.includeSynthetic,
+      services: built.services,
     }));
   }
 

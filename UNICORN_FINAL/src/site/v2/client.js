@@ -2017,15 +2017,25 @@ function initFinalLive(services){
   }
 
   if (driftEl) {
+    // Compare the TWO public storefront aliases (same SoT). Never compare
+    // internal /snapshot.marketplace sync size against /api/services/list —
+    // that false-positive "265 mismatch" on Control Tower.
     Promise.all([
-      fetch('/snapshot', { cache: 'no-store' }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+      fetch('/api/services', { cache: 'no-store' }).then(function(r){ return r.json(); }).catch(function(){ return null; }),
       fetch('/api/services/list', { cache: 'no-store' }).then(function(r){ return r.json(); }).catch(function(){ return null; })
     ]).then(function(parts){
-      const snap = parts[0], svc = parts[1];
-      const a = snap && Array.isArray(snap.marketplace) ? snap.marketplace.length : 0;
-      const b = svc && Array.isArray(svc.services) ? svc.services.length : 0;
-      const d = Math.abs(a - b);
-      driftEl.textContent = d === 0 ? '0 mismatch' : (d + ' mismatch');
+      const a = parts[0] && Array.isArray(parts[0].services) ? parts[0].services : [];
+      const b = parts[1] && Array.isArray(parts[1].services) ? parts[1].services : [];
+      const idsA = {};
+      const idsB = {};
+      for (let i = 0; i < a.length; i++) { if (a[i] && a[i].id) idsA[a[i].id] = 1; }
+      for (let i = 0; i < b.length; i++) { if (b[i] && b[i].id) idsB[b[i].id] = 1; }
+      let d = 0;
+      for (const id in idsA) { if (!idsB[id]) d++; }
+      for (const id in idsB) { if (!idsA[id]) d++; }
+      driftEl.textContent = d === 0 ? ('0 mismatch · ' + a.length + ' services') : (d + ' mismatch');
+      if (d === 0) driftEl.setAttribute('data-sync', 'aligned');
+      else driftEl.setAttribute('data-sync', 'drift');
     }).catch(function(){ driftEl.textContent = 'n/a'; });
   }
 

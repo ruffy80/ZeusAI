@@ -80,6 +80,8 @@ const SITE_PINNED = [
   '/api/order/',
   '/api/entitlements/',
   '/api/qr',
+  '/api/services',
+  '/api/services/list',
 ];
 for (const p of SITE_PINNED) {
   check('site-pinned: ' + p + ' → unicorn_site', () => assertSitePinned(p));

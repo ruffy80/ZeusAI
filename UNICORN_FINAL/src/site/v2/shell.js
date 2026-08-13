@@ -1361,7 +1361,7 @@ ${_zaccBanner}
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live sync quality across site ↔ ZeusAI backend.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
       <div class="card" style="margin:0"><span class="tag">Latency</span><h3 id="fuLatency">Measuring…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Sync drift</span><h3 id="fuDrift">Measuring…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Sync drift</span><h3 id="fuDrift">Measuring…</h3><p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">Public catalog: <code class="inline">/api/services</code> ↔ <code class="inline">/api/services/list</code></p></div>
     </div>
     <div class="pl-output" id="fuEventLog" style="margin-top:10px;max-height:180px;overflow:auto">Waiting for live events…</div>
   </div>

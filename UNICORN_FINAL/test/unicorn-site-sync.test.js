@@ -53,6 +53,12 @@ check('nginx SSE routes disable buffering', () => {
   assert.ok(nginxSrc.includes('proxy_buffering    off'));
 });
 
+check('nginx pins /api/services/list to site (Sync Drift SoT)', () => {
+  assert.ok(/location\s+=\s+\/api\/services\/list/.test(nginxSrc));
+  const idx = nginxSrc.indexOf('location = /api/services/list');
+  assert.ok(/unicorn_site/.test(nginxSrc.slice(idx, idx + 280)));
+});
+
 check('inventory + report are honest (measured counts)', () => {
   assert.ok(/405/.test(inventory), 'backend file count');
   assert.ok(/284/.test(inventory), 'top-level count');
