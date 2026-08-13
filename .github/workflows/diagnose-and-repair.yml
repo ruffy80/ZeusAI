@@ -87,7 +87,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::PM2 last 40 log lines (canonical apps)"
-          "${SSH[@]}" root@"$HETZNER_HOST" 'timeout 20s pm2 logs unicorn-backend unicorn-site --lines 40 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
+          "${SSH[@]}" root@"$HETZNER_HOST" 'timeout 20s pm2 logs unicorn-backend unicorn-site --lines 40 --nostream 2>&1 | grep -vE "\[NODE-CRON\]|missed execution at" || echo "[pm2 logs] not available"' || true
           echo "::endgroup::"
 
           echo "::group::Backend-direct probes (127.0.0.1:3000)"

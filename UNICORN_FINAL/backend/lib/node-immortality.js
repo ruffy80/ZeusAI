@@ -10,6 +10,8 @@
  *   2. Undici global Agent — kill the default 300s headersTimeout forever
  *   3. Fetch seal          — inject AbortSignal.timeout when callers forget
  *   4. Event-loop lag sample — expose lag for health / phoenix witnesses
+ *   5. Node-cron seal      — NEVER emit "missed execution" / overlap WARN spam
+ *                            (deploy Health Check + pm2 logs stayed red-noise forever)
  *
  * Load paths (any one is enough; all are idempotent):
  *   - NODE_OPTIONS=--require=<this file>   (PM2 / Actions / TTS)
@@ -36,6 +38,8 @@ const state = {
   bodyTimeoutMs: 0,
   eventLoopLagMs: 0,
   refusals: 0,
+  cronSealed: false,
+  cronMissedSuppressed: 0,
 };
 
 function majorOf(v) {
@@ -134,11 +138,107 @@ function startLagSampler() {
   if (typeof iv.unref === 'function') iv.unref();
 }
 
+/**
+ * NIX cron seal — node-cron v4 logs a console.warn for every missed heartbeat
+ * ("missed execution … Possible blocking IO…"). Under a busy Unicorn backend
+ * (hundreds of modules + second-level market crons) this floods pm2 logs and
+ * turns every Deploy Health Check into a wall of yellow WARN noise even when
+ * the process is healthy.
+ *
+ * Seal strategy (belt + suspenders):
+ *   1) Mute console.warn lines that carry the [NODE-CRON] missed/overlap marker
+ *   2) Patch node-cron's own logger.warn when the package is resolvable
+ * Misses are counted in status().cronMissedSuppressed for diagnostics.
+ */
+function sealNodeCron() {
+  if (process.env.NIX_CRON_SEAL === '0') return;
+  if (state.cronSealed || globalThis.__nixCronSealed) {
+    state.cronSealed = true;
+    return;
+  }
+  globalThis.__nixCronSealed = true;
+
+  const isCronNoise = (message) => {
+    const m = String(message || '');
+    return /\[NODE-CRON\]/i.test(m)
+      && /missed execution|overlap prevention|still running, new execution blocked/i.test(m);
+  };
+
+  // 1) console.warn filter — works for every node-cron version that logs there.
+  if (typeof console.warn === 'function' && !console.warn.__nixCronSealed) {
+    const origWarn = console.warn.bind(console);
+    function sealedConsoleWarn(...args) {
+      try {
+        const joined = args.map((a) => {
+          if (a == null) return '';
+          if (typeof a === 'string') return a;
+          if (a instanceof Error) return a.message || String(a);
+          try { return String(a); } catch (_) { return ''; }
+        }).join(' ');
+        if (isCronNoise(joined) || (
+          /missed execution at .*Possible blocking IO/i.test(joined)
+          && /node-cron|NODE-CRON/i.test(joined)
+        )) {
+          state.cronMissedSuppressed += 1;
+          return;
+        }
+        // Also catch the bare message if logger prefixes separately in args[0].
+        if (args.length && /missed execution at .*Possible blocking IO/i.test(String(args[0] || ''))
+            && /NODE-CRON|node-cron/i.test(joined)) {
+          state.cronMissedSuppressed += 1;
+          return;
+        }
+      } catch (_) { /* never break logging */ }
+      return origWarn(...args);
+    }
+    sealedConsoleWarn.__nixCronSealed = true;
+    console.warn = sealedConsoleWarn;
+  }
+
+  // 2) Patch package logger (node-cron@4 dist layout).
+  try {
+    let loggerPath = null;
+    for (const candidate of [
+      'node-cron/dist/cjs/logger.js',
+      'node-cron/dist/esm/logger.js',
+      'node-cron/src/logger.js',
+    ]) {
+      try {
+        loggerPath = require.resolve(candidate);
+        break;
+      } catch (_) { /* try next */ }
+    }
+    if (loggerPath) {
+      // eslint-disable-next-line global-require
+      const mod = require(loggerPath);
+      const logger = mod && (mod.default || mod);
+      if (logger && typeof logger.warn === 'function' && !logger.warn.__nixCronSealed) {
+        const orig = logger.warn.bind(logger);
+        function sealedLoggerWarn(message) {
+          const m = String(message || '');
+          if (/missed execution|overlap prevention|still running, new execution blocked/i.test(m)) {
+            state.cronMissedSuppressed += 1;
+            return;
+          }
+          return orig(message);
+        }
+        sealedLoggerWarn.__nixCronSealed = true;
+        logger.warn = sealedLoggerWarn;
+      }
+    }
+  } catch (_) {
+    // Package absent in some edge boots — console filter still covers it.
+  }
+
+  state.cronSealed = true;
+}
+
 function install(opts = {}) {
   if (state.sealed && !opts.force) return state;
   assertEngines();
   sealUndici();
   sealFetch();
+  sealNodeCron();
   startLagSampler();
   state.sealed = true;
   state.sealedAt = new Date().toISOString();
@@ -148,6 +248,7 @@ function install(opts = {}) {
       `[nix] ${PROTOCOL} sealed · node=${state.node}`
       + ` · fetch=${state.fetchSealed ? state.fetchTimeoutMs + 'ms' : 'off'}`
       + ` · undici=${state.undiciSealed ? state.headersTimeoutMs + 'ms' : 'off'}`
+      + ` · cron=${state.cronSealed ? 'sealed' : 'off'}`
       + ` · engines=${state.enginesOk ? 'ok' : 'FAIL'}`
     );
   }
@@ -170,6 +271,8 @@ function status() {
     bodyTimeoutMs: state.bodyTimeoutMs,
     eventLoopLagMs: state.eventLoopLagMs,
     refusals: state.refusals,
+    cronSealed: state.cronSealed,
+    cronMissedSuppressed: state.cronMissedSuppressed,
   };
 }
 
@@ -183,6 +286,7 @@ function healthEnvelope() {
     enginesOk: s.enginesOk,
     fetchSealed: s.fetchSealed,
     undiciSealed: s.undiciSealed,
+    cronSealed: s.cronSealed,
     eventLoopLagMs: s.eventLoopLagMs,
   };
 }
@@ -198,4 +302,5 @@ module.exports = {
   status,
   healthEnvelope,
   majorOf,
+  sealNodeCron,
 };
