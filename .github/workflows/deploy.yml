@@ -647,6 +647,11 @@ jobs:
             # UNICORN_FINAL/src/index.js. Idempotent.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-attestation-routes.py" || \
               echo "[nginx-patch-attestation-routes] patch failed (continuing)"
+            # ZEUS-SYNC-DRIFT: pin /api/services/list → site so Control Tower
+            # compares the same public storefront SoT as /api/services (avoids
+            # false "265 mismatch" when list fell through to backend).
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-services-list-route.py" || \
+              echo "[nginx-patch-services-list-route] patch failed (continuing)"
             # ZEUS-NEVER-502: install the static maintenance fallback so that
             # when both unicorn-site:3001 and unicorn-backend:3000 are down
             # (mid pm2 reload, OOM, post-rsync race) nginx serves a friendly
