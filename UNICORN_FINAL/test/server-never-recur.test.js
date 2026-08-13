@@ -138,11 +138,22 @@ check('deploy canary probes /health/live and reclaims hung live workers', () => 
   assert.ok(/CANARY_TIMEOUT_SECONDS:-180/.test(src), 'default canary timeout must be >=180s');
 });
 
-check('live autopilot watchdog dispatches repair after failed deploys', () => {
+check('live autopilot watchdog does not double-dispatch on failed Stable Deploy', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'live-autopilot-watchdog.yml'), 'utf8');
-  assert.ok(src.includes("workflow_run.conclusion == 'failure'"),
-    'watchdog must run after failed Stable Deploy');
-  assert.ok(src.includes('diagnose-and-repair.yml'), 'watchdog must dispatch diagnose-and-repair');
+  // SWISS/1.0 — diagnose-and-repair owns the failure path; watchdog must not
+  // also dispatch (stacked nuclear heals thrash PM2/nginx).
+  assert.ok(src.includes("workflow_run.conclusion == 'success'"),
+    'watchdog must still verify after successful Stable Deploy');
+  assert.ok(!src.includes("workflow_run.conclusion == 'failure'"),
+    'watchdog must NOT trigger on Stable Deploy failure (diagnose owns that)');
+  assert.ok(src.includes('diagnose-and-repair.yml'), 'watchdog must still dispatch on live smoke fail');
+  assert.ok(/1500|25m|anti-thrash/i.test(src), 'watchdog must rate-limit heal dispatches');
+});
+
+check('diagnose-and-repair auto-runs after failed Stable Deploy', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'diagnose-and-repair.yml'), 'utf8');
+  assert.ok(src.includes('workflow_run'), 'diagnose must listen for Stable Deploy completion');
+  assert.ok(src.includes("conclusion == 'failure'"), 'diagnose must auto-heal after failed deploy');
 });
 
 check('deploy skips full suite block during live outage (critical gate fallback)', () => {
@@ -151,15 +162,42 @@ check('deploy skips full suite block during live outage (critical gate fallback)
   assert.ok(src.includes('LIVE OUTAGE'), 'deploy must document outage bypass');
   assert.ok(src.includes('critical gate'), 'deploy must fall back to critical gate');
   assert.ok(src.includes('server-never-recur.test.js'), 'critical gate must include never-recur guards');
+  // SWISS/1.0 — dual probe (public + SSH loopback) before declaring outage.
+  assert.ok(src.includes('loopback_ok') || src.includes('127.0.0.1:3000/health/live'),
+    'live_down must confirm via SSH loopback, not public alone');
+  assert.ok(!/http:\/\/\$\{\{\s*secrets\.HETZNER_HOST\s*\}\}:3000\/health/.test(src),
+    'post-deploy health check must not probe public :3000 (loopback-only bind)');
 });
 
-check('diagnose-and-repair heal is nuclear and bounded (no 15m hang)', () => {
+check('diagnose-and-repair heal is probe-gated nuclear and bounded (no 15m hang)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'diagnose-and-repair.yml'), 'utf8');
   assert.ok(src.includes('ConnectTimeout=10'), 'SSH must have ConnectTimeout');
   assert.ok(src.includes('/health/live'), 'heal must prefer /health/live');
   assert.ok(!/wait_for_health[\s\S]{0,80}40\s+4/.test(src), 'must not use 40×4s health waits');
-  assert.ok(src.includes('pm2 kill') || src.includes('hard reset PM2'), 'must hard-reset PM2');
+  assert.ok(src.includes('pm2 kill') || src.includes('hard reset PM2'), 'must hard-reset PM2 when nuclear');
   assert.ok(/timeout-minutes:\s*10/.test(src), 'self-heal step must be time-bounded');
+  assert.ok(/SOFT HEAL|soft_heal|LOOPBACK_ALIVE/.test(src), 'must soft-heal when loopback alive');
+  assert.ok(src.includes('nginx-patch-services-list-route'), 'must re-pin /api/services/list on heal');
+  assert.ok(src.includes('clear_kill_switches'), 'must expose kill-switch clear as explicit input');
+  assert.ok(/preserving kill-switches|CLEAR_KILL_SWITCHES/.test(src),
+    'must not clear kill-switches by default');
+  assert.ok(/NUCLEAR rate-limited|zeus-nuclear-heal\.last/.test(src),
+    'nuclear heal must be rate-limited');
+});
+
+check('auto-baseline soft-skips non-descendant targets (no red noise)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'auto-baseline-advance.yml'), 'utf8');
+  assert.ok(/soft|skip(ping)? advance/i.test(src), 'must soft-skip when target not descendant');
+  assert.ok(!/not a descendant[\s\S]{0,80}exit 1/.test(src),
+    'must not fail the job red on non-descendant ancestry');
+});
+
+check('auto-innovation gates deploy/heal/nginx critical scripts', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'auto-innovation-approve.yml'), 'utf8');
+  assert.ok(src.includes('deploy-atomic-forward'), 'must gate deploy-atomic-forward');
+  assert.ok(src.includes('nginx-patch'), 'must gate nginx patchers');
+  assert.ok(src.includes('hang-watchdog') || src.includes('upgrade-only-guard'),
+    'must gate heal/upgrade ops scripts');
 });
 
 check('nginx maintenance page preserves HTTP 503 (not rewritten to 200)', () => {

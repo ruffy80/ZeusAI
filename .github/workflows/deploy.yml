@@ -217,18 +217,51 @@ jobs:
       - name: 🛰️ Probe live outage (for deploy test gate)
         id: live_outage
         continue-on-error: true
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
         run: |
           set +e
+          # SWISS/1.0 — LIVE_DOWN only when PUBLIC and SSH-loopback both fail.
+          # A public CDN/edge flake must NOT skip the full suite or trigger
+          # emergency canary-skip paths while the VPS stack is healthy.
           code=$(curl -sS -o /dev/null -m 8 -w '%{http_code}' https://zeusai.pro/api/health 2>/dev/null || echo 000)
           live=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' https://zeusai.pro/health/live 2>/dev/null || echo 000)
           echo "api_health_http=$code"
           echo "health_live_http=$live"
+          public_ok=0
           if [ "$code" = "200" ] || [ "$live" = "200" ]; then
+            public_ok=1
+          fi
+
+          loopback_ok=0
+          loopback_code=000
+          if [ -n "${HETZNER_SSH_PRIVATE_KEY:-}" ] && [ -n "${HETZNER_HOST:-}" ]; then
+            KEY="$(mktemp)"
+            printf '%s\n' "$HETZNER_SSH_PRIVATE_KEY" > "$KEY"
+            chmod 600 "$KEY"
+            loopback_code=$(ssh -i "$KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -o BatchMode=yes \
+              root@"$HETZNER_HOST" \
+              "curl -sS -o /dev/null -m 3 -w '%{http_code}' http://127.0.0.1:3000/health/live 2>/dev/null || echo 000" \
+              2>/dev/null || echo 000)
+            rm -f "$KEY"
+            # Normalize accidental double-000 from ssh+curl failure paths.
+            loopback_code=$(printf '%s' "$loopback_code" | tr -dc '0-9' | head -c 3)
+            [ -z "$loopback_code" ] && loopback_code=000
+            echo "loopback_health_live_http=$loopback_code"
+            if [ "$loopback_code" = "200" ]; then
+              loopback_ok=1
+            fi
+          else
+            echo "loopback_health_live_http=skipped (no SSH secrets)"
+          fi
+
+          if [ "$public_ok" = "1" ] || [ "$loopback_ok" = "1" ]; then
             echo "live_down=false" >> "$GITHUB_OUTPUT"
-            echo "✅ public surface answering — full test suite required"
+            echo "✅ live surface answering (public_ok=$public_ok loopback_ok=$loopback_ok) — full test suite required"
           else
             echo "live_down=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️ LIVE OUTAGE detected (api=$code live=$live) — deploy will not be blocked by flaky full suite"
+            echo "⚠️ LIVE OUTAGE confirmed (public api=$code live=$live; loopback=$loopback_code) — critical gate fallback allowed"
           fi
 
       - name: 🛠️ Test UNICORN_FINAL
@@ -890,15 +923,22 @@ jobs:
           SSHEOF
 
       - name: 🏥 Health Check
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
           sleep 20
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 15 \
-            "http://${{ secrets.HETZNER_HOST }}:3000/health" 2>/dev/null || true)
-          echo "Health check Node.js port 3000: $STATUS"
+          # SWISS/1.0 — backend binds BIND_HOST=127.0.0.1 in prod; public :3000
+          # probes are always noise. Probe loopback via SSH + nginx/domain.
+          STATUS=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes \
+            root@"$HETZNER_HOST" \
+            "curl -sS -o /dev/null -m 8 -w '%{http_code}' http://127.0.0.1:3000/health/live 2>/dev/null || echo 000" \
+            2>/dev/null || echo 000)
+          STATUS=$(printf '%s' "$STATUS" | tr -dc '0-9' | head -c 3)
+          [ -z "$STATUS" ] && STATUS=000
+          echo "Health check Node.js loopback :3000/health/live: $STATUS"
           NGINX_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "http://${{ secrets.HETZNER_HOST }}/health" 2>/dev/null || true)
+            "http://${HETZNER_HOST}/health" 2>/dev/null || true)
           echo "Health check Nginx port 80: $NGINX_STATUS"
           # 301/302/308 pe :80 sunt healthy — nginx face redirect HTTP→HTTPS (comportament dorit)
           case "$NGINX_STATUS" in
@@ -917,15 +957,15 @@ jobs:
             "https://zeusai.pro/health" 2>/dev/null || true)
           echo "Health check domain HTTPS zeusai.pro: $DOMAIN_HTTPS"
           if [ "$STATUS" = "200" ] && [ "$NGINX_OK" = "1" ]; then
-            echo "✅ Site LIVE — Node.js și Nginx funcționează corect (Nginx=$NGINX_STATUS)"
+            echo "✅ Site LIVE — Node.js loopback și Nginx funcționează corect (Nginx=$NGINX_STATUS)"
           elif [ "$STATUS" = "200" ]; then
             echo "⚠️  Node.js OK dar Nginx NU răspunde pe port 80 (status: $NGINX_STATUS) — auto-recovery..."
-            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@"$HETZNER_HOST" \
               "nginx -t 2>&1 && systemctl restart nginx && echo '✅ Nginx restarted' || true; ss -tlnp | grep ':80\|:443' || true; pm2 list 2>/dev/null | tail -5 || true"
           else
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
-            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-              "pm2 list && pm2 logs unicorn-backend unicorn-site autoscaler --lines 30 --nostream" || true
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@"$HETZNER_HOST" \
+              "pm2 list && pm2 logs unicorn-backend unicorn-site --lines 30 --nostream" || true
           fi
           if [ "$DOMAIN_HTTP" = "200" ] || [ "$DOMAIN_HTTPS" = "200" ]; then
             echo "✅ Domeniu zeusai.pro accesibil (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS)"

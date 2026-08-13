@@ -153,8 +153,14 @@ jobs:
           # certain the new pin will not trip its own guard on the bump
           # commit's parent line.
           if ! git merge-base --is-ancestor "$CURRENT" "$TARGET"; then
-            echo "::error::target $TARGET is not a descendant of current baseline $CURRENT — refusing to advance"
-            exit 1
+            # SWISS/1.0 — soft-skip (exit 0). A successful deploy SHA that is not
+            # a descendant of the pinned baseline usually means the pin was
+            # advanced by another path / race, or Actions listed a stale green
+            # run. Turning this red only creates alert noise; the next tick
+            # or a force_sha dispatch can still advance when ancestry is valid.
+            echo "::warning::target $TARGET is not a descendant of current baseline $CURRENT — skipping advance (soft)"
+            echo "advance=no" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "✅ $TARGET is a descendant of $CURRENT — safe to advance"
           echo "advance=yes" >> "$GITHUB_OUTPUT"

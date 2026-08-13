@@ -73,7 +73,8 @@ jobs:
           # score — they must be reviewed by a human. Keeps the platform safe
           # while letting docs/innovations/templates/scripts merge faster.
           FILES=$(gh pr view $PR_NUM --json files --jq '.files[].path')
-          CRITICAL_REGEX='^(\.github/workflows/|UNICORN_FINAL/backend/index\.js$|UNICORN_FINAL/backend/modules/(unicornSovereignty|quantumIntegrityShield|payment|revenue-autopilot|growth-engine)\.js$|UNICORN_FINAL/ecosystem\.config\.js$|UNICORN_FINAL/src/index\.js$|package(-lock)?\.json$|generate_unicorn_final\.js$)'
+          # SWISS/1.0 — also gate deploy/heal/nginx scripts that can thrash prod.
+          CRITICAL_REGEX='^(\.github/workflows/|UNICORN_FINAL/backend/index\.js$|UNICORN_FINAL/backend/modules/(unicornSovereignty|quantumIntegrityShield|payment|revenue-autopilot|growth-engine)\.js$|UNICORN_FINAL/ecosystem\.config\.js$|UNICORN_FINAL/src/index\.js$|UNICORN_FINAL/scripts/(deploy-atomic-forward|auto-pull-deploy|upgrade-only-guard|oob-deploy-runner|zeus-poller-resuscitate|hang-watchdog|health-guardian|install-phoenix-continuity)\.(sh|js)$|UNICORN_FINAL/scripts/nginx-patch-.*\.py$|UNICORN_FINAL/scripts/nginx-.*\.conf$|package(-lock)?\.json$|generate_unicorn_final\.js$)'
           CRITICAL_HITS=$(echo "$FILES" | grep -E "$CRITICAL_REGEX" || true)
           if [ -n "$CRITICAL_HITS" ]; then
             echo "✗ PR touches critical paths — human review required:"
