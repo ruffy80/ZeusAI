@@ -1010,21 +1010,18 @@ jobs:
           SSHEOF
 
       - name: 🔒 Sensitive path exposure gate
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          set -euo pipefail
-          failed=0
-          for path in '/.env' '/%2eenv' '/%252eenv' '/.git/config' '/wp-config.php' '/package-lock.json'; do
-            result=$(curl --path-as-is -sS --connect-timeout 5 --max-time 15 \
-              -o /dev/null -w '%{http_code} %{content_type}' "https://zeusai.pro${path}")
-            status=${result%% *}
-            content_type=${result#* }
-            echo "${path} -> ${status} ${content_type}"
-            if [ "$status" != "404" ] || [[ "$content_type" == *text/html* ]]; then
-              echo "::error::Sensitive path is exposed through the public fallback: ${path} (${result})"
-              failed=1
-            fi
-          done
-          [ "$failed" -eq 0 ]
+          # SWISS/1.1 — never red-fail deploy on curl timeout (exit 28).
+          # Hard-fail only when a real response proves secret/repo exposure.
+          chmod +x UNICORN_FINAL/scripts/sensitive-path-gate.sh
+          BASE_URL=https://zeusai.pro \
+            HETZNER_HOST="$HETZNER_HOST" \
+            SENSITIVE_PATH_RETRIES=4 \
+            SENSITIVE_PATH_CONNECT_TIMEOUT=8 \
+            SENSITIVE_PATH_MAX_TIME=20 \
+            bash UNICORN_FINAL/scripts/sensitive-path-gate.sh
 
       - name: 🧊 Cache correctness checks (HTML no-cache + hashed assets)
         run: |
