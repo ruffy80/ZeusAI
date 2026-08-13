@@ -137,19 +137,29 @@ check('NIX seals node-cron — missed execution WARN never reaches console', () 
   assert.match(src, /NIX_CRON_SEAL/);
   assert.match(src, /missed execution/);
 
+  // Strip NODE_OPTIONS so --require NIX does not pre-seal before the spy.
+  // CI deploy/TTS inject NODE_OPTIONS=--require=node-immortality; without a
+  // clean env the spy wraps the seal and falsely counts LEAKED_TO_SINK.
+  const cleanEnv = {
+    ...process.env,
+    NIX_QUIET: '1',
+    NIX_STRICT: '0',
+    NODE_OPTIONS: '',
+  };
   const r = spawnSync(process.execPath, ['-e', `
     process.env.NIX_QUIET = '1';
-    // Install a sink UNDER the seal: NIX will wrap console.warn around this spy.
+    // Sink UNDER the seal: install spy first, then require NIX (wraps spy).
     let leaked = 0;
     const raw = console.warn.bind(console);
     console.warn = (...args) => {
       const s = args.map(String).join(' ');
-      if (/missed execution|\\[NODE-CRON\\]/i.test(s)) leaked += 1;
+      if (/missed execution|NODE-CRON/i.test(s)) leaked += 1;
       return raw(...args);
     };
     const nix = require(${JSON.stringify(NIX)});
+    // Re-seal even if a parent NODE_OPTIONS already sealed once.
+    nix.sealNodeCron();
     const ts = new Date().toISOString();
-    // Exact shape node-cron@4 emits via console.warn.
     console.warn(
       '[' + ts + '] [PID: ' + process.pid + '] \\x1b[32m[NODE-CRON]\\x1b[32m \\x1b[33m[WARN]\\x1b[0m '
       + 'missed execution at ' + ts + '! Possible blocking IO or high CPU user at the same process used by node-cron.'
@@ -167,12 +177,41 @@ check('NIX seals node-cron — missed execution WARN never reaches console', () 
     }
     if (!(s.cronMissedSuppressed >= 1)) process.exit(4);
     console.log(JSON.stringify({ cronSealed: s.cronSealed, suppressed: s.cronMissedSuppressed, leaked }));
-  `], { encoding: 'utf8', cwd: ROOT, env: { ...process.env, NIX_QUIET: '1', NIX_STRICT: '0' } });
+  `], { encoding: 'utf8', cwd: ROOT, env: cleanEnv });
   assert.strictEqual(r.status, 0, r.stderr || r.stdout);
   const out = JSON.parse((r.stdout || '').trim().split('\n').pop());
   assert.strictEqual(out.cronSealed, true);
   assert.strictEqual(out.leaked, 0);
   assert.ok(out.suppressed >= 1);
+
+  // Also prove seal re-wraps when NODE_OPTIONS already preloaded NIX (CI path).
+  const r2 = spawnSync(process.execPath, ['-e', `
+    process.env.NIX_QUIET = '1';
+    let leaked = 0;
+    const raw = console.warn.bind(console);
+    console.warn = (...args) => {
+      const s = args.map(String).join(' ');
+      if (/missed execution|NODE-CRON/i.test(s)) leaked += 1;
+      return raw(...args);
+    };
+    const nix = require(${JSON.stringify(NIX)});
+    nix.sealNodeCron(); // must re-wrap after our spy stole console.warn
+    console.warn(
+      '[t] [PID:1] \\x1b[32m[NODE-CRON]\\x1b[32m missed execution at t! Possible blocking IO or high CPU user at the same process used by node-cron.'
+    );
+    if (leaked !== 0) { console.error('LEAKED_AFTER_RESEAL', leaked); process.exit(3); }
+    console.log(JSON.stringify({ leaked, suppressed: nix.status().cronMissedSuppressed }));
+  `], {
+    encoding: 'utf8',
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      NIX_QUIET: '1',
+      NIX_STRICT: '0',
+      NODE_OPTIONS: `--require=${NIX}`,
+    },
+  });
+  assert.strictEqual(r2.status, 0, r2.stderr || r2.stdout);
 });
 
 check('universalMarketNexus never uses second-precision node-cron', () => {

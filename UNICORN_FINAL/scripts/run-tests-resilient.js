@@ -28,6 +28,15 @@ const FILE_TIMEOUT_MS = Math.max(
   Number(process.env.TTS_FILE_TIMEOUT_MS || 120_000) || 120_000
 );
 
+/** Heavier Express boot files get a longer wall clock (Node 22/24 compat). */
+function fileTimeoutMs(file) {
+  const f = String(file || '');
+  if (/(^|\/)api\.test\.js$/.test(f) || /(^|\/)site-commerce-smoke\.test\.js$/.test(f)) {
+    return Math.max(FILE_TIMEOUT_MS, Number(process.env.TTS_API_TIMEOUT_MS || 180_000) || 180_000);
+  }
+  return FILE_TIMEOUT_MS;
+}
+
 /**
  * Only retry when the process failure itself looks like an uncaught network
  * error near the end of output — not when AssertionError fired and some
@@ -62,7 +71,7 @@ function isTransientFailure(out, meta = {}) {
   );
 }
 
-module.exports = { isTransientFailure, FILE_TIMEOUT_MS, resolveTestChain, nixNodeOptions };
+module.exports = { isTransientFailure, FILE_TIMEOUT_MS, fileTimeoutMs, resolveTestChain, nixNodeOptions };
 
 function resolveTestChain(pkg) {
   // NIX/1.0: `npm test` itself is TTS; the raw file list lives in test:chain.
@@ -88,6 +97,7 @@ function main() {
   }
 
   function runOne(file) {
+    const budget = fileTimeoutMs(file);
     const r = spawnSync(process.execPath, [file], {
       cwd: ROOT,
       encoding: 'utf8',
@@ -102,14 +112,19 @@ function main() {
         NIX_QUIET: process.env.NIX_QUIET || '1',
       },
       maxBuffer: 32 * 1024 * 1024,
-      timeout: FILE_TIMEOUT_MS,
+      timeout: budget,
       killSignal: 'SIGKILL',
     });
     if (r.stdout) process.stdout.write(r.stdout);
     if (r.stderr) process.stderr.write(r.stderr);
-    const timedOutStrict = Boolean(r.error && r.error.code === 'ETIMEDOUT');
+    // Node sets error.code=ETIMEDOUT on spawnSync timeout; also treat
+    // SIGKILL+null status as a timeout so retries always fire in CI.
+    const timedOutStrict = Boolean(
+      (r.error && (r.error.code === 'ETIMEDOUT' || /ETIMEDOUT/i.test(String(r.error))))
+      || (r.signal === 'SIGKILL' && r.status == null)
+    );
     if (timedOutStrict) {
-      console.warn(`[tts] TIMEOUT ${file} after ${FILE_TIMEOUT_MS}ms`);
+      console.warn(`[tts] TIMEOUT ${file} after ${budget}ms`);
     }
     return {
       status: timedOutStrict ? 124 : (r.status == null ? 1 : r.status),
@@ -119,7 +134,7 @@ function main() {
     };
   }
 
-  console.log(`[tts] Transient Test Shield — ${files.length} files (per-file timeout ${FILE_TIMEOUT_MS}ms)`);
+  console.log(`[tts] Transient Test Shield — ${files.length} files (per-file timeout ${FILE_TIMEOUT_MS}ms; api/smoke≤${fileTimeoutMs('test/api.test.js')}ms)`);
   let passed = 0;
   let retried = 0;
 

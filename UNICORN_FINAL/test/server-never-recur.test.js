@@ -183,6 +183,8 @@ check('diagnose-and-repair heal is probe-gated nuclear and bounded (no 15m hang)
     'must not clear kill-switches by default');
   assert.ok(/NUCLEAR rate-limited|zeus-nuclear-heal\.last/.test(src),
     'nuclear heal must be rate-limited');
+  assert.ok(/soft-passing diagnose|Public nginx smoke still flaky/i.test(src),
+    'public smoke must soft-pass when backend-direct already passed');
 });
 
 check('auto-baseline soft-skips non-descendant targets (no red noise)', () => {

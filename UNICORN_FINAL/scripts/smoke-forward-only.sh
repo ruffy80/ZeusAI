@@ -134,14 +134,24 @@ fi
 # Prefer /api/health (canonical). Fall back to /health for older probes.
 # Phoenix Continuity OS may front public /api/health — when BASE_URL is the
 # brain (:3000) we still want the real payload; retry briefly after live.
+# SWISS/1.1 — treat 503 (nginx maintenance / upstream warm) as retryable for
+# longer so diagnose-and-repair public smoke does not red-fail a healthy
+# loopback stack that just soft-healed.
 _SMOKE_HEALTH_URL="$BASE_URL/api/health"
 _health_ok=0
-for _i in $(seq 1 10); do
-  if curl -fsS --max-time 12 "$_SMOKE_HEALTH_URL" >/dev/null 2>&1; then
+_SMOKE_HEALTH_ATTEMPTS="${SMOKE_HEALTH_WAIT_ATTEMPTS:-20}"
+for _i in $(seq 1 "$_SMOKE_HEALTH_ATTEMPTS"); do
+  _code="$(curl -sS -o /dev/null -m 12 -w '%{http_code}' "$_SMOKE_HEALTH_URL" 2>/dev/null || echo 000)"
+  _code="$(printf '%s' "$_code" | tr -dc '0-9' | head -c 3)"
+  [ -n "$_code" ] || _code=000
+  if [ "$_code" = "200" ]; then
     _health_ok=1
     break
   fi
-  sleep 2
+  if [ "$_i" -eq 1 ] || [ "$((_i % 4))" -eq 0 ]; then
+    echo "[smoke] waiting for $_SMOKE_HEALTH_URL (http=$_code) $_i/$_SMOKE_HEALTH_ATTEMPTS"
+  fi
+  sleep 3
 done
 if [ "$_health_ok" != "1" ]; then
   if curl -fsS --max-time 8 "$BASE_URL/health" >/dev/null 2>&1; then
