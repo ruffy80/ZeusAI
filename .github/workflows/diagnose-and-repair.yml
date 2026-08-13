@@ -1,20 +1,32 @@
 name: 🩺 Diagnose & Repair (Hetzner)
 
 # Manual + auto workflow that SSHes to the live Hetzner host, prints a short
-# diagnostic report, nuclear-reclaims the canonical PM2 stack, reloads nginx,
-# and runs smoke tests. Designed to finish well under the job timeout so a
-# hung wait_for_health loop can never cancel mid-heal again.
+# diagnostic report, then heals probe-first:
+#   • soft path  — nginx pins + targeted pm2 restart (default when loopback alive)
+#   • nuclear    — hard PM2 reclaim ONLY when loopback is dead (or force_nuclear)
+# Designed to finish well under the job timeout so a hung wait_for_health loop
+# can never cancel mid-heal again.
+#
+# SWISS/1.0 — never thrash a healthy stack on public-edge flakes; never clear
+# intentional kill-switches unless the operator explicitly asks.
 
 on:
   workflow_dispatch:
     inputs:
       do_repair:
-        description: 'Run self-heal actions (pm2 restart, nginx reload, pm2 save). If false, only diagnose.'
+        description: 'Run self-heal actions. If false, only diagnose.'
         type: boolean
         default: true
-  # Auto-heal when Stable Deploy fails — production is typically on the nginx
-  # maintenance page at that point and needs a hard PM2 reclaim without waiting
-  # for a human to click "Run workflow".
+      clear_kill_switches:
+        description: 'Clear /etc/zeus-*.disabled kill-switches (DANGEROUS — only when intentional pause must end).'
+        type: boolean
+        default: false
+      force_nuclear:
+        description: 'Force nuclear PM2 reclaim even if loopback is answering.'
+        type: boolean
+        default: false
+  # Auto-heal when Stable Deploy fails — production may be on the nginx
+  # maintenance page. Soft-first still applies: nuclear only if loopback dead.
   workflow_run:
     workflows: ["🚀 Unicorn Stable Deploy"]
     types: [completed]
@@ -28,7 +40,7 @@ jobs:
     # workflow_dispatch → always. workflow_run → only after a FAILED Stable Deploy.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
-    # Heal is nuclear + bounded (~3–6 min). 20m leaves headroom for SSH/smoke.
+    # Heal is probe-gated + bounded (~3–6 min). 20m leaves headroom for SSH/smoke.
     timeout-minutes: 20
     permissions:
       contents: read
@@ -91,22 +103,34 @@ jobs:
           SSHEOF
           echo "::endgroup::"
 
-      - name: Self-heal (nuclear PM2 reclaim + nginx restart)
+      - name: Self-heal (probe-gated soft / nuclear PM2 reclaim + nginx)
         # workflow_dispatch respects the do_repair input; auto-runs after a
         # failed Stable Deploy always repair (that is the whole point).
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.do_repair == true }}
         timeout-minutes: 10
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          # workflow_run has no inputs → both stay '0' (soft-first, keep kill-switches).
+          CLEAR_KILL_SWITCHES: ${{ inputs.clear_kill_switches && '1' || '0' }}
+          FORCE_NUCLEAR: ${{ inputs.force_nuclear && '1' || '0' }}
         run: |
           # Hard outer bound (540s < the 10m step budget): even if the SSH
           # stream stalls mid-heal despite ServerAlive*, `timeout` reaps it so
           # this step can NEVER hang forever. Non-zero from the bound is logged
           # but not fatal, so the smoke step still runs and surfaces the truth.
           timeout --signal=KILL 540s \
-            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes root@"$HETZNER_HOST" bash -s <<'SSHEOF' || echo "[heal] self-heal SSH ended (rc=$? — hard-bounded, continuing to smoke)"
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o BatchMode=yes root@"$HETZNER_HOST" \
+            env CLEAR_KILL_SWITCHES="$CLEAR_KILL_SWITCHES" FORCE_NUCLEAR="$FORCE_NUCLEAR" \
+            bash -s <<'SSHEOF' || echo "[heal] self-heal SSH ended (rc=$? — hard-bounded, continuing to smoke)"
             set +e
-            rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled
+
+            # SWISS/1.0 — never clear intentional kill-switches unless operator asked.
+            if [ "${CLEAR_KILL_SWITCHES:-0}" = "1" ]; then
+              echo '[heal] CLEAR_KILL_SWITCHES=1 — removing zeus kill-switch files'
+              rm -f /etc/zeus-autodeploy.disabled /etc/zeus-healer.disabled
+            else
+              echo '[heal] preserving kill-switches (pass clear_kill_switches=true to clear)'
+            fi
 
             APP_DIR=""
             # Prefer the live symlink target (current/live) over a stale flat copy.
@@ -128,26 +152,47 @@ jobs:
             cd "$APP_DIR"
             echo "[heal] git HEAD=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
-            echo '[heal] hard reset PM2 daemon/dump'
-            timeout 10s pm2 stop all 2>/dev/null || true
-            timeout 10s pm2 delete all 2>/dev/null || true
-            timeout 8s pm2 kill 2>/dev/null || true
-            pkill -9 -f 'PM2 v.*God Daemon' 2>/dev/null || true
-            pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
-            pkill -9 -f 'node .*backend/index\.js' 2>/dev/null || true
-            pkill -9 -f 'node .*src/index\.js' 2>/dev/null || true
-            rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid 2>/dev/null || true
-            rm -rf /root/.pm2/pids/* 2>/dev/null || true
-            # Include phoenix edge :3002 — accept-but-hang orphans freeze heal.
-            for PORT in 3000 3001 3002 3100; do
-              PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
-              for PID in $PIDS; do
-                [ -n "$PID" ] || continue
-                echo "[heal] killing stale listener pid=$PID on port $PORT"
-                kill -9 "$PID" 2>/dev/null || true
+            probe_code() {
+              curl -sS -o /dev/null -m 3 -w '%{http_code}' "$1" 2>/dev/null || echo "000"
+            }
+
+            BACKEND_CODE="$(probe_code http://127.0.0.1:3000/health/live)"
+            SITE_CODE="$(probe_code http://127.0.0.1:3001/health/live)"
+            PHOENIX_CODE="000"
+            if [ -f backend/phoenix-edge.js ]; then
+              PHOENIX_CODE="$(probe_code http://127.0.0.1:3002/phoenix/live)"
+            fi
+            echo "[heal] loopback probe backend=$BACKEND_CODE site=$SITE_CODE phoenix=$PHOENIX_CODE"
+
+            LOOPBACK_ALIVE=0
+            if [ "$BACKEND_CODE" = "200" ] || [ "$SITE_CODE" = "200" ]; then
+              LOOPBACK_ALIVE=1
+            fi
+
+            # Always re-apply nginx commerce / Sync Drift pins (certbot + manual
+            # edits routinely drop exact-location pins).
+            apply_nginx_pins() {
+              echo '[heal] applying nginx route pins (services-list + commerce aliases)'
+              if [ -f scripts/nginx-patch-services-list-route.py ]; then
+                python3 scripts/nginx-patch-services-list-route.py 2>&1 \
+                  || echo '[heal] nginx-patch-services-list-route failed (continuing)'
+              fi
+              for patcher in \
+                scripts/nginx-patch-commerce-routes.py \
+                scripts/nginx-patch-api-aliases.py \
+                scripts/nginx-patch-invoice-alerts.py
+              do
+                if [ -f "$patcher" ]; then
+                  python3 "$patcher" 2>&1 || echo "[heal] $patcher failed (continuing)"
+                fi
               done
-            done
-            sleep 2
+              if timeout 15s nginx -t 2>&1; then
+                systemctl reload nginx 2>&1 || systemctl restart nginx 2>&1 \
+                  || echo '[heal] nginx reload failed'
+              else
+                echo '[heal] nginx config invalid after pins — skipping reload'
+              fi
+            }
 
             export NODE_ENV=production
             export BIND_HOST=127.0.0.1
@@ -174,13 +219,6 @@ jobs:
                 || echo '[heal] pm2 start failed'
             }
 
-            echo "[heal] pm2 start canonical stack ($HEAL_ONLY)"
-            restart_canonical_backend
-            if [ -f backend/phoenix-edge.js ] && [ -x scripts/install-phoenix-continuity.sh ]; then
-              echo '[heal] install phoenix nginx continuity'
-              bash scripts/install-phoenix-continuity.sh 2>&1 || true
-            fi
-
             wait_for_live() {
               local name="$1"
               local url="$2"
@@ -202,8 +240,6 @@ jobs:
               return 1
             }
 
-            # Prefer /health/live (process-only) so a busy event loop does not
-            # look like a dead process during warm-up.
             dump_backend_diag() {
               echo '::group::Backend boot diagnostics'
               timeout 15s pm2 describe unicorn-backend 2>&1 | tail -80 || true
@@ -213,7 +249,6 @@ jobs:
               echo '::endgroup::'
             }
 
-            # SIGKILL a PM2-online but non-serving backend (accept-but-hang / stuck boot).
             force_kill_backend() {
               echo '[heal] SIGKILL unicorn-backend (stuck boot / hang)'
               local pid
@@ -234,80 +269,156 @@ jobs:
               done
             }
 
-            PHOENIX_HEALTHY=0
-            BACKEND_HEALTHY=0
-            SITE_HEALTHY=0
-            # Phoenix must answer first (LKG commerce surface while brain warms).
-            if [ -f backend/phoenix-edge.js ]; then
-              wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 10 2 && PHOENIX_HEALTHY=1
-              if [ "$PHOENIX_HEALTHY" != "1" ]; then
-                echo '[heal] phoenix retry'
-                timeout 15s pm2 delete unicorn-phoenix 2>/dev/null || true
-                timeout 60s pm2 start ecosystem.config.js --only unicorn-phoenix --update-env 2>&1 || true
-                wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 8 2 && PHOENIX_HEALTHY=1
-              fi
-            else
-              PHOENIX_HEALTHY=1
-            fi
-            # Backend cold boot can exceed 36s under world-catalog work; allow ~80s.
-            wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
-            wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
+            soft_heal() {
+              echo '[heal] SOFT HEAL — nginx pins + targeted restarts (loopback alive)'
+              apply_nginx_pins
 
-            if [ "$BACKEND_HEALTHY" != "1" ]; then
-              echo '[heal] backend retry (canonical only — never rescue)'
-              dump_backend_diag
-              force_kill_backend
-              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
+              if [ "$BACKEND_CODE" != "200" ]; then
+                echo '[heal] soft: restart unicorn-backend only'
+                timeout 20s pm2 restart unicorn-backend --update-env 2>&1 \
+                  || timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 \
+                  || true
+                wait_for_live backend http://127.0.0.1:3000/health/live 15 3 || dump_backend_diag
+              fi
+              if [ "$SITE_CODE" != "200" ]; then
+                echo '[heal] soft: restart unicorn-site only'
+                timeout 20s pm2 restart unicorn-site --update-env 2>&1 \
+                  || timeout 60s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 \
+                  || true
+                wait_for_live site http://127.0.0.1:3001/health/live 10 3 || true
+              fi
+              if [ -f backend/phoenix-edge.js ] && [ "$PHOENIX_CODE" != "200" ]; then
+                echo '[heal] soft: restart unicorn-phoenix only'
+                timeout 20s pm2 restart unicorn-phoenix --update-env 2>&1 \
+                  || timeout 60s pm2 start ecosystem.config.js --only unicorn-phoenix --update-env 2>&1 \
+                  || true
+                wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 8 2 || true
+              fi
+
+              timeout 15s pm2 save --force 2>&1 || true
+              echo '[heal] soft heal done'
+            }
+
+            nuclear_heal() {
+              # Rate-limit nuclear reclaim (30 min) unless FORCE_NUCLEAR=1.
+              NUCLEAR_STAMP=/var/tmp/zeus-nuclear-heal.last
+              NOW=$(date +%s)
+              if [ "${FORCE_NUCLEAR:-0}" != "1" ] && [ -f "$NUCLEAR_STAMP" ]; then
+                LAST=$(cat "$NUCLEAR_STAMP" 2>/dev/null || echo 0)
+                AGE=$((NOW - LAST))
+                if [ "$AGE" -lt 1800 ]; then
+                  echo "[heal] NUCLEAR rate-limited (${AGE}s < 1800s) — falling back to soft heal"
+                  soft_heal
+                  return 0
+                fi
+              fi
+              echo "$NOW" > "$NUCLEAR_STAMP"
+
+              echo '[heal] NUCLEAR — hard reset PM2 daemon/dump (loopback dead)'
+              timeout 10s pm2 stop all 2>/dev/null || true
+              timeout 10s pm2 delete all 2>/dev/null || true
+              timeout 8s pm2 kill 2>/dev/null || true
+              pkill -9 -f 'PM2 v.*God Daemon' 2>/dev/null || true
+              pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+              pkill -9 -f 'node .*backend/index\.js' 2>/dev/null || true
+              pkill -9 -f 'node .*src/index\.js' 2>/dev/null || true
+              rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid 2>/dev/null || true
+              rm -rf /root/.pm2/pids/* 2>/dev/null || true
+              # Include phoenix edge :3002 — accept-but-hang orphans freeze heal.
+              for PORT in 3000 3001 3002 3100; do
+                PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
+                for PID in $PIDS; do
+                  [ -n "$PID" ] || continue
+                  echo "[heal] killing stale listener pid=$PID on port $PORT"
+                  kill -9 "$PID" 2>/dev/null || true
+                done
+              done
+              sleep 2
+
+              echo "[heal] pm2 start canonical stack ($HEAL_ONLY)"
+              restart_canonical_backend
+              if [ -f backend/phoenix-edge.js ] && [ -x scripts/install-phoenix-continuity.sh ]; then
+                echo '[heal] install phoenix nginx continuity'
+                bash scripts/install-phoenix-continuity.sh 2>&1 || true
+              fi
+
+              PHOENIX_HEALTHY=0
+              BACKEND_HEALTHY=0
+              SITE_HEALTHY=0
+              if [ -f backend/phoenix-edge.js ]; then
+                wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 10 2 && PHOENIX_HEALTHY=1
+                if [ "$PHOENIX_HEALTHY" != "1" ]; then
+                  echo '[heal] phoenix retry'
+                  timeout 15s pm2 delete unicorn-phoenix 2>/dev/null || true
+                  timeout 60s pm2 start ecosystem.config.js --only unicorn-phoenix --update-env 2>&1 || true
+                  wait_for_live phoenix http://127.0.0.1:3002/phoenix/live 8 2 && PHOENIX_HEALTHY=1
+                fi
+              else
+                PHOENIX_HEALTHY=1
+              fi
               wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
+              wait_for_live site http://127.0.0.1:3001/health/live 12 3 && SITE_HEALTHY=1
+
               if [ "$BACKEND_HEALTHY" != "1" ]; then
+                echo '[heal] backend retry (canonical only — never rescue)'
                 dump_backend_diag
+                force_kill_backend
+                timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
+                wait_for_live backend http://127.0.0.1:3000/health/live 20 4 && BACKEND_HEALTHY=1
+                if [ "$BACKEND_HEALTHY" != "1" ]; then
+                  dump_backend_diag
+                fi
               fi
-            fi
 
-            if [ "$SITE_HEALTHY" != "1" ]; then
-              echo '[heal] site retry'
-              timeout 15s pm2 delete unicorn-site 2>/dev/null || true
-              timeout 60s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 || true
-              wait_for_live site http://127.0.0.1:3001/health/live 10 3 && SITE_HEALTHY=1
-            fi
+              if [ "$SITE_HEALTHY" != "1" ]; then
+                echo '[heal] site retry'
+                timeout 15s pm2 delete unicorn-site 2>/dev/null || true
+                timeout 60s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 || true
+                wait_for_live site http://127.0.0.1:3001/health/live 10 3 && SITE_HEALTHY=1
+              fi
 
-            if pm2 jlist 2>/dev/null | grep -q 'rescue-backend\.js'; then
-              echo '[heal] ERROR: rescue-backend.js in PM2 — purging'
-              pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
-              timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
-              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
-            fi
+              if pm2 jlist 2>/dev/null | grep -q 'rescue-backend\.js'; then
+                echo '[heal] ERROR: rescue-backend.js in PM2 — purging'
+                pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+                timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
+                timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
+              fi
 
-            echo '[heal] nginx -t && systemctl restart nginx'
-            if timeout 15s nginx -t 2>&1; then
-              systemctl restart nginx 2>&1 || systemctl reload nginx 2>&1 || echo '[heal] nginx restart failed'
+              apply_nginx_pins
+
+              echo '[heal] pm2 save'
+              timeout 15s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
+
+              sleep 5
+              curl -fsS --max-time 5 http://127.0.0.1:3002/phoenix/live || true
+              echo
+              curl -fsS --max-time 5 http://127.0.0.1:3002/api/health || \
+                curl -fsS --max-time 5 http://127.0.0.1:3000/api/health || \
+                curl -fsS --max-time 3 http://127.0.0.1:3000/health/live || true
+              echo
+              curl -fsS --max-time 5 http://127.0.0.1:3001/health || \
+                curl -fsS --max-time 3 http://127.0.0.1:3001/health/live || true
+              echo
+              if curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
+                echo '[heal] FATAL: backend still identifies as rescue — last purge'
+                pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
+                timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
+                timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
+              fi
+              timeout 15s pm2 list || true
+              echo "[heal] nuclear done phoenix_live=$PHOENIX_HEALTHY backend_live=$BACKEND_HEALTHY site_live=$SITE_HEALTHY"
+            }
+
+            # Decision: soft when loopback alive (unless force_nuclear), else nuclear.
+            if [ "${FORCE_NUCLEAR:-0}" = "1" ]; then
+              echo '[heal] FORCE_NUCLEAR=1 — nuclear path'
+              nuclear_heal
+            elif [ "$LOOPBACK_ALIVE" = "1" ]; then
+              soft_heal
             else
-              echo '[heal] nginx config invalid — skipping reload'
+              echo '[heal] loopback dead — nuclear path'
+              nuclear_heal
             fi
-
-            echo '[heal] pm2 save'
-            timeout 15s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
-
-            # Short settle only — do not burn the job timeout waiting.
-            # Prefer phoenix /api/health (LKG-safe) then brain /health/live.
-            sleep 5
-            curl -fsS --max-time 5 http://127.0.0.1:3002/phoenix/live || true
-            echo
-            curl -fsS --max-time 5 http://127.0.0.1:3002/api/health || \
-              curl -fsS --max-time 5 http://127.0.0.1:3000/api/health || \
-              curl -fsS --max-time 3 http://127.0.0.1:3000/health/live || true
-            echo
-            curl -fsS --max-time 5 http://127.0.0.1:3001/health || \
-              curl -fsS --max-time 3 http://127.0.0.1:3001/health/live || true
-            echo
-            if curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
-              echo '[heal] FATAL: backend still identifies as rescue — last purge'
-              pkill -9 -f 'rescue-backend\.js' 2>/dev/null || true
-              timeout 15s pm2 delete unicorn-backend 2>/dev/null || true
-              timeout 60s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 || true
-            fi
-            timeout 15s pm2 list || true
-            echo "[heal] done phoenix_live=$PHOENIX_HEALTHY backend_live=$BACKEND_HEALTHY site_live=$SITE_HEALTHY"
           SSHEOF
 
       - name: Smoke tests (backend-direct, then nginx)

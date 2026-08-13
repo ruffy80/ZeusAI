@@ -18,9 +18,11 @@ permissions:
 
 jobs:
   verify-live:
-    # Also run after FAILED Stable Deploys — that is exactly when production is
-    # most likely stuck on the nginx maintenance page and needs Diagnose & Repair.
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure' }}
+    # SWISS/1.0 — run after SUCCESSFUL Stable Deploys + schedule + manual.
+    # Do NOT run on Stable Deploy failure: diagnose-and-repair.yml already
+    # auto-triggers via its own workflow_run on failure. Double-dispatch was
+    # stacking nuclear heals (pm2 delete all) and thrashing production.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -63,13 +65,27 @@ jobs:
             echo "skipped_deploy_race=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # SWISS/1.0 — rate-limit heal dispatches (max 1 per 25 minutes).
+          # Prevents schedule ticks from nuclear-thrashing a healthy-but-flaky
+          # public edge while diagnose is already running or just finished.
+          recent="$(gh api "repos/${REPO}/actions/workflows/diagnose-and-repair.yml/runs?per_page=5" \
+            --jq '[.workflow_runs[] | select(.status=="in_progress" or ((now - (.created_at | fromdateiso8601)) < 1500))] | length' \
+            2>/dev/null || echo 0)"
+          if [ "${recent:-0}" -gt 0 ]; then
+            echo "⏭️  Diagnose & Repair already in-flight or ran <25m ago — skipping dispatch (anti-thrash)"
+            echo "skipped_deploy_race=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "skipped_deploy_race=false" >> "$GITHUB_OUTPUT"
+          # Soft-first heal by default (nuclear only if loopback is dead).
           curl -fsS -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/actions/workflows/diagnose-and-repair.yml/dispatches" \
-            -d '{"ref":"main","inputs":{"do_repair":true}}'
-          echo "✅ diagnose-and-repair workflow dispatched"
+            -d '{"ref":"main","inputs":{"do_repair":true,"clear_kill_switches":false,"force_nuclear":false}}'
+          echo "✅ diagnose-and-repair workflow dispatched (soft-first)"
 
       # CGP/1.0 — dispatching Diagnose & Repair is the success path for an
       # unhealthy live surface. Marking the watchdog red after a successful
@@ -90,5 +106,5 @@ jobs:
       - name: ℹ️ Soft-pass when verify flaked during deploy window
         if: ${{ steps.verify.outputs.failed == 'true' && steps.repair.outputs.skipped_deploy_race == 'true' }}
         run: |
-          echo "Live checks flaked while Stable Deploy was in flight; no repair dispatched."
+          echo "Live checks flaked while Stable Deploy / recent heal was in flight; no repair dispatched."
           echo "This is an intentional soft-pass to avoid server thrash during canary promotion."
