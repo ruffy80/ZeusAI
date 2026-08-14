@@ -502,7 +502,17 @@ async function getBtcPrice() {
   return PRICE_CACHE;
 }
 function priceUnavailableForNewInvoices(price) {
-  return !!(price && price.source === 'fallback-static' && !price.liveUpdatedAt);
+  if (!price || typeof price !== 'object') return true;
+  if (price.source !== 'fallback-static') return false;
+
+  // A static fallback is best-effort degraded pricing, not an immediate hard stop
+  // for a fresh invoice. It only becomes fail-closed once the fallback has gone
+  // stale for a while and no live quote has refreshed. This keeps checkout alive
+  // during transient outage windows while still preventing long-lived stale BTC
+  // invoices from being created against an old quote.
+  const fallbackAgeMs = Date.now() - (Number(price.fetchedAt || 0) || 0);
+  const staleAfterMs = 30 * 60 * 1000;
+  return fallbackAgeMs > staleAfterMs;
 }
 
 // ── Unique amount allocation ────────────────────────────────────────────────
