@@ -72,6 +72,25 @@ function installResilientFetch(){
 }
 installResilientFetch();
 
+function shouldReduceMotion(){
+  try {
+    if (window.__UNICORN_REDUCED__ === true) return true;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    if (navigator && typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4) return true;
+    if (window.innerWidth && window.innerWidth < 640) return true;
+    return false;
+  } catch (_) { return false; }
+}
+function scheduleIdleHeavyWork(fn){
+  try {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(function(){ try { fn(); } catch (_) {} }, { timeout: 1500 });
+      return;
+    }
+  } catch (_) {}
+  setTimeout(function(){ try { fn(); } catch (_) {} }, 250);
+}
+
 const THREE = window.THREE;
 const STATE = { route: (location.pathname.replace(/\/$/, '') || '/'), snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
 const cfg = window.__UNICORN__ || {};
@@ -919,6 +938,10 @@ window.addEventListener('unicorn:hydrated', () => setTimeout(_auditButtonsForMis
 // ================= GALAXY 3D =================
 let zeusCtx = null;
 function initZeus(){
+  if (shouldReduceMotion()) {
+    if (zeusCtx) { zeusCtx.dispose(); zeusCtx = null; }
+    return;
+  }
   const host = document.getElementById('zeusCanvas');
   if (!host || !THREE) return;
   if (zeusCtx) { zeusCtx.dispose(); zeusCtx = null; }
@@ -1139,6 +1162,11 @@ function initZeus(){
 // ================= TOURBILLON =================
 let tbCtx = null;
 function initTourbillon(){
+  if (shouldReduceMotion()) {
+    const labelEl = document.getElementById('tourbillonTime');
+    if (labelEl) labelEl.textContent = new Date().toTimeString().slice(0,8) + '  ·  reduced motion';
+    return;
+  }
   const photo = document.getElementById('tourbillonPhoto');
   if (photo) {
     if (tbCtx) { tbCtx.dispose(); tbCtx = null; }
@@ -1499,8 +1527,11 @@ function applyZeusBackdrop(route){
 async function hydratePage(route){
   route = routePath(route);
   try {
-    // Galaxy is a universal background — keep it alive across all routes.
-    if (!zeusCtx && THREE && !window.__UNICORN_THREE_STUB__) initZeus();
+    // Create the heavy 3D galaxy only when the browser is idle and motion is not reduced.
+    // Doing it inline during every route transition makes click/navigation latency feel like a 3–4s freeze.
+    if (!zeusCtx && THREE && !window.__UNICORN_THREE_STUB__ && !shouldReduceMotion()) {
+      scheduleIdleHeavyWork(function(){ if (!zeusCtx && THREE && !window.__UNICORN_THREE_STUB__ && !shouldReduceMotion()) initZeus(); });
+    }
   } catch (e) { console.warn('hydratePage:initZeus', e && e.message); }
   try { applyZeusBackdrop(route); } catch (e) { console.warn('hydratePage:zeusBackdrop', e && e.message); }
   try {
@@ -1539,8 +1570,12 @@ function _sectionMustStayVisible(s){
   return false;
 }
 function initCinematicInteractions(){
-  // reveal sections — stamp once; never re-hide on SPA re-hydrate
   const sections = Array.from(document.querySelectorAll('section'));
+  if (shouldReduceMotion()) {
+    sections.forEach(function(s){ s.classList.add('revealed'); });
+    return;
+  }
+  // reveal sections — stamp once; never re-hide on SPA re-hydrate
   sections.forEach(function(s){
     if (_sectionMustStayVisible(s)) {
       s.classList.add('revealed');
