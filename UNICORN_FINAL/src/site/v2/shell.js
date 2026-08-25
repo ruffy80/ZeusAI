@@ -58,8 +58,16 @@ function _toBtc(usd) {
   if (!(u > 0)) return 0;
   return Number((u / r).toFixed(8));
 }
+// Process-local catalog memo — SSR hits _loadCatalog on nearly every page;
+// avoid re-walking unified-catalog + dynamic-pricing on every click/partial.
+let _catalogMemo = { ts: 0, items: null };
+const _CATALOG_MEMO_MS = Math.max(1000, Number(process.env.SITE_SSR_CATALOG_CACHE_MS || 15000));
+
 function _loadCatalog() {
   try {
+    if (_catalogMemo.items && (Date.now() - _catalogMemo.ts) < _CATALOG_MEMO_MS) {
+      return _catalogMemo.items;
+    }
     const u = require('../../commerce/unified-catalog');
     const all = (typeof u.all === 'function') ? u.all() : [];
     if (!Array.isArray(all)) return [];
@@ -67,26 +75,18 @@ function _loadCatalog() {
     // backend/modules/dynamic-pricing.js (BASE_PRICES × demand × surge ×
     // peak × per-service variance × discount). When the module is loadable
     // in this process we use it for SSR so the first paint already shows
-    // the same "live" number the client polls afterwards. When it isn't
-    // loadable (separate site/backend processes), or the broker has no
-    // entry for an id, we keep the static priceUSD from the catalogue.
+    // the same "live" number the client polls afterwards.
+    //
+    // CRITICAL: do NOT require live-pricing-broker here. Broker.start()
+    // pulls serviceMarketplace which require()s every backend/modules/*.js
+    // into the *site* process and stalls the event loop for seconds on
+    // cold navigations — the root cause of 2–3s click lag. Live prices
+    // still reach the page via /api/pricing/live SSE after hydrate.
     let dp = null;
     try { dp = require('../../../backend/modules/dynamic-pricing'); } catch (_) {}
-    let broker = null;
-    try { broker = require('../../../backend/modules/live-pricing-broker'); } catch (_) {}
-    const snap = (broker && typeof broker.getSnapshot === 'function') ? (broker.getSnapshot() || null) : null;
-    const brokerById = {};
-    if (snap && Array.isArray(snap.items)) {
-      for (const it of snap.items) { if (it && it.id) brokerById[it.id] = it; }
-    }
-    return all.map(p => {
+    const items = all.map(p => {
       const out = Object.assign({}, p);
-      const fromBroker = brokerById[p.id];
-      if (fromBroker && Number(fromBroker.priceUsd) > 0) {
-        out.priceUSD = Number(fromBroker.priceUsd);
-        out.livePriceSource = 'broker';
-        if (fromBroker.priceBtc) out.priceBtc = Number(fromBroker.priceBtc);
-      } else if (dp && typeof dp.getPrice === 'function') {
+      if (dp && typeof dp.getPrice === 'function') {
         try {
           // CRITICAL: pass the catalog’s priceUSD as the engine’s basePrice
           // override. Without it, every catalog id (instant-pitch-deck=$149,
@@ -109,6 +109,8 @@ function _loadCatalog() {
       }
       return out;
     });
+    _catalogMemo = { ts: Date.now(), items };
+    return items;
   } catch (_) { return []; }
 }
 // Read the live AI-negotiated price for a subscription tier (starter/pro/

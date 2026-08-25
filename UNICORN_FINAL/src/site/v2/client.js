@@ -818,6 +818,203 @@ document.addEventListener('click', (e) => {
     openLiveInspect(href, a.textContent || 'Live inspect');
   }
 });
+// ================= INSTANT SPA NAV =================
+// Root cause of 2–3s click lag: the previous handler awaited a full SSR HTML
+// fetch before pushState/#app swap. Under event-loop pressure that felt like
+// every click was frozen. Fix: pushState immediately, swap from prefetch
+// cache when warm, otherwise show pending chrome while the fetch completes.
+const __SPA_HTML_CACHE = new Map(); // pathname → { html, ts }
+const __SPA_INFLIGHT = new Map();
+const SPA_HTML_TTL_MS = 120000;
+let __spaNavGen = 0;
+let __spaAbort = null;
+
+function spaCacheKey(href){
+  try {
+    const u = new URL(String(href || '/'), location.origin);
+    return (u.pathname.replace(/\/$/, '') || '/') + (u.search || '');
+  } catch (_) {
+    return routePath(href);
+  }
+}
+
+function rememberSpaHtml(href, html){
+  if (!html || html.indexOf('id="app"') === -1) return;
+  const key = spaCacheKey(href);
+  __SPA_HTML_CACHE.set(key, { html, ts: Date.now() });
+  if (__SPA_HTML_CACHE.size > 40) {
+    const oldest = __SPA_HTML_CACHE.keys().next().value;
+    __SPA_HTML_CACHE.delete(oldest);
+  }
+}
+
+function readSpaHtml(href){
+  const key = spaCacheKey(href);
+  const hit = __SPA_HTML_CACHE.get(key);
+  if (!hit) return null;
+  if ((Date.now() - hit.ts) > SPA_HTML_TTL_MS) {
+    __SPA_HTML_CACHE.delete(key);
+    return null;
+  }
+  return hit.html;
+}
+
+function prefetchSpa(href){
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
+  const key = spaCacheKey(href);
+  if (readSpaHtml(href) || __SPA_INFLIGHT.has(key)) return;
+  __SPA_INFLIGHT.set(key, true);
+  fetch(href, { headers: { 'x-unicorn-partial': '1', Accept: 'text/html' }, credentials: 'same-origin' })
+    .then(function(r){ if (!r.ok) throw new Error('prefetch_' + r.status); return r.text(); })
+    .then(function(html){ rememberSpaHtml(href, html); })
+    .catch(function(){})
+    .then(function(){ __SPA_INFLIGHT.delete(key); });
+}
+
+function applySpaHtml(href, html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const newApp = doc.querySelector('#app');
+  if (!newApp) return false;
+  const key = spaCacheKey(href);
+  const pathOnly = routePath(href);
+  const swap = () => {
+    const app = $('#app');
+    if (!app) return;
+    app.style.opacity = '';
+    app.style.pointerEvents = '';
+    app.removeAttribute('aria-busy');
+    app.innerHTML = newApp.innerHTML;
+    runAppInlineScripts(app);
+    $$('.nav-links a').forEach(function(x){
+      const hx = x.getAttribute('href') || '';
+      x.classList.toggle('active', spaCacheKey(hx) === key || routePath(hx) === pathOnly);
+    });
+    STATE.route = pathOnly;
+    window.scrollTo(0, 0);
+    document.documentElement.removeAttribute('data-spa-pending');
+    hydratePage(STATE.route);
+  };
+  if (window.__UNICORN_VT_WRAP__) window.__UNICORN_VT_WRAP__(swap); else swap();
+  return true;
+}
+
+function markSpaPending(on){
+  const app = $('#app');
+  if (on) {
+    document.documentElement.setAttribute('data-spa-pending', '1');
+    if (app) {
+      app.style.opacity = '0.55';
+      app.style.pointerEvents = 'none';
+      app.setAttribute('aria-busy', 'true');
+    }
+    $$('.nav-links a').forEach(function(x){
+      const hx = x.getAttribute('href') || '';
+      x.classList.toggle('active', routePath(hx) === STATE.route);
+    });
+  } else {
+    document.documentElement.removeAttribute('data-spa-pending');
+    if (app) {
+      app.style.opacity = '';
+      app.style.pointerEvents = '';
+      app.removeAttribute('aria-busy');
+    }
+  }
+}
+
+function softRevalidateSpa(href){
+  fetch(href, { headers: { 'x-unicorn-partial': '1', Accept: 'text/html' }, credentials: 'same-origin' })
+    .then(function(r){ if (!r.ok) throw new Error('revalidate_' + r.status); return r.text(); })
+    .then(function(html){
+      rememberSpaHtml(href, html);
+      if (spaCacheKey(location.pathname + location.search) !== spaCacheKey(href)) return;
+      // Quiet refresh only when still on the same route; skip VT flash.
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const newApp = doc.querySelector('#app');
+      const app = $('#app');
+      if (!newApp || !app) return;
+      app.innerHTML = newApp.innerHTML;
+      runAppInlineScripts(app);
+      STATE.route = routePath(href);
+      hydratePage(STATE.route);
+    })
+    .catch(function(){});
+}
+
+function navigateSpa(href, opts){
+  opts = opts || {};
+  const push = opts.push !== false;
+  const gen = ++__spaNavGen;
+  const targetUrl = href;
+  // Instant chrome: URL + active nav update before any network wait.
+  if (push) {
+    try { history.pushState({ spa: 1 }, '', targetUrl); } catch (_) {}
+  }
+  STATE.route = routePath(targetUrl);
+  $$('.nav-links a').forEach(function(x){
+    const hx = x.getAttribute('href') || '';
+    x.classList.toggle('active', routePath(hx) === STATE.route);
+  });
+
+  const cached = readSpaHtml(targetUrl);
+  if (cached) {
+    markSpaPending(false);
+    if (!applySpaHtml(targetUrl, cached)) {
+      location.href = targetUrl;
+      return;
+    }
+    softRevalidateSpa(targetUrl);
+    return;
+  }
+
+  markSpaPending(true);
+  if (__spaAbort) { try { __spaAbort.abort(); } catch (_) {} }
+  __spaAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const fetchOpts = {
+    headers: { 'x-unicorn-partial': '1', Accept: 'text/html' },
+    credentials: 'same-origin'
+  };
+  if (__spaAbort) fetchOpts.signal = __spaAbort.signal;
+  fetch(targetUrl, fetchOpts).then(function(r){
+    if (!r.ok) throw new Error('route_fetch_failed_' + r.status);
+    return r.text();
+  }).then(function(html){
+    if (gen !== __spaNavGen) return;
+    rememberSpaHtml(targetUrl, html);
+    markSpaPending(false);
+    if (!applySpaHtml(targetUrl, html)) location.href = targetUrl;
+  }).catch(function(err){
+    if (err && err.name === 'AbortError') return;
+    if (gen !== __spaNavGen) return;
+    markSpaPending(false);
+    location.href = targetUrl;
+  });
+}
+
+document.addEventListener('pointerenter', function(e){
+  const a = e.target && e.target.closest && e.target.closest('a[data-link]');
+  if (!a) return;
+  if (a.hasAttribute('data-sovereign-buy')) return;
+  prefetchSpa(a.getAttribute('href'));
+}, true);
+document.addEventListener('focusin', function(e){
+  const a = e.target && e.target.closest && e.target.closest('a[data-link]');
+  if (!a) return;
+  if (a.hasAttribute('data-sovereign-buy')) return;
+  prefetchSpa(a.getAttribute('href'));
+});
+scheduleIdleHeavyWork(function(){
+  try {
+    // Seed cache with the document we already have so Back is instant.
+    rememberSpaHtml(location.pathname + location.search, '<!doctype html>' + document.documentElement.outerHTML);
+  } catch (_) {}
+  try {
+    $$('a[data-link]').slice(0, 16).forEach(function(a){
+      if (a.hasAttribute('data-sovereign-buy')) return;
+      prefetchSpa(a.getAttribute('href'));
+    });
+  } catch (_) {}
+});
+
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
   if (!a) return;
@@ -831,37 +1028,19 @@ document.addEventListener('click', e => {
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
+  // Same-route hash-less no-op
+  if (spaCacheKey(href) === spaCacheKey(location.pathname + location.search)) {
+    e.preventDefault();
+    return;
+  }
   e.preventDefault();
-  // Ask server for new page (SSR for integrity), swap #app
-  fetch(href, { headers: { 'x-unicorn-partial':'1' } }).then(r=>{
-    if (!r.ok) throw new Error('route_fetch_failed_' + r.status);
-    return r.text();
-  }).then(html=>{
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const newApp = doc.querySelector('#app');
-    if (!newApp) {
-      location.href = href;
-      return;
-    }
-    const swap = () => {
-      $('#app').innerHTML = newApp.innerHTML;
-      runAppInlineScripts($('#app'));
-      $$('.nav-links a').forEach(x=>x.classList.toggle('active', x.getAttribute('href')===href));
-      history.pushState({}, '', href);
-      STATE.route = routePath(href);
-      window.scrollTo(0,0);
-      hydratePage(STATE.route);
-    };
-    if (window.__UNICORN_VT_WRAP__) window.__UNICORN_VT_WRAP__(swap); else swap();
-  }).catch(()=>{ location.href = href; });
+  navigateSpa(href, { push: true });
 });
-// Browser back/forward → re-hydrate the SPA in place. We deliberately do NOT
-// `location.reload()` here: the SPA already swapped #app via fetch when the
-// user navigated forward, so popstate just needs to refresh the dynamic
-// pieces. The previous version forced a full-page reload on every back/forward
-// which was both wasteful and caused a visible "auto-refresh" the user could
-// mistake for the page being broken.
-window.addEventListener('popstate', () => { STATE.route = routePath(location.pathname); hydratePage(STATE.route); });
+// Browser back/forward → swap #app from cache/fetch (not hydrate-only, which
+// left the previous page's SSR markup in place). Never full-reload.
+window.addEventListener('popstate', () => {
+  navigateSpa(location.pathname + location.search + location.hash, { push: false });
+});
 
 // ================= SSR CHIP FILTERS (architectural · 2026-05-09) =================
 // Server-rendered filter chips on /services and /home featured grids carry

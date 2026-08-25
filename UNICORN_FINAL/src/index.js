@@ -12081,7 +12081,35 @@ a{color:#8a5cff;text-decoration:none}
     if (route.startsWith('/order/')) {
       if (!ssrParams.id) ssrParams.id = String(route.slice(7) || '').slice(0, 120);
     }
-    let html = v2.getHtml(route, ssrParams);
+    // Process-local SSR HTML memo for public routes. SPA partial navigations
+    // hit getHtml on every click; without a memo, cold catalog enrichment +
+    // shell render re-runs under event-loop lag and feels like 2–3s freezes.
+    // Nonce is rewritten per response so CSP stays correct.
+    const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath)
+      && !/^\/(account|dashboard|admin|checkout|order)\b/.test(route);
+    const __ssrMemoKey = __ssrMemoOk ? (String(lang || 'en') + '\0' + route) : null;
+    if (!global.__UNICORN_SSR_HTML_MEMO) global.__UNICORN_SSR_HTML_MEMO = new Map();
+    const __ssrMemo = global.__UNICORN_SSR_HTML_MEMO;
+    const __ssrMemoTtl = Math.max(2000, Number(process.env.SITE_SSR_HTML_CACHE_MS || 20000));
+    let html = null;
+    let __ssrFromMemo = false;
+    if (__ssrMemoKey) {
+      const hit = __ssrMemo.get(__ssrMemoKey);
+      if (hit && hit.html && (Date.now() - hit.ts) < __ssrMemoTtl) {
+        html = String(hit.html).replace(/\snonce="[^"]*"/g, nonce ? (' nonce="' + nonce + '"') : '');
+        __ssrFromMemo = true;
+      }
+    }
+    if (!html) {
+      html = v2.getHtml(route, ssrParams);
+      if (__ssrMemoKey && html) {
+        __ssrMemo.set(__ssrMemoKey, { html, ts: Date.now() });
+        if (__ssrMemo.size > 64) {
+          const oldest = __ssrMemo.keys().next().value;
+          __ssrMemo.delete(oldest);
+        }
+      }
+    }
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
     const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';
@@ -12150,6 +12178,7 @@ a{color:#8a5cff;text-decoration:none}
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,
+      'X-Unicorn-Ssr-Cache': __ssrFromMemo ? 'hit' : 'miss',
       'Vary': __ppActive
         ? 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink'
         : 'Accept-Language, Accept-Encoding, Cookie',
@@ -12392,7 +12421,31 @@ if (require.main === module) {
       var t = setInterval(ping, 10000);
       if (t && typeof t.unref === 'function') t.unref();
       setTimeout(ping, 5000).unref?.();
-    })();    try {
+    })();
+    // Prewarm public SSR shells so the first visitor after boot does not pay
+    // the cold unified-catalog + shell render cost on click #1.
+    (function prewarmPublicSsr() {
+      if (process.env.SITE_SSR_PREWARM_DISABLED === '1') return;
+      const routes = ['/', '/services', '/pricing', '/store'];
+      setTimeout(function () {
+        try {
+          if (!v2 || typeof v2.getHtml !== 'function') return;
+          if (!global.__UNICORN_SSR_HTML_MEMO) global.__UNICORN_SSR_HTML_MEMO = new Map();
+          const memo = global.__UNICORN_SSR_HTML_MEMO;
+          for (let i = 0; i < routes.length; i++) {
+            const route = routes[i];
+            try {
+              const html = v2.getHtml(route, { lang: 'en', nonce: 'prewarm' });
+              if (html) memo.set('en\0' + route, { html, ts: Date.now() });
+            } catch (_) { /* never block boot */ }
+          }
+          console.log('[ssr-prewarm] cached ' + routes.join(', '));
+        } catch (e) {
+          console.warn('[ssr-prewarm] failed:', e && e.message);
+        }
+      }, 50).unref?.();
+    })();
+    try {
       if (USE) {
         const runtimeSources = getRuntimeDataSources();
         USE.sources = { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules };
