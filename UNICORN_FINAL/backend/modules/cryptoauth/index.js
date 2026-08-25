@@ -87,11 +87,23 @@ const CHALLENGES_FILE = path.join(DATA_DIR, 'challenges.json');
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { console.error('[cryptoauth] mkdir failed — writes will fail:', e.message); }
 
 // ──────────────────────── persistence ────────────────────────
+let _usersCache = null;
 function _loadUsers() {
+  // Instant Identity Continuum: mtime-memo so /api/cryptoauth/me does not
+  // re-parse users.json on every account paint / SPA click.
   try {
-    if (!fs.existsSync(USERS_FILE)) return {};
+    if (!fs.existsSync(USERS_FILE)) {
+      _usersCache = { mtimeMs: 0, data: {} };
+      return {};
+    }
+    const st = fs.statSync(USERS_FILE);
+    if (_usersCache && _usersCache.mtimeMs === st.mtimeMs && _usersCache.data) {
+      return _usersCache.data;
+    }
     const raw = fs.readFileSync(USERS_FILE, 'utf8');
-    return JSON.parse(raw || '{}');
+    const data = JSON.parse(raw || '{}');
+    _usersCache = { mtimeMs: st.mtimeMs, data };
+    return data;
   } catch (e) { console.error('[cryptoauth] _loadUsers parse error:', e.message); return {}; }
 }
 function _saveUsers(users) {
@@ -99,6 +111,10 @@ function _saveUsers(users) {
     const tmp = USERS_FILE + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(users, null, 2));
     fs.renameSync(tmp, USERS_FILE);
+    try {
+      const st = fs.statSync(USERS_FILE);
+      _usersCache = { mtimeMs: st.mtimeMs, data: users };
+    } catch (_) { _usersCache = { mtimeMs: Date.now(), data: users }; }
     return true;
   } catch (e) { console.error('[cryptoauth] _saveUsers failed — user data NOT persisted:', e.message); return false; }
 }

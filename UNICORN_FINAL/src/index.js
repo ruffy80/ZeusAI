@@ -1712,6 +1712,11 @@ let perf100 = null; try { perf100 = require('../backend/modules/performance-100y
 let perf100v2 = null; try { perf100v2 = require('../backend/modules/performance-100y-v2'); console.log('[performance-100y-v2] loaded · 15 second-wave visionary perf primitives (50y horizon)'); } catch (e) { console.warn('[performance-100y-v2] not loaded:', e.message); }
 let perf100v3 = null; try { perf100v3 = require('../backend/modules/performance-100y-v3'); console.log('[performance-100y-v3] loaded · 15 third-wave 50y standard primitives (mobile parity, provenance, equity)'); } catch (e) { console.warn('[performance-100y-v3] not loaded:', e.message); }
 let cryptoauth = null; try { cryptoauth = require('../backend/modules/cryptoauth'); console.log('[cryptoauth] loaded · Ed25519 passwordless auth (revolutionary, replaces legacy /api/auth + /api/customer/{login,signup,logout,forgot,reset})'); } catch (e) { console.warn('[cryptoauth] not loaded:', e.message); }
+let instantIdentity = null;
+try {
+  instantIdentity = require('./perf/instant-identity-continuum');
+  console.log('[iic] Instant Identity Continuum loaded · local-first account chrome + me-ledger memo');
+} catch (e) { console.warn('[iic] not loaded:', e.message); }
 // ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
 // Genuinely novel: most sites use static, hand-written prefetch hints, or
 // SDK-tracked predictions that need cookies. This module learns the real
@@ -4783,7 +4788,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/aethermail') || urlPath.startsWith('/api/omega') || urlPath === '/.well-known/omega.json' || urlPath.startsWith('/api/genome') || urlPath === '/.well-known/genome.json' || urlPath.startsWith('/api/dna') || urlPath === '/.well-known/dna.json' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/iic') || urlPath.startsWith('/api/identity/') || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/aethermail') || urlPath.startsWith('/api/omega') || urlPath === '/.well-known/omega.json' || urlPath.startsWith('/api/genome') || urlPath === '/.well-known/genome.json' || urlPath.startsWith('/api/dna') || urlPath === '/.well-known/dna.json' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -10569,6 +10574,14 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     });
     return;
   }
+  if (urlPath === '/api/iic/status' || urlPath === '/api/identity/continuum') {
+    const payload = instantIdentity && typeof instantIdentity.getStatus === 'function'
+      ? instantIdentity.getStatus()
+      : { ok: false, error: 'iic_unavailable' };
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(payload));
+  }
+
   if (urlPath === '/api/customer/me') {
     const resolveEmailFromCryptoauth = () => {
       try {
@@ -10608,9 +10621,42 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       };
     });
 
+    // Instant Identity Continuum — short TTL memo so ledger merges are not
+    // repeated on every SPA click while the buyer stays on /account.
+    const _iicTokEarly = readCustomerToken(req);
+    const _iicAuthHdr = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || '');
+    const _iicCacheKey = instantIdentity
+      ? instantIdentity.cacheKey(['me', _iicTokEarly || '', _iicAuthHdr.slice(0, 48), String(req.headers['x-user-email'] || '').toLowerCase()])
+      : null;
+    if (_iicCacheKey) {
+      const hit = instantIdentity.getCachedMe(_iicCacheKey);
+      if (hit && hit.body) {
+        res.writeHead(hit.status || 200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-IIC-Cache': 'hit',
+        });
+        return res.end(typeof hit.body === 'string' ? hit.body : JSON.stringify(hit.body));
+      }
+    }
+    const _iicSend = (status, payload) => {
+      const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      if (_iicCacheKey && status === 200 && instantIdentity) {
+        try { instantIdentity.setCachedMe(_iicCacheKey, status, body); } catch (_) {}
+      }
+      res.writeHead(status, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'X-IIC-Cache': 'miss',
+      });
+      return res.end(body);
+    };
+    let __pcosShared = null;
+    try { __pcosShared = require('./commerce/perfection-continuum-os'); } catch (_) { __pcosShared = null; }
+
     if (!portal) {
       const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
-      if (!email) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized","hint":"x-user-email required when portal is unavailable"}'); }
+      if (!email) { return _iicSend(401, '{"error":"unauthorized","hint":"x-user-email required when portal is unavailable"}'); }
       const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
       const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
       const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || 'starter']).map(serviceId => ({
@@ -10624,15 +10670,14 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         btcAddress: r.destination && r.destination.address, btcUri: r.btcUri, approveHref: r.approveHref,
         createdAt: r.createdAt, statusUrl: `/api/receipt/${r.id}`, invoiceUrl: `/api/invoice/${r.id}`
       }));
-      res.writeHead(200, {'Content-Type':'application/json'});
-      return res.end(JSON.stringify({ customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries: enrichDeliveriesList(deliveries) }));
+      return _iicSend(200, { customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries: enrichDeliveriesList(deliveries) });
     }
     const tok = readCustomerToken(req);
     const cid = portal.verifyToken(tok);
     if (!cid) {
       // Cryptoauth / email fallback — still surface paid deliveries for the account page.
       const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
-      if (!email) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
+      if (!email) { return _iicSend(401, '{"error":"unauthorized"}'); }
       const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
       const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
       const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || r.serviceId || 'starter']).map(serviceId => ({
@@ -10644,8 +10689,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       const pendingCrypto = [];
       try {
         if (commerce && commerce.ORDERS) {
-          let pcos = null;
-          try { pcos = require('./commerce/perfection-continuum-os'); } catch (_) { pcos = null; }
+          const pcos = __pcosShared;
           for (const o of commerce.ORDERS.values()) {
             const buyerEmail = String((o.buyer && o.buyer.email) || o.email || '').toLowerCase();
             if (buyerEmail !== email) continue;
@@ -10667,14 +10711,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           }
         }
       } catch (_) { /* best-effort */ }
-      res.writeHead(200, {'Content-Type':'application/json'});
-      return res.end(JSON.stringify({
+      return _iicSend(200, {
         customer: { email }, apiKeys: [], orders: receipts, activeServices,
         pendingOrders: pendingCrypto, deliveries: enrichDeliveriesList(deliveries), authMode: 'cryptoauth-email',
-      }));
+      });
     }
     const c = portal.getById(cid);
-    if (!c) { res.writeHead(404); return res.end('{}'); }
+    if (!c) { return _iicSend(404, '{}'); }
     const orders = portal.listOrdersByCustomer(cid).map(o => ({
       id: o.id, productId: o.productId, status: o.status, priceUSD: o.priceUSD, btcAmount: o.btcAmount,
       createdAt: o.createdAt, deliveredAt: o.deliveredAt, deliverables: o.deliverables||[], summary: o.summary||null
@@ -10686,12 +10729,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     if (uaic && typeof uaic.listEntitlementsByCustomer === 'function') {
       const runtimeSources = getRuntimeDataSources();
       const catalog = uaic.buildCatalog ? uaic.buildCatalog({ marketplace: runtimeSources.marketplace, industries: runtimeSources.industries }) : [];
+      const catalogById = new Map((catalog || []).map((x) => [x && x.id, x]));
       const ents = uaic.listEntitlementsByCustomer(cid);
       // Flatten bundles: one entitlement can cover multiple serviceIds (e.g. ['*'] or multi-service packs)
       for (const e of ents) {
         const ids = Array.isArray(e.serviceIds) && e.serviceIds.length ? e.serviceIds : [e.plan];
         for (const svcId of ids) {
-          const svc = catalog.find(x => x.id === svcId) || null;
+          const svc = catalogById.get(svcId) || null;
           activeServices.push({
             id: e.id + (ids.length > 1 ? ':' + svcId : ''),
             receiptId: e.receiptId,
@@ -10788,8 +10832,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           } else if (o.status === 'pending') {
             let pendingRow = null;
             try {
-              const pcos = require('./commerce/perfection-continuum-os');
-              pendingRow = pcos.accountPendingFromOrder(o);
+              pendingRow = __pcosShared && __pcosShared.accountPendingFromOrder ? __pcosShared.accountPendingFromOrder(o) : null;
             } catch (_) { pendingRow = null; }
             pendingOrders.push(pendingRow || {
               receiptId: oid,
@@ -10820,8 +10863,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       if (s.receiptId && !s.artifactsUrl) s.artifactsUrl = `/api/delivery/${encodeURIComponent(s.receiptId)}?format=artifacts`;
     }
 
-    res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({
+    return _iicSend(200, {
       customer: portal.publicCustomer(c),
       token: tok || undefined,
       apiKeys: (c.apiKeys||[]).map(k => ({ productId:k.productId, orderId:k.orderId, issuedAt:k.issuedAt, keyPreview: k.key.slice(0,16)+'…', active:k.active })),
@@ -10829,8 +10871,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       activeServices,
       pendingOrders,
       deliveries: enrichDeliveriesList(fallbackDeliveries)
-    }));
-    return;
+    });
   }
 
   // Customer order lookup via signed order-access token.
@@ -12085,8 +12126,10 @@ a{color:#8a5cff;text-decoration:none}
     // hit getHtml on every click; without a memo, cold catalog enrichment +
     // shell render re-runs under event-loop lag and feels like 2–3s freezes.
     // Nonce is rewritten per response so CSP stays correct.
+    // /account is intentionally memoized: auth chrome is client-side cryptoauth;
+    // the SSR shell is identical for every visitor (Instant Identity Continuum).
     const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath)
-      && !/^\/(account|dashboard|admin|checkout|order)\b/.test(route);
+      && !/^\/(dashboard|admin|checkout|order)\b/.test(route);
     const __ssrMemoKey = __ssrMemoOk ? (String(lang || 'en') + '\0' + route) : null;
     if (!global.__UNICORN_SSR_HTML_MEMO) global.__UNICORN_SSR_HTML_MEMO = new Map();
     const __ssrMemo = global.__UNICORN_SSR_HTML_MEMO;
@@ -12426,7 +12469,7 @@ if (require.main === module) {
     // the cold unified-catalog + shell render cost on click #1.
     (function prewarmPublicSsr() {
       if (process.env.SITE_SSR_PREWARM_DISABLED === '1') return;
-      const routes = ['/', '/services', '/pricing', '/store'];
+      const routes = ['/', '/services', '/pricing', '/store', '/account'];
       setTimeout(function () {
         try {
           if (!v2 || typeof v2.getHtml !== 'function') return;

@@ -922,6 +922,9 @@ function markSpaPending(on){
 }
 
 function softRevalidateSpa(href){
+  // Instant Identity Continuum: never soft-revalidate /account — re-injecting
+  // the cryptoauth SSR shell races the in-page boot and can flash Loading….
+  if (routePath(href) === '/account' || routePath(href) === '/login' || routePath(href) === '/signup' || routePath(href) === '/auth') return;
   fetch(href, { headers: { 'x-unicorn-partial': '1', Accept: 'text/html' }, credentials: 'same-origin' })
     .then(function(r){ if (!r.ok) throw new Error('revalidate_' + r.status); return r.text(); })
     .then(function(html){
@@ -1726,7 +1729,7 @@ async function hydratePage(route){
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
   try { if (route === '/enterprise') await hydrateEnterprise(); } catch (e) { console.warn('hydratePage:enterprise', e && e.message); }
   try { if (route === '/store') await hydrateStore(); } catch (e) { console.warn('hydratePage:store', e && e.message); }
-  try { if (route === '/account') await hydrateAccount(); } catch (e) { console.warn('hydratePage:account', e && e.message); }
+  try { if (route === '/account') { hydrateAccount().catch(function(){}); } } catch (e) { console.warn('hydratePage:account', e && e.message); }
   try { if (route === '/admin/services') await hydrateAdminServices(); } catch (e) { console.warn('hydratePage:adminServices', e && e.message); }
   try { if (route === '/admin' || route === '/admin/login') await hydrateAdminLogin(); } catch (e) { console.warn('hydratePage:adminLogin', e && e.message); }
   try { initCinematicInteractions(); } catch (e) { console.warn('hydratePage:cinematic', e && e.message); }
@@ -5583,27 +5586,41 @@ async function hydrateAccount(){
     const email = (localStorage.getItem('u_email') || '').trim();
     if (email) headers['x-user-email'] = email;
   } catch (_) {}
-  const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
-  // Helper: auth form already rendered and wired — skip re-render to preserve user-typed input
+  // Instant Identity Continuum L1: paint last-good commerce snapshot immediately.
   const authFormWired = () => root.dataset.accountWired === '1' && !!root.querySelector('#acLoginBtn');
+  try {
+    const snapRaw = localStorage.getItem('zeus_iic_me_v1');
+    if (snapRaw && !root.dataset.iicMePainted) {
+      const snap = JSON.parse(snapRaw);
+      if (snap && snap.me && snap.me.customer && (Date.now() - Number(snap.ts || 0)) < 24 * 3600 * 1000) {
+        root.dataset.iicMePainted = '1';
+        renderAccountDashboard(root, snap.me);
+      }
+    }
+  } catch (_) {}
+  if (!root.innerHTML || !String(root.innerHTML).trim()) {
+    root.innerHTML = '<div class="card" style="padding:18px;color:var(--ink-dim);font-size:13px">Loading your orders &amp; deliveries…</div>';
+  }
+  const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
   if (!resp) {
-    if (!authFormWired()) renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
+    if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
     return;
   }
   if (resp.status === 401) {
     setCustToken('');
     setCustProfile(null);
-    // Only render if auth form isn't already wired — prevents double-render race that wipes user input
+    try { localStorage.removeItem('zeus_iic_me_v1'); } catch (_) {}
     if (!authFormWired()) renderAccountAuth(root);
     return;
   }
   const me = resp.ok ? await resp.json().catch(()=>null) : null;
   if (!me) {
-    if (!authFormWired()) renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
+    if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
     return;
   }
   if (!tok && me.token) setCustToken(me.token);
   if (me.customer) setCustProfile(me.customer);
+  try { localStorage.setItem('zeus_iic_me_v1', JSON.stringify({ ts: Date.now(), me })); } catch (_) {}
   renderAccountDashboard(root, me);
 }
 
@@ -5643,6 +5660,15 @@ function renderAccountAuth(root, topError){
           <div id="acForgotMsg" style="font-size:12.5px;margin-top:10px;line-height:1.5;color:var(--ink-dim)"></div>
         </div>
         <div style="margin-top:14px;font-size:12px;color:var(--ink-dim)">Folosești aceleași credențiale pe site &amp; API (zeusai.pro + api.zeusai.pro). / Same credentials work on both site &amp; API.</div>
+      </div>
+      <div class="card" style="padding:28px">
+        <h3 style="margin:0 0 6px">Create account / Cont nou</h3>
+        <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Primary auth is cryptographic (above). Password signup remains for legacy portal mirrors.</div>
+        <input id="acSignupName" type="text" placeholder="name / nume" autocomplete="name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+        <input id="acSignupEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+        <input id="acSignupPass" type="password" placeholder="password / parolă (min 8)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
+        <button id="acSignupBtn" class="btn btn-primary" style="width:100%">Sign up →</button>
+        <div id="acSignupErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
       </div>
     </div>`;
 
