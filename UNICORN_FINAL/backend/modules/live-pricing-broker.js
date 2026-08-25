@@ -253,5 +253,12 @@ function buildEntry({ id, name, category, description, basePrice, usd, dp, rate 
 }
 
 const broker = new LivePricingBroker();
-broker.start();
+// Autostart in backend / test contexts. Skip when the *site* entrypoint is
+// require.main — requiring this module from site SSR used to stall the
+// event loop by pulling serviceMarketplace → every backend module.
+const __brokerMain = require.main && String(require.main.filename || '');
+const __isSiteEntry = /[/\\]src[/\\]index\.js$/.test(__brokerMain);
+if (!__isSiteEntry && process.env.LIVE_PRICING_DISABLED !== '1') {
+  broker.start();
+}
 module.exports = broker;
