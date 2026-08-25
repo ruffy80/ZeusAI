@@ -9,7 +9,8 @@ on:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/no-downgrade-guard.yml'
-      - '.github/baselines/**'
+      # Baselines bumps must NOT re-trigger full deploy (waste + thrash).
+      # no-downgrade-guard still validates every push independently.
       - 'VERSION_LOCK'
 
 concurrency:

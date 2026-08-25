@@ -222,6 +222,36 @@ function getSupportedConfig() {
   return { triggers: SUPPORTED_TRIGGERS, actions: SUPPORTED_ACTIONS };
 }
 
+function getStatus() {
+  let workflowCount = 0;
+  try {
+    const db = getDb();
+    if (db && db.workflows && typeof db.workflows.listAll === 'function') {
+      workflowCount = (db.workflows.listAll() || []).length;
+    } else if (db && db.workflows && typeof db.workflows.count === 'function') {
+      workflowCount = Number(db.workflows.count()) || 0;
+    }
+  } catch (_) { /* db optional at boot */ }
+  return {
+    ok: true,
+    module: 'workflowEngine',
+    running: true,
+    active: true,
+    workflowCount,
+    recentRuns: _runHistory.length,
+    lastRunAt: _runHistory[0] && _runHistory[0].completedAt || null,
+    supported: getSupportedConfig(),
+    honesty: {
+      note: 'Event-driven workflows; fireEvent is the continuum hook for IAK/AACOS.',
+    },
+  };
+}
+
+/** Soft start for IAK causal continuum — engine is always request-ready. */
+function start() {
+  return { ok: true, started: true, module: 'workflowEngine' };
+}
+
 module.exports = {
   createWorkflow,
   listWorkflows,
@@ -232,4 +262,6 @@ module.exports = {
   fireEvent,
   getRunHistory,
   getSupportedConfig,
+  getStatus,
+  start,
 };

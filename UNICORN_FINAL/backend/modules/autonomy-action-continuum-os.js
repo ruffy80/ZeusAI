@@ -118,6 +118,35 @@ function collectEvidence() {
         evidence.closClosed = Number(agy && agy.closedLoops) || 0;
         evidence.closOpen = Number(agy && agy.openLoops) || 0;
       }
+      if (typeof clos.sweepSla === 'function') {
+        try {
+          evidence.closSweep = clos.sweepSla();
+        } catch (_) {
+          evidence.closSweep = { ok: false };
+        }
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const preKeys = _safeRequire('./pre-keys-activation');
+    if (preKeys && typeof preKeys.getStatus === 'function') {
+      const pk = preKeys.getStatus();
+      evidence.preKeys = {
+        protocol: pk && pk.protocol,
+        ok: !!(pk && (pk.ok !== false)),
+        agentReady: !!(pk && pk.agentReady),
+        ownerTomorrow: pk && pk.ownerTomorrow,
+        skipSignals: (pk && (pk.skipSignals || pk.blocked || pk.pendingKeys)) || null,
+      };
+    }
+  } catch (_) {}
+
+  try {
+    const wf = _safeRequire('./workflowEngine');
+    if (wf && typeof wf.getStatus === 'function') {
+      const st = wf.getStatus();
+      evidence.workflows = { count: st.workflowCount || 0, recentRuns: st.recentRuns || 0 };
     }
   } catch (_) {}
 
@@ -370,6 +399,16 @@ function linkModules() {
   } catch (_) {}
 
   try {
+    const preKeys = _safeRequire('./pre-keys-activation');
+    if (preKeys) linked.push('pre-keys-activation');
+  } catch (_) {}
+
+  try {
+    const wf = _safeRequire('./workflowEngine');
+    if (wf) linked.push('workflowEngine');
+  } catch (_) {}
+
+  try {
     const outbound = _safeRequire('./marketing-innovations/outbound-publisher');
     if (outbound) linked.push('outbound-publisher');
   } catch (_) {}
@@ -454,6 +493,8 @@ function discovery() {
     readyToPublish: evidence.configuredOutbound.length > 0 || evidence.configuredSocial.length > 0,
     configuredOutbound: evidence.configuredOutbound,
     configuredSocial: evidence.configuredSocial,
+    preKeysSkip: evidence.preKeys || null,
+    closSweep: evidence.closSweep || null,
     evidence,
     recentActions: _actions.slice(-10).reverse(),
     pledge: [

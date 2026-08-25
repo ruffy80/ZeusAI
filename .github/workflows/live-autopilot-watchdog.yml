@@ -5,7 +5,8 @@ on:
     workflows: ["🚀 Unicorn Stable Deploy"]
     types: [completed]
   schedule:
-    - cron: '*/20 * * * *'
+    # Every 6 hours — was */20 which spammed diagnose-and-repair on flaky edges.
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 concurrency:

@@ -63,7 +63,14 @@ class IntegratedAutonomyKernel extends EventEmitter {
     this.running = false;
     this.mode = null;
     this._facetBoot = { external: false, tenants: false, guardian: false };
-    this._discovery = { lastScan: null, registered: 0, started: 0, skipped: 0, continuumCycles: 0 };
+    this._discovery = {
+      lastScan: null,
+      registered: 0,
+      started: 0,
+      skipped: 0,
+      continuumCycles: 0,
+      lastCausalStart: null,
+    };
     this._startedByIak = new Set();
     this._continuumEvery = Math.max(2, parseInt(process.env.IAK_CONTINUUM_EVERY || '8', 10));
 
@@ -611,9 +618,24 @@ class IntegratedAutonomyKernel extends EventEmitter {
     }
 
     this._discovery.started += started;
+    const skipReasons = {};
+    for (const d of details) {
+      if (d.action === 'skip' && d.reason) {
+        skipReasons[d.reason] = (skipReasons[d.reason] || 0) + 1;
+      }
+    }
+    this._discovery.lastCausalStart = {
+      at: new Date().toISOString(),
+      started,
+      skipped,
+      stable,
+      selfMutationDisabled,
+      skipReasons,
+      details: details.slice(0, 80),
+    };
     this._log(`▶️  Causal start: +${started} started · ${skipped} skipped (stable=${stable})`);
-    this.emit('iak:causal-start', { started, skipped, stable });
-    return { started, skipped, stable, details: details.slice(0, 80) };
+    this.emit('iak:causal-start', { started, skipped, stable, skipReasons });
+    return { started, skipped, stable, skipReasons, details: details.slice(0, 80) };
   }
 
   /**
@@ -731,6 +753,28 @@ class IntegratedAutonomyKernel extends EventEmitter {
     try { tenantStatus = this.tenants && this.tenants.getStatus ? this.tenants.getStatus() : null; } catch (_) {}
     try { guardianStatus = this.guardian && this.guardian.getStatus ? this.guardian.getStatus() : null; } catch (_) {}
 
+    // Collapse peer autonomy organs into one report (no parallel meta-orchestrator).
+    const organs = {};
+    const soft = (key, rel) => {
+      try {
+        const m = require(rel);
+        if (m && typeof m.getStatus === 'function') organs[key] = m.getStatus();
+        else if (m) organs[key] = { present: true };
+      } catch (e) {
+        organs[key] = { available: false, error: e && e.message };
+      }
+    };
+    soft('spine', './autonomy-spine');
+    soft('pcl', './profit-control-loop');
+    soft('cpa', './control-plane-agent');
+    soft('aacos', './autonomy-action-continuum-os');
+    soft('taos', './totalAutonomyOs');
+    soft('clos', './closed-loop-commerce-os');
+    soft('preKeys', './pre-keys-activation');
+    soft('workflowEngine', './workflowEngine');
+
+    const lastCausal = this._discovery.lastCausalStart;
+
     return {
       ok: true,
       id: KERNEL_ID,
@@ -758,12 +802,22 @@ class IntegratedAutonomyKernel extends EventEmitter {
       guardian: guardianStatus,
       recentLog: this.eventLog.slice(-20),
       discovery: { ...this._discovery, startedByIak: this._startedByIak.size },
+      lastCausalStart: lastCausal,
+      continuum: {
+        skipReasons: (lastCausal && lastCausal.skipReasons) || {},
+        started: lastCausal && lastCausal.started,
+        skipped: lastCausal && lastCausal.skipped,
+        stable: lastCausal && lastCausal.stable,
+        at: lastCausal && lastCausal.at,
+      },
+      organs,
       innovations: [
         'harmonic_phased_tick',
         'causal_boot_graph',
         'conflict_quarantine',
         'total_module_continuum',
         'honesty_fence',
+        'organ_status_collapse',
       ],
     };
   }

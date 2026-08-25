@@ -142,17 +142,26 @@ class ControlPlaneAgent {
 
     this._healInterval   = null;
     this._canaryInterval = null;
+    // observeOnly: sense + log SLO/canary, never restart/promote (DSM / stable)
+    this._observeOnly    = false;
   }
 
-  start() {
+  start(opts = {}) {
     if (this._healInterval) return; // already running
-    if (process.env.DISABLE_SELF_MUTATION === '1') {
-      console.log('[CPA] disabled via DISABLE_SELF_MUTATION=1');
-      return;
-    }
+    const dsm = process.env.DISABLE_SELF_MUTATION === '1';
+    const forceObserve = opts.observeOnly === true
+      || process.env.CPA_OBSERVE_ONLY === '1'
+      || dsm;
+    this._observeOnly = forceObserve;
+
     this._healInterval = setInterval(() => this._healTick().catch(e => console.error('[CPA] heal error:', e)), HEAL_INTERVAL_MS);
     this._canaryInterval = setInterval(() => this._canaryTick().catch(e => console.error('[CPA] canary error:', e)), CANARY_EVAL_MS);
-    console.log(`[CPA] 🛡️  Control Plane Agent started (heal every ${HEAL_INTERVAL_MS / 1000}s)`);
+
+    if (this._observeOnly) {
+      console.log(`[CPA] 👁️  Control Plane Agent OBSERVE mode (heal every ${HEAL_INTERVAL_MS / 1000}s; no restart/promote)`);
+    } else {
+      console.log(`[CPA] 🛡️  Control Plane Agent started (heal every ${HEAL_INTERVAL_MS / 1000}s)`);
+    }
   }
 
   stop() {
@@ -260,6 +269,15 @@ class ControlPlaneAgent {
       return;
     }
 
+    if (this._observeOnly) {
+      await this._logDecision(
+        'RESTART_SUPPRESSED_OBSERVE',
+        `${reason}, action=observe-only [DISABLE_SELF_MUTATION/CPA_OBSERVE_ONLY]`,
+        { route, stats, state, observeOnly: true }
+      );
+      return;
+    }
+
     await this._logDecision('RESTART', reason, { route, stats });
     this.lastHealAt = new Date().toISOString();
     await this.onRestart('unicorn-backend', reason);
@@ -282,11 +300,19 @@ class ControlPlaneAgent {
       if (!result) continue;
 
       if (result.action === 'PROMOTE') {
+        if (this._observeOnly) {
+          await this._logDecision('CANARY_PROMOTE_OBSERVED', result.reason, { ...result.stats, observeOnly: true });
+          continue;
+        }
         await this._logDecision('CANARY_PROMOTE', result.reason, result.stats);
         await this.onCanaryPromote(canary.id);
         // Record innovation success to reset circuit breaker
         circuitBreaker.recordSuccess({ canaryId: canary.id, uplift: result.stats && result.stats.uplift });
       } else if (result.action === 'REJECT') {
+        if (this._observeOnly) {
+          await this._logDecision('CANARY_REJECT_OBSERVED', result.reason, { ...result.stats, observeOnly: true });
+          continue;
+        }
         await this._logDecision('CANARY_REJECT', result.reason, result.stats);
         await this.onCanaryReject(canary.id);
         // Count as innovation failure for circuit breaker
@@ -324,6 +350,8 @@ class ControlPlaneAgent {
     return {
       active: this._healingActive,
       healingActive: this._healingActive,
+      running: !!(this._healInterval),
+      observeOnly: !!this._observeOnly,
       healthScore:   this.healthScore,
       lastHealAt:    this.lastHealAt,
       uptimeMs:      Date.now() - this.startedAt,
@@ -331,6 +359,7 @@ class ControlPlaneAgent {
         minConsecutiveBreaches: MIN_CONSECUTIVE_BREACHES,
         cooldownMs: RESTART_COOLDOWN_MS,
         breachResetMs: BREACH_RESET_MS,
+        observeOnly: !!this._observeOnly,
       },
       routeBreaches,
       sloStats:      sloTracker.getAllStats(),
@@ -356,10 +385,11 @@ class ControlPlaneAgent {
 }
 
 const agent = new ControlPlaneAgent();
-if (process.env.DISABLE_SELF_MUTATION !== '1') {
-  agent.start();
+// Always arm: under DISABLE_SELF_MUTATION CPA runs observe-only (sense + log, no restart).
+if (process.env.CPA_DISABLED === '1' || (process.env.NODE_ENV === 'test' && process.env.CPA_AUTOSTART !== '1')) {
+  console.log('[CPA] module-level auto-start suppressed (CPA_DISABLED or test)');
 } else {
-  console.log('[CPA] module-level auto-start suppressed (DISABLE_SELF_MUTATION=1)');
+  agent.start();
 }
 module.exports = agent;
 module.exports.ControlPlaneAgent = ControlPlaneAgent;
