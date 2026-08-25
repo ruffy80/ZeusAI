@@ -12432,18 +12432,24 @@ if (require.main === module) {
           if (!v2 || typeof v2.getHtml !== 'function') return;
           if (!global.__UNICORN_SSR_HTML_MEMO) global.__UNICORN_SSR_HTML_MEMO = new Map();
           const memo = global.__UNICORN_SSR_HTML_MEMO;
+          let ok = 0;
           for (let i = 0; i < routes.length; i++) {
             const route = routes[i];
             try {
               const html = v2.getHtml(route, { lang: 'en', nonce: 'prewarm' });
-              if (html) memo.set('en\0' + route, { html, ts: Date.now() });
-            } catch (_) { /* never block boot */ }
+              if (html && html.indexOf('id="app"') !== -1) {
+                memo.set('en\0' + route, { html, ts: Date.now() });
+                ok++;
+              }
+            } catch (err) {
+              console.warn('[ssr-prewarm] fail', route, err && err.message);
+            }
           }
-          console.log('[ssr-prewarm] cached ' + routes.join(', '));
+          console.log('[ssr-prewarm] memoized ' + ok + '/' + routes.length + ' routes (size=' + memo.size + ')');
         } catch (e) {
           console.warn('[ssr-prewarm] failed:', e && e.message);
         }
-      }, 50).unref?.();
+      }, 250).unref?.();
     })();
     try {
       if (USE) {
