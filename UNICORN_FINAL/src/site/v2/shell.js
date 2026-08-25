@@ -2511,17 +2511,37 @@ function pageAccount(opts) {
   // ────────────────────────────────────────────────────────────────────
   var _nonce = (opts && opts.nonce) ? String(opts.nonce) : '';
   var _N = _nonce ? ' nonce="' + _nonce + '"' : '';
-  return `<section style="padding:120px 0 80px;min-height:100vh">
+  return `<section style="padding:120px 0 80px;min-height:100vh" data-iic="1">
   <div style="max-width:760px;margin:0 auto;padding:0 20px">
-    <span class="kicker" style="color:#7cffb8">Cryptographic identity \u00b7 Ed25519</span>
+    <span class="kicker" style="color:#7cffb8">Cryptographic identity \u00b7 Ed25519 \u00b7 Instant Identity Continuum</span>
     <h1 style="font-size:clamp(32px,4vw,48px);line-height:1.05;margin:14px 0 10px;letter-spacing:-0.02em">Your account</h1>
     <p id="acaTagline" style="color:var(--ink-dim);font-size:16px;line-height:1.55;margin:0 0 28px">No passwords. No emails to verify. Your device generates the keypair \u2014 the private key never leaves your browser. To recover, import the encrypted backup file you download once at registration.</p>
 
-    <div id="acaState" class="card" style="padding:26px;background:linear-gradient(135deg,rgba(124,255,184,.07),rgba(138,92,255,.07));border:1px solid rgba(124,255,184,.25);min-height:120px">
-      <div style="color:var(--ink-dim);font-size:14px">Loading\u2026</div>
+    <div id="acaState" class="card" style="padding:26px;background:linear-gradient(135deg,rgba(124,255,184,.07),rgba(138,92,255,.07));border:1px solid rgba(124,255,184,.25);min-height:72px">
+      <div style="font-size:15px;color:var(--ink-dim);line-height:1.55">You are not signed in. Create a new account in seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>
     </div>
 
-    <div id="acaPanels" style="margin-top:22px"></div>
+    <div id="acaPanels" style="margin-top:22px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+        <div class="card" style="padding:22px">
+          <h3 style="margin:0 0 6px">Create new account</h3>
+          <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>
+          <input id="acaName" placeholder="Display name (optional)" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px">
+          <input id="acaEmail" type="email" placeholder="Email (optional, for hint only)" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px">
+          <button id="acaCreate" class="btn btn-primary" style="width:100%;padding:12px">Create account \u2192</button>
+        </div>
+        <div class="card" style="padding:22px">
+          <h3 style="margin:0 0 6px">Sign in (this device)</h3>
+          <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>
+          <button id="acaSignin" class="btn btn-primary" style="width:100%;padding:12px">Sign in with this device \u2192</button>
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0">
+          <h3 style="margin:0 0 6px;font-size:15px">Recover account \u00b7 Import vault</h3>
+          <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Restore access from the encrypted <code style="color:#7cffb8">.zeus-vault</code> backup file you downloaded at account creation.</p>
+          <input id="acaVaultFile" type="file" accept=".zeus-vault,.json,application/json" style="width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px">
+          <button id="acaImport" class="btn btn-ghost" style="width:100%;padding:10px">Import &amp; sign in \u2192</button>
+        </div>
+      </div>
+    </div>
 
     <details id="acaAdvanced" style="margin-top:22px;background:rgba(10,8,30,.4);border:1px solid rgba(138,92,255,.18);border-radius:10px;padding:14px 18px">
       <summary style="cursor:pointer;font-weight:600;color:#9ab4ff">Advanced \u00b7 Sign out from this device only \u00b7 Wipe local key</summary>
@@ -2558,6 +2578,12 @@ function pageAccount(opts) {
 
 <script${_N}>
 (function(){
+  // Instant Identity Continuum: if SPA soft-revalidate re-injects this script,
+  // re-run refresh/wire instead of bailing and leaving a dead shell.
+  if (window.__zeusCryptoAuthRefresh) {
+    try { window.__zeusCryptoAuthRefresh(); } catch (_) {}
+    return;
+  }
   if (window.__zeusCryptoAuthInit) return; window.__zeusCryptoAuthInit = true;
   var ttPolicy = null;
   try {
@@ -2744,12 +2770,10 @@ function pageAccount(opts) {
   }
 
   // ── Server interactions ──
-  // Each attempt has a 15s timeout; transient failures (server cold-start,
-  // restart race, nginx 502/timeout → status 0) are auto-retried with
-  // exponential backoff so a briefly-unresponsive server self-recovers
-  // instead of dumping "Server timeout" on the user.
-  var API_TIMEOUT_MS = 15000;
-  var API_MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+  // Instant Identity Continuum — faster fail + one retry (was 15s × 3).
+  var API_TIMEOUT_MS = 8000;
+  var API_MAX_ATTEMPTS = 2; // 1 initial + 1 retry
+  var IIC_SNAP_KEY = 'zeus_iic_snapshot_v1';
   function _delay(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
   function _fetchOnce(path, opts) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -2847,6 +2871,7 @@ function pageAccount(opts) {
   }
 
   function renderLoggedIn(user) {
+    writeIicSnapshot(user);
     setHtml($state,
       '<div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap\">' +
         '<div style=\"width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#7cffb8,#8a5cff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;font-size:18px\">' + html((user.name || user.userId).slice(0,1).toUpperCase()) + '</div>' +
@@ -2859,9 +2884,12 @@ function pageAccount(opts) {
         '<a class=\"btn btn-primary\" href=\"/social-network\" data-link style=\"margin-left:auto\">Open ZeusAI Social \u2192</a>' +
       '</div>');
     // Commerce ledger mount — paid orders, entitlements, downloadable deliverables.
-    setHtml($panels,
-      '<div id=\"accountRoot\" data-commerce-mount=\"1\"></div>' +
-      '<p style=\"color:var(--ink-dim);font-size:12.5px;margin:10px 0 0;line-height:1.5\">After BTC payment confirms, your signed receipt, license and deliverable appear below. Add the same email at checkout so orders bind to this account.</p>');
+    var existingRoot = document.getElementById('accountRoot');
+    if (!existingRoot) {
+      setHtml($panels,
+        '<div id=\"accountRoot\" data-commerce-mount=\"1\"><div class=\"card\" style=\"padding:18px;color:var(--ink-dim);font-size:13px\">Loading your orders &amp; deliveries\u2026</div></div>' +
+        '<p style=\"color:var(--ink-dim);font-size:12.5px;margin:10px 0 0;line-height:1.5\">After BTC payment confirms, your signed receipt, license and deliverable appear below. Add the same email at checkout so orders bind to this account.</p>');
+    }
     try {
       if (user && user.email) localStorage.setItem('u_email', String(user.email));
     } catch (_) {}
@@ -2872,7 +2900,7 @@ function pageAccount(opts) {
           return;
         }
       } catch (_) {}
-      if ((attempt || 0) < 25) setTimeout(function(){ tryHydrateCommerce((attempt || 0) + 1); }, 200);
+      if ((attempt || 0) < 25) setTimeout(function(){ tryHydrateCommerce((attempt || 0) + 1); }, 120);
     }
     tryHydrateCommerce(0);
     try {
@@ -2884,32 +2912,75 @@ function pageAccount(opts) {
   }
 
   function renderLoggedOut() {
-    setHtml($state,
-      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>');
-    setHtml($panels,
-      '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
-        '<div class=\"card\" style=\"padding:22px\">' +
-          '<h3 style=\"margin:0 0 6px\">Create new account</h3>' +
-          '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>' +
-          '<input id=\"acaName\" placeholder=\"Display name (optional)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px\">' +
-          '<input id=\"acaEmail\" type=\"email\" placeholder=\"Email (optional, for hint only)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px\">' +
-          '<button id=\"acaCreate\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Create account \u2192</button>' +
-        '</div>' +
-        '<div class=\"card\" style=\"padding:22px\">' +
-          '<h3 style=\"margin:0 0 6px\">Sign in (this device)</h3>' +
-          '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>' +
-          '<button id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
-          '<hr style=\"border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0\">' +
-          '<h3 style=\"margin:0 0 6px;font-size:15px\">Recover account · Import vault</h3>' +
-          '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore access from the encrypted <code style=\"color:#7cffb8\">.zeus-vault</code> backup file you downloaded at account creation.</p>' +
-          '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
-          '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
-        '</div>' +
-      '</div>');
+    // Instant Identity Continuum: SSR already painted Create / Sign-in / Import.
+    // Prefer wiring existing controls so the user never flashes "Loading…".
+    var existingCreate = document.getElementById('acaCreate');
+    if (!existingCreate) {
+      setHtml($state,
+        '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>');
+      setHtml($panels,
+        '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
+          '<div class=\"card\" style=\"padding:22px\">' +
+            '<h3 style=\"margin:0 0 6px\">Create new account</h3>' +
+            '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>' +
+            '<input id=\"acaName\" placeholder=\"Display name (optional)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px\">' +
+            '<input id=\"acaEmail\" type=\"email\" placeholder=\"Email (optional, for hint only)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px\">' +
+            '<button id=\"acaCreate\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Create account \u2192</button>' +
+          '</div>' +
+          '<div class=\"card\" style=\"padding:22px\">' +
+            '<h3 style=\"margin:0 0 6px\">Sign in (this device)</h3>' +
+            '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>' +
+            '<button id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
+            '<hr style=\"border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0\">' +
+            '<h3 style=\"margin:0 0 6px;font-size:15px\">Recover account · Import vault</h3>' +
+            '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore access from the encrypted <code style=\"color:#7cffb8\">.zeus-vault</code> backup file you downloaded at account creation.</p>' +
+            '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
+            '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
+          '</div>' +
+        '</div>');
+    } else if ($state && !$state.getAttribute('data-iic-wired')) {
+      setHtml($state,
+        '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>');
+    }
+    wireLoggedOutOnce();
+  }
 
-    document.getElementById('acaCreate').addEventListener('click', onCreate);
-    document.getElementById('acaSignin').addEventListener('click', onSignin);
-    document.getElementById('acaImport').addEventListener('click', onImport);
+  function wireLoggedOutOnce() {
+    var createBtn = document.getElementById('acaCreate');
+    var signinBtn = document.getElementById('acaSignin');
+    var importBtn = document.getElementById('acaImport');
+    if (createBtn && createBtn.dataset.iicWired !== '1') {
+      createBtn.dataset.iicWired = '1';
+      createBtn.addEventListener('click', onCreate);
+    }
+    if (signinBtn && signinBtn.dataset.iicWired !== '1') {
+      signinBtn.dataset.iicWired = '1';
+      signinBtn.addEventListener('click', onSignin);
+    }
+    if (importBtn && importBtn.dataset.iicWired !== '1') {
+      importBtn.dataset.iicWired = '1';
+      importBtn.addEventListener('click', onImport);
+    }
+    if ($state) $state.setAttribute('data-iic-wired', '1');
+  }
+
+  function readIicSnapshot() {
+    try {
+      var raw = localStorage.getItem(IIC_SNAP_KEY);
+      if (!raw) return null;
+      var snap = JSON.parse(raw);
+      if (!snap || !snap.user || !snap.ts) return null;
+      if ((Date.now() - Number(snap.ts)) > 7 * 24 * 3600 * 1000) return null;
+      return snap;
+    } catch (_) { return null; }
+  }
+  function writeIicSnapshot(user) {
+    try {
+      localStorage.setItem(IIC_SNAP_KEY, JSON.stringify({ ts: Date.now(), user: user }));
+    } catch (_) {}
+  }
+  function clearIicSnapshot() {
+    try { localStorage.removeItem(IIC_SNAP_KEY); } catch (_) {}
   }
 
   function persistKeyAndAuth(privateKey, publicKeyB64, userId, token) {
@@ -3077,6 +3148,7 @@ function pageAccount(opts) {
   function logout() {
     var t;
     try { t = localStorage.getItem(TOKEN_KEY); localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+    clearIicSnapshot();
     api('/api/cryptoauth/logout', { token: t }).catch(function(){});
     refresh();
   }
@@ -3085,9 +3157,11 @@ function pageAccount(opts) {
       if (!ok) return;
       Promise.all([dbDel(KEY_ID)]).then(function(){
         try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+        clearIicSnapshot();
         refresh();
       }).catch(function(){
         try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+        clearIicSnapshot();
         refresh();
       });
     });
@@ -3097,13 +3171,33 @@ function pageAccount(opts) {
 
   function refresh() {
     var token; try { token = localStorage.getItem(TOKEN_KEY); } catch(_) { token = null; }
-    if (!token) { renderLoggedOut(); return Promise.resolve(); }
+    if (!token) {
+      clearIicSnapshot();
+      renderLoggedOut();
+      return Promise.resolve();
+    }
+    // L1: paint from continuum snapshot immediately (no network wait).
+    var snap = readIicSnapshot();
+    if (snap && snap.user) {
+      try { renderLoggedIn(snap.user); } catch (_) {}
+    } else {
+      setHtml($state, '<div style=\"color:var(--ink-dim);font-size:14px\">Reconciling session\u2026</div>');
+      if ($panels && !document.getElementById('accountRoot')) {
+        setHtml($panels, '<div id=\"accountRoot\" data-commerce-mount=\"1\"><div class=\"card\" style=\"padding:18px;color:var(--ink-dim);font-size:13px\">Loading your orders &amp; deliveries\u2026</div></div>');
+      }
+    }
+    // L2: network reconcile (SWR).
     return apiGet('/api/cryptoauth/me', token).then(function(r){
       if (r.status === 200 && r.body && r.body.ok) renderLoggedIn(r.body);
-      else { try { localStorage.removeItem(TOKEN_KEY); } catch(_){} renderLoggedOut(); }
-    }).catch(function(){ renderLoggedOut(); });
+      else { try { localStorage.removeItem(TOKEN_KEY); } catch(_){} clearIicSnapshot(); renderLoggedOut(); }
+    }).catch(function(){
+      if (!snap) renderLoggedOut();
+    });
   }
 
+  window.__zeusCryptoAuthRefresh = refresh;
+  // Wire SSR controls immediately (before network) so first paint is interactive.
+  try { wireLoggedOutOnce(); } catch (_) {}
   refresh();
 })();
 </script>`;
