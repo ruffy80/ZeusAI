@@ -144,9 +144,12 @@ module.exports = {
         // Default ON for single-node 8GB: execSync(pm2 jlist) freezes /api/health.
         OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '1',
         // Loops that still run under stable and starve the event loop on one VPS.
-        AACOS_DISABLED: process.env.AACOS_DISABLED || '1',
-        TAOS_DISABLED: process.env.TAOS_DISABLED || '1',
-        GROWTH_STACK_DISABLED: process.env.GROWTH_STACK_DISABLED || '1',
+        // AACOS/TAOS may stay gated via shared .env; discovery stack must NOT —
+        // zero visitors was caused by GROWTH_STACK_DISABLED=1 parking IndexNow.
+        AACOS_DISABLED: process.env.AACOS_DISABLED || '0',
+        TAOS_DISABLED: process.env.TAOS_DISABLED || '0',
+        GROWTH_STACK_DISABLED: process.env.GROWTH_STACK_DISABLED || '0',
+        TRAFFIC_ENGINE_DISABLED: process.env.TRAFFIC_ENGINE_DISABLED || '0',
         ADI_CORE_DISABLED: process.env.ADI_CORE_DISABLED || '1',
         DEEPSEEK_LOOP_ENABLED: process.env.DEEPSEEK_LOOP_ENABLED || '0',
         UNICORN_REVENUE_AUTOPILOT_DISABLED: process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED || '1',

@@ -217,6 +217,8 @@ function getStatus() {
     waitingOwnerPrimary,
     deferredOwner,
     waitingAgents,
+    // Honest agentReady — AACOS/AGDE used to read a missing field → false forever.
+    agentReady: waitingAgents.length === 0,
     telegram,
     wacp,
     funnel,
