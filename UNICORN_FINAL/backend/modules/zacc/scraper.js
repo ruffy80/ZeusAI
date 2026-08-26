@@ -195,7 +195,7 @@ class GlobalScraper {
     this.lastScrapeAt = Date.now();
     this.scrapes += 1;
 
-    const [ebay, ali, etsy, ext, world, cj] = await Promise.all([
+    const [ebay, ali, etsy, ext, world, cj, uscfExtra] = await Promise.all([
       this._ebayFinding(),
       this._aliexpressAffiliate(),
       this._etsyListings(),
@@ -204,8 +204,23 @@ class GlobalScraper {
       cjApi.isConfigured()
         ? cjApi.searchProducts({ limit: MAX_PER_SOURCE, keywords: process.env.ZACC_CJ_KEYWORDS || 'trending' }).catch(() => [])
         : Promise.resolve([]),
+      // USCF: also pull from Printful/Printify when those rails are armed.
+      (async () => {
+        try {
+          const uscf = require('./suppliers');
+          const r = await uscf.searchAllProducts({
+            limit: Math.min(MAX_PER_SOURCE, 24),
+            keywords: process.env.ZACC_CJ_KEYWORDS || 'trending',
+          });
+          // Exclude CJ duplicates (already fetched above via cjApi).
+          return (r.items || []).filter((it) => {
+            const s = String((it && it.supplier) || '').toLowerCase();
+            return s !== 'cj-dropshipping' && s !== 'cj';
+          });
+        } catch (_) { return []; }
+      })(),
     ]);
-    let merged = [].concat(ebay, ali, etsy, ext, world || [], cj || []);
+    let merged = [].concat(ebay, ali, etsy, ext, world || [], cj || [], uscfExtra || []);
     // Always blend curated archetypes so high-margin staples stay listed.
     const curated = this._seedRotation();
     if (!merged.length) merged = curated;
@@ -231,6 +246,7 @@ class GlobalScraper {
       external: ext.length,
       world: (world || []).length,
       cj: (cj || []).length,
+      uscf: (uscfExtra || []).length,
       curated: curated.length,
     };
     log.info('scraped', enriched.length, 'products from', Object.entries(bySource).map(([k, v]) => k + ':' + v).join(' '));

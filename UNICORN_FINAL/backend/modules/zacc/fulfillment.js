@@ -21,16 +21,13 @@ const path = require('path');
 const { now, shortId, logger } = require('./util');
 const notify = require('./notify');
 const cjApi = require('./cj-api');
+const uscf = require('./suppliers');
 
 const log = logger('fulfillment');
 
-function _cjKey() { return String(process.env.ZACC_CJ_API_KEY || '').trim(); }
-function _cjEndpoint() {
-  return process.env.ZACC_CJ_ENDPOINT || 'https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrder';
-}
+function _cjKey() { return String(process.env.ZACC_CJ_API_KEY || process.env.CJ_API_KEY || '').trim(); }
 const FULFILL_WEBHOOK = () => process.env.ZACC_FULFILL_WEBHOOK_URL || '';
 const ADMIN_EMAIL = () => process.env.ZACC_ADMIN_EMAIL || process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
-const FETCH_TIMEOUT_MS = 6000;
 
 const DESK_DIR = process.env.ZACC_FULFILL_DIR
   || path.join(__dirname, '..', '..', '..', 'data', 'zacc');
@@ -85,44 +82,18 @@ class FulfillmentRouter {
     }
   }
 
-  async _viaCjDropshipping(order) {
-    const CJ_API_KEY = _cjKey();
-    if (!CJ_API_KEY || typeof fetch !== 'function') return { ok: false, reason: 'cj_not_configured' };
-    // A real CJ order needs a supplier variant id (vid). Curated / demo SKUs
-    // and free world-feed refs (dummyjson:123) must NOT be sent to CJ.
-    const vid = order.supplierRef != null ? String(order.supplierRef) : '';
-    if (!vid || vid.includes(':') || order.demoOnly) {
-      return { ok: false, reason: order.demoOnly ? 'cj_skipped_demo_only' : 'cj_no_supplier_ref' };
-    }
+  /** USCF/1.0 — route via Universal Supplier Connector Framework. */
+  async _viaUscf(order) {
     try {
-      const body = {
-        orderNumber: order.id,
-        shippingCountryCode: order.shipping && order.shipping.country,
-        shippingProvince: order.shipping && order.shipping.region,
-        shippingCity: order.shipping && order.shipping.city,
-        shippingAddress: order.shipping && order.shipping.address,
-        shippingCustomerName: order.shipping && order.shipping.name,
-        shippingZip: order.shipping && order.shipping.zip,
-        shippingPhone: order.shipping && order.shipping.phone,
-        remark: 'ZACC autonomous · ' + order.productTitle,
-        products: [{ vid, quantity: Math.max(1, Number(order.qty) || 1) }],
-      };
-      const r = await fetch(_cjEndpoint(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'CJ-Access-Token': CJ_API_KEY },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || data.result === false) return { ok: false, reason: 'cj_error', details: data };
-      const cjOrderId = (data.data && (data.data.orderId || data.data.cjOrderId)) || null;
-      return {
-        ok: true,
-        provider: 'cj-dropshipping',
-        externalId: cjOrderId,
-        cjOrderId,
-      };
-    } catch (e) { return { ok: false, reason: 'cj_exception', message: e.message }; }
+      return await uscf.createOrder(order);
+    } catch (e) {
+      return { ok: false, reason: 'uscf_exception', message: e.message };
+    }
+  }
+
+  async _viaCjDropshipping(order) {
+    // Backward-compatible alias — CJ lives inside USCF.
+    return uscf.cj.createOrder(order);
   }
 
   // Poll CJ for shipping tracking of every routed CJ order. Returns a summary
@@ -161,18 +132,7 @@ class FulfillmentRouter {
   }
 
   async _viaWebhook(order) {
-    const url = FULFILL_WEBHOOK();
-    if (!url || typeof fetch !== 'function') return { ok: false, reason: 'webhook_not_configured' };
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'zacc.order', order }),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-      if (!r.ok) return { ok: false, reason: 'webhook_status_' + r.status };
-      return { ok: true, provider: 'webhook' };
-    } catch (e) { return { ok: false, reason: 'webhook_exception', message: e.message }; }
+    return uscf.webhook.createOrder(order);
   }
 
   // Zeus Fulfillment Desk — durable queue + owner alert. No order is lost.
@@ -202,7 +162,7 @@ class FulfillmentRouter {
   }
 
   // Main entry — called by orchestrator on every paid invoice.
-  async onOrder({ productId, productTitle, amountUsd, invoiceId, shipping, email, qty, supplierRef, demoOnly, orderToken }) {
+  async onOrder({ productId, productTitle, amountUsd, invoiceId, shipping, email, qty, supplierRef, demoOnly, orderToken, supplier, source }) {
     if (!productId) return { ok: false, reason: 'no_product_id' };
     const order = {
       id: 'order-' + shortId('').slice(-8),
@@ -212,6 +172,8 @@ class FulfillmentRouter {
       amountUsd: Number(amountUsd) || 0,
       qty: Math.max(1, Number(qty) || 1),
       email: email || null,
+      supplier: supplier || null,
+      source: source || null,
       supplierRef: supplierRef != null ? supplierRef : null,
       demoOnly: demoOnly === true,
       shipping: shipping || null,
@@ -220,8 +182,8 @@ class FulfillmentRouter {
     this.routed += 1;
     this.lastRouteAt = Date.now();
 
-    let result = await this._viaCjDropshipping(order);
-    if (!result.ok) result = await this._viaWebhook(order);
+    // USCF tries CJ → Printful → Printify → webhook in priority order.
+    let result = await this._viaUscf(order);
     if (!result.ok) result = this._queueDesk(order, result.reason);
     else {
       this.autoFulfilled += 1;
@@ -236,20 +198,21 @@ class FulfillmentRouter {
     return { ok: true, order };
   }
 
-  // When a CJ key is armed later, retry desk queue for CJ-eligible orders.
+  // When a supplier key is armed later, retry desk queue via USCF.
   async reprocessPending() {
     this.lastReprocessAt = Date.now();
-    if (!_cjKey()) return { ok: true, retried: 0, reason: 'cj_not_configured' };
+    const snap = uscf.discovery();
+    if (!snap.autoShipReady) return { ok: true, retried: 0, reason: 'no_supplier_configured' };
     let retried = 0;
     let routed = 0;
     const still = [];
     for (const order of this.pendingOrders.slice()) {
       retried += 1;
-      const result = await this._viaCjDropshipping(order);
+      const result = await this._viaUscf(order);
       if (result.ok) {
         order.result = result;
         order.resolvedAt = now();
-        order.resolvedVia = 'cj-reprocess';
+        order.resolvedVia = 'uscf-reprocess';
         this.autoFulfilled += 1;
         routed += 1;
         this.orders.unshift(order);
@@ -259,7 +222,7 @@ class FulfillmentRouter {
     }
     this.pendingOrders = still;
     this._persistDesk();
-    return { ok: true, retried, routed, stillPending: still.length };
+    return { ok: true, retried, routed, stillPending: still.length, uscf: { armedCount: snap.armedCount } };
   }
 
   resolvePending(orderId) {
@@ -272,12 +235,23 @@ class FulfillmentRouter {
   }
 
   readiness() {
-    const hasCj = !!_cjKey();
+    const snap = uscf.discovery();
+    const hasCj = !!_cjKey() && uscf.cj.isConfigured();
+    const mode = snap.autoShipReady
+      ? (hasCj ? 'cj-dropship' : 'uscf-multi')
+      : 'zeus-fulfillment-desk';
     return {
       ok: true,
-      mode: hasCj ? 'cj-dropship' : 'zeus-fulfillment-desk',
+      protocol: uscf.PROTOCOL,
+      mode,
       cjConfigured: hasCj,
+      printfulConfigured: uscf.printful.isConfigured(),
+      printifyConfigured: uscf.printify.isConfigured(),
       webhookConfigured: !!FULFILL_WEBHOOK(),
+      autoShipReady: snap.autoShipReady,
+      armedCount: snap.armedCount,
+      awaitingOwnerAuth: snap.awaitingOwnerAuth,
+      uscf: snap,
       adminEmail: ADMIN_EMAIL(),
       pending: this.pendingOrders.length,
       deskFile: DESK_FILE,
@@ -290,9 +264,7 @@ class FulfillmentRouter {
         ],
         docs: 'https://developers.cjdropshipping.com/en/summary/course.html',
       },
-      note: hasCj
-        ? 'CJ key armed — eligible SKUs with supplierRef auto-dispatch.'
-        : 'No CJ key on server (cannot be invented). Storefront + BTC + desk queue are live; physical supplier dispatch arms when you paste a real CJ API key.',
+      note: snap.note,
     };
   }
 
@@ -308,13 +280,16 @@ class FulfillmentRouter {
       lastReprocessAt: this.lastReprocessAt ? new Date(this.lastReprocessAt).toISOString() : null,
       pending: this.pendingOrders.length,
       providers: {
-        cjDropshipping: !!_cjKey(),
+        cjDropshipping: uscf.cj.isConfigured(),
+        printful: uscf.printful.isConfigured(),
+        printify: uscf.printify.isConfigured(),
         webhook: !!FULFILL_WEBHOOK(),
         zeusFulfillmentDesk: true,
         adminEmail: ADMIN_EMAIL(),
       },
       mode: ready.mode,
       readiness: ready,
+      uscf: ready.uscf,
       recentOrders: this.orders.slice(0, 5).map(o => ({ id: o.id, product: o.productTitle, amountUsd: o.amountUsd, provider: o.result && o.result.provider, at: o.createdAt })),
     };
   }

@@ -12213,9 +12213,12 @@ app.get('/api/dropship/products', async (req, res) => {
     category: req.query.category,
     search: req.query.q,
     limit: Math.min(200, Number(req.query.limit) || 60),
+    dispatchableOnly: req.query.dispatchable === '1' || req.query.dispatchable === 'true',
   });
   res.set('ETag', etag);
   res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  let uscfSnap = null;
+  try { uscfSnap = require('./modules/zacc/suppliers').discovery(); } catch (_) { /* fail-soft */ }
   res.json({
     ok: true,
     items,
@@ -12223,6 +12226,11 @@ app.get('/api/dropship/products', async (req, res) => {
     categories: zacc.publisher.categories(),
     revision: zacc.publisher.revision(),
     catalogQuality: { qualityGate: true, junkPurged: zacc._junkPurgedTotal || 0 },
+    uscf: uscfSnap ? {
+      protocol: uscfSnap.protocol,
+      autoShipReady: uscfSnap.autoShipReady,
+      armedCount: uscfSnap.armedCount,
+    } : null,
   });
 });
 app.post('/api/dropship/catalog/purge', async (req, res) => {
@@ -12351,12 +12359,20 @@ app.get('/api/dropship/status', (req, res) => {
     marginOs,
     shelf: zacc.shelf ? zacc.shelf.status() : null,
     worldContinuum: continuum,
-    suppliers: {
-      curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
-      cjConfigured: !!String(process.env.ZACC_CJ_API_KEY || '').trim(),
-      webhookConfigured: !!process.env.ZACC_FULFILL_WEBHOOK_URL,
-      shippingZones: Object.keys(zacc.shipping.ZONES),
-    },
+    suppliers: (() => {
+      let uscfSnap = null;
+      try { uscfSnap = require('./modules/zacc/suppliers').discovery(); } catch (_) { uscfSnap = null; }
+      return {
+        curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
+        cjConfigured: !!(uscfSnap && uscfSnap.suppliers && uscfSnap.suppliers.find(s => s.id === 'cj-dropshipping' && s.configured)),
+        printfulConfigured: !!(uscfSnap && uscfSnap.suppliers && uscfSnap.suppliers.find(s => s.id === 'printful' && s.configured)),
+        printifyConfigured: !!(uscfSnap && uscfSnap.suppliers && uscfSnap.suppliers.find(s => s.id === 'printify' && s.configured)),
+        webhookConfigured: !!process.env.ZACC_FULFILL_WEBHOOK_URL,
+        shippingZones: Object.keys(zacc.shipping.ZONES),
+        uscf: uscfSnap,
+        autoShipReady: !!(uscfSnap && uscfSnap.autoShipReady),
+      };
+    })(),
     fulfillmentReadiness: typeof zacc.fulfillment.readiness === 'function'
       ? zacc.fulfillment.readiness()
       : null,
@@ -12519,6 +12535,100 @@ app.get('/api/dropship/fulfillment/readiness', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   res.json(zacc.fulfillment.readiness());
 });
+
+// USCF/1.0 — Universal Supplier Connector Framework discovery + owner-auth gate.
+app.get(['/api/dropship/suppliers', '/.well-known/uscf.json'], (req, res) => {
+  try {
+    const uscf = require('./modules/zacc/suppliers');
+    const snap = uscf.discovery();
+    res.set('Cache-Control', 'public, max-age=15');
+    return res.json(snap);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'USCF/1.0' });
+  }
+});
+
+function _writeSharedEnvPairs(pairs) {
+  const fs = require('fs');
+  const path = require('path');
+  const candidates = [
+    process.env.UNICORN_SHARED_ENV,
+    '/var/www/unicorn/shared/.env',
+    path.join(__dirname, '..', '.env'),
+    path.join(__dirname, '.env'),
+  ].filter(Boolean);
+  let written = null;
+  for (const envPath of candidates) {
+    try {
+      let body = '';
+      if (fs.existsSync(envPath)) body = fs.readFileSync(envPath, 'utf8');
+      for (const [key, value] of Object.entries(pairs || {})) {
+        if (!key || value == null) continue;
+        const line = key + '=' + String(value);
+        const re = new RegExp('^' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=.*$', 'm');
+        if (re.test(body)) body = body.replace(re, line);
+        else body = body.replace(/\s*$/, '\n') + line + '\n';
+        process.env[key] = String(value);
+      }
+      fs.writeFileSync(envPath, body, { mode: 0o600 });
+      written = envPath;
+      break;
+    } catch (_) { /* try next */ }
+  }
+  return written;
+}
+
+// Admin: arm any USCF supplier credential (CJ / Printful / Printify / webhook).
+app.post('/api/dropship/suppliers/arm', deepseekGovernorAuthMiddleware, express.json({ limit: '8kb' }), async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const uscf = require('./modules/zacc/suppliers');
+    const supplier = String((req.body && (req.body.supplier || req.body.id)) || '').trim();
+    if (!supplier) {
+      return res.status(400).json({
+        ok: false,
+        error: 'supplier_required',
+        accepted: ['cj', 'cj-dropshipping', 'printful', 'printify', 'webhook'],
+        discovery: uscf.discovery(),
+      });
+    }
+    const mapped = uscf.armEnvMap(supplier, req.body || {});
+    if (mapped.error) return res.status(400).json({ ok: false, error: mapped.error });
+    for (const need of mapped.required || []) {
+      if (need === 'apiKey') {
+        const k = String((req.body && (req.body.apiKey || req.body.key || req.body.token || req.body.url)) || '').trim();
+        if (!k || k.length < 8) {
+          return res.status(400).json({ ok: false, error: 'api_key_required', required: mapped.required });
+        }
+        if (/your_|changeme|xxx|placeholder|example/i.test(k)) {
+          return res.status(400).json({ ok: false, error: 'placeholder_rejected' });
+        }
+      }
+      if (need === 'shopId') {
+        const s = String((req.body && (req.body.shopId || req.body.storeId)) || '').trim();
+        if (!s) return res.status(400).json({ ok: false, error: 'shop_id_required', required: mapped.required });
+      }
+    }
+    if (!mapped.env || !Object.keys(mapped.env).length) {
+      return res.status(400).json({ ok: false, error: 'nothing_to_arm' });
+    }
+    const written = _writeSharedEnvPairs(mapped.env);
+    const re = await zacc.fulfillment.reprocessPending();
+    res.json({
+      ok: true,
+      armed: true,
+      supplier,
+      writtenTo: written,
+      envKeys: Object.keys(mapped.env),
+      reprocess: re,
+      discovery: uscf.discovery(),
+      note: 'Credentials armed in-process. PM2 restart recommended so all workers reload env: pm2 restart unicorn-backend',
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Admin: paste a real CJ API key → write shared .env + process.env + reprocess desk.
 app.post('/api/dropship/fulfillment/arm-cj', deepseekGovernorAuthMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
@@ -12535,29 +12645,7 @@ app.post('/api/dropship/fulfillment/arm-cj', deepseekGovernorAuthMiddleware, exp
     return res.status(400).json({ ok: false, error: 'placeholder_rejected' });
   }
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const candidates = [
-      process.env.UNICORN_SHARED_ENV,
-      '/var/www/unicorn/shared/.env',
-      path.join(__dirname, '..', '.env'),
-      path.join(__dirname, '.env'),
-    ].filter(Boolean);
-    let written = null;
-    for (const envPath of candidates) {
-      try {
-        let body = '';
-        if (fs.existsSync(envPath)) body = fs.readFileSync(envPath, 'utf8');
-        if (/^ZACC_CJ_API_KEY=/m.test(body)) {
-          body = body.replace(/^ZACC_CJ_API_KEY=.*$/m, 'ZACC_CJ_API_KEY=' + apiKey);
-        } else {
-          body = body.replace(/\s*$/, '\n') + 'ZACC_CJ_API_KEY=' + apiKey + '\n';
-        }
-        fs.writeFileSync(envPath, body, { mode: 0o600 });
-        written = envPath;
-        break;
-      } catch (_) { /* try next */ }
-    }
+    const written = _writeSharedEnvPairs({ ZACC_CJ_API_KEY: apiKey });
     process.env.ZACC_CJ_API_KEY = apiKey;
     const re = await zacc.fulfillment.reprocessPending();
     res.json({
