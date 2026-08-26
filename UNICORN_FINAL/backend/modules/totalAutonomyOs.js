@@ -310,6 +310,21 @@ class TotalAutonomyOs {
     } catch (e) { innDetail = e && e.message; }
     pillars.push(this._pillar('innovation_ship', 6, innOk, innDetail, innScore));
 
+    // 7b) AACOS continuum — live tick + honest skip reasons
+    let aacosOk = false;
+    let aacosDetail = 'unavailable';
+    let aacosScore = 40;
+    try {
+      const aacos = safeRequire('./autonomy-action-continuum-os');
+      const st = aacos && typeof aacos.getStatus === 'function' ? aacos.getStatus() : null;
+      if (st) {
+        aacosOk = !!(st.armed || st.ticks > 0);
+        aacosScore = aacosOk ? (st.readyToPublish ? 100 : 70) : 35;
+        aacosDetail = `armed=${!!st.armed};ticks=${st.ticks || 0};skip=${st.lastSkipReason || 'none'};linked=${(st.modulesLinked || []).length}`;
+      }
+    } catch (e) { aacosDetail = e && e.message; }
+    pillars.push(this._pillar('aacos', 8, aacosOk, aacosDetail, aacosScore));
+
     // 8) Process / host posture
     const rssMb = Math.round(process.memoryUsage().rss / (1024 * 1024));
     const rssCap = parseInt(process.env.AUTONOMY_RSS_SOFT_CAP_MB || '2300', 10);
@@ -575,6 +590,23 @@ class TotalAutonomyOs {
       if (!pl || typeof pl.start !== 'function') return;
       const s = typeof pl.getStatus === 'function' ? pl.getStatus() : {};
       if (!s.active && !s.running) pl.start();
+    });
+
+    tryStart('control-plane-agent', () => {
+      const cpa = safeRequire('./control-plane-agent');
+      if (!cpa || typeof cpa.start !== 'function') return;
+      const s = typeof cpa.getStatus === 'function' ? cpa.getStatus() : {};
+      if (!s.running) cpa.start(); // observe-only when DSM=1
+    });
+
+    tryStart('autonomy-action-continuum', () => {
+      const aacos = safeRequire('./autonomy-action-continuum-os');
+      if (aacos && typeof aacos.start === 'function') aacos.start();
+    });
+
+    tryStart('workflowEngine', () => {
+      const wf = safeRequire('./workflowEngine');
+      if (wf && typeof wf.start === 'function') wf.start();
     });
 
     tryStart('ai-self-healing', () => {

@@ -4692,6 +4692,7 @@ meshOrchestrator.register('unicornAutonomousCore',  uac,                { status
 meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
 meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
 meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
+meshOrchestrator.register('workflowEngine',         workflowEngine,     { statusFn: 'getStatus' });
 if (autonomySpine) meshOrchestrator.register('autonomySpine', autonomySpine, { statusFn: 'getStatus' });
 
 // ── SUPREME ENGINES — motoarele de venit deja încărcate prin __SUPREME, acum
@@ -13847,7 +13848,19 @@ app.post('/api/self-construction/run', adminTokenMiddleware, express.json({ limi
 });
 
 app.get('/api/total-system-healer/status', adminTokenMiddleware, (req, res) => {
-  res.json({ module: 'TotalSystemHealer', status: 'active' });
+  try {
+    const st = typeof totalSystemHealer.getStatus === 'function'
+      ? totalSystemHealer.getStatus()
+      : {};
+    res.json({
+      module: 'TotalSystemHealer',
+      // Honest: do not hardcode active — surface adapter/runtime truth.
+      status: st.running ? 'active' : (st.idle ? 'idle' : (st.nested && st.nested.status) || 'observed'),
+      ...st,
+    });
+  } catch (e) {
+    res.status(500).json({ module: 'TotalSystemHealer', status: 'error', error: e.message });
+  }
 });
 app.post('/api/total-system-healer/heal', adminTokenMiddleware, (req, res) => {
   totalSystemHealer.heal();
@@ -15362,7 +15375,36 @@ app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
     const data = await opsAggregator.collect({ buildSha: process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA });
     let watchdog = null;
     try { watchdog = require('./modules/ops-watchdog').getStatus(); } catch (_) {}
-    res.json({ ...data, watchdog });
+
+    // Collapse autonomy organs into ops surface (reuse IAK report — no parallel orchestrator).
+    let autonomy = null;
+    try {
+      const iak = meshOrchestrator || require('./modules/integrated-autonomy-kernel');
+      const st = iak && typeof iak.getStatus === 'function' ? iak.getStatus() : null;
+      if (st) {
+        autonomy = {
+          kernel: st.id,
+          running: st.running,
+          mode: st.mode,
+          healthyModules: st.healthyModules,
+          totalModules: st.totalModules,
+          quarantined: st.quarantined,
+          continuum: st.continuum || null,
+          organs: st.organs ? {
+            spine: st.organs.spine && {
+              mode: st.organs.spine.mode,
+              canExperiment: !!(st.organs.spine.gate && st.organs.spine.gate.canExperiment),
+            },
+            cpa: st.organs.cpa && { running: st.organs.cpa.running, observeOnly: st.organs.cpa.observeOnly, healthScore: st.organs.cpa.healthScore },
+            pcl: st.organs.pcl && { running: st.organs.pcl.running, spineGate: st.organs.pcl.spineGate },
+            aacos: st.organs.aacos && { armed: st.organs.aacos.armed, ticks: st.organs.aacos.ticks, lastSkipReason: st.organs.aacos.lastSkipReason },
+            taos: st.organs.taos && { score: st.organs.taos.score, grade: st.organs.taos.grade, armedSafe: st.organs.taos.armedSafe },
+          } : null,
+        };
+      }
+    } catch (_) { autonomy = { available: false }; }
+
+    res.json({ ...data, watchdog, autonomy });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

@@ -3,7 +3,8 @@ name: 🧠 Full System Audit + Optimization
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 */6 * * *'
+    # Weekly Sunday 04:30 UTC — was every 6h (low signal vs Actions minutes).
+    - cron: '30 4 * * 0'
 
 concurrency:
   group: full-system-audit

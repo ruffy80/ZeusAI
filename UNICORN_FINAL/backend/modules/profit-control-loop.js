@@ -97,6 +97,9 @@ const profitService     = require('./profit-attribution');
 const shadowTester      = require('./shadow-tester');
 const autonomousInnov   = require('./autonomousInnovation');
 
+let autonomySpine = null;
+try { autonomySpine = require('./autonomy-spine'); } catch (_) { autonomySpine = null; }
+
 const LOOP_INTERVAL_MS  = parseInt(process.env.PROFIT_LOOP_INTERVAL_MS || '300000', 10); // 5 min
 const REWARD_WINDOW_MS  = parseInt(process.env.REWARD_WINDOW_MS || '86400000', 10);      // 1 day
 const MIN_REWARD        = parseFloat(process.env.MIN_REWARD || '0');
@@ -110,6 +113,32 @@ class ProfitControlLoop {
     this.lastCycleAt    = null;
     this.startedAt      = Date.now();
     this._interval      = null;
+    this.lastSpineGate  = { canExperiment: true, reason: 'spine_unavailable' };
+  }
+
+  /** Honor AutonomySpine governance before mutation / promotion. */
+  _spineAllowsExperiment() {
+    if (!autonomySpine || typeof autonomySpine.canExperiment !== 'function') {
+      this.lastSpineGate = { canExperiment: true, reason: 'spine_unavailable' };
+      return true;
+    }
+    try {
+      // Ensure a fresh decision exists when the spine is armed.
+      if (typeof autonomySpine.tick === 'function' && !autonomySpine.lastDecision) {
+        try { autonomySpine.tick(); } catch (_) { /* sense fail-soft */ }
+      }
+      const allowed = autonomySpine.canExperiment() === true;
+      const st = typeof autonomySpine.getStatus === 'function' ? autonomySpine.getStatus() : null;
+      this.lastSpineGate = {
+        canExperiment: allowed,
+        reason: allowed ? 'spine_allow' : 'spine_gate',
+        mode: st && st.mode,
+      };
+      return allowed;
+    } catch (e) {
+      this.lastSpineGate = { canExperiment: false, reason: e && e.message ? e.message : 'spine_error' };
+      return false;
+    }
   }
 
   start() {
@@ -141,16 +170,19 @@ class ProfitControlLoop {
 
     console.log(`[PCL] healthScore=${healthScore}, avgProfit=${metrics.averageProfitPerEvent}, reward=${reward.toFixed(4)}`);
 
-    // ── Step 3: INNOVATION (gated by circuit breaker) ─────────────
-    if (!circuitBreaker.isOpen()) {
+    // ── Step 3: INNOVATION (circuit breaker + AutonomySpine gate) ─
+    const spineOk = this._spineAllowsExperiment();
+    if (!spineOk) {
+      console.warn(`[PCL] Innovation PAUSED — autonomy-spine gate (mode=${this.lastSpineGate.mode || '?'})`);
+    } else if (!circuitBreaker.isOpen()) {
       await this._innovationStep(reward);
     } else {
       const cb = circuitBreaker.getStatus();
       console.warn(`[PCL] Innovation PAUSED — circuit breaker OPEN (${cb.pauseRemainingMin} min remaining)`);
     }
 
-    // ── Step 4: PROMOTE shadow variants ready for A/B ─────────────
-    this._promoteShadowVariants();
+    // ── Step 4: PROMOTE shadow variants (same spine gate) ─────────
+    if (spineOk) this._promoteShadowVariants();
 
     // ── Step 5: RESOURCE OPTIMIZATION HOOK ───────────────────────
     await this._optimizeResources(reward, healthScore);
@@ -252,6 +284,7 @@ class ProfitControlLoop {
       circuitBreaker: circuitBreaker.getStatus(),
       profitMetrics: profitService.getMetrics(),
       shadowMetrics: shadowTester.getMetrics(),
+      spineGate: this.lastSpineGate,
     };
   }
 

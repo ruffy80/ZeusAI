@@ -1,10 +1,12 @@
-# Autonomous evolve + heal cadence (safe read-only by default)
+# Autonomous evolve + heal cadence (manual by default — VPS autodeploy +
+# diagnose-and-repair + live-autopilot-watchdog already cover production heal).
 name: 🧬 Autonomous evolve/heal
 on:
   workflow_dispatch:
-  schedule:
-    # Every 6 hours
-    - cron: '0 */6 * * *'
+  # Schedule disabled: duplicate of live-autopilot-watchdog + full-system-audit.
+  # Re-enable only if Actions-only heal is required without VPS timers.
+  # schedule:
+  #   - cron: '0 */6 * * *'
 
 concurrency:
   group: unicorn-autonomous

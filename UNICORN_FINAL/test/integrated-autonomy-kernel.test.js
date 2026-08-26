@@ -64,6 +64,7 @@ check('register + getStatus tracks modules', () => {
   assert.ok(st.innovations.includes('conflict_quarantine'));
   assert.ok(st.innovations.includes('total_module_continuum'));
   assert.ok(st.innovations.includes('honesty_fence'));
+  assert.ok(st.innovations.includes('organ_status_collapse'));
 });
 
 check('conflict quarantine blocks duplicate capability', () => {
