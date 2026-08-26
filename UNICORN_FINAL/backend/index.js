@@ -5093,6 +5093,21 @@ try {
   console.warn('[AACOS] load/start failed:', e && e.message);
 }
 
+// AGDE / WGC/1.0 — World Gravity Continuum: bottleneck→dispatch over real growth organs
+let autonomousGlobalDominanceEngine = null;
+try {
+  autonomousGlobalDominanceEngine = require('./modules/autonomousGlobalDominanceEngine');
+  if (process.env.NODE_ENV !== 'test' && process.env.AGDE_DISABLED !== '1') {
+    autonomousGlobalDominanceEngine.start();
+  }
+  if (autonomousGlobalDominanceEngine && typeof autonomousGlobalDominanceEngine.mountRoutes === 'function') {
+    autonomousGlobalDominanceEngine.mountRoutes(app, { adminMiddleware: adminTokenMiddleware });
+  }
+  console.log('🌍 AGDE/WGC/1.0 World Gravity Continuum: MOUNTED');
+} catch (e) {
+  console.warn('[AGDE] load/start failed:', e && e.message);
+}
+
 // ==================== RUTE API ====================
 
 // --- API: SaaS Catalog (REAL, derived from live engines) ---
@@ -8891,6 +8906,10 @@ try {
   meshOrchestrator.register('serviceCatalog', serviceCatalogFacade, { statusFn: 'getStatus' });
   // Autonomous Growth Core — upsell, lead-intel, brain report status too.
   if (_growthBrain) meshOrchestrator.register('growthBrain', _growthBrain, { statusFn: 'getState' });
+  try {
+    const agde = autonomousGlobalDominanceEngine || require('./modules/autonomousGlobalDominanceEngine');
+    if (agde) meshOrchestrator.register('autonomousGlobalDominanceEngine', agde, { statusFn: 'getStatus' });
+  } catch (_) { /* optional */ }
   if (_upsellEngine) meshOrchestrator.register('upsellEngine', _upsellEngine, { statusFn: 'stats' });
   if (_leadIntel) meshOrchestrator.register('leadIntelligence', _leadIntel, { statusFn: 'stats' });
 } catch (_) { /* mesh optional */ }

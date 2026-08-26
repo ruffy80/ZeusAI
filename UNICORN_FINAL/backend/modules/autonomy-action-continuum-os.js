@@ -428,6 +428,22 @@ function linkModules() {
     if (taos) linked.push('totalAutonomyOs');
   } catch (_) {}
 
+  try {
+    const agde = _safeRequire('./autonomousGlobalDominanceEngine');
+    if (agde) {
+      linked.push('autonomousGlobalDominanceEngine');
+      // Forward continuum ticks into gravity field without flooding (every 3rd).
+      let _n = 0;
+      bus.on('autonomy:tick', () => {
+        _n += 1;
+        if (_n % 3 !== 0) return;
+        if (typeof agde.tick === 'function') {
+          agde.tick({ source: 'aacos-forward' }).catch(() => {});
+        }
+      });
+    }
+  } catch (_) {}
+
   state.modulesLinked = linked;
   return linked;
 }
