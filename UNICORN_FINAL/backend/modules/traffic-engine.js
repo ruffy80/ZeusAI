@@ -137,11 +137,34 @@ async function _postJson(url, body) {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'User-Agent': 'ZeusAI-TrafficEngine/1.0 (+https://zeusai.pro)',
+      },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    return { status: res.status, ok: res.status >= 200 && res.status < 300 };
+    let errorCode = null;
+    let detail = null;
+    if (!(res.status >= 200 && res.status < 300)) {
+      try {
+        const raw = await res.text();
+        detail = String(raw || '').slice(0, 240);
+        try {
+          const j = JSON.parse(raw);
+          errorCode = j && (j.errorCode || j.code) || null;
+        } catch (_) { /* not json */ }
+      } catch (_) { /* ignore body read */ }
+    }
+    return {
+      status: res.status,
+      ok: res.status >= 200 && res.status < 300,
+      errorCode: errorCode || undefined,
+      detail: detail || undefined,
+      note: (res.status === 403 && errorCode === 'UserForbiddedToAccessSite')
+        ? 'Bing has not verified this host yet — owner: Bing Webmaster Tools → add site + IndexNow key'
+        : undefined,
+    };
   } finally { clearTimeout(t); }
 }
 
@@ -167,18 +190,31 @@ async function pingAll(opts) {
   const endpoints = [
     ['indexnow.org', 'https://api.indexnow.org/indexnow'],
     ['bing', 'https://www.bing.com/indexnow'],
+    ['yandex', 'https://yandex.com/indexnow'],
   ];
   for (const [engine, url] of endpoints) {
     if (dryRun) { submission.engines.push({ engine, status: 'dry-run', ok: null }); continue; }
     try {
       const r = await _postJson(url, payload);
-      submission.engines.push({ engine, status: r.status, ok: r.ok });
+      submission.engines.push({
+        engine,
+        status: r.status,
+        ok: r.ok,
+        errorCode: r.errorCode,
+        detail: r.detail,
+        note: r.note,
+      });
     } catch (e) {
       submission.engines.push({ engine, status: 'error', ok: false, error: e && e.message });
     }
   }
   // Google: no ping API anymore — discovery happens via robots.txt sitemap.
-  submission.engines.push({ engine: 'google', status: 'sitemap-discovery', ok: null, note: 'ping API retired 2023; sitemap.xml + sitemap-services.xml referenced in robots.txt' });
+  submission.engines.push({
+    engine: 'google',
+    status: 'sitemap-discovery',
+    ok: null,
+    note: 'ping API retired 2023; owner: Google Search Console → submit https://zeusai.pro/sitemap.xml',
+  });
   state.lastSubmission = submission;
   state.history.unshift({ at: submission.at, urlCount: submission.urlCount, ok: submission.engines.filter((e) => e.ok).length, dryRun });
   state.history = state.history.slice(0, 20);
