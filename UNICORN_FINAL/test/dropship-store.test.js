@@ -104,8 +104,11 @@ assert.ok(
 assert.ok(
   (SRC.includes('WORLD CONTINUUM') || SRC.includes('CURATED \\u00b7 AUTO')) &&
   (SRC.includes('LIVE SUPPLIER \\u00b7 AUTO') || SRC.includes('LIVE \\u00b7 AUTO')) &&
-  SRC.includes('configuredSources'),
-  'EXPECTED: storefront status must default to world continuum and only switch live from supplier configuration.'
+  // USCF/1.0 — LIVE SUPPLIER only when an armed auto-ship rail is present
+  // (CJ / Printful / Printify / autoShipReady). Never flip live from free
+  // world-feed configuredSources alone.
+  (SRC.includes('autoShipReady') || SRC.includes('printfulConfigured') || SRC.includes('cjConfigured')),
+  'EXPECTED: storefront status must default to world continuum and only switch live from USCF supplier rails.'
 );
 for (const field of ['ds-email', 'ds-name', 'ds-address', 'ds-city', 'ds-region', 'ds-zip', 'ds-country', 'ds-phone']) {
   assert.ok(SRC.includes('id="' + field + '"'), 'EXPECTED: checkout field #' + field + ' must be present.');
