@@ -4531,6 +4531,13 @@ if (_isPrimaryWorker) {
   // Runs in EVERY profile (incl. stable): footprint is tiny (3 unref'd
   // intervals, bounded state) and revenue cannot wait for a growth profile.
   // RO: pornește și în profil stabil — venitul nu așteaptă.
+  //
+  // First-Dollar Discovery Pulse: traffic-engine (IndexNow) is ALWAYS armed
+  // unless TRAFFIC_ENGINE_DISABLED=1 — parking it was the root cause of
+  // perpetual IndexNow silence / zero organic visitors.
+  if (process.env.NODE_ENV !== 'test' && process.env.TRAFFIC_ENGINE_DISABLED !== '1') {
+    try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
+  }
   if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1') {
     try {
       if (memoryGuardian) {
@@ -4546,7 +4553,6 @@ if (_isPrimaryWorker) {
         memoryGuardian.start();
       }
     } catch (e) { console.warn('[memory-guardian] start failed:', e && e.message); }
-    try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
     try {
       if (revenueFlywheel) {
         revenueFlywheel.configure({ funnelIntelligence, trafficEngine, dynamicPricing });

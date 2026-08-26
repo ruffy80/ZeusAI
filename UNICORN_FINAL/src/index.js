@@ -4474,16 +4474,23 @@ async function unicornHandler(req, res) {
       if (fu === '/seo/robots.txt') return ftext(200, frontier.robotsTxt(APP_URL));
       // Do NOT override /robots.txt here — sovereign-extensions owns the
       // authoritative AI-agent-friendly robots.txt at the root.
-      // IndexNow key file — must match backend traffic-engine derivation
-      // (sha256('zeusai-indexnow:'+host) → 32 hex). Search engines fetch this
-      // to verify URL-submission ownership. RO: fișierul-cheie IndexNow.
-      if (/^\/indexnow-[0-9a-f]{16,64}\.txt$/.test(fu)) {
+      // IndexNow key file — protocol requires https://{host}/{key}.txt.
+      // Keep /indexnow-{key}.txt as a backward-compatible alias.
+      // Must match backend traffic-engine derivation
+      // (sha256('zeusai-indexnow:'+host) → 32 hex).
+      {
         const inHost = (() => { try { return new URL(APP_URL).host; } catch (_) { return 'zeusai.pro'; } })();
         const inKey = process.env.INDEXNOW_KEY
           ? String(process.env.INDEXNOW_KEY).slice(0, 64)
-          : crypto.createHash('sha256').update('zeusai-indexnow:' + inHost).digest('hex').slice(0, 32);
-        if (fu === '/indexnow-' + inKey + '.txt') return ftext(200, inKey);
-        return ftext(404, 'unknown indexnow key');
+          : (process.env.MARKETING_INDEXNOW_KEY
+            ? String(process.env.MARKETING_INDEXNOW_KEY).slice(0, 64)
+            : crypto.createHash('sha256').update('zeusai-indexnow:' + inHost).digest('hex').slice(0, 32));
+        if (fu === '/' + inKey + '.txt' || fu === '/indexnow-' + inKey + '.txt') {
+          return ftext(200, inKey);
+        }
+        if (/^\/indexnow-[0-9a-f]{16,64}\.txt$/.test(fu) || /^\/[0-9a-f]{16,64}\.txt$/.test(fu)) {
+          return ftext(404, 'unknown indexnow key');
+        }
       }
       if (fu === '/openapi.json' || fu === '/api/openapi')  return fsend(200, frontier.openApiSpec());
       if (fu === '/openapi-public.json' || fu === '/api/openapi/public') {

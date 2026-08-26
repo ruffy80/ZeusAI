@@ -16,7 +16,8 @@
 //
 // What it actually does (no fake claims):
 //   • IndexNow protocol (api.indexnow.org → Bing, Seznam, Naver, Yandex):
-//     deterministic key, served by the site at /indexnow-<key>.txt.
+//     deterministic key, served by the site at /{key}.txt (protocol root)
+//     with /indexnow-{key}.txt kept as a backward-compatible alias.
 //   • Google: sitemap discovery only (Google retired the ping endpoint in
 //     2023 — we record that honestly instead of pretending to ping).
 //   • Builds the canonical URL inventory: core pages + every /services/:id
@@ -54,6 +55,11 @@ function indexNowKey() {
   if (process.env.INDEXNOW_KEY) return String(process.env.INDEXNOW_KEY).slice(0, 64);
   if (process.env.MARKETING_INDEXNOW_KEY) return String(process.env.MARKETING_INDEXNOW_KEY).slice(0, 64);
   return crypto.createHash('sha256').update('zeusai-indexnow:' + HOST).digest('hex').slice(0, 32);
+}
+
+/** Protocol-correct key URL: https://{host}/{key}.txt */
+function indexNowKeyLocation() {
+  return APP_URL + '/' + indexNowKey() + '.txt';
 }
 
 const state = {
@@ -153,7 +159,7 @@ async function pingAll(opts) {
   const submission = {
     at: new Date().toISOString(),
     urlCount: urlList.length,
-    keyLocation: APP_URL + '/indexnow-' + key + '.txt',
+    keyLocation: indexNowKeyLocation(),
     engines: [],
     dryRun,
   };
@@ -219,8 +225,9 @@ async function runCycle(opts) {
 function start() {
   if (_interval) return { ok: true, alreadyRunning: true };
   state.startedAt = new Date().toISOString();
-  // First run after 90s (let the box settle post-deploy), then every 6h.
-  const kick = setTimeout(() => { runCycle().catch((e) => console.warn('[' + NAME + '] cycle failed:', e && e.message)); }, 90 * 1000);
+  // First run after 20s (post-deploy canary settle), then every 6h.
+  const kickMs = Math.max(5_000, parseInt(process.env.TRAFFIC_ENGINE_BOOT_DELAY_MS || '20000', 10));
+  const kick = setTimeout(() => { runCycle().catch((e) => console.warn('[' + NAME + '] cycle failed:', e && e.message)); }, kickMs);
   if (kick.unref) kick.unref();
   _interval = setInterval(() => {
     runCycle().catch((e) => console.warn('[' + NAME + '] cycle failed:', e && e.message));
@@ -244,7 +251,8 @@ function getStatus() {
     runs: state.runs,
     intervalMinutes: Math.round(INTERVAL_MS / 60000),
     host: HOST,
-    indexNowKeyLocation: APP_URL + '/indexnow-' + indexNowKey() + '.txt',
+    indexNowKeyLocation: indexNowKeyLocation(),
+    indexNowKeyAlias: APP_URL + '/indexnow-' + indexNowKey() + '.txt',
     urlInventory: urlsToSubmit().length,
     lastSubmission: state.lastSubmission,
     outreach: state.outreach,
@@ -261,4 +269,16 @@ function _resetForTests() {
 
 _loadState();
 
-module.exports = { name: NAME, start, stop, runCycle, pingAll, buildOutreachQueue, urlsToSubmit, indexNowKey, getStatus, _resetForTests };
+module.exports = {
+  name: NAME,
+  start,
+  stop,
+  runCycle,
+  pingAll,
+  buildOutreachQueue,
+  urlsToSubmit,
+  indexNowKey,
+  indexNowKeyLocation,
+  getStatus,
+  _resetForTests,
+};
