@@ -955,6 +955,9 @@ app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
 app.get('/api/aacos/status', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
 app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
+app.get('/api/agde/status', siteProxyToUnicorn('/api/agde/status'));
+app.get('/api/agde/ledger', siteProxyToUnicorn('/api/agde/ledger'));
+app.get(['/api/agde', '/api/dominance/status', '/.well-known/agde.json'], siteProxyToUnicorn('/api/agde/status'));
 app.get('/api/icp/status', siteProxyToUnicorn('/api/icp/status'));
 app.get('/api/icp/dca', siteProxyToUnicorn('/api/icp/dca'));
 app.get('/api/icp/edge-bond', siteProxyToUnicorn('/api/icp/edge-bond'));
@@ -6583,6 +6586,10 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       // /buy is a real SSR conversion storefront (sell-surface) — not an alias
       '/social': '/social-network',
       '/zeusai-social': '/social-network',
+      '/referral': '/affiliate',
+      '/referrals': '/affiliate',
+      '/rss': '/feed.xml',
+      '/rss.xml': '/feed.xml',
     };
     if (aliasMap[urlPath]) {
       res.writeHead(302, { Location: aliasMap[urlPath], 'Cache-Control': 'no-store' });
@@ -6620,6 +6627,20 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   if (urlPath === '/industries') {
+    // Browser navigations → human verticals page; JSON clients keep the list.
+    const accept = String(req.headers['accept'] || '');
+    const fetchDest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+    const fetchMode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
+    const wantsHtml = (
+      req.headers['x-unicorn-partial'] === '1'
+      || fetchDest === 'document'
+      || fetchMode === 'navigate'
+      || (accept.indexOf('text/html') !== -1 && accept.indexOf('application/json') === -1)
+    );
+    if (wantsHtml && req.method === 'GET') {
+      res.writeHead(302, { Location: '/verticals', 'Cache-Control': 'no-store' });
+      return res.end('Redirecting to /verticals');
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ items: getRuntimeDataSources().industries }));
   }
@@ -7615,6 +7636,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         clos_yield:        '/api/clos/yield',
         aacos:             '/.well-known/aacos.json',
         aacos_actions:     '/api/aacos/actions',
+        agde:              '/.well-known/agde.json',
+        agde_status:       '/api/agde/status',
 
         world_continuum:   '/api/dropship/world-continuum',
         dropship_store:    '/dropship',
