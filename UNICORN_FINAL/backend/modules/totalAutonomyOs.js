@@ -325,6 +325,21 @@ class TotalAutonomyOs {
     } catch (e) { aacosDetail = e && e.message; }
     pillars.push(this._pillar('aacos', 8, aacosOk, aacosDetail, aacosScore));
 
+    // 7c) AGDE / World Gravity Continuum
+    let agdeOk = false;
+    let agdeDetail = 'unavailable';
+    let agdeScore = 40;
+    try {
+      const agde = safeRequire('./autonomousGlobalDominanceEngine');
+      const st = agde && typeof agde.getStatus === 'function' ? agde.getStatus() : null;
+      if (st) {
+        agdeOk = !!(st.armed || st.running);
+        agdeScore = agdeOk ? Math.min(100, 40 + (Number(st.gravity) || 0) * 0.6) : 30;
+        agdeDetail = `gravity=${st.gravity};bottleneck=${st.bottleneck};ticks=${st.ticks || 0}`;
+      }
+    } catch (e) { agdeDetail = e && e.message; }
+    pillars.push(this._pillar('agde', 6, agdeOk, agdeDetail, agdeScore));
+
     // 8) Process / host posture
     const rssMb = Math.round(process.memoryUsage().rss / (1024 * 1024));
     const rssCap = parseInt(process.env.AUTONOMY_RSS_SOFT_CAP_MB || '2300', 10);
@@ -607,6 +622,11 @@ class TotalAutonomyOs {
     tryStart('workflowEngine', () => {
       const wf = safeRequire('./workflowEngine');
       if (wf && typeof wf.start === 'function') wf.start();
+    });
+
+    tryStart('autonomousGlobalDominanceEngine', () => {
+      const agde = safeRequire('./autonomousGlobalDominanceEngine');
+      if (agde && typeof agde.start === 'function') agde.start();
     });
 
     tryStart('ai-self-healing', () => {
