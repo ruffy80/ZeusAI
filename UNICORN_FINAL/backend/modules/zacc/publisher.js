@@ -18,6 +18,7 @@ const { OWNER_BTC, now, slug, round2, shortId, logger } = require('./util');
 const describe = require('./describe');
 const { coverPath } = require('./product-cover');
 const { isQualityTitle, isQualityImage } = require('./world-feeds');
+const uscf = require('./suppliers');
 
 const log = logger('publisher');
 
@@ -110,30 +111,15 @@ class AutoPublisher {
     const supplierRef = scored.supplierRef != null ? scored.supplierRef : null;
     const weightKg = Number(scored.weightKg) || 0;
     const originCountry = scored.originCountry || null;
-    const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
-    // Honest delivery mode:
-    //  - CJ key + real dispatchable supplierRef (variant id, not a world-feed
-    //    reference like "dummyjson:123" and not curated demoOnly) → global CJ
-    //    dropship (truly auto-shippable)
-    //  - otherwise → Zeus Fulfillment Desk (durable owner queue; not "fake auto").
-    // Dispatchable = CJ variant id (`vid`) that CJ will accept as a real order
-    // line. World-feed and curated refs are NOT dispatchable and MUST NOT be
-    // advertised as "ships automatically".
-    const rawSupplierRef = supplierRef != null ? String(supplierRef) : '';
-    const supplierLower = String(supplier || '').toLowerCase();
-    const sourceLower = String(scored.source || '').toLowerCase();
-    const dispatchable = hasCj
-      && !demoOnly
-      && !!rawSupplierRef
-      && !rawSupplierRef.includes(':') // world-feed refs like "dummyjson:1" carry a colon
-      && supplier !== 'world-feed'
-      && supplier !== 'manual'
-      && supplierLower !== 'escuela-world'
-      && !sourceLower.includes('escuela')
-      && !sourceLower.includes('dummyjson')
-      && !sourceLower.includes('fakestore');
-    const deliveryMode = dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk';
-    const fulfillmentMode = dispatchable ? 'cj-auto' : 'desk';
+    const evald = uscf.evaluateSku({
+      demoOnly,
+      supplier,
+      supplierRef,
+      source: scored.source,
+    });
+    const dispatchable = evald.dispatchable === true;
+    const deliveryMode = evald.deliveryMode || (dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk');
+    const fulfillmentMode = evald.fulfillmentMode || (dispatchable ? 'cj-auto' : 'desk');
     const item = {
       id,
       title: scored.name,
@@ -166,22 +152,16 @@ class AutoPublisher {
       fulfillmentMode,
       dispatchable,
       // A real fulfillment recipe (what actually gets delivered when the
-      // invoice is paid): either a CJ variant we can order, or the Zeus
-      // Fulfillment Desk queue owner clears manually. Non-dispatchable SKUs
-      // are honest about that — no "ships automatically" claim.
+      // invoice is paid): USCF-armed supplier with a valid variant, or the
+      // Zeus Fulfillment Desk. Non-dispatchable SKUs never claim AUTO-SHIP.
       fulfillmentRecipe: {
-        kind: dispatchable ? 'cj-dropship' : 'zeus-fulfillment-desk',
+        kind: dispatchable ? (evald.provider || 'uscf-auto') : 'zeus-fulfillment-desk',
         supplier,
         supplierRef: supplierRef != null ? supplierRef : null,
+        provider: evald.provider || null,
         automated: dispatchable,
-        badge: dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL',
-        note: dispatchable
-          ? 'Ships automatically via CJ Dropshipping using variant ' + rawSupplierRef + '.'
-          : (demoOnly
-              ? 'Curated demo SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
-              : (hasCj
-                  ? 'No CJ variant id for this SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
-                  : 'No CJ API key armed yet — routed through the Zeus Fulfillment Desk (owner-cleared queue).')),
+        badge: evald.badge || (dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL'),
+        note: evald.note,
       },
       delivery: { mode: deliveryMode, automated: dispatchable, etaDays: dispatchable ? '7-21' : '7-30' },
       metrics: { views: 0, carts: 0, sales: 0, revenueUsd: 0, delivered: 0 },
@@ -258,42 +238,33 @@ class AutoPublisher {
   /**
    * Restamp honesty fields on a live product that may have been published
    * before fulfillmentMode / fulfillmentRecipe existed. Mutates in place;
-   * never invents AUTO-SHIP without a real CJ vid + armed key.
+   * never invents AUTO-SHIP without an armed USCF supplier + valid variant.
    */
   _ensureHonesty(p) {
     if (!p || typeof p !== 'object') return p;
-    const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
     const demoOnly = p.demoOnly === true;
     const supplier = p.supplier || (p.source === 'zeus-curated' ? 'manual' : (p.source || 'unknown'));
-    const rawSupplierRef = p.supplierRef != null ? String(p.supplierRef) : '';
-    const dispatchable = hasCj
-      && !demoOnly
-      && !!rawSupplierRef
-      && !rawSupplierRef.includes(':')
-      && supplier !== 'world-feed'
-      && supplier !== 'manual'
-      && supplier !== 'escuela-world'
-      && !String(p.source || '').includes('escuela')
-      && !String(p.source || '').includes('dummyjson')
-      && !String(p.source || '').includes('fakestore');
-    const fulfillmentMode = dispatchable ? 'cj-auto' : 'desk';
+    const evald = uscf.evaluateSku({
+      demoOnly,
+      supplier,
+      supplierRef: p.supplierRef,
+      source: p.source,
+    });
+    const dispatchable = evald.dispatchable === true;
     p.supplier = supplier;
     p.dispatchable = dispatchable;
-    p.fulfillmentMode = fulfillmentMode;
+    p.fulfillmentMode = evald.fulfillmentMode || (dispatchable ? 'cj-auto' : 'desk');
     p.fulfillmentRecipe = {
-      kind: dispatchable ? 'cj-dropship' : 'zeus-fulfillment-desk',
+      kind: dispatchable ? (evald.provider || 'uscf-auto') : 'zeus-fulfillment-desk',
       supplier,
       supplierRef: p.supplierRef != null ? p.supplierRef : null,
+      provider: evald.provider || null,
       automated: dispatchable,
-      badge: dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL',
-      note: dispatchable
-        ? 'Ships automatically via CJ Dropshipping using variant ' + rawSupplierRef + '.'
-        : (hasCj
-            ? 'No CJ variant id for this SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
-            : 'No CJ API key armed yet — routed through the Zeus Fulfillment Desk (owner-cleared queue).'),
+      badge: evald.badge || (dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL'),
+      note: evald.note,
     };
     if (!p.delivery || typeof p.delivery !== 'object') p.delivery = {};
-    p.delivery.mode = dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk';
+    p.delivery.mode = evald.deliveryMode || (dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk');
     p.delivery.automated = dispatchable;
     if (!p.delivery.etaDays) p.delivery.etaDays = dispatchable ? '7-21' : '7-30';
     return p;
@@ -335,13 +306,21 @@ class AutoPublisher {
   }
 
   list(opts) {
-    const { sort = 'profit', category, limit = 60, search, includeHidden, includeLuxuryPreview } = opts || {};
+    const {
+      sort = 'profit',
+      category,
+      limit = 60,
+      search,
+      includeHidden,
+      includeLuxuryPreview,
+      dispatchableOnly,
+    } = opts || {};
     let items = this.published.slice();
     // Autonomous Shelf Protocol: soft-hidden SKUs stay in memory but leave the
     // public storefront unless an operator explicitly asks for them.
     if (!includeHidden) items = items.filter((p) => !p.shelfHidden);
     // Restamp honesty badges on every list so pre-upgrade SKUs never claim
-    // AUTO-SHIP without a real CJ vid.
+    // AUTO-SHIP without an armed USCF supplier + valid variant.
     for (const p of items) this._ensureHonesty(p);
     // Billion Profit Path — hide absurd non-dispatchable luxury previews
     // (Rolex/cars/etc.) from the default public shelf. They remain fetchable
@@ -356,6 +335,9 @@ class AutoPublisher {
         if (LUXRE.test(title) || LUXRE.test(String(p && p.id || ''))) return false;
         return true;
       });
+    }
+    if (dispatchableOnly === true || dispatchableOnly === '1' || dispatchableOnly === 1) {
+      items = items.filter((p) => p && p.dispatchable === true);
     }
     if (category) items = items.filter(p => p.category === category);
     if (search) {
@@ -373,8 +355,26 @@ class AutoPublisher {
         if (ar !== br) return ar - br;
         return (b.shelf && b.shelf.fitness || 0) - (a.shelf && a.shelf.fitness || 0);
       });
+    } else if (sort === 'autoship' || sort === 'dispatchable') {
+      // Profit Gravity: AUTO-SHIP first, then net margin / profit potential.
+      items.sort((a, b) => {
+        const ad = a.dispatchable === true ? 1 : 0;
+        const bd = b.dispatchable === true ? 1 : 0;
+        if (bd !== ad) return bd - ad;
+        const ap = Number(a.netProfitUsd) || Number(a.profitPotential) || 0;
+        const bp = Number(b.netProfitUsd) || Number(b.profitPotential) || 0;
+        return bp - ap;
+      });
+    } else {
+      // Default profit gravity: still prefer dispatchable when margins tie-ish.
+      items.sort((a, b) => {
+        const score = (p) => {
+          const base = Number(p.profitPotential) || 0;
+          return base + (p.dispatchable === true ? 40 : 0);
+        };
+        return score(b) - score(a);
+      });
     }
-    else items.sort((a, b) => b.profitPotential - a.profitPotential); // default: profit
     return items.slice(0, Math.min(MAX_PUBLISHED, limit));
   }
 
