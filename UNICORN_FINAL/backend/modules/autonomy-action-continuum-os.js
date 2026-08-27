@@ -443,6 +443,11 @@ function linkModules() {
   } catch (_) {}
 
   try {
+    const taac = _safeRequire('./total-autonomy-activation-continuum');
+    if (taac) linked.push('total-autonomy-activation-continuum');
+  } catch (_) {}
+
+  try {
     const agde = _safeRequire('./autonomousGlobalDominanceEngine');
     if (agde) {
       linked.push('autonomousGlobalDominanceEngine');

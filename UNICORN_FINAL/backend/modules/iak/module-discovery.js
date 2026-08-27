@@ -107,6 +107,16 @@ const STABLE_START_ALLOW = new Set([
   'total-ecosystem-perfection-os',
   'totalEcosystemPerfectionOs',
   'adaptiveEnginePool',
+  'autonomousGlobalDominanceEngine',
+  'autonomous-global-dominance-engine',
+  'traffic-engine',
+  'trafficEngine',
+  'growth-brain',
+  'growthBrain',
+  'telegram-credential-continuum',
+  'total-autonomy-activation-continuum',
+  'revenue-invention-continuum-os',
+  'billion-autonomy-loop-os',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

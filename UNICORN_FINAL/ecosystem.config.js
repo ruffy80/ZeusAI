@@ -162,10 +162,22 @@ module.exports = {
         IAK_HARMONIC_MS: process.env.IAK_HARMONIC_MS || '120000',
         IAK_SYNC_EVERY: process.env.IAK_SYNC_EVERY || '30',
         IAK_CONTINUUM_EVERY: process.env.IAK_CONTINUUM_EVERY || '60',
-        // PCL / BALOS — default off under stable (see profit-control-loop + index.js)
+        // PCL — keep off on 8GB unless host overrides
         PCL_DISABLED: process.env.PCL_DISABLED || '1',
         PROFIT_LOOP_AUTOSTART: process.env.PROFIT_LOOP_AUTOSTART || '0',
-        DISABLE_BILLION_AUTONOMY_LOOP: process.env.DISABLE_BILLION_AUTONOMY_LOOP || '1',
+        // BALOS/1.0 — IndexNow money flywheel ON (credential-honest; never invents GMV).
+        // Was parked after 2026-08-11 health hang; TAAC + longer bootDelay keep health warm.
+        DISABLE_BILLION_AUTONOMY_LOOP: process.env.DISABLE_BILLION_AUTONOMY_LOOP || '0',
+        BILLION_AUTONOMY_LOOP_FORCE: process.env.BILLION_AUTONOMY_LOOP_FORCE || '1',
+        // TAOS safe arm — orchestrator + healers, never file mutators
+        TOTAL_AUTONOMY_SAFE_ARM: process.env.TOTAL_AUTONOMY_SAFE_ARM || '1',
+        TAOS_SAFE_ARM: process.env.TAOS_SAFE_ARM || '1',
+        // TAAC/1.0 Total Autonomy Activation Continuum
+        TAAC_DISABLED: process.env.TAAC_DISABLED || '0',
+        TAAC_BOOT_DELAY_MS: process.env.TAAC_BOOT_DELAY_MS || '25000',
+        // Lead hunter + auto-marketing — skip internally when outbound unarmed
+        LEAD_HUNTER_FORCE: process.env.LEAD_HUNTER_FORCE || '1',
+        AUTO_MARKETING_FORCE: process.env.AUTO_MARKETING_FORCE || '1',
         // Innovation generation + auto-ship OFF under safe/stable (Commercial Cycle).
         // Arm only after money path is proven: INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1
         // under UNICORN_RUNTIME_PROFILE=growth.

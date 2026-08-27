@@ -4471,8 +4471,17 @@ if (_isPrimaryWorker) {
   if (!_stableRuntime) {
     revenueModules.startAutoRevenue();
   }
-  if (!_stableRuntime) {
-    try { autoMarketing.init?.(); autoMarketing.start?.(); } catch (e) { console.warn('[autoMarketing] init/start failed:', e.message); }
+  {
+    const _amForce = ['1', 'true', 'yes', 'on'].includes(String(process.env.AUTO_MARKETING_FORCE || '').toLowerCase());
+    if (!_stableRuntime || _amForce) {
+      try {
+        autoMarketing.init?.();
+        autoMarketing.start?.();
+        console.log('📣 Auto-Marketing: ACTIVE' + (_stableRuntime ? ' (AUTO_MARKETING_FORCE)' : ''));
+      } catch (e) { console.warn('[autoMarketing] init/start failed:', e.message); }
+    } else {
+      console.log('📣 Auto-Marketing: idle under stable (set AUTO_MARKETING_FORCE=1)');
+    }
   }
 
   // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
@@ -5125,6 +5134,18 @@ try {
   console.log('💎 RIVOS/1.0 Revenue Invention Continuum: MOUNTED');
 } catch (e) {
   console.warn('[RIVOS] load/start failed:', e && e.message);
+}
+
+// TAAC/1.0 — Total Autonomy Activation Continuum (arms BALOS/TAOS/AACOS/… forever)
+let totalAutonomyActivationContinuum = null;
+try {
+  totalAutonomyActivationContinuum = require('./modules/total-autonomy-activation-continuum');
+  if (process.env.NODE_ENV !== 'test' && process.env.TAAC_DISABLED !== '1') {
+    totalAutonomyActivationContinuum.start();
+  }
+  console.log('♾️ TAAC/1.0 Total Autonomy Activation Continuum: MOUNTED');
+} catch (e) {
+  console.warn('[TAAC] load/start failed:', e && e.message);
 }
 
 // AGDE / WGC/1.0 — World Gravity Continuum: bottleneck→dispatch over real growth organs
@@ -8840,6 +8861,44 @@ app.post('/api/rivos/tick', adminTokenMiddleware, async (req, res) => {
     return res.json(out);
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, protocol: 'RIVOS/1.0' });
+  }
+});
+
+// TAAC/1.0 — Total Autonomy Activation Continuum
+app.get(['/api/taac/status', '/api/taac', '/.well-known/taac.json'], (req, res) => {
+  try {
+    const taac = totalAutonomyActivationContinuum || require('./modules/total-autonomy-activation-continuum');
+    res.set('Cache-Control', 'public, max-age=15');
+    return res.json(taac.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'TAAC/1.0' });
+  }
+});
+app.post('/api/taac/arm', adminTokenMiddleware, async (req, res) => {
+  try {
+    const taac = totalAutonomyActivationContinuum || require('./modules/total-autonomy-activation-continuum');
+    const out = await taac.armAll({
+      dryRun: !!(req.body && req.body.dryRun),
+      forceMdsp: !!(req.body && req.body.forceMdsp),
+      forceLeadHunter: !!(req.body && req.body.forceLeadHunter),
+      forceMarketing: !!(req.body && req.body.forceMarketing),
+    });
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'TAAC/1.0' });
+  }
+});
+app.post('/api/taac/tick', adminTokenMiddleware, async (req, res) => {
+  try {
+    const taac = totalAutonomyActivationContinuum || require('./modules/total-autonomy-activation-continuum');
+    const out = await taac.tick({
+      force: true,
+      dryRun: !!(req.body && req.body.dryRun),
+      source: 'api-backend',
+    });
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'TAAC/1.0' });
   }
 });
 
@@ -16908,13 +16967,23 @@ app.post('/api/autonomy/digest', async (req, res) => {
 let _leadHunter, _ctxMemory, _subEngine;
 try {
   _leadHunter = require('./modules/autonomous-lead-hunter');
-  // Phase 5: under stable profile, do not burn idle cycles unless forced.
+  // Arm under stable when forced OR when Telegram/email can actually deliver.
   const _leadForce = ['1', 'true', 'yes', 'on'].includes(String(process.env.LEAD_HUNTER_FORCE || '').toLowerCase());
-  if (!_stableRuntime || _leadForce) {
+  let _leadCreds = false;
+  try {
+    const tcc = require('./modules/telegram-credential-continuum');
+    if (tcc && typeof tcc.ensureArmed === 'function') {
+      const s = tcc.ensureArmed();
+      _leadCreds = !!(s && (s.readyForOwnerAlert || s.readyForGroupMoney));
+    }
+  } catch (_) {
+    _leadCreds = !!(process.env.TELEGRAM_BOT_TOKEN || process.env.RESEND_API_KEY || process.env.SMTP_PASS);
+  }
+  if (!_stableRuntime || _leadForce || _leadCreds) {
     _leadHunter.start();
-    console.log('[pro-plus] autonomous-lead-hunter ACTIVE' + (_stableRuntime ? ' (LEAD_HUNTER_FORCE)' : ''));
+    console.log('[pro-plus] autonomous-lead-hunter ACTIVE' + (_stableRuntime ? ' (stable+creds/force)' : ''));
   } else {
-    console.log('[pro-plus] autonomous-lead-hunter loaded idle (stable profile — set LEAD_HUNTER_FORCE=1 to arm)');
+    console.log('[pro-plus] autonomous-lead-hunter loaded idle (stable — set LEAD_HUNTER_FORCE=1 or arm Telegram/email)');
   }
 } catch (e) { console.warn('[pro-plus][lead-hunter] load failed:', e && e.message); }
 
@@ -17307,19 +17376,21 @@ if (require.main === module) {
     }
 
     // Billion Autonomy Loop — IndexNow / enterprise notify / CJ watch.
-    // Under stable/safe keep it IDLE: the boot tick + telegram posts were
-    // starving /api/health on the 8GB VPS (live hang 2026-08-11). Arm with
-    // DISABLE_BILLION_AUTONOMY_LOOP=0 + BILLION_AUTONOMY_LOOP_FORCE=1, or
-    // switch to UNICORN_RUNTIME_PROFILE=growth once money path is green.
+    // Default ON via ecosystem (DISABLE=0 + FORCE=1). Longer bootDelay avoids
+    // starving /api/health on cold boot. TAAC also re-arms if this path skips.
     try {
+      const _balosForce = ['1', 'true', 'yes', 'on'].includes(String(process.env.BILLION_AUTONOMY_LOOP_FORCE || '').toLowerCase());
       const _balosOff = process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1'
-        || (_stableRuntime && process.env.BILLION_AUTONOMY_LOOP_FORCE !== '1');
+        && !_balosForce;
       if (_balosOff) {
-        console.log('♾️ Billion Autonomy Loop: IDLE under stable (set BILLION_AUTONOMY_LOOP_FORCE=1 to arm)');
+        console.log('♾️ Billion Autonomy Loop: IDLE (set DISABLE_BILLION_AUTONOMY_LOOP=0 or BILLION_AUTONOMY_LOOP_FORCE=1)');
       } else {
+        if (process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1' && _balosForce) {
+          process.env.DISABLE_BILLION_AUTONOMY_LOOP = '0';
+        }
         const balos = require('../src/commerce/billion-autonomy-loop-os');
         if (balos && typeof balos.start === 'function') {
-          const st = balos.start({ bootDelayMs: 90000 });
+          const st = balos.start({ bootDelayMs: Number(process.env.BALOS_BOOT_DELAY_MS || 90000) });
           console.log('♾️ Billion Autonomy Loop: ' + (st && st.ok ? 'ACTIVE' : ('IDLE ' + (st && st.reason || ''))));
         }
       }
