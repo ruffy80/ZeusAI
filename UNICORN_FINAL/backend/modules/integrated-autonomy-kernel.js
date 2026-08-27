@@ -412,13 +412,15 @@ class IntegratedAutonomyKernel extends EventEmitter {
   }
 
   _phaseHeal() {
-    if (this.mode !== 'monitor') {
-      for (const [name, entry] of this.registry) {
-        if (this.quarantine.has(name)) continue;
-        if (entry.healthy) continue;
-        if (!entry.depsReady) continue; // Causal Boot: don't thrash heal before deps
-        this._healModule(name, entry);
-      }
+    // monitor = observe only. safe-autonomy + full = heal non-mutators.
+    if (this.mode === 'monitor') return;
+    for (const [name, entry] of this.registry) {
+      if (this.quarantine.has(name)) continue;
+      if (entry.healthy) continue;
+      if (!entry.depsReady) continue; // Causal Boot: don't thrash heal before deps
+      // Under safe-autonomy never heal mutator-tier modules
+      if (this.mode === 'safe-autonomy' && entry.tier === 'mutator') continue;
+      this._healModule(name, entry);
     }
   }
 
@@ -649,10 +651,67 @@ class IntegratedAutonomyKernel extends EventEmitter {
       this._log(`⚠️ continuum discover failed: ${e.message}`);
     }
     try {
-      // Under monitor mode still allow stable allowlist starts (infra forever-on)
+      // Under monitor/safe-autonomy still allow stable allowlist starts (infra forever-on)
       this.causalStart();
     } catch (e) {
       this._log(`⚠️ continuum causalStart failed: ${e.message}`);
+    }
+    // Master duty: drive TAAC armAll under safe-autonomy / full (never invent GMV)
+    try {
+      this.ensureSafeAutonomyActivation({ source: 'iak-continuum' });
+    } catch (e) {
+      this._log(`⚠️ TAAC arm via IAK failed: ${e.message}`);
+    }
+  }
+
+  /**
+   * IAK master → TAAC activation organ.
+   * Idempotent. Never enables file mutators.
+   */
+  ensureSafeAutonomyActivation(opts = {}) {
+    const mode = this.mode || 'monitor';
+    if (mode === 'monitor' && process.env.IAK_FORCE_TAAC !== '1') {
+      return { ok: false, skipped: true, reason: 'iak_monitor_no_taac' };
+    }
+    try {
+      const taac = require('./total-autonomy-activation-continuum');
+      if (!taac) return { ok: false, reason: 'taac_unavailable' };
+      if (typeof taac.start === 'function' && process.env.TAAC_DISABLED !== '1') {
+        try { taac.start({ bootDelayMs: 1000 }); } catch (_) { /* already running */ }
+      }
+      if (typeof taac.armAll !== 'function') return { ok: false, reason: 'taac_no_armAll' };
+      const p = taac.armAll({ source: opts.source || 'iak', dryRun: !!opts.dryRun });
+      this._discovery.lastSafeActivation = {
+        at: new Date().toISOString(),
+        source: opts.source || 'iak',
+        pending: !!(p && typeof p.then === 'function'),
+      };
+      if (p && typeof p.then === 'function') {
+        p.then((r) => {
+          this._discovery.lastSafeActivation = {
+            at: new Date().toISOString(),
+            source: opts.source || 'iak',
+            armedOk: r && r.armedOk,
+            ok: !!(r && r.ok),
+          };
+        }).catch((e) => {
+          this._discovery.lastSafeActivation = {
+            at: new Date().toISOString(),
+            ok: false,
+            error: String(e && e.message || e).slice(0, 120),
+          };
+        });
+        return { ok: true, queued: true };
+      }
+      this._discovery.lastSafeActivation = {
+        at: new Date().toISOString(),
+        source: opts.source || 'iak',
+        armedOk: p && p.armedOk,
+        ok: !!(p && p.ok),
+      };
+      return Object.assign({ ok: !!(p && p.ok) }, p || {});
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e).slice(0, 120) };
     }
   }
 
@@ -769,17 +828,40 @@ class IntegratedAutonomyKernel extends EventEmitter {
     soft('cpa', './control-plane-agent');
     soft('aacos', './autonomy-action-continuum-os');
     soft('taos', './totalAutonomyOs');
+    soft('taac', './total-autonomy-activation-continuum');
     soft('clos', './closed-loop-commerce-os');
     soft('preKeys', './pre-keys-activation');
     soft('workflowEngine', './workflowEngine');
+    soft('agde', './autonomousGlobalDominanceEngine');
+    soft('tcc', './telegram-credential-continuum');
+    soft('traffic', './traffic-engine');
+    soft('growthBrain', './growth-brain');
+    try {
+      const rivos = require('../../src/commerce/revenue-invention-continuum-os');
+      if (rivos && typeof rivos.status === 'function') organs.rivos = rivos.status();
+      else if (rivos && typeof rivos.discovery === 'function') organs.rivos = rivos.discovery();
+      else organs.rivos = { present: !!rivos };
+    } catch (e) {
+      organs.rivos = { available: false, error: e && e.message };
+    }
+    try {
+      const balos = require('../../src/commerce/billion-autonomy-loop-os');
+      if (balos && typeof balos.status === 'function') organs.balos = balos.status();
+      else organs.balos = { present: !!balos };
+    } catch (e) {
+      organs.balos = { available: false, error: e && e.message };
+    }
 
     const lastCausal = this._discovery.lastCausalStart;
 
     return {
       ok: true,
       id: KERNEL_ID,
+      master: true,
+      role: 'Integrated Autonomy Kernel — single master orchestrator',
       running: this.running,
       mode: this.mode || 'full',
+      safeAutonomy: this.mode === 'safe-autonomy' || this.mode === 'full',
       uptimeMs: Date.now() - this.startedAt,
       cycleCount: this.cycleCount,
       phase: PHASES[(this.phaseIndex + PHASES.length - 1) % PHASES.length],
@@ -803,6 +885,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
       recentLog: this.eventLog.slice(-20),
       discovery: { ...this._discovery, startedByIak: this._startedByIak.size },
       lastCausalStart: lastCausal,
+      lastSafeActivation: this._discovery.lastSafeActivation || null,
       continuum: {
         skipReasons: (lastCausal && lastCausal.skipReasons) || {},
         started: lastCausal && lastCausal.started,
@@ -811,6 +894,12 @@ class IntegratedAutonomyKernel extends EventEmitter {
         at: lastCausal && lastCausal.at,
       },
       organs,
+      policy: {
+        inventGmv: 'never',
+        fileMutators: 'never_under_safe_autonomy',
+        ueeEternal: 'never_under_safe_autonomy',
+        outbound: 'credential_gated',
+      },
       innovations: [
         'harmonic_phased_tick',
         'causal_boot_graph',
@@ -818,6 +907,8 @@ class IntegratedAutonomyKernel extends EventEmitter {
         'total_module_continuum',
         'honesty_fence',
         'organ_status_collapse',
+        'safe_autonomy_plane',
+        'taac_master_activation',
       ],
     };
   }

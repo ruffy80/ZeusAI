@@ -4955,7 +4955,7 @@ try {
 // then arm the harmonic tick so health/heal/sync runs forever.
 (function bootIntegratedAutonomyKernel() {
   // DPAK recommends IAK mode from dual-plane doctrine (safe vs growth)
-  let iakMode = _stableRuntime ? 'monitor' : 'full';
+  let iakMode = _stableRuntime ? 'safe-autonomy' : 'full';
   let ensureFacets = !_stableRuntime;
   let guardianMode = _stableRuntime ? 'idle' : 'full';
   try {
@@ -5079,14 +5079,25 @@ try {
     meshOrchestrator.start({ mode: 'full', ensureFacets, guardianMode });
     unicornOrchestrator.start('full'); // guardian facet — 8 motoare autonome
     forwardOnlySafety.startHarmonyMonitor();
+    try {
+      if (typeof meshOrchestrator.ensureSafeAutonomyActivation === 'function') {
+        meshOrchestrator.ensureSafeAutonomyActivation({ source: 'iak-boot-full' });
+      }
+    } catch (_) { /* ignore */ }
     console.log('🧬 Integrated Autonomy Kernel (IAK/1.1): STARTED — total module continuum armed');
     console.log('🦄 Guardian engines (8): ACTIVE via IAK');
     console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
   } else {
     try {
       if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
-        meshOrchestrator.start({ mode: 'monitor' });
-        console.log('🧯 Stable/DPAK safe-plane: IAK/1.1 monitor continuum armed (infra allowlist starts only, no heal/mutate)');
+        const mode = iakMode === 'safe-autonomy' ? 'safe-autonomy' : (iakMode || 'safe-autonomy');
+        meshOrchestrator.start({ mode, ensureFacets: false, guardianMode: 'idle' });
+        try {
+          if (typeof meshOrchestrator.ensureSafeAutonomyActivation === 'function') {
+            meshOrchestrator.ensureSafeAutonomyActivation({ source: 'iak-boot-safe' });
+          }
+        } catch (_) { /* ignore */ }
+        console.log('🧬 IAK/1.1 ' + mode + ': master continuum armed (TAAC activation + non-mutator heal; no file mutators)');
       } else {
         console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
       }
@@ -12089,7 +12100,24 @@ app.get('/api/orchestrator/status', (req, res) => {
   const guardian = unicornOrchestrator.getStatus();
   let iak = null;
   try { iak = integratedAutonomyKernel && integratedAutonomyKernel.getStatus ? integratedAutonomyKernel.getStatus() : null; } catch (_) { iak = null; }
-  res.json({ ...guardian, iak: iak ? { id: iak.id, running: iak.running, meshHealthy: iak.meshHealthy, totalModules: iak.totalModules, quarantined: iak.quarantined, innovations: iak.innovations } : null });
+  res.json({
+    ...guardian,
+    master: 'IAK/1.1',
+    status: iak && iak.running ? (iak.safeAutonomy ? 'SAFE_AUTONOMY' : (iak.mode === 'full' ? 'FULL' : 'MONITOR')) : 'PARTIAL',
+    iak: iak ? {
+      id: iak.id,
+      master: !!iak.master,
+      running: iak.running,
+      mode: iak.mode,
+      safeAutonomy: iak.safeAutonomy,
+      meshHealthy: iak.meshHealthy,
+      totalModules: iak.totalModules,
+      healthyModules: iak.healthyModules,
+      quarantined: iak.quarantined,
+      lastSafeActivation: iak.lastSafeActivation,
+      innovations: iak.innovations,
+    } : null,
+  });
 });
 
 // Integrated Autonomy Kernel — single master orchestrator status
@@ -12098,6 +12126,90 @@ app.get('/api/iak/status', (req, res) => {
     res.json(integratedAutonomyKernel.getStatus());
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Unified master autonomy desk — IAK + TAAC + key organs in one payload
+app.get(['/api/autonomy/master', '/.well-known/autonomy-master.json'], (req, res) => {
+  try {
+    const iak = integratedAutonomyKernel && typeof integratedAutonomyKernel.getStatus === 'function'
+      ? integratedAutonomyKernel.getStatus()
+      : null;
+    let taac = null;
+    try {
+      const m = totalAutonomyActivationContinuum || require('./modules/total-autonomy-activation-continuum');
+      taac = m && typeof m.discovery === 'function' ? m.discovery() : null;
+    } catch (_) { /* ignore */ }
+    let taos = null;
+    try { taos = totalAutonomyOs && typeof totalAutonomyOs.getStatus === 'function' ? totalAutonomyOs.getStatus() : null; } catch (_) {}
+    let aacos = null;
+    try {
+      const m = autonomyActionContinuumOs || require('./modules/autonomy-action-continuum-os');
+      aacos = m && typeof m.status === 'function' ? m.status() : (m && typeof m.getStatus === 'function' ? m.getStatus() : null);
+    } catch (_) {}
+    let balos = null;
+    try {
+      const m = require('../src/commerce/billion-autonomy-loop-os');
+      balos = m && typeof m.status === 'function' ? m.status() : null;
+    } catch (_) {}
+    res.set('Cache-Control', 'public, max-age=10');
+    return res.json({
+      ok: true,
+      master: 'IAK/1.1',
+      mode: iak && iak.mode,
+      safeAutonomy: !!(iak && iak.safeAutonomy),
+      running: !!(iak && iak.running),
+      iak: iak ? {
+        id: iak.id,
+        mode: iak.mode,
+        running: iak.running,
+        healthyModules: iak.healthyModules,
+        totalModules: iak.totalModules,
+        meshHealthy: iak.meshHealthy,
+        lastSafeActivation: iak.lastSafeActivation,
+        organKeys: iak.organs ? Object.keys(iak.organs) : [],
+      } : null,
+      taac: taac ? {
+        protocol: taac.protocol,
+        running: taac.running,
+        telegramReady: taac.telegramReady,
+        lastArm: taac.lastArm,
+        organKeys: taac.organs ? Object.keys(taac.organs) : [],
+      } : null,
+      taos: taos ? {
+        protocol: taos.protocol || 'TAOS/1.0',
+        score: taos.score,
+        grade: taos.grade,
+        mode: taos.mode,
+        armedSafe: taos.armedSafe,
+      } : null,
+      aacos: aacos ? {
+        protocol: aacos.protocol || 'AACOS/1.0',
+        armed: aacos.armed,
+        ticks: aacos.ticks,
+        published: aacos.published,
+        configuredOutbound: aacos.configuredOutbound,
+      } : null,
+      balos: balos ? {
+        protocol: balos.protocol,
+        running: balos.running,
+        lastTickAt: balos.lastTickAt,
+        counts: balos.counts,
+      } : null,
+      policy: (iak && iak.policy) || {
+        inventGmv: 'never',
+        fileMutators: 'never_under_safe_autonomy',
+      },
+      honesty: 'IAK is the single master. TAAC is its safe activation organ. Never invents GMV. Never enables file mutators under safe-autonomy.',
+      endpoints: {
+        iak: '/api/iak/status',
+        taac: '/api/taac/status',
+        taos: '/api/autonomy/os',
+        master: '/api/autonomy/master',
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, master: 'IAK/1.1' });
   }
 });
 
