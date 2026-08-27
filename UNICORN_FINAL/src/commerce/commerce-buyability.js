@@ -39,6 +39,77 @@ const ENTERPRISE_ID_RE = /^(ent-|enterprise)/i;
 const PROFESSIONAL_ID_RE = /^professional-/i;
 const INSTANT_ID_RE = /^instant-/i;
 
+/**
+ * DTBG/1.0 — Delivery-Truth Buy Gate
+ * Refuse self-serve buy when no honest delivery lane exists:
+ *   - physical / dropship without dispatchable supplier
+ *   - explicit requiresLiveAi / ai_required when AI Eternal OS is unarmed
+ * Digital instant SKUs remain buyable via deterministic activation packs
+ * even when AI is unarmed (honest lane = deterministic).
+ */
+function assessDeliveryTruth(itemOrId, opts = {}) {
+  const id = _id(itemOrId);
+  const item = (itemOrId && typeof itemOrId === 'object') ? itemOrId : (opts.item || null);
+  if (!id) {
+    return { ok: false, lane: 'none', reason: 'missing_id', protocol: 'DTBG/1.0' };
+  }
+
+  const niche = String((item && (item.niche || item.type || item.category)) || '').toLowerCase();
+  const isPhysical = niche === 'physical' || niche === 'dropship'
+    || (item && (item.type === 'physical' || item.fulfillment === 'physical'));
+
+  if (isPhysical || /^ds[_:-]/i.test(id) || /^dropship[_:-]/i.test(id)) {
+    if (item && item.dispatchable === false) {
+      return { ok: false, lane: 'none', reason: 'no_supplier_dispatch', protocol: 'DTBG/1.0' };
+    }
+    if (item && item.dispatchable === true) {
+      return { ok: true, lane: 'supplier', reason: 'auto_ship_ready', protocol: 'DTBG/1.0' };
+    }
+    // Virtual dropship honesty is handled by UPR; bare physical without truth → block
+    if (isPhysical && !(item && item.dispatchable === true)) {
+      return { ok: false, lane: 'none', reason: 'delivery_truth_unknown', protocol: 'DTBG/1.0' };
+    }
+  }
+
+  const requiresLiveAi = !!(item && (item.requiresLiveAi === true || item.ai_required === true
+    || String(item.fulfillmentMode || '').toLowerCase() === 'ai_required'));
+
+  let aiArmed = false;
+  let aiWouldUse = false;
+  try {
+    const ai = require('../../backend/modules/fulfillment-ai-os');
+    if (ai && typeof ai.isArmed === 'function') aiArmed = !!ai.isArmed();
+    if (ai && typeof ai.shouldUseAiForSku === 'function') aiWouldUse = !!ai.shouldUseAiForSku(id);
+  } catch (_) { /* ignore */ }
+
+  if (requiresLiveAi && !aiArmed) {
+    return {
+      ok: false,
+      lane: 'none',
+      reason: 'ai_fulfillment_unarmed',
+      protocol: 'DTBG/1.0',
+      aiArmed: false,
+    };
+  }
+
+  if (aiWouldUse && aiArmed) {
+    return { ok: true, lane: 'ai', reason: 'ai_eternal_armed', protocol: 'DTBG/1.0', aiArmed: true };
+  }
+
+  // Professional / human reserve lanes are buyable as reserve elsewhere
+  if (PROFESSIONAL_ID_RE.test(id) || (item && String(item.tier || '').toLowerCase() === 'professional')) {
+    return { ok: true, lane: 'human', reason: 'human_build_kickoff', protocol: 'DTBG/1.0' };
+  }
+
+  return {
+    ok: true,
+    lane: 'deterministic',
+    reason: aiWouldUse ? 'digital_deterministic_while_ai_unarmed' : 'digital_deterministic',
+    protocol: 'DTBG/1.0',
+    aiArmed,
+  };
+}
+
 function _id(itemOrId) {
   if (itemOrId == null) return '';
   if (typeof itemOrId === 'string') return itemOrId.trim();
@@ -167,10 +238,22 @@ function assessBuyability(itemOrId, opts = {}) {
   }
 
   if (INSTANT_ID_RE.test(id) || tier === 'instant' || group === 'instant' || PUBLIC_SELF_SERVE_CORE_IDS.has(id)) {
+    const dt = assessDeliveryTruth(item || id, { item });
+    if (!dt.ok) {
+      return {
+        mode: dt.reason === 'ai_fulfillment_unarmed' ? 'contact' : 'unavailable',
+        buyable: false,
+        reason: dt.reason,
+        ctaLabel: dt.reason === 'ai_fulfillment_unarmed' ? 'AI fulfillment arming →' : 'Unavailable',
+        ctaHref: dt.reason === 'ai_fulfillment_unarmed' ? '/enterprise#enterprise-contact' : null,
+        deliveryTruth: dt,
+      };
+    }
     return {
       mode: 'btc', buyable: true, reason: 'digital_deliverable',
       ctaLabel: 'Buy → choose payment',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
+      deliveryTruth: dt,
     };
   }
 
@@ -255,6 +338,7 @@ function publicServiceIdsFromUnified() {
 
 module.exports = {
   assessBuyability,
+  assessDeliveryTruth,
   isSelfServeBuyable,
   isUnavailableItem,
   publicServiceIdsFromUnified,

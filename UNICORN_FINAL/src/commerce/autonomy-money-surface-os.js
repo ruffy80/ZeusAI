@@ -71,10 +71,31 @@ function topMoneySkus(limit) {
 }
 
 function telegramArmed() {
-  const token = String(process.env.TELEGRAM_BOT_TOKEN || process.env.ZEUS_TG_BOT_TOKEN || '').trim();
+  try {
+    const tcc = require('../../backend/modules/telegram-credential-continuum');
+    if (tcc && typeof tcc.ensureArmed === 'function') {
+      const snap = tcc.ensureArmed();
+      return {
+        bot: !!snap.tokenArmed,
+        chat: !!(snap.ownerChatArmed || snap.groupChatArmed),
+        ready: !!(snap.readyForOwnerAlert || snap.readyForGroupMoney),
+        continuum: snap.protocol || 'TCC/1.0',
+      };
+    }
+  } catch (_) { /* fall through */ }
+  const token = String(
+    process.env.TELEGRAM_BOT_TOKEN
+    || process.env.TG_BOT_TOKEN
+    || process.env.ZAC_TELEGRAM_TOKEN
+    || process.env.ZEUS_TG_BOT_TOKEN
+    || ''
+  ).trim();
   const chat = String(
     process.env.ZEUS_TG_GROUP_CHAT_ID
+    || process.env.TELEGRAM_GROUP_CHAT_ID
     || process.env.TELEGRAM_CHAT_ID
+    || process.env.TG_CHAT_ID
+    || process.env.ZAC_TELEGRAM_CHAT_ID
     || process.env.TELEGRAM_OWNER_CHAT_ID
     || ''
   ).trim();
@@ -84,13 +105,26 @@ function telegramArmed() {
 /**
  * Hard Telegram path for money offers.
  * Prefer TPG.postMoneyOffers → sendGroup → owner zacAlertChannel.
+ * DAMC: checkout links carry UDIAL-* when MobDial can issue a dial.
  */
 async function postMoneyOffers(skus, opts) {
   const o = opts || {};
-  const top = (Array.isArray(skus) ? skus : topMoneySkus(3)).slice(0, 3);
+  let top = (Array.isArray(skus) ? skus : topMoneySkus(3)).slice(0, 3);
   if (!top.length) return { ok: false, reason: 'no_skus' };
+
+  let dial = '';
+  try {
+    const damc = require('./dial-attributed-money-continuum');
+    if (damc && typeof damc.ensureMoneyDial === 'function') {
+      dial = damc.ensureMoneyDial({ id: 'amos_money', username: 'money_surface' }) || '';
+    }
+    if (dial && damc.decorateSkuWithDial) {
+      top = top.map((s) => damc.decorateSkuWithDial(s, dial));
+    }
+  } catch (_) { /* ignore */ }
+
   const lines = [
-    '⚡ ZeusAI Money Surface — buyable now',
+    '⚡ ZeusAI Money Surface — buyable now' + (dial ? ` · dial ${dial}` : ''),
     ...top.map((s) => {
       const href = s.checkoutHref && String(s.checkoutHref).startsWith('http')
         ? s.checkoutHref
@@ -101,7 +135,7 @@ async function postMoneyOffers(skus, opts) {
     'Buy hub: ' + APP_URL + '/buy',
   ];
   const text = lines.join('\n');
-  if (o.dryRun) return { ok: true, dryRun: true, preview: text, channel: 'dry-run' };
+  if (o.dryRun) return { ok: true, dryRun: true, preview: text, channel: 'dry-run', dial: dial || null };
 
   const armed = telegramArmed();
   let last = { ok: false, reason: 'not_attempted' };
@@ -112,17 +146,17 @@ async function postMoneyOffers(skus, opts) {
       last = await Promise.resolve(tpg.postMoneyOffers({
         lines,
         text,
-        url: APP_URL + (top[0].checkoutHref || '/buy'),
+        url: top[0].checkoutHref && String(top[0].checkoutHref).startsWith('http')
+          ? top[0].checkoutHref
+          : (APP_URL + (top[0].checkoutHref || '/buy')),
         force: !!o.force,
+        dial,
       }));
-      if (last && last.ok) return { ok: true, channel: 'tpg_postMoneyOffers', detail: last };
+      if (last && last.ok) return { ok: true, channel: 'tpg_postMoneyOffers', detail: last, dial: dial || null };
     }
     if (tpg && typeof tpg.sendGroup === 'function') {
       last = await Promise.resolve(tpg.sendGroup(text, { kind: 'money_surface' }));
-      if (last && last.ok) return { ok: true, channel: 'tpg_sendGroup', detail: last };
-      if (last && last.reason) {
-        // keep reason (silenced / not_configured / etc.)
-      }
+      if (last && last.ok) return { ok: true, channel: 'tpg_sendGroup', detail: last, dial: dial || null };
     }
   } catch (e) {
     last = { ok: false, reason: 'tpg_error', error: String(e && e.message || e).slice(0, 120) };
@@ -133,7 +167,7 @@ async function postMoneyOffers(skus, opts) {
     const zac = require('../../backend/modules/zacAlertChannel');
     if (zac && typeof zac.sendTelegram === 'function' && armed.bot) {
       await Promise.resolve(zac.sendTelegram(text));
-      return { ok: true, channel: 'owner_alert_fallback', previous: last };
+      return { ok: true, channel: 'owner_alert_fallback', previous: last, dial: dial || null };
     }
   } catch (e) {
     last = { ok: false, reason: 'owner_alert_error', error: String(e && e.message || e).slice(0, 120) };

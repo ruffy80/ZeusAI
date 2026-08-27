@@ -30,6 +30,7 @@ check('discovery exposes four inventions + honesty', () => {
   assert.ok(d.inventions.OAUR);
   assert.ok(d.inventions.PRL);
   assert.ok(d.inventions.CYM);
+  assert.ok(d.inventions.MDSP);
   assert.ok(/Never invents GMV/i.test(d.honesty));
 });
 
