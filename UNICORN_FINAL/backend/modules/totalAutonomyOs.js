@@ -634,6 +634,29 @@ class TotalAutonomyOs {
       if (ai && typeof ai.init === 'function') ai.init();
     });
 
+    tryStart('billion-autonomy-loop', () => {
+      if (process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1'
+        && !envTruthy('BILLION_AUTONOMY_LOOP_FORCE', false)) {
+        throw new Error('balos_disabled');
+      }
+      if (process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1') {
+        process.env.DISABLE_BILLION_AUTONOMY_LOOP = '0';
+      }
+      const balos = safeRequire('../../src/commerce/billion-autonomy-loop-os');
+      if (balos && typeof balos.start === 'function') balos.start({ bootDelayMs: 60000 });
+    });
+
+    tryStart('revenue-invention-continuum', () => {
+      if (process.env.RIVOS_DISABLED === '1') throw new Error('rivos_disabled');
+      const rivos = safeRequire('../../src/commerce/revenue-invention-continuum-os');
+      if (rivos && typeof rivos.start === 'function') rivos.start();
+    });
+
+    tryStart('telegram-credential-continuum', () => {
+      const tcc = safeRequire('./telegram-credential-continuum');
+      if (tcc && typeof tcc.reloadFromSanctum === 'function') tcc.reloadFromSanctum();
+    });
+
     // Explicitly do NOT start autoInnovationLoop file-mutation path,
     // autoDeploy, auto-restart, or selfConstruction.apply.
 

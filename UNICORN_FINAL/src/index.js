@@ -952,6 +952,7 @@ app.get('/.well-known/uscf.json', siteProxyToUnicorn('/api/dropship/suppliers'))
 app.get('/api/rivos/status', siteProxyToUnicorn('/api/rivos/status'));
 app.get('/api/rivos/gravity', siteProxyToUnicorn('/api/rivos/gravity'));
 app.get('/.well-known/rivos.json', siteProxyToUnicorn('/api/rivos/status'));
+app.get('/.well-known/taac.json', siteProxyToUnicorn('/api/taac/status'));
 app.get('/api/modules/reality', siteProxyToUnicorn('/api/modules/reality'));
 app.get('/.well-known/module-reality.json', siteProxyToUnicorn('/api/modules/reality'));
 app.get('/api/clos/status', siteProxyToUnicorn('/api/clos/status'));
