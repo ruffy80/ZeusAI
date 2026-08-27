@@ -110,10 +110,20 @@ function assertSafePlane(organName) {
 /** Recommend IAK start mode for current profile */
 function recommendIakMode() {
   const planes = currentPlanes();
+  // Under stable/safe: safe-autonomy (IAK owns TAAC arming + non-mutator heal).
+  // Growth plane armed → full (facets + guardian).
+  if (planes.growth.armed) {
+    return {
+      mode: 'full',
+      ensureFacets: true,
+      guardianMode: 'full',
+      planes,
+    };
+  }
   return {
-    mode: planes.growth.armed ? 'full' : 'monitor',
-    ensureFacets: !!planes.growth.armed,
-    guardianMode: planes.growth.armed ? 'full' : 'idle',
+    mode: 'safe-autonomy',
+    ensureFacets: false,
+    guardianMode: 'idle',
     planes,
   };
 }
