@@ -5099,7 +5099,23 @@ try {
   console.warn('[AACOS] load/start failed:', e && e.message);
 }
 
-// RIVOS/1.0 — Revenue Invention Continuum (PECG + OAUR + PRL + CYM)
+// TCC/1.0 — Telegram Credential Continuum (sanctum + alias mirror) before money organs
+try {
+  const tcc = require('./modules/telegram-credential-continuum');
+  if (tcc && typeof tcc.reloadFromSanctum === 'function') {
+    const snap = tcc.reloadFromSanctum();
+    console.log(
+      '📡 TCC/1.0 Telegram Credential Continuum:',
+      snap.tokenArmed ? 'token=armed' : 'token=missing',
+      snap.readyForGroupMoney || snap.readyForOwnerAlert ? 'chat=armed' : 'chat=missing',
+      `restored=${snap.restored} mirrored=${snap.mirrored}`
+    );
+  }
+} catch (e) {
+  console.warn('[TCC] load failed:', e && e.message);
+}
+
+// RIVOS/1.0 — Revenue Invention Continuum (PECG + OAUR + PRL + CYM + MDSP)
 let revenueInventionContinuumOs = null;
 try {
   revenueInventionContinuumOs = require('../src/commerce/revenue-invention-continuum-os');

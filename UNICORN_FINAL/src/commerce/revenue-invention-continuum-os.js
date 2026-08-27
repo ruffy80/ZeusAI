@@ -313,6 +313,10 @@ async function briefOwnerAuth(opts) {
 
   let sent = false;
   try {
+    try {
+      const tcc = require('../../backend/modules/telegram-credential-continuum');
+      if (tcc && typeof tcc.ensureArmed === 'function') tcc.ensureArmed();
+    } catch (_) { /* ignore */ }
     const zac = require('../../backend/modules/zacAlertChannel');
     if (zac && typeof zac.sendTelegram === 'function') {
       await Promise.resolve(zac.sendTelegram(text));
@@ -444,6 +448,10 @@ async function notifyRecovery(batch) {
   ];
   const text = lines.join('\n');
   try {
+    try {
+      const tcc = require('../../backend/modules/telegram-credential-continuum');
+      if (tcc && typeof tcc.ensureArmed === 'function') tcc.ensureArmed();
+    } catch (_) { /* ignore */ }
     const zac = require('../../backend/modules/zacAlertChannel');
     if (zac && typeof zac.sendTelegram === 'function') {
       await Promise.resolve(zac.sendTelegram(text));
@@ -452,6 +460,54 @@ async function notifyRecovery(batch) {
     }
   } catch (_) { /* ignore */ }
   return { ok: false, sent: false, reason: 'telegram_unavailable', preview: text };
+}
+
+/**
+ * MDSP/1.0 — Money Dial Swarm Pulse
+ * When Telegram is armed, post gravity-ranked money offers with Dial URLs.
+ * Nobody else wires paid-evidence gravity → dialed Telegram money CTAs.
+ */
+async function moneyDialSwarmPulse(opts) {
+  const o = opts || {};
+  try {
+    const tcc = require('../../backend/modules/telegram-credential-continuum');
+    if (tcc && typeof tcc.ensureArmed === 'function') tcc.ensureArmed();
+  } catch (_) { /* ignore */ }
+
+  let skus = [];
+  try {
+    const balos = require('./billion-autonomy-loop-os');
+    if (balos && typeof balos.topBuyableInstant === 'function') {
+      skus = balos.topBuyableInstant(o.limit || 3);
+    }
+  } catch (_) { /* ignore */ }
+  if (!skus.length) {
+    try {
+      const amos = require('./autonomy-money-surface-os');
+      if (amos && typeof amos.topMoneySkus === 'function') skus = amos.topMoneySkus(3);
+    } catch (_) { /* ignore */ }
+  }
+  if (!skus.length) return { ok: false, invention: 'MDSP', reason: 'no_skus' };
+
+  try {
+    const amos = require('./autonomy-money-surface-os');
+    if (!amos || typeof amos.postMoneyOffers !== 'function') {
+      return { ok: false, invention: 'MDSP', reason: 'amos_unavailable' };
+    }
+    const sent = await amos.postMoneyOffers(skus, { dryRun: !!o.dryRun, force: !!o.force });
+    if (sent && sent.ok) {
+      _cymAppend('mdsp_pulse', {
+        dryRun: !!o.dryRun,
+        skuIds: skus.map((s) => s.id),
+        dial: sent.dial || null,
+        channel: sent.channel || null,
+      });
+      _persist();
+    }
+    return Object.assign({ invention: 'MDSP', skuCount: skus.length }, sent);
+  } catch (e) {
+    return { ok: false, invention: 'MDSP', error: String(e && e.message || e).slice(0, 120) };
+  }
 }
 
 async function tick(opts) {
@@ -469,6 +525,7 @@ async function tick(opts) {
     oaur: null,
     prl: null,
     recoveryNotify: null,
+    mdsp: null,
   };
   try {
     result.oaur = await detectKeyArmsAndPulse();
@@ -493,16 +550,30 @@ async function tick(opts) {
     _counts.errors += 1;
     result.prl = { ok: false, error: String(e && e.message || e).slice(0, 120) };
   }
+  // MDSP — Money Dial Swarm Pulse (dialed gravity money CTAs when TG armed)
+  try {
+    if (!o.skipMdsp) {
+      result.mdsp = await moneyDialSwarmPulse({
+        dryRun: !!o.dryRun,
+        force: !!o.forceMdsp,
+        limit: 3,
+      });
+    }
+  } catch (e) {
+    result.mdsp = { ok: false, invention: 'MDSP', error: String(e && e.message || e).slice(0, 120) };
+  }
   _state.lastTick = {
     at: result.at,
     gravityTop: result.gravityTop,
     awaiting: (result.oaur && result.oaur.awaiting) || null,
     recoveryQueued: (result.prl && result.prl.queued) || 0,
+    mdsp: result.mdsp && { ok: result.mdsp.ok, channel: result.mdsp.channel || null },
   };
   _cymAppend('tick', {
     gravityTop: result.gravityTop.map((g) => g.id),
     awaiting: result.oaur && result.oaur.awaiting,
     recoveryQueued: result.prl && result.prl.queued,
+    mdsp: !!(result.mdsp && result.mdsp.ok),
   });
   _persist();
   return result;
@@ -542,6 +613,11 @@ function discovery() {
       OAUR: 'Owner-Auth Unblock Reflex — one briefing + key-arrival pulse',
       PRL: 'Pending→Recovery Lattice — same-invoice recovery intents',
       CYM: 'Causal Yield Mirror — hash ledger of paid/key/tick events only',
+      MDSP: 'Money Dial Swarm Pulse — gravity SKUs → dialed Telegram money CTAs',
+      DAMC: 'Dial-Attributed Money Continuum — dial stamp + paid re-attribute (via PPCOS)',
+      DTBG: 'Delivery-Truth Buy Gate — refuse buy when no honest delivery lane',
+      TCC: 'Telegram Credential Continuum — sanctum reload + alias mirror',
+      GINX: 'Gravity→IndexNow — BALOS reorders by PECG before traffic ping',
     },
     enabled: ENABLED,
     gravityTop: gravitySnapshot(8),
@@ -576,6 +652,7 @@ module.exports = {
   detectKeyArmsAndPulse,
   scanRecovery,
   notifyRecovery,
+  moneyDialSwarmPulse,
   tick,
   start,
   stop,

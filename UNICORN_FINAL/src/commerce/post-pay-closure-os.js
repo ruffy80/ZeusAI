@@ -213,6 +213,15 @@ function onOrderPaid(order) {
   } catch (e) {
     result.rivos = { ok: false, error: String(e && e.message || e).slice(0, 80) };
   }
+  // DAMC/1.0 — Dial-Attributed Money Continuum: paid re-attribute + causal echo
+  try {
+    const damc = require('./dial-attributed-money-continuum');
+    if (damc && typeof damc.attributePaid === 'function') {
+      result.damc = damc.attributePaid(order);
+    }
+  } catch (e) {
+    result.damc = { ok: false, error: String(e && e.message || e).slice(0, 80) };
+  }
   return result;
 }
 

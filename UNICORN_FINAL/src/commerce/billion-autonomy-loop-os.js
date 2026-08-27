@@ -101,15 +101,24 @@ function topBuyableInstant(limit) {
           priceUsd: Number(p.priceUSD != null ? p.priceUSD : p.priceUsd || p.price || 0),
           buyable: !!a.buyable,
           mode: a.mode || null,
+          deliveryTruth: a.deliveryTruth || null,
           href: APP_URL + '/services/' + encodeURIComponent(p.id),
           checkoutHref: APP_URL + '/checkout/?plan=' + encodeURIComponent(p.id),
         };
       })
       .filter((p) => p.buyable && p.priceUsd > 0)
-      .sort((a, b) => b.priceUsd - a.priceUsd)
-      .slice(0, n);
+      .sort((a, b) => b.priceUsd - a.priceUsd);
   } catch (_) { items = []; }
-  return items;
+
+  // GINX — Gravity→IndexNow: reorder by RIVOS paid-evidence before URL ping
+  try {
+    const rivos = require('./revenue-invention-continuum-os');
+    if (rivos && typeof rivos.reorderSkus === 'function' && items.length) {
+      items = rivos.reorderSkus(items);
+    }
+  } catch (_) { /* ignore */ }
+
+  return items.slice(0, n);
 }
 
 function moneyUrls(skus) {
