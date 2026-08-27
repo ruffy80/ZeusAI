@@ -5099,6 +5099,18 @@ try {
   console.warn('[AACOS] load/start failed:', e && e.message);
 }
 
+// RIVOS/1.0 — Revenue Invention Continuum (PECG + OAUR + PRL + CYM)
+let revenueInventionContinuumOs = null;
+try {
+  revenueInventionContinuumOs = require('../src/commerce/revenue-invention-continuum-os');
+  if (process.env.NODE_ENV !== 'test' && process.env.RIVOS_DISABLED !== '1') {
+    revenueInventionContinuumOs.start();
+  }
+  console.log('💎 RIVOS/1.0 Revenue Invention Continuum: MOUNTED');
+} catch (e) {
+  console.warn('[RIVOS] load/start failed:', e && e.message);
+}
+
 // AGDE / WGC/1.0 — World Gravity Continuum: bottleneck→dispatch over real growth organs
 let autonomousGlobalDominanceEngine = null;
 try {
@@ -8774,6 +8786,44 @@ app.get(['/api/billion-scale/money-surface', '/api/money-surface/status'], (req,
     res.json(amos.status());
   } catch (e) {
     res.status(503).json({ ok: false, error: 'money_surface_unavailable', detail: String(e && e.message || e).slice(0, 160) });
+  }
+});
+
+// RIVOS/1.0 — Revenue Invention Continuum
+app.get(['/api/rivos/status', '/api/rivos', '/.well-known/rivos.json'], (req, res) => {
+  try {
+    const rivos = revenueInventionContinuumOs || require('../src/commerce/revenue-invention-continuum-os');
+    res.set('Cache-Control', 'public, max-age=15');
+    return res.json(rivos.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'RIVOS/1.0' });
+  }
+});
+app.get('/api/rivos/gravity', (req, res) => {
+  try {
+    const rivos = revenueInventionContinuumOs || require('../src/commerce/revenue-invention-continuum-os');
+    return res.json({
+      ok: true,
+      protocol: 'RIVOS/1.0',
+      invention: 'PECG',
+      items: rivos.gravitySnapshot(req.query.limit),
+    });
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'RIVOS/1.0' });
+  }
+});
+app.post('/api/rivos/tick', adminTokenMiddleware, async (req, res) => {
+  try {
+    const rivos = revenueInventionContinuumOs || require('../src/commerce/revenue-invention-continuum-os');
+    const out = await rivos.tick({
+      force: true,
+      source: 'api-backend',
+      dryRun: !!(req.body && req.body.dryRun),
+      forceBriefing: !!(req.body && req.body.forceBriefing),
+    });
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'RIVOS/1.0' });
   }
 });
 

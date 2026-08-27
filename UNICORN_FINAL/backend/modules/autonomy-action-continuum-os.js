@@ -404,6 +404,20 @@ function linkModules() {
   } catch (_) {}
 
   try {
+    const rivos = _safeRequire('../src/commerce/revenue-invention-continuum-os');
+    if (rivos) {
+      linked.push('revenue-invention-continuum-os');
+      bus.on('autonomy:tick', () => {
+        try {
+          if (typeof rivos.tick === 'function') {
+            Promise.resolve(rivos.tick({ source: 'aacos' })).catch(() => {});
+          }
+        } catch (_) { /* fail-soft */ }
+      });
+    }
+  } catch (_) {}
+
+  try {
     const wf = _safeRequire('./workflowEngine');
     if (wf) linked.push('workflowEngine');
   } catch (_) {}
