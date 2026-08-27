@@ -26,37 +26,48 @@ function _esc(s) {
 }
 
 function topMoneySkus(limit) {
+  let list = [];
   try {
     const balos = require('./billion-autonomy-loop-os');
     if (balos && typeof balos.topBuyableInstant === 'function') {
-      return balos.topBuyableInstant(limit || 6);
+      list = balos.topBuyableInstant(limit || 6);
     }
   } catch (_) { /* fall through */ }
-  try {
-    const instant = require('./instant-catalog');
-    const buy = require('./commerce-buyability');
-    const all = typeof instant.all === 'function' ? instant.all() : [];
-    return (all || [])
-      .filter((p) => p && p.id)
-      .map((p) => {
-        let a = { buyable: false };
-        try { a = buy.assessBuyability(p); } catch (_) { /* ignore */ }
-        return {
-          id: p.id,
-          title: p.title || p.name || p.id,
-          priceUsd: Number(p.priceUSD != null ? p.priceUSD : p.priceUsd || p.price || 0),
-          buyable: !!a.buyable,
-          mode: a.mode || null,
-          href: APP_URL + '/services/' + encodeURIComponent(p.id),
-          checkoutHref: '/checkout/?plan=' + encodeURIComponent(p.id),
-        };
-      })
-      .filter((p) => p.buyable && p.priceUsd > 0)
-      .sort((a, b) => b.priceUsd - a.priceUsd)
-      .slice(0, Math.max(1, Math.min(12, Number(limit) || 6)));
-  } catch (_) {
-    return [];
+  if (!list.length) {
+    try {
+      const instant = require('./instant-catalog');
+      const buy = require('./commerce-buyability');
+      const all = typeof instant.all === 'function' ? instant.all() : [];
+      list = (all || [])
+        .filter((p) => p && p.id)
+        .map((p) => {
+          let a = { buyable: false };
+          try { a = buy.assessBuyability(p); } catch (_) { /* ignore */ }
+          return {
+            id: p.id,
+            title: p.title || p.name || p.id,
+            priceUsd: Number(p.priceUSD != null ? p.priceUSD : p.priceUsd || p.price || 0),
+            buyable: !!a.buyable,
+            mode: a.mode || null,
+            href: APP_URL + '/services/' + encodeURIComponent(p.id),
+            checkoutHref: '/checkout/?plan=' + encodeURIComponent(p.id),
+          };
+        })
+        .filter((p) => p.buyable && p.priceUsd > 0)
+        .sort((a, b) => b.priceUsd - a.priceUsd)
+        .slice(0, Math.max(1, Math.min(12, Number(limit) || 6)));
+    } catch (_) {
+      list = [];
+    }
   }
+  // RIVOS PECG — reorder by attested paid-evidence gravity when available
+  try {
+    const rivos = require('./revenue-invention-continuum-os');
+    if (rivos && typeof rivos.reorderSkus === 'function' && list.length) {
+      list = rivos.reorderSkus(list).slice(0, Math.max(1, Math.min(12, Number(limit) || 6)));
+    }
+  } catch (_) { /* ignore */ }
+  return list;
 }
 
 function telegramArmed() {
@@ -162,7 +173,7 @@ function homeMoneyStripHtml(opts) {
     <div>
       <span class="kicker" style="color:#f7931a">Autonomy Money Surface</span>
       <h2 style="margin:6px 0 4px;font-size:clamp(22px,2.6vw,32px)">Live offers the loop is <span class="grad">pushing to buyers</span></h2>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;max-width:720px">${catalogCount ? (catalogCount + ' catalog products · ') : ''}Top buyable digital SKUs from BALOS — real checkout links, no invented GMV.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;max-width:720px">${catalogCount ? (catalogCount + ' catalog products · ') : ''}Top buyable digital SKUs ranked by RIVOS paid-evidence gravity when available — real checkout links, no invented GMV.</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <a class="btn btn-primary" href="/buy" data-link>Open /buy →</a>

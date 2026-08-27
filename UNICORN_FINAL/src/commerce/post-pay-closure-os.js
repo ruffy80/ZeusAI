@@ -204,6 +204,15 @@ function onOrderPaid(order) {
   try {
     Promise.resolve(notifySale(order)).then((n) => { result.notify = n; }).catch(() => {});
   } catch (_) { /* ignore */ }
+  // RIVOS/1.0 — Paid-Evidence Catalog Gravity + Causal Yield Mirror (fail-soft)
+  try {
+    const rivos = require('./revenue-invention-continuum-os');
+    if (rivos && typeof rivos.onPaid === 'function') {
+      result.rivos = rivos.onPaid(order);
+    }
+  } catch (e) {
+    result.rivos = { ok: false, error: String(e && e.message || e).slice(0, 80) };
+  }
   return result;
 }
 
