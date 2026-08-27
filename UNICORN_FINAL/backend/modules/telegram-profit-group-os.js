@@ -118,22 +118,49 @@ function _envArmed(name) {
 }
 
 function token() {
-  return process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN || '';
+  try {
+    const tcc = require('./telegram-credential-continuum');
+    if (tcc && typeof tcc.token === 'function') {
+      const t = tcc.token();
+      if (t) return t;
+    }
+  } catch (_) { /* fall through */ }
+  return process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN || process.env.ZEUS_TG_BOT_TOKEN || '';
 }
 
-/** Prefer dedicated profit-group chat; fall back to canonical outbound chat. */
 function groupChatId() {
+  try {
+    const tcc = require('./telegram-credential-continuum');
+    if (tcc && typeof tcc.groupChatId === 'function') {
+      const c = tcc.groupChatId();
+      if (c) return c;
+    }
+  } catch (_) { /* fall through */ }
   return String(
     process.env.ZEUS_TG_GROUP_CHAT_ID
     || process.env.TELEGRAM_GROUP_CHAT_ID
     || process.env.TELEGRAM_CHAT_ID
     || process.env.TG_CHAT_ID
+    || process.env.ZAC_TELEGRAM_CHAT_ID
     || ''
   ).trim();
 }
 
 function ownerChatId() {
-  return String(process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID || '').trim();
+  try {
+    const tcc = require('./telegram-credential-continuum');
+    if (tcc && typeof tcc.ownerChatId === 'function') {
+      const c = tcc.ownerChatId();
+      if (c) return c;
+    }
+  } catch (_) { /* fall through */ }
+  return String(
+    process.env.TELEGRAM_CHAT_ID
+    || process.env.TG_CHAT_ID
+    || process.env.ZAC_TELEGRAM_CHAT_ID
+    || process.env.TELEGRAM_OWNER_CHAT_ID
+    || ''
+  ).trim();
 }
 
 function buildCta(kind, dialCode) {

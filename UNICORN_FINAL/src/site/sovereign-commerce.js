@@ -905,6 +905,15 @@ async function createOrder(ctx, input) {
       buyMode: buyability.mode,
       requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
       affiliateRef: affiliateRef || undefined,
+      dial: (function () {
+        try {
+          const damc = require('../commerce/dial-attributed-money-continuum');
+          return damc.extractDial(input) || undefined;
+        } catch (_) {
+          const d = String((input && (input.dial || input.utm_content)) || '').trim().toUpperCase();
+          return d.startsWith('UDIAL-') ? d : undefined;
+        }
+      })(),
     },
     affiliate: affiliateRef ? { ref: affiliateRef, split: 0.1 } : null,
     buy_mode: buyability.mode,
@@ -925,6 +934,13 @@ async function createOrder(ctx, input) {
 
   ORDERS.set(orderId, order);
   AMT_INDEX.set(order.amount_sats, orderId);
+  // DAMC — attribute dial at mint time (before HTTP layer) so paid settle can re-attribute
+  try {
+    if (order.meta && order.meta.dial) {
+      const damc = require('../commerce/dial-attributed-money-continuum');
+      damc.attributeCreate(order, order.meta.dial);
+    }
+  } catch (_) { /* ignore */ }
   persistOrder(order);
   // Canonical Settle Bridge — dual-write portal shadow for recovery/dashboard.
   try {
@@ -1852,24 +1868,22 @@ async function handle(req, res, ctx) {
         })).catch(() => {});
       }
     } catch (_) {}
-    // MobDial closed-loop attribution (Telegram Dial Code → order)
+    // MobDial + DAMC closed-loop attribution (Telegram Dial Code → order)
     try {
       const dial = String(
         (body && (body.dial || body.ref || body.utm_content))
+        || (out.order && out.order.meta && out.order.meta.dial)
         || ''
       ).trim().toUpperCase();
       if (dial.startsWith('UDIAL-') && out.order) {
-        const md = require('../../backend/modules/telegram-mobdial-os');
-        const attr = md.attributeCheckout({
-          dial,
-          orderId: out.order.orderId || out.order.id,
-          serviceId: out.order.serviceId || (body && body.serviceId),
-          paid: false,
-          status: out.order.status || 'pending',
-        });
-        if (attr && attr.ok) {
-          out.order.mobdial = { code: dial, attributed: true, protocol: 'MDB/1.0' };
+        if (!(out.order.mobdial && out.order.mobdial.attributed)) {
+          const damc = require('../commerce/dial-attributed-money-continuum');
+          damc.attributeCreate(out.order, dial);
         }
+        out.order.mobdial = Object.assign({}, out.order.mobdial || {}, {
+          code: dial, attributed: true, protocol: 'MDB/1.0', continuum: 'DAMC/1.0',
+        });
+        out.order.meta = Object.assign({}, out.order.meta || {}, { dial, damc: 'DAMC/1.0' });
       }
     } catch (_) { /* mobdial best-effort */ }
     if (idemKey) _idempotencySet(idemKey, 201, out.order);
