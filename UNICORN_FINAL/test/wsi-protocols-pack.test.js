@@ -51,7 +51,8 @@ async function main() {
     assert.strictEqual(planes.safe.armed, true);
     assert.strictEqual(planes.growth.armed, false);
     const rec = wsi.dpak.recommendIakMode();
-    assert.strictEqual(rec.mode, 'monitor');
+    // Stable/safe plane → IAK owns TAAC + non-mutator heal (not bare monitor).
+    assert.strictEqual(rec.mode, 'safe-autonomy');
     const denied = wsi.dpak.assertGrowthPlane('uee');
     assert.strictEqual(denied.ok, false);
   });
