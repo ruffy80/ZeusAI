@@ -107,7 +107,10 @@ function assertSafePlane(organName) {
   };
 }
 
-/** Recommend IAK start mode for current profile */
+/**
+ * Recommend IAK start mode for current profile.
+ * Stable/safe → 'safe-autonomy' (not bare 'monitor'); growth → 'full'.
+ */
 function recommendIakMode() {
   const planes = currentPlanes();
   // Under stable/safe: safe-autonomy (IAK owns TAAC arming + non-mutator heal).

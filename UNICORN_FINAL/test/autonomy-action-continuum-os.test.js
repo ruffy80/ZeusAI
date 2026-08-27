@@ -64,11 +64,12 @@ const ROOT = path.join(__dirname, '..');
     assert.ok('ok' in r || 'reason' in r || 'type' in r, 'broadcast result must be shaped');
   });
 
-  await check('backend wires AACOS start + routes + mesh monitor', () => {
+  await check('backend wires AACOS start + routes + IAK safe-autonomy', () => {
     const src = fs.readFileSync(path.join(ROOT, 'backend/index.js'), 'utf8');
     assert.ok(src.includes('autonomy-action-continuum-os'));
     assert.ok(src.includes('/.well-known/aacos.json'));
-    assert.ok(src.includes("mode: 'monitor'"));
+    // IAK boots as safe-autonomy under stable (owns TAAC; not bare monitor).
+    assert.ok(src.includes("safe-autonomy"));
     assert.ok(src.includes('/api/aacos/tick'));
   });
 
@@ -89,7 +90,8 @@ const ROOT = path.join(__dirname, '..');
     const src = fs.readFileSync(path.join(ROOT, 'backend/modules/integrated-autonomy-kernel.js'), 'utf8');
     assert.ok(shim.includes('integrated-autonomy-kernel'));
     assert.ok(src.includes("this.mode = (opts && opts.mode) || 'full'"));
-    assert.ok(src.includes("this.mode !== 'monitor'"));
+    // monitor = observe only; heal runs for safe-autonomy + full
+    assert.ok(src.includes("this.mode === 'monitor'"));
     assert.ok(src.includes('discoverAndRegister'));
     assert.ok(src.includes('causalStart'));
     assert.ok(src.includes('total_module_continuum') || src.includes('Total Module Continuum'));
