@@ -5159,6 +5159,19 @@ try {
   console.warn('[TAAC] load/start failed:', e && e.message);
 }
 
+// ROCS/1.0 — Reality Ops Continuum (beyond Prometheus scrapes / Grafana panels)
+// Never manages host backups — owner periodic backup remains authoritative.
+let realityOpsContinuum = null;
+try {
+  realityOpsContinuum = require('./modules/reality-ops-continuum');
+  if (process.env.NODE_ENV !== 'test' && process.env.ROCS_DISABLED !== '1') {
+    realityOpsContinuum.start();
+  }
+  console.log('🧭 ROCS/1.0 Reality Ops Continuum: MOUNTED (causal verdicts; backups=owner)');
+} catch (e) {
+  console.warn('[ROCS] load/start failed:', e && e.message);
+}
+
 // AGDE / WGC/1.0 — World Gravity Continuum: bottleneck→dispatch over real growth organs
 let autonomousGlobalDominanceEngine = null;
 try {
@@ -8910,6 +8923,41 @@ app.post('/api/taac/tick', adminTokenMiddleware, async (req, res) => {
     return res.json(out);
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, protocol: 'TAAC/1.0' });
+  }
+});
+
+// ROCS/1.0 — Reality Ops Continuum (causal decision cards ≫ Prom/Grafana)
+// Never manages host backups — owner periodic backup remains authoritative.
+app.get(['/api/rocs/status', '/api/rocs', '/.well-known/rocs.json'], (req, res) => {
+  try {
+    const rocs = realityOpsContinuum || require('./modules/reality-ops-continuum');
+    res.set('Cache-Control', 'public, max-age=10');
+    return res.json(rocs.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'ROCS/1.0' });
+  }
+});
+app.get('/api/rocs/verdict', (req, res) => {
+  try {
+    const rocs = realityOpsContinuum || require('./modules/reality-ops-continuum');
+    const v = typeof rocs.lastVerdict === 'function' ? rocs.lastVerdict() : null;
+    if (!v) return res.status(404).json({ ok: false, error: 'no_verdict_yet', protocol: 'ROCS/1.0' });
+    return res.json(v);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'ROCS/1.0' });
+  }
+});
+app.post('/api/rocs/tick', adminTokenMiddleware, async (req, res) => {
+  try {
+    const rocs = realityOpsContinuum || require('./modules/reality-ops-continuum');
+    const out = await rocs.tick({
+      dryRun: !!(req.body && req.body.dryRun),
+      skipAlert: !!(req.body && req.body.skipAlert),
+      source: 'api',
+    });
+    return res.json(out);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'ROCS/1.0' });
   }
 });
 
@@ -15725,6 +15773,17 @@ app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
     const data = await opsAggregator.collect({ buildSha: process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA });
     let watchdog = null;
     try { watchdog = require('./modules/ops-watchdog').getStatus(); } catch (_) {}
+    let rocs = null;
+    try {
+      const m = realityOpsContinuum || require('./modules/reality-ops-continuum');
+      rocs = {
+        protocol: 'ROCS/1.0',
+        status: typeof m.getStatus === 'function' ? m.getStatus() : null,
+        lastGrade: m.lastVerdict && m.lastVerdict() ? m.lastVerdict().grade : null,
+        decisionCards: m.lastVerdict && m.lastVerdict() ? (m.lastVerdict().decisionCards || []).slice(0, 8) : [],
+        managesBackups: false,
+      };
+    } catch (_) { rocs = { available: false }; }
 
     // Collapse autonomy organs into ops surface (reuse IAK report — no parallel orchestrator).
     let autonomy = null;
@@ -15754,7 +15813,7 @@ app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
       }
     } catch (_) { autonomy = { available: false }; }
 
-    res.json({ ...data, watchdog, autonomy });
+    res.json({ ...data, watchdog, rocs, autonomy });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

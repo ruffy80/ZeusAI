@@ -175,6 +175,12 @@ module.exports = {
         // TAAC/1.0 Total Autonomy Activation Continuum
         TAAC_DISABLED: process.env.TAAC_DISABLED || '0',
         TAAC_BOOT_DELAY_MS: process.env.TAAC_BOOT_DELAY_MS || '25000',
+        // ROCS/1.0 Reality Ops Continuum — causal verdicts ≫ Prom/Grafana
+        // Never manages host backups (owner periodic backup stays authoritative).
+        ROCS_DISABLED: process.env.ROCS_DISABLED || '0',
+        ROCS_AUTO_REMEDIATE: process.env.ROCS_AUTO_REMEDIATE || '1',
+        // Optional: path to marker your existing backup cron already updates
+        // UNICORN_BACKUP_LAST_OK_FILE: process.env.UNICORN_BACKUP_LAST_OK_FILE || '',
         // Lead hunter + auto-marketing — skip internally when outbound unarmed
         LEAD_HUNTER_FORCE: process.env.LEAD_HUNTER_FORCE || '1',
         AUTO_MARKETING_FORCE: process.env.AUTO_MARKETING_FORCE || '1',
