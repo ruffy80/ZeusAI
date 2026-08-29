@@ -38,6 +38,7 @@ jobs:
           set -uo pipefail
           mkdir -p /tmp/regen
           cp generate_unicorn_final.js /tmp/regen/
+          cp -a templates templates_saas_2026 /tmp/regen/
           (cd /tmp/regen && node generate_unicorn_final.js > /tmp/regen.log 2>&1) || {
             echo "::error::generator failed — see log"
             tail -200 /tmp/regen.log
