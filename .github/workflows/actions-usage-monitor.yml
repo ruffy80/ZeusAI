@@ -6,7 +6,7 @@ on:
     - cron: '0 */12 * * *'
 
 permissions:
-  actions: read
+  actions: write
   contents: read
 
 jobs:
@@ -15,6 +15,11 @@ jobs:
     timeout-minutes: 5
     env:
       ACTIONS_RUNS_WARN_THRESHOLD: '120'
+      # Belt-and-braces net for the whole fleet of workflows: even if a job's
+      # own `timeout-minutes` is misconfigured or a runner wedges below the
+      # Actions layer, nothing should stay in_progress/queued forever and tie
+      # up concurrency groups or runner minutes indefinitely.
+      STALE_RUN_MAX_MINUTES: '180'
     steps:
       - name: 📈 Summarize last 24h workflow runs
         env:
@@ -34,7 +39,7 @@ jobs:
           since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)
 
           headers = {
-              "Authorization": f"Bearer {token}",
+              "Authorization": "Bearer " + token,
               "Accept": "application/vnd.github+json",
               "X-GitHub-Api-Version": "2022-11-28",
               "User-Agent": "actions-usage-monitor",
@@ -105,4 +110,108 @@ jobs:
               print(f"::warning::High Actions volume: {total} runs in last 24h (> {warn_threshold})")
           else:
               print(f"Actions volume OK: {total} runs in last 24h")
+          PY
+
+      - name: 🧹 Reap stale in-progress/queued runs (safety net)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          # SWISS/1.0 — defense in depth for every workflow in this repo:
+          # even if a job's own `timeout-minutes` is missing/misconfigured or
+          # a runner wedges below the Actions layer, no run should be able to
+          # sit in_progress/queued forever. This never touches the Hetzner
+          # server directly; it only cancels GitHub-hosted Actions runs via
+          # the Actions API, so it is safe to run unattended on a schedule.
+          import datetime as dt
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          max_minutes = int(os.environ.get("STALE_RUN_MAX_MINUTES", "180"))
+          this_run_id = os.environ.get("GITHUB_RUN_ID")
+          now = dt.datetime.now(dt.timezone.utc)
+
+          headers = {
+              "Authorization": "Bearer " + token,
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "actions-usage-monitor",
+          }
+
+          reaped = []
+          errors = []
+          for status in ("in_progress", "queued"):
+              page = 1
+              while page <= 10:  # hard cap: 1000 runs/status is far beyond any realistic backlog
+                  url = f"https://api.github.com/repos/{repo}/actions/runs?status={status}&per_page=100&page={page}"
+                  req = urllib.request.Request(url, headers=headers)
+                  try:
+                      with urllib.request.urlopen(req, timeout=30) as resp:
+                          payload = json.loads(resp.read().decode("utf-8"))
+                  except urllib.error.URLError as exc:
+                      errors.append(f"list {status} page {page}: {exc}")
+                      break
+
+                  runs = payload.get("workflow_runs", [])
+                  if not runs:
+                      break
+
+                  for run in runs:
+                      run_id = run.get("id")
+                      # Never cancel this very monitor run.
+                      if this_run_id and str(run_id) == str(this_run_id):
+                          continue
+                      # Always measure from created_at (queue time included) so a
+                      # run stuck queued for hours before it started isn't
+                      # under-counted once it flips to in_progress.
+                      created_at = run.get("created_at")
+                      if not created_at:
+                          continue
+                      started = dt.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                      age_minutes = (now - started).total_seconds() / 60
+                      if age_minutes < max_minutes:
+                          continue
+
+                      name = run.get("name") or "Unknown"
+                      cancel_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/cancel"
+                      cancel_req = urllib.request.Request(cancel_url, headers=headers, method="POST")
+                      try:
+                          with urllib.request.urlopen(cancel_req, timeout=30):
+                              pass
+                          reaped.append((name, run_id, round(age_minutes)))
+                          print(f"::warning::Cancelled stale run '{name}' (id={run_id}, age={round(age_minutes)}m, status={status})")
+                      except urllib.error.URLError as exc:
+                          errors.append(f"cancel {run_id}: {exc}")
+
+                  if len(runs) < 100:
+                      break
+                  page += 1
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              lines = ["", "## Stale run reaper", ""]
+              if reaped:
+                  lines.append(f"Cancelled **{len(reaped)}** run(s) stuck > {max_minutes}m:")
+                  lines.append("")
+                  lines.append("| Workflow | Run ID | Age (min) |")
+                  lines.append("|---|---:|---:|")
+                  for name, run_id, age in reaped:
+                      lines.append(f"| {name} | {run_id} | {age} |")
+              else:
+                  lines.append(f"No stale runs found (threshold: {max_minutes}m).")
+              if errors:
+                  lines.append("")
+                  lines.append("Errors encountered:")
+                  for err in errors:
+                      lines.append(f"- {err}")
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("\n".join(lines) + "\n")
+
+          if not reaped:
+              print(f"No stale runs found (threshold: {max_minutes}m).")
           PY

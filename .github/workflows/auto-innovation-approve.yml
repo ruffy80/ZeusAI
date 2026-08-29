@@ -5,10 +5,18 @@ on:
     workflows: ["🛡️ No-Downgrade Guard"]
     types: [completed]
 
+concurrency:
+  # Bound to the branch under review so overlapping No-Downgrade Guard runs
+  # queue rather than run in parallel. cancel-in-progress stays false: this
+  # job performs writes (merge/tag) and must never be killed mid-operation.
+  group: auto-innovation-approve-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
 jobs:
   check-innovation:
     name: Check Innovation Auto-Merge Eligibility
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.workflow_run.conclusion == 'success'
 
     steps:

@@ -57,6 +57,7 @@ jobs:
           printf '%s\n' "$LINE" | ssh \
             -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
             "${DEPLOY_USER}@${DEPLOY_HOST}" '
               set -e
               umask 077

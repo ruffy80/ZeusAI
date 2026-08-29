@@ -87,10 +87,10 @@ jobs:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
           set -eu
-          scp -o StrictHostKeyChecking=no \
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
             UNICORN_FINAL/scripts/deepseek-loop.service \
             root@"$HETZNER_HOST":/etc/systemd/system/deepseek-loop.service
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set -eu
             chmod 0644 /etc/systemd/system/deepseek-loop.service
             mkdir -p /var/www/unicorn/UNICORN_FINAL/data/logs
@@ -108,7 +108,7 @@ jobs:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
           set -eu
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set -eu
             # Soft warning if the operator has not set DEEPSEEK_LOOP_ENABLED=1
             ENV_FILE=/var/www/unicorn/UNICORN_FINAL/.env
@@ -127,7 +127,7 @@ jobs:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
           set -eu
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set +e
             systemctl disable --now deepseek-loop.service 2>&1 || true
             systemctl reset-failed deepseek-loop.service 2>&1 || true
@@ -143,12 +143,12 @@ jobs:
         run: |
           set +e
           echo "::group::systemctl status deepseek-loop"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" \
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" \
             'systemctl status deepseek-loop.service --no-pager -l 2>&1 || true' || true
           echo "::endgroup::"
 
           echo "::group::script + log presence"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
             for p in \
               /etc/systemd/system/deepseek-loop.service \
               /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js \
@@ -162,6 +162,6 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::last 20 journal lines (best effort)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" \
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 root@"$HETZNER_HOST" \
             'journalctl -u deepseek-loop --no-pager -n 20 2>&1 || true' || true
           echo "::endgroup::"
