@@ -829,6 +829,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
     soft('aacos', './autonomy-action-continuum-os');
     soft('taos', './totalAutonomyOs');
     soft('taac', './total-autonomy-activation-continuum');
+    soft('rocs', './reality-ops-continuum');
     soft('clos', './closed-loop-commerce-os');
     soft('preKeys', './pre-keys-activation');
     soft('workflowEngine', './workflowEngine');
