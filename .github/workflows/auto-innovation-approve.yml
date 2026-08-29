@@ -7,9 +7,10 @@ on:
 
 concurrency:
   # Bound to the branch under review so overlapping No-Downgrade Guard runs
-  # can never dispatch duplicate merges/tags for the same PR head.
+  # queue rather than run in parallel. cancel-in-progress stays false: this
+  # job performs writes (merge/tag) and must never be killed mid-operation.
   group: auto-innovation-approve-${{ github.event.workflow_run.head_branch }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check-innovation:
