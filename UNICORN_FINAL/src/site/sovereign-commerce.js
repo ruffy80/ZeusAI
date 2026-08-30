@@ -465,11 +465,30 @@ async function httpJsonExplorer(pathname, timeoutMs = 8000) {
 
 // ── Price oracle (multi-source, 5 min cache) ────────────────────────────────
 const PRICE_CACHE = { usd: 0, eur: 0, fetchedAt: 0, source: 'none', liveUpdatedAt: 0 };
-async function getBtcPrice() {
-  if (Date.now() - PRICE_CACHE.fetchedAt < 5 * 60 * 1000 && PRICE_CACHE.usd > 0) return PRICE_CACHE;
+let __btcPriceRefreshInflight = null;
 
+function _applySpotCacheToPriceCache() {
+  try {
+    const spot = global.__btcSpotCache;
+    if (!spot) return null;
+    const usd = Number(spot.usdPerBtc || spot.rate || 0);
+    const age = Date.now() - Number(spot.fetchedAt || spot.ts || 0);
+    if (!(usd > 0) || age >= 60_000) return null;
+    PRICE_CACHE.usd = usd;
+    PRICE_CACHE.eur = Number((usd * 0.93).toFixed(2));
+    PRICE_CACHE.fetchedAt = Date.now();
+    PRICE_CACHE.source = String(spot.source || 'btc-spot-cache');
+    PRICE_CACHE.liveUpdatedAt = Number(spot.fetchedAt || spot.ts) || PRICE_CACHE.fetchedAt;
+    return PRICE_CACHE;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function _refreshBtcPriceFromOracles(timeoutMs) {
+  const ms = Math.max(200, Math.min(8000, Number(timeoutMs) || 8000));
   // Try mempool.space first (same infra we already use)
-  let r = await httpJson(`${MEMPOOL_BASE}/v1/prices`);
+  let r = await httpJson(`${MEMPOOL_BASE}/v1/prices`, ms);
   if (r.ok && r.data && r.data.USD) {
     PRICE_CACHE.usd = Number(r.data.USD);
     PRICE_CACHE.eur = Number(r.data.EUR || (r.data.USD * 0.93));
@@ -479,7 +498,7 @@ async function getBtcPrice() {
     return PRICE_CACHE;
   }
   // Fallback: coingecko
-  r = await httpJson('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur');
+  r = await httpJson('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur', ms);
   if (r.ok && r.data && r.data.bitcoin && r.data.bitcoin.usd) {
     PRICE_CACHE.usd = Number(r.data.bitcoin.usd);
     PRICE_CACHE.eur = Number(r.data.bitcoin.eur || (r.data.bitcoin.usd * 0.93));
@@ -500,6 +519,40 @@ async function getBtcPrice() {
     PRICE_CACHE.fetchedAt = Date.now();
   }
   return PRICE_CACHE;
+}
+
+/**
+ * @param {{ fast?: boolean }} [opts]
+ *  fast: createOrder path — prefer shared __btcSpotCache / last-good PRICE_CACHE,
+ *  oracle HTTP timeouts ≤1500ms, background refresh when returning stale-good.
+ */
+async function getBtcPrice(opts) {
+  const fast = !!(opts && opts.fast);
+  const oracleTimeout = fast ? 1500 : 8000;
+
+  // Shared site spot cache (src/index.js getBtcUsdSpot) — same shape as shell reads.
+  const fromSpot = _applySpotCacheToPriceCache();
+  if (fromSpot) return fromSpot;
+
+  if (Date.now() - PRICE_CACHE.fetchedAt < 5 * 60 * 1000 && PRICE_CACHE.usd > 0) return PRICE_CACHE;
+
+  // Prefer last-good immediately if any usd>0 while refreshing in background.
+  if (PRICE_CACHE.usd > 0) {
+    if (!__btcPriceRefreshInflight) {
+      __btcPriceRefreshInflight = _refreshBtcPriceFromOracles(oracleTimeout)
+        .catch(() => PRICE_CACHE)
+        .then((p) => { __btcPriceRefreshInflight = null; return p; });
+    }
+    return PRICE_CACHE;
+  }
+
+  // Cold path — block (with short timeout when fast).
+  if (!__btcPriceRefreshInflight) {
+    __btcPriceRefreshInflight = _refreshBtcPriceFromOracles(oracleTimeout)
+      .catch(() => PRICE_CACHE)
+      .then((p) => { __btcPriceRefreshInflight = null; return p; });
+  }
+  return __btcPriceRefreshInflight;
 }
 function priceUnavailableForNewInvoices(price) {
   if (!price || typeof price !== 'object') return true;
@@ -838,7 +891,7 @@ async function createOrder(ctx, input) {
   const subtotalFiat = Number((unit * q).toFixed(2));
   if (!(subtotalFiat > 0)) return { error: 'service_not_priced', status: 409 };
 
-  const price = await getBtcPrice();
+  const price = await getBtcPrice({ fast: true });
   const fiatPerBtc = String(currency).toUpperCase() === 'EUR' ? price.eur : price.usd;
   if (priceUnavailableForNewInvoices(price)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
   if (!(fiatPerBtc > 0)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
@@ -942,21 +995,24 @@ async function createOrder(ctx, input) {
     }
   } catch (_) { /* ignore */ }
   persistOrder(order);
-  // Canonical Settle Bridge — dual-write portal shadow for recovery/dashboard.
-  try {
-    const bridge = require('../commerce/canonical-settle-bridge');
-    const b = bridge.bridgeCreate(order);
-    if (b && b.ok && b.portalOrderId) {
-      order.meta = Object.assign({}, order.meta || {}, {
-        portalOrderId: b.portalOrderId,
-        portalCustomerId: b.customerId || undefined,
-        settleBridge: 'CSB/1.0',
-      });
-      persistOrder(order);
+  // Canonical Settle Bridge — dual-write portal shadow off the create critical path.
+  const orderForBridge = order;
+  setImmediate(function () {
+    try {
+      const bridge = require('../commerce/canonical-settle-bridge');
+      const b = bridge.bridgeCreate(orderForBridge);
+      if (b && b.ok && b.portalOrderId) {
+        orderForBridge.meta = Object.assign({}, orderForBridge.meta || {}, {
+          portalOrderId: b.portalOrderId,
+          portalCustomerId: b.customerId || undefined,
+          settleBridge: 'CSB/1.0',
+        });
+        persistOrder(orderForBridge);
+      }
+    } catch (bridgeErr) {
+      console.warn('[commerce] settle bridge create skipped:', bridgeErr && bridgeErr.message);
     }
-  } catch (bridgeErr) {
-    console.warn('[commerce] settle bridge create skipped:', bridgeErr && bridgeErr.message);
-  }
+  });
   _fireFunnel('checkout_create', { serviceId, value: subtotalFiat });
   _metricInc('orders_created');
   return { order, status: 201 };

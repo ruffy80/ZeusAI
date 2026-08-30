@@ -12135,17 +12135,26 @@ a{color:#8a5cff;text-decoration:none}
         if (isVirtualSku && Number.isFinite(amountQ) && amountQ > 0) {
           ssrParams.planUsd = amountQ;
         } else {
+          // Buy-click instant: prefer sync canonical USD on the HTML critical path.
+          // Never await the full SITE_PROXY_TIMEOUT (~6s) quotePublicPricing here —
+          // client hydrate refreshes the live price. Race a short quote only when
+          // the sync floor is missing.
           try {
-            // Same pipeline as GET /api/pricing/:id → SSR shows the exact
-            // number the buyer will be invoiced. (RO: coerență totală.)
-            const { payload } = await quotePublicPricing(planQ, {});
-            const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
-            if (Number.isFinite(usd) && usd > 0) ssrParams.planUsd = usd;
-          } catch (_) { /* price stays client-resolved */ }
+            const usd = resolveCanonicalUsd(planQ);
+            if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
+          } catch (_) { /* ignore */ }
           if (ssrParams.planUsd == null) {
             try {
-              const usd = resolveCanonicalUsd(planQ);
-              if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
+              const shortMs = Math.max(50, Math.min(150, Number(process.env.CHECKOUT_SSR_QUOTE_MS || 150)));
+              const quoted = await Promise.race([
+                quotePublicPricing(planQ, {}).then(function (r) {
+                  const payload = r && r.payload;
+                  const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+                  return (Number.isFinite(usd) && usd > 0) ? usd : null;
+                }).catch(function () { return null; }),
+                new Promise(function (resolve) { setTimeout(function () { resolve(null); }, shortMs); }),
+              ]);
+              if (quoted != null) ssrParams.planUsd = quoted;
             } catch (_) { /* price stays client-resolved */ }
           }
           if (ssrParams.planUsd == null && Number.isFinite(amountQ) && amountQ > 0) {
@@ -12172,10 +12181,20 @@ a{color:#8a5cff;text-decoration:none}
     // the SSR shell is identical for every visitor (Instant Identity Continuum).
     const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath)
       && !/^\/(dashboard|admin|checkout|order)\b/.test(route);
-    const __ssrMemoKey = __ssrMemoOk ? (String(lang || 'en') + '\0' + route) : null;
+    // Buy-click instant: short-TTL memo for checkout chooser shells keyed by
+    // lang + plan + rounded USD so SPA navigations hit warm HTML.
+    const __checkoutShellMemoOk = route === '/checkout' && ssrParams.plan
+      && !(ssrParams.id || ssrParams.twinId || ssrParams.missingPath);
+    const __ssrMemoKey = __ssrMemoOk
+      ? (String(lang || 'en') + '\0' + route)
+      : (__checkoutShellMemoOk
+        ? ('co\0' + String(lang || 'en') + '\0' + String(ssrParams.plan) + '\0' + String(Math.round(Number(ssrParams.planUsd) || 0)))
+        : null);
     if (!global.__UNICORN_SSR_HTML_MEMO) global.__UNICORN_SSR_HTML_MEMO = new Map();
     const __ssrMemo = global.__UNICORN_SSR_HTML_MEMO;
-    const __ssrMemoTtl = Math.max(2000, Number(process.env.SITE_SSR_HTML_CACHE_MS || 20000));
+    const __ssrMemoTtl = __checkoutShellMemoOk
+      ? Math.max(1000, Number(process.env.SITE_SSR_CHECKOUT_CACHE_MS || 8000))
+      : Math.max(2000, Number(process.env.SITE_SSR_HTML_CACHE_MS || 20000));
     let html = null;
     let __ssrFromMemo = false;
     if (__ssrMemoKey) {
@@ -12512,6 +12531,9 @@ if (require.main === module) {
     (function prewarmPublicSsr() {
       if (process.env.SITE_SSR_PREWARM_DISABLED === '1') return;
       const routes = ['/', '/services', '/pricing', '/store', '/account'];
+      // Buy-click instant: also prewarm a few top checkout chooser shells
+      // using sync resolveCanonicalUsd only (no quotePublicPricing await).
+      const checkoutPlans = ['starter', 'pro', 'adaptive-ai', 'ent-engagement-kickoff'];
       setTimeout(function () {
         try {
           if (!v2 || typeof v2.getHtml !== 'function') return;
@@ -12530,7 +12552,25 @@ if (require.main === module) {
               console.warn('[ssr-prewarm] fail', route, err && err.message);
             }
           }
-          console.log('[ssr-prewarm] memoized ' + ok + '/' + routes.length + ' routes (size=' + memo.size + ')');
+          for (let j = 0; j < checkoutPlans.length; j++) {
+            const plan = checkoutPlans[j];
+            try {
+              let planUsd = null;
+              try {
+                const u = resolveCanonicalUsd(plan);
+                if (Number.isFinite(Number(u)) && Number(u) > 0) planUsd = Number(u);
+              } catch (_) { /* ignore */ }
+              const html = v2.getHtml('/checkout', { lang: 'en', nonce: 'prewarm', plan: plan, planUsd: planUsd });
+              if (html && html.indexOf('id="app"') !== -1) {
+                const key = 'co\0en\0' + plan + '\0' + String(Math.round(Number(planUsd) || 0));
+                memo.set(key, { html, ts: Date.now() });
+                ok++;
+              }
+            } catch (err) {
+              console.warn('[ssr-prewarm] checkout fail', plan, err && err.message);
+            }
+          }
+          console.log('[ssr-prewarm] memoized ' + ok + '/' + (routes.length + checkoutPlans.length) + ' shells (size=' + memo.size + ')');
         } catch (e) {
           console.warn('[ssr-prewarm] failed:', e && e.message);
         }
