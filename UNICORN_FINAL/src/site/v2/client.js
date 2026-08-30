@@ -960,6 +960,7 @@ function markSpaPending(on){
       app.style.pointerEvents = '';
       app.removeAttribute('aria-busy');
     }
+    if (document.body) try { document.body.style.cursor = ''; } catch (_) {}
   }
 }
 
