@@ -871,6 +871,48 @@ function prefetchSpa(href){
     .then(function(){ __SPA_INFLIGHT.delete(key); });
 }
 
+// Buy-click instant: skip SPA prefetch only for btc-direct / mint buttons
+// (no checkout chooser href). Checkout-mode sovereign links ARE prefetchable.
+function skipSovereignBuyPrefetch(el){
+  if (!el || !el.hasAttribute || !el.hasAttribute('data-sovereign-buy')) return false;
+  const mode = String(el.getAttribute('data-buy-mode') || '').toLowerCase();
+  if (mode === 'btc-direct' || el.hasAttribute('data-sovereign-instant')) return true;
+  const href = String(el.getAttribute('href') || '');
+  if (mode === 'checkout') return false;
+  if (href.indexOf('/checkout') === 0) return false;
+  // Buttons / anchors without a checkout href → instant mint path; no prefetch.
+  return true;
+}
+
+let __btcRateWarmed = false;
+function warmBtcRateOnce(){
+  if (__btcRateWarmed) return;
+  __btcRateWarmed = true;
+  try {
+    fetch('/api/payment/btc-rate', { credentials: 'same-origin' }).catch(function(){});
+  } catch (_) {}
+}
+
+function goCheckoutSpa(href, el){
+  const target = String(href || '');
+  if (!target) return;
+  try { warmBtcRateOnce(); } catch (_) {}
+  if (el) {
+    try { el.setAttribute('aria-busy', 'true'); } catch (_) {}
+    try { el.style.cursor = 'wait'; } catch (_) {}
+    if (el.tagName === 'BUTTON') {
+      try { if (!el.getAttribute('data-prev-label')) el.setAttribute('data-prev-label', el.textContent || ''); } catch (_) {}
+      try { el.textContent = 'Opening checkout…'; } catch (_) {}
+    }
+  }
+  if (document.body) try { document.body.style.cursor = 'wait'; } catch (_) {}
+  if (typeof navigateSpa === 'function') {
+    navigateSpa(target, { push: true });
+  } else {
+    window.location.href = target;
+  }
+}
+
 function applySpaHtml(href, html){
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const newApp = doc.querySelector('#app');
@@ -918,6 +960,7 @@ function markSpaPending(on){
       app.style.pointerEvents = '';
       app.removeAttribute('aria-busy');
     }
+    if (document.body) try { document.body.style.cursor = ''; } catch (_) {}
   }
 }
 
@@ -994,15 +1037,31 @@ function navigateSpa(href, opts){
 }
 
 document.addEventListener('pointerenter', function(e){
+  const buy = e.target && e.target.closest && e.target.closest('a[data-sovereign-buy], [data-sovereign-buy], .store-buy, [data-hero-quick-buy-btn]');
+  if (buy) {
+    warmBtcRateOnce();
+    if (buy.tagName === 'A' && !skipSovereignBuyPrefetch(buy)) {
+      const href = buy.getAttribute('href');
+      if (href && href.indexOf('/checkout') === 0) prefetchSpa(href);
+    }
+  }
   const a = e.target && e.target.closest && e.target.closest('a[data-link]');
   if (!a) return;
-  if (a.hasAttribute('data-sovereign-buy')) return;
+  if (skipSovereignBuyPrefetch(a)) return;
   prefetchSpa(a.getAttribute('href'));
 }, true);
 document.addEventListener('focusin', function(e){
+  const buy = e.target && e.target.closest && e.target.closest('a[data-sovereign-buy], [data-sovereign-buy], .store-buy, [data-hero-quick-buy-btn]');
+  if (buy) {
+    warmBtcRateOnce();
+    if (buy.tagName === 'A' && !skipSovereignBuyPrefetch(buy)) {
+      const href = buy.getAttribute('href');
+      if (href && href.indexOf('/checkout') === 0) prefetchSpa(href);
+    }
+  }
   const a = e.target && e.target.closest && e.target.closest('a[data-link]');
   if (!a) return;
-  if (a.hasAttribute('data-sovereign-buy')) return;
+  if (skipSovereignBuyPrefetch(a)) return;
   prefetchSpa(a.getAttribute('href'));
 });
 scheduleIdleHeavyWork(function(){
@@ -1012,7 +1071,14 @@ scheduleIdleHeavyWork(function(){
   } catch (_) {}
   try {
     $$('a[data-link]').slice(0, 16).forEach(function(a){
-      if (a.hasAttribute('data-sovereign-buy')) return;
+      if (skipSovereignBuyPrefetch(a)) return;
+      prefetchSpa(a.getAttribute('href'));
+    });
+  } catch (_) {}
+  try {
+    // Prefetch checkout chooser links for sovereign Buy CTAs.
+    $$('a[data-sovereign-buy][data-buy-mode="checkout"], a[data-sovereign-buy][href^="/checkout"]').slice(0, 12).forEach(function(a){
+      if (skipSovereignBuyPrefetch(a)) return;
       prefetchSpa(a.getAttribute('href'));
     });
   } catch (_) {}
@@ -2057,7 +2123,7 @@ function bindHeroQuickBuy(){
     // Universal Payment Rails: always open the method chooser (BTC · PayPal · NOW).
     let href = '/checkout/?plan=' + encodeURIComponent(id);
     if (email) href += '&email=' + encodeURIComponent(email);
-    window.location.href = href;
+    goCheckoutSpa(href, btn);
   };
   if (btn) btn.addEventListener('click', function(ev){ ev.preventDefault(); submit(); });
   form.addEventListener('submit', function(ev){ ev.preventDefault(); submit(); });
@@ -2831,6 +2897,11 @@ async function sovereignBuy(serviceId, opts){
       const u = new URL(target, window.location.origin);
       if (u.origin === window.location.origin) target = u.pathname + u.search + u.hash;
     } catch (_) {}
+    // Buy-click instant: SPA navigate to same-origin /checkout/:orderId (no full reload).
+    if (typeof navigateSpa === 'function' && /^\/checkout\b/.test(String(target))) {
+      navigateSpa(target, { push: true });
+      return;
+    }
     window.location.href = target;
   } catch (e) {
     if (document.body) document.body.style.cursor = prevCursor || '';
@@ -2874,7 +2945,7 @@ if (typeof window !== 'undefined') {
         return;
       }
       const href = '/checkout/?plan=' + encodeURIComponent(id) + (preorder ? '&preorder=1' : '');
-      window.location.href = href;
+      goCheckoutSpa(href, t);
     }, true);
   }
 }
@@ -3321,7 +3392,8 @@ function initServiceNarrative(service){
     runBtn.textContent = 'Continue → choose payment';
     runBtn.onclick = function(){
       const sid = service && service.id ? String(service.id) : '';
-      if (sid) location.href = '/checkout/?plan=' + encodeURIComponent(sid);
+      if (sid) goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid), runBtn);
+      else if (typeof navigateSpa === 'function') navigateSpa('/services', { push: true });
       else location.href = '/services';
     };
   }
@@ -3546,8 +3618,26 @@ function hydrateCheckout(){
               title: (document.getElementById('checkoutBuyingPlan') || {}).textContent || undefined,
             }),
           });
-          if (order && order.checkout_url) { window.location.href = order.checkout_url; return; }
-          if (order && order.orderId) { window.location.href = '/checkout/' + encodeURIComponent(order.orderId); return; }
+          if (order && order.checkout_url) {
+            const cu = String(order.checkout_url);
+            try {
+              const u = new URL(cu, window.location.origin);
+              if (u.origin === window.location.origin && typeof navigateSpa === 'function') {
+                navigateSpa(u.pathname + u.search + u.hash, { push: true });
+                return;
+              }
+            } catch (_) {}
+            window.location.href = cu;
+            return;
+          }
+          if (order && order.orderId) {
+            if (typeof navigateSpa === 'function') {
+              navigateSpa('/checkout/' + encodeURIComponent(order.orderId), { push: true });
+            } else {
+              window.location.href = '/checkout/' + encodeURIComponent(order.orderId);
+            }
+            return;
+          }
           toast((order && (order.reason || order.error)) || 'Could not create order', 'err');
         } catch (e) {
           toast('BTC error: ' + (e && e.message || e), 'err');
@@ -3616,8 +3706,23 @@ function hydrateCheckout(){
         selectCheckoutRail('btc');
       }
       // Rail failover cascade — always land on the sovereign invoice (BTC QR).
-      if (order.checkout_url) window.location.href = order.checkout_url;
-      else if (order.orderId) window.location.href = '/checkout/' + encodeURIComponent(order.orderId);
+      if (order.checkout_url) {
+        const cu = String(order.checkout_url);
+        try {
+          const u = new URL(cu, window.location.origin);
+          if (u.origin === window.location.origin && typeof navigateSpa === 'function') {
+            navigateSpa(u.pathname + u.search + u.hash, { push: true });
+            return;
+          }
+        } catch (_) {}
+        window.location.href = cu;
+      } else if (order.orderId) {
+        if (typeof navigateSpa === 'function') {
+          navigateSpa('/checkout/' + encodeURIComponent(order.orderId), { push: true });
+        } else {
+          window.location.href = '/checkout/' + encodeURIComponent(order.orderId);
+        }
+      }
     } catch (e) {
       toast((rail === 'paypal' ? 'PayPal' : 'NOWPayments') + ' error: ' + (e && e.message || e) + ' — try Bitcoin', 'err');
       selectCheckoutRail('btc');
@@ -3672,7 +3777,7 @@ function hydrateCheckout(){
       host.querySelectorAll('[data-co-upsell]').forEach(function(btn){
         btn.addEventListener('click', function(){
           const sid = btn.getAttribute('data-co-upsell');
-          if (sid) window.location.href = '/checkout/?plan=' + encodeURIComponent(sid);
+          if (sid) goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid), btn);
         });
       });
     } catch (_) { host.style.display = 'none'; }
@@ -5444,7 +5549,7 @@ function openStoreCheckout(product){
   if (!product) return;
   const pid = String(product.id || '');
   if (pid === 'ent-engagement-kickoff') {
-    window.location.href = '/checkout/?plan=' + encodeURIComponent(pid);
+    goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(pid));
     return;
   }
   if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(pid)) {
@@ -5455,7 +5560,7 @@ function openStoreCheckout(product){
   // (BTC · PayPal · NOW) — never a BTC-only /api/instant/purchase bypass.
   const sid = String(product.id || '').trim();
   if (!sid) return;
-  window.location.href = '/checkout/?plan=' + encodeURIComponent(sid);
+  goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid));
 }
 
 function renderStoreInvoice(r){
