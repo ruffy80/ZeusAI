@@ -91,7 +91,8 @@ const _brainStable = process.env.NODE_ENV !== 'test'
   && (/^(stable|safe)$/i.test(String(process.env.UNICORN_RUNTIME_PROFILE || ''))
     || process.env.DISABLE_SELF_MUTATION === '1');
 const MAIN_INTERVAL = _brainStable ? 30000 : 1000;
-const _brainTimer = setInterval(() => {
+/** One brain cycle — used by the timer and by tests (no wall-clock wait). */
+function forceTick() {
   mainCycleCount++;
   let activeLayers = 0;
   Object.values(adaptiveLayers).forEach(layer => {
@@ -107,7 +108,9 @@ const _brainTimer = setInterval(() => {
   }
   lastStatus = { mainCycleCount, activeLayers, timestamp: new Date().toISOString() };
   meshBus.emit('brain:tick', { mainCycleCount, status: lastStatus });
-}, MAIN_INTERVAL);
+  return lastStatus;
+}
+const _brainTimer = setInterval(forceTick, MAIN_INTERVAL);
 if (_brainTimer && typeof _brainTimer.unref === 'function') _brainTimer.unref();
 
 // API-uri expuse
@@ -204,6 +207,7 @@ module.exports = {
   getLayer,
   getMeshBus,
   conflictCoordinator,
+  forceTick,
   getGenome,
   validateGenome,
   genomeManager,

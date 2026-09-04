@@ -25,8 +25,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Attempt #2+ on a SHA that is no longer the tip of the PR/branch must NOT
+  # re-fail and spam "All jobs have failed" after a newer commit already fixed
+  # the matrix (seen 2026-09-04: re-run of 59b12971 after 70f961bc was green).
+  supersede-gate:
+    name: Supersede gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      run_compat: ${{ steps.gate.outputs.run_compat }}
+    steps:
+      - name: Decide whether this Attempt should run the matrix
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ATTEMPT="${{ github.run_attempt }}"
+          SHA="${{ github.sha }}"
+          REF="${{ github.head_ref || github.ref_name }}"
+          if [ "$ATTEMPT" = "1" ]; then
+            echo "run_compat=true" >> "$GITHUB_OUTPUT"
+            echo "[gate] Attempt #1 — run matrix for $SHA"
+            exit 0
+          fi
+          TIP=""
+          if command -v gh >/dev/null 2>&1; then
+            TIP=$(gh api "repos/${{ github.repository }}/commits/${REF}" --jq .sha 2>/dev/null || true)
+          fi
+          if [ -n "$TIP" ] && [ "$TIP" != "$SHA" ]; then
+            echo "::notice title=Obsolete matrix re-run skipped::Attempt #${ATTEMPT} of ${SHA:0:12} is superseded by tip ${TIP:0:12} on ${REF}. Not re-failing — open/re-run the tip SHA instead."
+            echo "run_compat=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Supersede gate"
+              echo "- attempt: \`${ATTEMPT}\`"
+              echo "- this SHA: \`${SHA}\`"
+              echo "- tip of \`${REF}\`: \`${TIP}\`"
+              echo "- result: **skipped** (obsolete re-run — prevents stale red notifications)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "run_compat=true" >> "$GITHUB_OUTPUT"
+            echo "[gate] Attempt #${ATTEMPT} still on tip ${SHA:0:12} — run matrix"
+          fi
+
   compat:
     name: Node ${{ matrix.node }} compatibility
+    needs: supersede-gate
+    if: needs.supersede-gate.outputs.run_compat == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:

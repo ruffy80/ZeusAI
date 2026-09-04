@@ -120,6 +120,17 @@ check('unicornBrain has unref / stable slower interval', () => {
     /NODE_ENV\s*!==\s*['"]test['"]/.test(src),
     'stable slowdown must skip NODE_ENV=test so tick tests still pass'
   );
+  assert.ok(/function\s+forceTick\s*\(/.test(src), 'forceTick must exist for sync tests');
+});
+
+check('node-compatibility workflow has supersede gate', () => {
+  const wf = fs.readFileSync(
+    path.join(__dirname, '../../.github/workflows/node-compatibility.yml'),
+    'utf8'
+  );
+  assert.ok(/supersede-gate/.test(wf), 'must define supersede-gate job');
+  assert.ok(/run_attempt/.test(wf), 'must inspect github.run_attempt');
+  assert.ok(/run_compat/.test(wf), 'must gate compat jobs on run_compat');
 });
 
 check('selfConstruction getStatus prefers lastReport when fresh', () => {
