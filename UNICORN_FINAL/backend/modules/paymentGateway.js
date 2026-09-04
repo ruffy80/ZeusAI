@@ -346,14 +346,19 @@ class PaymentGateway {
       { name: 'coingecko', url: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', pick: (j) => Number(j && j.bitcoin && j.bitcoin.usd) },
       { name: 'binance',   url: 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',               pick: (j) => Number(j && j.price) }
     ];
-    const results = await Promise.all(sources.map(async (s) => {
-      try {
-        const r = await axios.get(s.url, { timeout: 2500, headers: { 'User-Agent': 'ZeusAI/1.0' } });
-        const p = s.pick(r.data);
-        if (p && p > 1000 && p < 10000000) return { name: s.name, price: p };
-        return null;
-      } catch (_) { return null; }
-    }));
+    const results = await Promise.race([
+      Promise.all(sources.map(async (s) => {
+        try {
+          const r = await axios.get(s.url, { timeout: 2500, headers: { 'User-Agent': 'ZeusAI/1.0' } });
+          const p = s.pick(r.data);
+          if (p && p > 1000 && p < 10000000) return { name: s.name, price: p };
+          return null;
+        } catch (_) { return null; }
+      })),
+      // Hard ceiling — never let BTC fan-out pin the event loop / refresh locks
+      // past 4s even if an axios timeout is ignored by a broken agent.
+      new Promise((resolve) => setTimeout(() => resolve([]), 4000)),
+    ]);
     const valid = results.filter(Boolean).map((r) => r.price).sort((a, b) => a - b);
     if (valid.length === 0) {
       // No source responded — keep last good rate if we have one; otherwise signal unavailable.

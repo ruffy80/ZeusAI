@@ -9,6 +9,10 @@
  *      against the self-nesting hang on /api/brain/status & /api/supreme/status.
  *   2. autonomous-intelligence-core.getStatus().health is 'idle'/'good' when
  *      cold (no tracked agents) — never 'critical'.
+ *
+ * Forever rule: never wait on wall-clock brain intervals. Stable/safe slows
+ * the timer to 30s; CI re-runs of old SHAs + DISABLE_SELF_MUTATION used to
+ * leave lastStatus null and red the whole Node matrix. Use forceTick().
  */
 
 const assert = require('assert');
@@ -66,6 +70,20 @@ check('lastStatus is a slim snapshot (depth < 5) when null before first tick', (
   assert.ok(d < 5, `expected lastStatus depth < 5, got ${d}`);
 });
 
+check('forceTick() populates slim lastStatus without wall-clock wait', () => {
+  assert.strictEqual(typeof brain.forceTick, 'function', 'forceTick must be exported');
+  const tick = brain.forceTick();
+  assert.ok(tick && typeof tick === 'object');
+  assert.strictEqual(typeof tick.mainCycleCount, 'number');
+  assert.strictEqual(typeof tick.activeLayers, 'number');
+  const status = brain.getStatus();
+  assert.ok(status.lastStatus, 'expected lastStatus after forceTick');
+  assert.strictEqual(status.lastStatus.mainCycleCount, tick.mainCycleCount);
+  const d = depth(status.lastStatus);
+  assert.ok(d < 5, `expected lastStatus depth < 5 after tick, got ${d}`);
+  assert.doesNotThrow(() => JSON.stringify(brain.getStatus()));
+});
+
 // ── autonomous-intelligence-core — cold health ───────────────────────────────
 console.log('\nUnicorn Engines Complete — autonomous-intelligence-core.getStatus');
 
@@ -101,23 +119,6 @@ check('attest + verify round-trip with hmac-sha256', () => {
   assert.equal(bad.valid, false);
 });
 
-// ── tick-dependent: lastStatus stays slim after a real brain tick ────────────
-// Under NODE_ENV=test the brain keeps a 1s main cycle (even when the suite
-// forces UNICORN_RUNTIME_PROFILE=stable). Wait for at least one tick and
-// re-verify the snapshot is still slim (guards the recursion hang).
-setTimeout(() => {
-  check('after a tick, lastStatus is populated and remains slim (depth < 5)', () => {
-    const status = brain.getStatus();
-    assert.ok(status.lastStatus, 'expected lastStatus to be populated after a tick');
-    assert.strictEqual(typeof status.lastStatus.mainCycleCount, 'number');
-    assert.strictEqual(typeof status.lastStatus.activeLayers, 'number');
-    const d = depth(status.lastStatus);
-    assert.ok(d < 5, `expected lastStatus depth < 5 after tick, got ${d}`);
-    assert.doesNotThrow(() => JSON.stringify(brain.getStatus()));
-  });
-
-  console.log(`\n✅ unicorn-engines-complete: ${passed} tests passed\n`);
-  // Brain timer is .unref()'d; exit explicitly for the same pattern as
-  // dynamic-pricing.test.js (and in case other modules hold the loop open).
-  process.exit(0);
-}, 1300);
+console.log(`\n✅ unicorn-engines-complete: ${passed} tests passed\n`);
+// Brain timer is .unref()'d; exit explicitly (same pattern as dynamic-pricing).
+process.exit(0);
