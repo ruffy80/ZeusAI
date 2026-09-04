@@ -98,6 +98,16 @@ check('IAK getStatus exposes unhealthy + unhealthyCount', () => {
   assert.ok(Array.isArray(st.unhealthy));
 });
 
+check('live-pricing-broker skips marketplace walk under NODE_ENV=test', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '../backend/modules/live-pricing-broker.js'),
+    'utf8'
+  );
+  assert.ok(/LIVE_PRICING_LOAD_MARKETPLACE/.test(src), 'must gate marketplace load');
+  assert.ok(/LIVE_PRICING_AUTOSTART/.test(src), 'must gate test autostart');
+  assert.ok(/Promise\.race/.test(src), 'BTC rate await must be bounded');
+});
+
 check('unicornBrain has unref / stable slower interval', () => {
   const src = fs.readFileSync(
     path.join(__dirname, '../backend/modules/unicornBrain.js'),
