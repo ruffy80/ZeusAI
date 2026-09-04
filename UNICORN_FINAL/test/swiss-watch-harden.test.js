@@ -106,6 +106,10 @@ check('unicornBrain has unref / stable slower interval', () => {
   assert.ok(/\.unref\s*\(/.test(src), 'brain timer must .unref()');
   assert.ok(/30000/.test(src), 'stable profile must use 30000ms interval');
   assert.ok(/UNICORN_RUNTIME_PROFILE|DISABLE_SELF_MUTATION/.test(src));
+  assert.ok(
+    /NODE_ENV\s*!==\s*['"]test['"]/.test(src),
+    'stable slowdown must skip NODE_ENV=test so tick tests still pass'
+  );
 });
 
 check('selfConstruction getStatus prefers lastReport when fresh', () => {

@@ -84,9 +84,12 @@ let mainCycleCount = 0;
 // /api/brain/status & /api/supreme/status) hang.
 let lastStatus = null;
 // Stable/safe / no-mutation profiles: slow the brain tick so it cannot starve
-// /api/health under probe bursts (1s → 30s).
-const _brainStable = /^(stable|safe)$/i.test(String(process.env.UNICORN_RUNTIME_PROFILE || ''))
-  || process.env.DISABLE_SELF_MUTATION === '1';
+// /api/health under probe bursts (1s → 30s). Keep 1s under NODE_ENV=test so
+// tick-dependent unit tests (unicorn-engines-complete) still see a tick in ~1s
+// even when the suite forces UNICORN_RUNTIME_PROFILE=stable.
+const _brainStable = process.env.NODE_ENV !== 'test'
+  && (/^(stable|safe)$/i.test(String(process.env.UNICORN_RUNTIME_PROFILE || ''))
+    || process.env.DISABLE_SELF_MUTATION === '1');
 const MAIN_INTERVAL = _brainStable ? 30000 : 1000;
 const _brainTimer = setInterval(() => {
   mainCycleCount++;
