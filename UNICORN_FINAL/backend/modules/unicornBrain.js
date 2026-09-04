@@ -83,8 +83,12 @@ let mainCycleCount = 0;
 // creates unbounded self-nesting that makes JSON.stringify (and therefore
 // /api/brain/status & /api/supreme/status) hang.
 let lastStatus = null;
-const MAIN_INTERVAL = 1000; // 1s
-setInterval(() => {
+// Stable/safe / no-mutation profiles: slow the brain tick so it cannot starve
+// /api/health under probe bursts (1s → 30s).
+const _brainStable = /^(stable|safe)$/i.test(String(process.env.UNICORN_RUNTIME_PROFILE || ''))
+  || process.env.DISABLE_SELF_MUTATION === '1';
+const MAIN_INTERVAL = _brainStable ? 30000 : 1000;
+const _brainTimer = setInterval(() => {
   mainCycleCount++;
   let activeLayers = 0;
   Object.values(adaptiveLayers).forEach(layer => {
@@ -93,12 +97,15 @@ setInterval(() => {
       layer.process({ tick: mainCycleCount });
     }
   });
+  // Under stable/safe, conflictCoordinator already runs far less often because
+  // the tick itself is 30× slower; keep the every-30-ticks cadence.
   if (mainCycleCount % 30 === 0) {
     try { conflictCoordinator(); } catch (_) { /* never break the brain cycle */ }
   }
   lastStatus = { mainCycleCount, activeLayers, timestamp: new Date().toISOString() };
   meshBus.emit('brain:tick', { mainCycleCount, status: lastStatus });
 }, MAIN_INTERVAL);
+if (_brainTimer && typeof _brainTimer.unref === 'function') _brainTimer.unref();
 
 // API-uri expuse
 function getStatus() {

@@ -323,16 +323,25 @@ const selfConstruction = {
   // READ-ONLY. process() NEVER applies skeletons — it only runs the audit so
   // the standalone PM2 runner can heartbeat safely (apply:false semantics).
   getStatus() {
+    // Prefer lastReport when fresh (<10 min) — recursive module walk on every
+    // IAK/ops status poll was a major event-loop lag contributor.
+    const FRESH_MS = 10 * 60 * 1000;
     let totals = null;
     try {
-      const scan = this.scan();
-      totals = {
-        modules: scan.total,
-        empty: scan.empty.length,
-        noExports: scan.noExports.length,
-        placeholders: scan.placeholders.length,
-        duplicateOwnership: scan.duplicateOwnership.length,
-      };
+      const lr = this.lastReport;
+      const lrAt = lr && lr.generatedAt ? Date.parse(lr.generatedAt) : 0;
+      if (lr && lr.totals && lrAt && (Date.now() - lrAt) < FRESH_MS) {
+        totals = lr.totals;
+      } else {
+        const scan = this.scan();
+        totals = {
+          modules: scan.total,
+          empty: scan.empty.length,
+          noExports: scan.noExports.length,
+          placeholders: scan.placeholders.length,
+          duplicateOwnership: scan.duplicateOwnership.length,
+        };
+      }
     } catch (_) { totals = null; }
     return {
       module: 'selfConstruction',

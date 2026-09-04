@@ -12460,9 +12460,10 @@ if (require.main === module) {
     }
 
     // FAZA 2 / VAL 5: Stale-but-alive backend monitor — pings :3000/api/health
-    // every 10s. After 3 consecutive failures, /api/site/degraded reports true
+    // periodically. After N consecutive failures, /api/site/degraded reports true
     // (cockpit/services/status pages render a "Reconnecting…" banner).
     // Auto-recovers as soon as one health check passes again.
+    // Tolerance raised so transient health rebuild lag does not flap degraded.
     (function startBackendMonitor() {
       if (process.env.UNICORN_BACKEND_MONITOR_DISABLED === '1') return;
       var monitor = { fails: 0, ok: true, lastTs: 0, target: null, lastCode: null, lastBodyOk: null, reason: null };
@@ -12470,13 +12471,15 @@ if (require.main === module) {
       var BACKEND_URL = process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health';
       monitor.target = BACKEND_URL;
       var http2 = require('http');
+      var MONITOR_TIMEOUT_MS = Math.max(3000, Number(process.env.UNICORN_BACKEND_MONITOR_TIMEOUT_MS || 8000));
+      var MONITOR_FAIL_THRESHOLD = Math.max(3, Number(process.env.UNICORN_BACKEND_MONITOR_FAILS || 5));
       function markFail(reason, code, bodyOk) {
         monitor.fails++;
         monitor.lastTs = Date.now();
         monitor.reason = reason || 'failure';
         if (Number.isFinite(code)) monitor.lastCode = code;
         if (typeof bodyOk === 'boolean') monitor.lastBodyOk = bodyOk;
-        if (monitor.fails >= 3 && monitor.ok) {
+        if (monitor.fails >= MONITOR_FAIL_THRESHOLD && monitor.ok) {
           monitor.ok = false;
           console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails (' + monitor.reason + ')');
         }
@@ -12489,7 +12492,7 @@ if (require.main === module) {
             settled = true;
             markFail(reason, code, bodyOk);
           }
-          var req = http2.get(BACKEND_URL, { timeout: 3000 }, function (r) {
+          var req = http2.get(BACKEND_URL, { timeout: MONITOR_TIMEOUT_MS }, function (r) {
             monitor.lastTs = Date.now();
             monitor.lastCode = Number.isFinite(r.statusCode) ? r.statusCode : null;
             var chunks = '';
