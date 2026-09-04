@@ -108,7 +108,15 @@ function telegramReady() {
 }
 
 function emailReady() {
-  return !!(process.env.RESEND_API_KEY || process.env.SMTP_PASS || process.env.MAILGUN_API_KEY);
+  const smtpTriplet = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return !!(
+    process.env.RESEND_API_KEY
+    || process.env.SMTP_PASS
+    || process.env.MAILGUN_API_KEY
+    || process.env.BREVO_API_KEY
+    || process.env.MAILERSEND_API_KEY
+    || smtpTriplet
+  );
 }
 
 /**

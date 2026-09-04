@@ -739,6 +739,26 @@ class IntegratedAutonomyKernel extends EventEmitter {
 
   _isHealthy(status) {
     if (!status) return false;
+    // NDK observe-plane: event_loop_lag / healerFail paint health=critical but
+    // neverKill modules must NOT turn the whole IAK mesh red (522/523 false).
+    const reasons = Array.isArray(status.reasons) ? status.reasons : [];
+    const lagSignal = reasons.includes('event_loop_lag') || status.healerFail === true;
+    if (
+      status.neverKill === true
+      && typeof status.health === 'string'
+      && status.health.toLowerCase() === 'critical'
+      && lagSignal
+    ) {
+      return true;
+    }
+    if (
+      status.protocol === 'NDK/1.0'
+      && typeof status.health === 'string'
+      && status.health.toLowerCase() === 'critical'
+      && lagSignal
+    ) {
+      return true;
+    }
     // 'unknown' / 'observe' are NOT faults — only explicit negative health.
     const BAD_HEALTH = new Set(['error', 'failed', 'down', 'critical', 'compromised', 'crashed']);
     const BAD_STATUS = new Set(['error', 'failed', 'down', 'compromised', 'crashed']);
@@ -855,6 +875,16 @@ class IntegratedAutonomyKernel extends EventEmitter {
 
     const lastCausal = this._discovery.lastCausalStart;
 
+    const unhealthy = moduleList
+      .filter((m) => m && !m.healthy)
+      .map((m) => ({
+        name: m.name,
+        errors: m.errors,
+        depsReady: m.depsReady,
+        tier: m.tier,
+        lastSeen: m.lastSeen,
+      }));
+
     return {
       ok: true,
       id: KERNEL_ID,
@@ -869,6 +899,8 @@ class IntegratedAutonomyKernel extends EventEmitter {
       harmonicMs: HARMONIC_MS,
       totalModules: this.registry.size,
       healthyModules,
+      unhealthyCount: unhealthy.length,
+      unhealthy,
       meshHealthy: healthyModules === this.registry.size && this.quarantine.size === 0,
       quarantined: this.quarantine.size,
       quarantine: quarantinedList,

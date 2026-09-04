@@ -108,10 +108,17 @@ class LivePricingBroker extends EventEmitter {
     if (this._refreshing) return;
     this._refreshing = true;
     try {
-      // 1) BTC rate (live, with built-in fallback in paymentGateway)
+      // 1) BTC rate (live, with built-in fallback in paymentGateway).
+      // Bound the await — under CI / egress flakes axios timeouts can stall
+      // far past their configured 2.5s and pin `_refreshing` forever.
       let btcRate = this._snapshot.btcRate;
       if (paymentGateway && typeof paymentGateway.getBitcoinRate === 'function') {
-        try { btcRate = await paymentGateway.getBitcoinRate(); } catch (_) { /* keep last */ }
+        try {
+          btcRate = await Promise.race([
+            paymentGateway.getBitcoinRate(),
+            new Promise((resolve) => setTimeout(() => resolve(btcRate), 3000)),
+          ]);
+        } catch (_) { /* keep last */ }
       }
       const rate = Number(btcRate && btcRate.rate) || 0;
 
@@ -119,8 +126,13 @@ class LivePricingBroker extends EventEmitter {
       const services = [];
       const seen = new Set();
 
-      // 2a) From the marketplace registry (primary source of truth for the UI)
-      const _mp = _marketplace();
+      // 2a) From the marketplace registry (primary source of truth for the UI).
+      // Skip under NODE_ENV=test unless LIVE_PRICING_LOAD_MARKETPLACE=1 —
+      // lazy-requiring serviceMarketplace walks every backend module and can
+      // block the event loop for minutes (TTS 120s kills).
+      const allowMarketplace = process.env.NODE_ENV !== 'test'
+        || process.env.LIVE_PRICING_LOAD_MARKETPLACE === '1';
+      const _mp = allowMarketplace ? _marketplace() : null;
       if (_mp && typeof _mp.getAllServices === 'function') {
         try {
           for (const s of _mp.getAllServices()) {
@@ -253,12 +265,20 @@ function buildEntry({ id, name, category, description, basePrice, usd, dp, rate 
 }
 
 const broker = new LivePricingBroker();
-// Autostart in backend / test contexts. Skip when the *site* entrypoint is
-// require.main — requiring this module from site SSR used to stall the
-// event loop by pulling serviceMarketplace → every backend module.
+// Autostart in backend contexts. Skip when:
+//   • the *site* entrypoint is require.main (SSR used to stall by pulling
+//     serviceMarketplace → every backend module)
+//   • LIVE_PRICING_DISABLED=1
+//   • NODE_ENV=test without LIVE_PRICING_AUTOSTART=1 (unit tests must not
+//     pin the event loop on a cold marketplace walk / BTC fan-out)
 const __brokerMain = require.main && String(require.main.filename || '');
 const __isSiteEntry = /[/\\]src[/\\]index\.js$/.test(__brokerMain);
-if (!__isSiteEntry && process.env.LIVE_PRICING_DISABLED !== '1') {
+const __skipAutostart = __isSiteEntry
+  || process.env.LIVE_PRICING_DISABLED === '1'
+  || (process.env.NODE_ENV === 'test' && process.env.LIVE_PRICING_AUTOSTART !== '1');
+if (!__skipAutostart) {
   broker.start();
 }
 module.exports = broker;
+module.exports.buildEntry = buildEntry;
+module.exports.LivePricingBroker = LivePricingBroker;

@@ -143,6 +143,9 @@ module.exports = {
         OPS_PM2_CACHE_TTL_MS: process.env.OPS_PM2_CACHE_TTL_MS || '15000',
         // Default ON for single-node 8GB: execSync(pm2 jlist) freezes /api/health.
         OPS_PM2_CHECK_DISABLED: process.env.OPS_PM2_CHECK_DISABLED || '1',
+        // QIS getStatus used to sync-freshen pm2 on every probe; keep disabled
+        // by default alongside OPS_PM2_CHECK_DISABLED.
+        QIS_PM2_CHECK_DISABLED: process.env.QIS_PM2_CHECK_DISABLED || '1',
         // Loops that still run under stable and starve the event loop on one VPS.
         // AACOS/TAOS may stay gated via shared .env; discovery stack must NOT —
         // zero visitors was caused by GROWTH_STACK_DISABLED=1 parking IndexNow.

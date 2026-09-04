@@ -102,8 +102,9 @@ check('attest + verify round-trip with hmac-sha256', () => {
 });
 
 // ── tick-dependent: lastStatus stays slim after a real brain tick ────────────
-// The brain runs a 1s main cycle; wait for at least one tick and re-verify the
-// snapshot is still slim (this is where the recursion bug would surface).
+// Under NODE_ENV=test the brain keeps a 1s main cycle (even when the suite
+// forces UNICORN_RUNTIME_PROFILE=stable). Wait for at least one tick and
+// re-verify the snapshot is still slim (guards the recursion hang).
 setTimeout(() => {
   check('after a tick, lastStatus is populated and remains slim (depth < 5)', () => {
     const status = brain.getStatus();
@@ -116,7 +117,7 @@ setTimeout(() => {
   });
 
   console.log(`\n✅ unicorn-engines-complete: ${passed} tests passed\n`);
-  // unicornBrain starts a non-unref'd 1s setInterval — exit explicitly so the
-  // test process does not hang (same pattern as dynamic-pricing.test.js).
+  // Brain timer is .unref()'d; exit explicitly for the same pattern as
+  // dynamic-pricing.test.js (and in case other modules hold the loop open).
   process.exit(0);
 }, 1300);

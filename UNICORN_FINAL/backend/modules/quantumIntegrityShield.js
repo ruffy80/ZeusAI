@@ -330,6 +330,11 @@ class QuantumIntegrityShield {
   // ── Public API ───────────────────────────────────────────────────
 
   _freshenPm2OnlyLastScan() {
+    // Never sync-exec pm2 on the getStatus hot path when ops/QIS disable it —
+    // execSync('pm2 jlist') freezes the event loop under probe bursts.
+    if (process.env.QIS_PM2_CHECK_DISABLED === '1' || process.env.OPS_PM2_CHECK_DISABLED === '1') {
+      return this.lastScan;
+    }
     if (!this.lastScan || !Array.isArray(this.lastScan.issues)) return this.lastScan;
     if (!this.lastScan.issues.length) return this.lastScan;
     if (!this.lastScan.issues.every((issue) => issue && issue.type === 'pm2_process_missing')) return this.lastScan;
@@ -348,7 +353,10 @@ class QuantumIntegrityShield {
 
   /** Returnează statusul curent al scutului / Returns current shield status */
   getStatus() {
-    const currentScan = this._freshenPm2OnlyLastScan();
+    // Prefer cached lastScan when PM2 sync checks are disabled (no freshen).
+    const pm2CheckDisabled = process.env.QIS_PM2_CHECK_DISABLED === '1'
+      || process.env.OPS_PM2_CHECK_DISABLED === '1';
+    const currentScan = pm2CheckDisabled ? this.lastScan : this._freshenPm2OnlyLastScan();
     return {
       name:       this.name,
       active:     this.active,

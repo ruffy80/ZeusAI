@@ -260,6 +260,7 @@ function senseCommerce() {
           symptom: `${stuckAged} order(s) awaiting_payment older than ${Math.round(STUCK_PAYMENT_MS / 60000)}m`,
           cause: 'payment_rail_or_buyer_abandon',
           action: 'check BTC/PayPal/NOWPayments rails + /api/order/:id/status; recover via checkout recovery agent',
+          autoRemediation: 'checkout_recovery_tick',
           evidence: { stuckAged, awaiting },
         }));
       } else if (awaiting > 20) {
@@ -285,6 +286,39 @@ function senseCommerce() {
         }));
       }
     }
+
+    // Soft portal sense — sovereign checkout orders live in customer-portal SQLite,
+    // not always visible via ZACC. Never invent GMV; only count aged awaiting_payment.
+    try {
+      const alreadyStuck = findings.some((f) => f && f.id === 'commerce.stuck_awaiting_payment');
+      if (!alreadyStuck) {
+        const portal = _safeRequire('../../src/commerce/customer-portal');
+        if (portal && typeof portal._listOrders === 'function') {
+          const list = portal._listOrders() || [];
+          const now = Date.now();
+          let portalStuck = 0;
+          let portalAwaiting = 0;
+          for (const o of list) {
+            if (!o || o.status !== 'awaiting_payment') continue;
+            portalAwaiting += 1;
+            const t = Date.parse(o.updatedAt || o.createdAt || o.at || 0);
+            if (t && (now - t) >= STUCK_PAYMENT_MS) portalStuck += 1;
+          }
+          if (portalStuck > 0) {
+            findings.push(finding({
+              id: 'commerce.stuck_awaiting_payment',
+              plane: 'commerce',
+              severity: portalStuck >= 3 ? 'critical' : 'warn',
+              symptom: `${portalStuck} portal order(s) awaiting_payment older than ${Math.round(STUCK_PAYMENT_MS / 60000)}m`,
+              cause: 'payment_rail_or_buyer_abandon',
+              action: 'recover via checkout recovery agent (portal)',
+              autoRemediation: 'checkout_recovery_tick',
+              evidence: { stuckAged: portalStuck, awaiting: portalAwaiting, source: 'customer-portal' },
+            }));
+          }
+        }
+      }
+    } catch (_) { /* soft — portal optional */ }
   } catch (e) {
     findings.push(finding({
       id: 'commerce.zacc_unavailable',
@@ -565,6 +599,30 @@ async function _remediate(findingRow) {
       }
       _counts.remediations += 1;
       return { ok: true, kind };
+    } catch (e) {
+      return { ok: false, kind, error: String(e && e.message || e).slice(0, 120) };
+    }
+  }
+
+  if (kind === 'checkout_recovery_tick') {
+    const cra = _safeRequire('./checkout-recovery-agent');
+    if (!cra) return { ok: false, reason: 'checkout_recovery_unavailable' };
+    try {
+      if (typeof cra.start === 'function') {
+        cra.start({ stuckAfterMs: STUCK_PAYMENT_MS });
+      }
+      let result = null;
+      if (typeof cra.recover === 'function') {
+        result = await cra.recover({ stuckAfterMs: STUCK_PAYMENT_MS });
+      }
+      _counts.remediations += 1;
+      return {
+        ok: true,
+        kind,
+        sent: result && result.sent != null ? result.sent : null,
+        stuck: result && result.stuck != null ? result.stuck : null,
+        telegramNudges: result && result.telegramNudges != null ? result.telegramNudges : null,
+      };
     } catch (e) {
       return { ok: false, kind, error: String(e && e.message || e).slice(0, 120) };
     }

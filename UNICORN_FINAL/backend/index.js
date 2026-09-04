@@ -5380,9 +5380,21 @@ function buildHealthResponse() {
 //   version, buildSha, timestamp, neverDown (incl healerFail), totalAutonomy,
 //   runtimeProfile, quantumIntegrityShield (string), dbConnected (boolean).
 // Everything else stays behind /api/health/full (admin-gated).
+// Process-local TTL cache: burst probes (nginx/uptime/canary) must not rebuild
+// the full health graph every time — that was a live event_loop_lag source.
+const _PUBLIC_HEALTH_CACHE_TTL_MS = Math.max(
+  3000,
+  Math.min(5000, Number(process.env.UNICORN_PUBLIC_HEALTH_CACHE_MS || 4000))
+);
+let _publicHealthCache = { at: 0, body: null };
+
 function buildPublicHealthResponse() {
+  const now = Date.now();
+  if (_publicHealthCache.body && (now - _publicHealthCache.at) < _PUBLIC_HEALTH_CACHE_TTL_MS) {
+    return _publicHealthCache.body;
+  }
   const full = buildHealthResponse();
-  return {
+  const body = {
     status: full.status,
     ok: full.status === 'ok',
     uptime: full.uptime,
@@ -5399,6 +5411,8 @@ function buildPublicHealthResponse() {
     siteBond: full.siteBond,
     triadBond: full.triadBond,
   };
+  _publicHealthCache = { at: now, body };
+  return body;
 }
 
 // /health (non-prefixed) — used by uptime monitors. Public + redacted.
@@ -12214,6 +12228,10 @@ app.get(['/api/autonomy/master', '/.well-known/autonomy-master.json'], (req, res
         healthyModules: iak.healthyModules,
         totalModules: iak.totalModules,
         meshHealthy: iak.meshHealthy,
+        unhealthyCount: Number(iak.unhealthyCount || 0),
+        unhealthy: Array.isArray(iak.unhealthy)
+          ? iak.unhealthy.slice(0, 10).map((m) => (m && m.name) || m).filter(Boolean)
+          : [],
         lastSafeActivation: iak.lastSafeActivation,
         organKeys: iak.organs ? Object.keys(iak.organs) : [],
       } : null,
@@ -15798,6 +15816,11 @@ app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
           healthyModules: st.healthyModules,
           totalModules: st.totalModules,
           quarantined: st.quarantined,
+          meshHealthy: st.meshHealthy,
+          unhealthyCount: Number(st.unhealthyCount || 0),
+          unhealthy: Array.isArray(st.unhealthy)
+            ? st.unhealthy.slice(0, 10).map((m) => (m && m.name) || m).filter(Boolean)
+            : [],
           continuum: st.continuum || null,
           organs: st.organs ? {
             spine: st.organs.spine && {
