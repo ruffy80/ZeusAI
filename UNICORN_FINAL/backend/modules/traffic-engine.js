@@ -110,11 +110,12 @@ function _verticalIds() {
 
 /** Canonical list of every URL worth indexing. Deterministic, capped. */
 function urlsToSubmit() {
-  const core = ['/', '/buy', '/origin', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
+  const core = ['/', '/buy', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
     '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
     '/enterprise', '/wizard', '/dropship', '/zacc', '/marketplace', '/tg', '/llms.txt'];
   const urls = new Set(core.map((p) => APP_URL + p));
   urls.add(APP_URL + '/.well-known/origin-gravity.json');
+  urls.add(APP_URL + '/.well-known/social-gravity.json');
   for (const id of _catalogIds()) urls.add(APP_URL + '/services/' + encodeURIComponent(id));
   for (const id of _verticalIds()) urls.add(APP_URL + '/vertical/' + encodeURIComponent(id));
   // Billion Autonomy Loop — prioritize instant digital money pages when catalog is large

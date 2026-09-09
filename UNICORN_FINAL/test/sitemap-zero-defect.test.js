@@ -31,7 +31,7 @@ async function main() {
     assert.ok(xml.includes('xml-stylesheet'));
     assert.ok(xml.includes('/seo/sitemap.xsl'));
     assert.ok(xml.includes('<urlset'));
-    for (const p of ['/buy', '/origin', '/continuity', '/standard', '/rails', '/outcomes', '/vom', '/agents', '/zacc']) {
+    for (const p of ['/buy', '/origin', '/from/x', '/continuity', '/standard', '/rails', '/outcomes', '/vom', '/agents', '/zacc']) {
       assert.ok(xml.includes(`https://zeusai.pro${p}</loc>`), 'missing ' + p);
     }
     assert.ok(!xml.includes('/dashboard</loc>'));

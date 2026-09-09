@@ -349,13 +349,18 @@ class SocialMediaViralizer {
     return ['#AI', '#MachineLearning', '#Crypto', '#Web3', '#Sustainability', '#Automation', '#Future'];
   }
 
-  async generatePostContent() {
-    const modules = this.getAllModules();
-    const randomModule = modules[Math.floor(Math.random() * modules.length)];
-    const hashtags = await this.generateSmartHashtags(['AI', 'Unicorn', 'Autonomous']);
+  async generatePostContent(channel = 'web') {
+    try {
+      const sgp = require('./social-gravity-os');
+      const post = sgp.composePost(channel);
+      if (post && post.text) return post;
+    } catch (_) { /* fall through to honest origin copy */ }
+    const url = 'https://zeusai.pro/origin';
     return {
-      text: '🚀 Unicorn AI: Modulul "' + randomModule + '" este acum disponibil! Prețuri dinamice, reducere 20%. Automatizează-ți afacerea cu ' + hashtags.join(' ') + '\nhttps://zeusai.pro',
-      hashtags: hashtags.map((h) => h.replace('#', ''))
+      text: '0 paid humans. Origin #1 is still open at ZeusAI.\n' + url,
+      url,
+      hashtags: ['AI', 'Origin1', 'ZeusAI'],
+      channel: String(channel || 'web'),
     };
   }
 
@@ -363,41 +368,58 @@ class SocialMediaViralizer {
     // Runtime secrets can be injected/rotated after process boot (QuantumVault /
     // secret bootstrap). Always refresh token snapshot before each outbound cycle.
     this.reloadTokensFromEnv();
-    const content = await this.generatePostContent();
     const t = this.tokens;
     const results = {};
     const skipped = [];
-    const tryChannel = async (name, armed, fn, skipReason) => {
+    let sgp = null;
+    try { sgp = require('./social-gravity-os'); } catch (_) { sgp = null; }
+
+    const tryChannel = async (name, armed, fn) => {
       if (!armed) { skipped.push(name); return; }
+      const content = await this.generatePostContent(name);
+      if (sgp && content.contentHash && sgp.recentlyPosted(name, content.contentHash)) {
+        results[name] = { success: false, skipped: true, platform: name, reason: 'deduped_12h' };
+        skipped.push(name + ':deduped_12h');
+        sgp.recordAttempt({ channel: name, skipped: true, reason: 'deduped_12h', contentHash: content.contentHash });
+        return;
+      }
       try {
-        results[name] = await fn();
+        results[name] = await fn(content);
       } catch (err) {
         results[name] = { success: false, platform: name, error: err && err.message };
       }
       if (results[name] && results[name].skipped) {
-        skipped.push(name + ':' + (results[name].reason || skipReason || 'skipped'));
+        skipped.push(name + ':' + (results[name].reason || 'skipped'));
+      }
+      if (sgp && sgp.recordAttempt) {
+        sgp.recordAttempt({
+          channel: name,
+          success: !!(results[name] && results[name].success),
+          skipped: !!(results[name] && results[name].skipped),
+          reason: results[name] && results[name].reason,
+          error: results[name] && results[name].error,
+          contentHash: content.contentHash,
+        });
       }
     };
 
-    await tryChannel('pinterest', !!(t.pinterest && t.pinterestBoard && t.pinterestBoard !== 'unicorn_ai'), () => this.postToPinterest(content));
-    await tryChannel('x', !!t.xBearer, () => this.postToX(content));
-    await tryChannel('telegram', !!(t.telegram && t.telegramChat), () => this.postToTelegram(content));
-    await tryChannel('dev', !!t.devApi, () => this.postToDev(content));
-    await tryChannel('discord', !!t.discord, () => this.postToDiscord(content));
-    await tryChannel('linkedin', !!(t.linkedin && t.linkedinAuthor), () => this.postToLinkedIn(content));
-    await tryChannel('facebook', !!(t.facebookPageToken && t.facebookPageId), () => this.postToFacebook(content));
-    await tryChannel('instagram', !!(t.instagramToken && t.instagramUserId), () => this.postToInstagram(content));
-    await tryChannel('threads', !!(t.threadsToken && t.threadsUserId), () => this.postToThreads(content));
-    await tryChannel('mastodon', !!t.mastodonToken, () => this.postToMastodon(content));
-    await tryChannel('bluesky', !!(t.blueskyHandle && t.blueskyPassword), () => this.postToBluesky(content));
-    await tryChannel('reddit', !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit), () => this.postToReddit(content));
-    await tryChannel('webhook', !!t.socialWebhook, () => this.postToSocialWebhook(content));
-    // Honest skips: credentials exist but the API cannot publish this payload.
-    if (t.youtube) results.youtube = await this.postToYouTube(content);
-    else skipped.push('youtube');
-    if (t.tiktok && !t.socialWebhook) results.tiktok = await this.postToTikTok(content);
+    await tryChannel('pinterest', !!(t.pinterest && t.pinterestBoard && t.pinterestBoard !== 'unicorn_ai'), (c) => this.postToPinterest(c));
+    await tryChannel('x', !!t.xBearer, (c) => this.postToX(c));
+    await tryChannel('telegram', !!(t.telegram && t.telegramChat), (c) => this.postToTelegram(c));
+    await tryChannel('dev', !!t.devApi, (c) => this.postToDev(c));
+    await tryChannel('discord', !!t.discord, (c) => this.postToDiscord(c));
+    await tryChannel('linkedin', !!(t.linkedin && t.linkedinAuthor), (c) => this.postToLinkedIn(c));
+    await tryChannel('facebook', !!(t.facebookPageToken && t.facebookPageId), (c) => this.postToFacebook(c));
+    await tryChannel('instagram', !!(t.instagramToken && t.instagramUserId), (c) => this.postToInstagram(c));
+    await tryChannel('threads', !!(t.threadsToken && t.threadsUserId), (c) => this.postToThreads(c));
+    await tryChannel('mastodon', !!t.mastodonToken, (c) => this.postToMastodon(c));
+    await tryChannel('bluesky', !!(t.blueskyHandle && t.blueskyPassword), (c) => this.postToBluesky(c));
+    await tryChannel('reddit', !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit), (c) => this.postToReddit(c));
+    await tryChannel('webhook', !!t.socialWebhook, (c) => this.postToSocialWebhook(c));
+    if (t.youtube) results.youtube = await this.postToYouTube(); else skipped.push('youtube');
+    if (t.tiktok && !t.socialWebhook) results.tiktok = await this.postToTikTok();
     else if (!t.tiktok) skipped.push('tiktok');
-    if (t.producthuntDevToken) results.producthunt = await this.postToProductHunt(content);
+    if (t.producthuntDevToken) results.producthunt = await this.postToProductHunt();
     else skipped.push('producthunt');
 
     const published = Object.keys(results).filter((k) => results[k] && results[k].success);
@@ -405,8 +427,10 @@ class SocialMediaViralizer {
       console.warn('⚠️  postToAllPlatforms: 0 canale publicate — skipped/lipsesc: ' + skipped.join(', '));
     } else {
       console.log('📢 postToAllPlatforms: publicat pe ' + published.length + ' canal(e): ' + published.join(', '));
+      if (sgp && typeof sgp.afterPublish === 'function') sgp.afterPublish(results);
     }
-    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(content.text || '').slice(0, 100), results, published: published.length, skipped });
+    const sample = await this.generatePostContent('web');
+    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(sample.text || '').slice(0, 100), results, published: published.length, skipped });
     if (this.postHistory.length > 500) this.postHistory.shift();
     return results;
   }
@@ -523,7 +547,7 @@ class SocialMediaViralizer {
       await this._http.post('https://api.pinterest.com/v5/pins', {
         title: String(content.text || '').slice(0, 100),
         description: String(content.text || ''),
-        link: 'https://zeusai.pro',
+        link: content.url || 'https://zeusai.pro/origin',
         board_id: this.tokens.pinterestBoard
       }, { headers: { Authorization: 'Bearer ' + this.tokens.pinterest }, timeout: 15000 });
       return { success: true, platform: 'pinterest', cost: 0 };
@@ -725,7 +749,7 @@ class SocialMediaViralizer {
           kind: 'self',
           sr: this.tokens.redditSubreddit,
           title: String(content.text || 'ZeusAI Unicorn').slice(0, 120),
-          text: String(content.text || '') + '\nhttps://zeusai.pro',
+          text: String(content.text || '') + '\n' + (content.url || 'https://zeusai.pro/origin'),
           api_type: 'json'
         }).toString(),
         {
@@ -753,7 +777,7 @@ class SocialMediaViralizer {
         body: String(content.text || ''),
         hashtags: content.hashtags || [],
         image: content.imageUrl || content.image || 'https://zeusai.pro/assets/og-image.png',
-        url: 'https://zeusai.pro',
+        url: content.url || 'https://zeusai.pro/origin',
         platforms: ['instagram', 'tiktok', 'reddit'],
         ts: new Date().toISOString()
       }, { timeout: 15000 });

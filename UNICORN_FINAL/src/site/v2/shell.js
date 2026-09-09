@@ -1289,6 +1289,20 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
   </div>
 </section>
 
+<section id="homeSocialGravity" class="card" style="margin:16px 0 0;padding:20px 24px;border:1px solid rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(138,92,255,.08),rgba(0,212,255,.05))" data-sgp-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#8a5cff">SGP/1.0 · Social Gravity</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(18px,2.4vw,26px);line-height:1.2">Every autoviral post lands on a tracked Origin seat — <span class="grad">not a random homepage dump.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Facebook, X, Instagram, Telegram and the rest now share <code>/from/{channel}</code> with UTM + referral codes. Clicks are page loads. Buyers are paidHumans. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/from/x" data-link>Open X landing →</a>
+      <a class="btn btn-ghost" href="/.well-known/social-gravity.json" data-allow-raw="1">social-gravity.json</a>
+    </div>
+  </div>
+</section>
+
 ${merchantStandardSurface.homeStripHtml()}
 
 ${_featuredHtml}
@@ -3823,13 +3837,56 @@ function pageOrigin(params) {
 </script>`;
 }
 
+function pageFrom(params) {
+  const channel = String((params && (params.channel || params.id)) || 'web')
+    .toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || 'web';
+  let paid = 0;
+  let copy = '0 paid humans. Origin #1 is still open.';
+  let buyHref = '/buy?utm_source=' + encodeURIComponent(channel) + '&utm_medium=social&utm_campaign=origin1&ref=SGP-' + channel.toUpperCase();
+  let originHref = '/origin';
+  try {
+    const sgp = require('../../../backend/modules/social-gravity-os');
+    sgp.recordLanding(channel, { ref: params && params.ref });
+    const post = sgp.composePost(channel);
+    copy = post.text;
+    buyHref = '/buy?utm_source=' + encodeURIComponent(channel) + '&utm_medium=social&utm_campaign=' + encodeURIComponent(post.campaign || 'origin1') + '&ref=' + encodeURIComponent(post.ref);
+    paid = Number(post.paidHumans) || 0;
+  } catch (_) { /* stay honest at zero */ }
+  const open = paid === 0;
+  const label = channel === 'x' ? 'X' : channel.charAt(0).toUpperCase() + channel.slice(1);
+  return `<section class="hero" style="padding-bottom:12px">
+  <div class="hero-copy" style="max-width:820px">
+    <span class="hero-eyebrow"><span class="dot"></span> SGP/1.0 · arrived from ${ _esc(label) }</span>
+    <h1>${open ? '0 paid humans. <span class="grad">Be Origin #1.</span>' : ('Origin #' + paid + ' taken. <span class="grad">Claim the next seat.</span>')}</h1>
+    <p class="lead">This page is the conversion landing for ZeusAI autoviral posts. It is a real click, not a fake user. Checkout still requires a confirmed settlement before paidHumans moves.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="${_esc(buyHref)}" data-link>${open ? 'Claim Origin #1 →' : 'Buy a live service →'}</a>
+      <a class="btn btn-ghost" href="${_esc(originHref)}" data-link>Verify the public ledger</a>
+    </div>
+  </div>
+</section>
+<section style="margin-top:8px">
+  <div class="card" style="padding:20px">
+    <span class="kicker">What the ${ _esc(label) } post actually said</span>
+    <pre style="white-space:pre-wrap;font-size:14px;line-height:1.55;margin:12px 0 0;color:var(--ink)">${_esc(copy)}</pre>
+  </div>
+  <div class="card" style="padding:18px;margin-top:14px">
+    <p style="margin:0;color:var(--ink-dim);font-size:13.5px;line-height:1.6">Attribution: <code>utm_source=${_esc(channel)}</code> · <code>ref=SGP-${_esc(channel.toUpperCase())}</code>. inboundLandings count this page load. They are not buyers. Machine surface: <a href="/.well-known/social-gravity.json" data-allow-raw="1">/.well-known/social-gravity.json</a></p>
+  </div>
+</section>`;
+}
+
 function renderRoute(route, params = {}) {
   if (route.startsWith('/origin/')) {
     return pageOrigin(Object.assign({}, params, { originIndex: route.slice('/origin/'.length) }));
   }
+  if (route.startsWith('/from/')) {
+    return pageFrom(Object.assign({}, params, { channel: route.slice('/from/'.length).split('/')[0] }));
+  }
   switch (route) {
     case '/': return pageHome();
     case '/origin': return pageOrigin(params);
+    case '/from': return pageFrom(params);
     case '/buy': return sellSurface.pageBuy();
     case '/outcomes': return sellSurface.pageOutcomes();
     case '/rails': return sellSurface.pageRails();
@@ -6653,6 +6710,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
+  if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
   if (route.startsWith('/services/')) return 'Service';
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
@@ -6664,6 +6722,7 @@ function routeDescription(route) {
   const map = {
     '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
+    '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',
     '/buy': 'Buy only ZeusAI products with real fulfillment recipes — BTC self-serve, professional reserves, honest enterprise contact.',
     '/outcomes': 'Verify Proof-of-Outcome escrows, Delivery Passports and Agent Capability Exchange listings on ZeusAI.',
     '/rails': 'Honest Armed Rails Continuum: which payment and notify rails are armed vs idle until you add keys.',
