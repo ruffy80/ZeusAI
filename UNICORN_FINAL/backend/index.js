@@ -5221,6 +5221,18 @@ try {
   console.warn('[SGP] load/start failed:', e && e.message);
 }
 
+// VUK/1.0 — Viral Unification Kernel (single outbound mutex; no fake reach)
+let viralUnificationOs = null;
+try {
+  viralUnificationOs = require('./modules/viral-unification-os');
+  if (process.env.NODE_ENV !== 'test' && process.env.VUK_DISABLED !== '1') {
+    viralUnificationOs.start();
+  }
+  console.log('🧲 VUK/1.0 Viral Unification: MOUNTED (one outbound mutex, reach never invented)');
+} catch (e) {
+  console.warn('[VUK] load/start failed:', e && e.message);
+}
+
 function _cblosBtc(rate) {
   try {
     const cblos = commerceBondLoopOs || require('./modules/commerce-bond-loop-os');
@@ -9224,6 +9236,18 @@ app.post('/api/social-gravity/pulse', adminTokenMiddleware, (req, res) => {
     })).then((out) => res.json(out));
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, protocol: 'SGP/1.0' });
+  }
+});
+
+app.get(['/api/viral-unification', '/api/viral-unification/status', '/.well-known/viral-unification.json'], (req, res) => {
+  try {
+    const m = viralUnificationOs || require('./modules/viral-unification-os');
+    const hdr = m.unificationHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'public, max-age=8');
+    return res.json(m.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false });
   }
 });
 

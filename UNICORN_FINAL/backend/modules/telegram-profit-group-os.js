@@ -425,14 +425,27 @@ async function postValue(force) {
     if (Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
   }
   const tmpl = pickValueTemplate();
-  const cta = buildCta(tmpl.id);
+  let cta = buildCta(tmpl.id);
   const invite = tmpl.id === 'invite_gravity' ? await ensureInviteLink() : null;
-  const text = tmpl.build(cta, invite);
+  let text = tmpl.build(cta, invite);
+  try {
+    const vuk = require('./viral-unification-os');
+    const gate = vuk.admit({ channel: 'telegram', source: 'tpg', kind: 'group-value', force: !!force });
+    if (!gate.ok) return { ok: false, skipped: true, reason: gate.reason, protocol: 'VUK/1.0' };
+    const canon = vuk.canonicalizeIntent({ body: text, url: cta, source: 'tpg' }, 'telegram');
+    if (canon && canon.body) text = canon.body;
+  } catch (_) { /* VUK optional */ }
   const buttons = [[
     { text: 'Open ZeusAI catalog', url: cta },
     { text: 'Live site', url: SITE },
   ]];
   const r = await sendGroup(text, { kind: 'value', buttons });
+  try {
+    const vuk = require('./viral-unification-os');
+    if (vuk && typeof vuk.record === 'function') {
+      vuk.record({ channel: 'telegram', source: 'tpg', kind: 'group-value', success: !!(r && r.ok), skipped: !(r && r.ok), reason: r && r.reason });
+    }
+  } catch (_) { /* ignore */ }
   if (r && r.ok) {
     state.postsToday += 1;
     state.lastValueAt = Date.now();

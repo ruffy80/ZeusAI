@@ -170,6 +170,17 @@ async function _executeAction(action) {
 async function _postToChannels(post) {
   const payload = post && post.text ? post.text : '';
   const responses = [];
+  try {
+    const vuk = require('../viral-unification-os');
+    const cycle = vuk.shouldRunFullCycle('social-orchestrator');
+    if (!cycle.ok) {
+      return {
+        ok: true, skipped: true, reason: cycle.reason, protocol: 'VUK/1.0',
+        postId: post && post.item && post.item.id ? post.item.id : null,
+        responses: [{ channel: 'all', ok: false, skipped: true, reason: 'vuk_not_designated' }],
+      };
+    }
+  } catch (_) { /* VUK optional */ }
 
   if (deps.socialViralizer && typeof deps.socialViralizer.generateSocialPost === 'function') {
     try {

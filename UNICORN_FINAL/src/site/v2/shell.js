@@ -1303,6 +1303,20 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
   </div>
 </section>
 
+<section id="homeViralUnification" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(0,212,255,.28);background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(138,92,255,.05))" data-vuk-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#00d4ff">VUK/1.0 · Viral Unification</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">One outbound mutex — <span class="grad">viralizer, outbound, AACOS and CVR cannot double-post.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Site autoviralization used to race on the same Telegram/X/Discord tokens. VUK admits every social HTTP call, canonicalizes copy to Social Gravity landings, and coalesces IndexNow. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/.well-known/viral-unification.json" data-allow-raw="1">viral-unification.json</a>
+      <a class="btn btn-ghost" href="/from/x" data-link>X landing →</a>
+    </div>
+  </div>
+</section>
+
 ${merchantStandardSurface.homeStripHtml()}
 
 ${_featuredHtml}

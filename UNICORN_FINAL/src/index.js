@@ -339,6 +339,23 @@ app.get('/health', (req, res) => {
         return { protocol: 'SGP/1.0', available: false, inventsReach: false };
       }
     })(),
+    viralUnification: (function () {
+      try {
+        const vuk = require('../backend/modules/viral-unification-os');
+        const s = vuk.getStatus();
+        return {
+          protocol: 'VUK/1.0',
+          available: true,
+          designatedExecutor: s.designatedExecutor,
+          liveReady: s.liveReady,
+          published: s.published,
+          skipped: s.skipped,
+          inventsReach: false,
+        };
+      } catch (_) {
+        return { protocol: 'VUK/1.0', available: false, inventsReach: false };
+      }
+    })(),
     brandSpectrum: (function () {
       try {
         const cic = require('../backend/modules/brand-spectrum-os');
@@ -1000,6 +1017,17 @@ app.get(['/.well-known/social-gravity.json', '/api/social-gravity', '/api/social
     return res.json(sgp.discovery());
   } catch (e) {
     return res.status(503).json({ ok: false, error: e.message, protocol: 'SGP/1.0', inventsReach: false });
+  }
+});
+app.get(['/.well-known/viral-unification.json', '/api/viral-unification', '/api/viral-unification/status'], (req, res) => {
+  try {
+    const vuk = require('../backend/modules/viral-unification-os');
+    const hdr = vuk.unificationHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'no-store');
+    return res.json(vuk.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false });
   }
 });
 app.get('/api/origin-gravity/ledger', (req, res) => {
@@ -7768,6 +7796,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         social_gravity:    '/.well-known/social-gravity.json',
         sgp:               '/api/social-gravity',
         from_landing:      '/from/{channel}',
+        viral_unification: '/.well-known/viral-unification.json',
+        vuk:               '/api/viral-unification',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8279,6 +8309,25 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'SGP/1.0', inventsReach: false }));
+    }
+  }
+
+  if (
+    urlPath === '/.well-known/viral-unification.json'
+    || urlPath === '/api/viral-unification'
+    || urlPath === '/api/viral-unification/status'
+  ) {
+    try {
+      const vuk = require('../backend/modules/viral-unification-os');
+      const hdr = vuk.unificationHeaders();
+      res.writeHead(200, Object.assign({
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      }, hdr));
+      return res.end(JSON.stringify(vuk.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false }));
     }
   }
 
