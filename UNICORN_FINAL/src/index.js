@@ -209,6 +209,13 @@ function applySiteTopologyHeaders(req, res) {
 // 24/7-PERFECTION: single-fetch full picture (backwards-compatible: keeps ok/status/ts,
 // adds backend monitor + SSE counts so the HTML pages and external probes can detect
 // degraded mode without a second request).
+function _backendMonitorOk(mon) {
+  try {
+    return require('./lib/backend-monitor').backendOkFromMonitor(mon);
+  } catch (_) {
+    return !!(mon && mon.ok);
+  }
+}
 app.get('/health', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
@@ -233,7 +240,7 @@ app.get('/health', (req, res) => {
       masterCatalogAgeMs = Math.max(0, Date.now() - _masterCatalogCache.fetchedAt);
     }
   } catch (_) { /* cache not ready */ }
-  const backendOk = !!mon.ok;
+  const backendOk = _backendMonitorOk(mon);
   res.json({
     ok: backendOk,
     status: backendOk ? 'healthy' : 'degraded',
@@ -243,10 +250,10 @@ app.get('/health', (req, res) => {
     ts: new Date().toISOString(),
     uptimeSec: Math.round(process.uptime()),
     backend: {
-      ok: mon.ok,
+      ok: backendOk,
       fails: mon.fails || 0,
       lastCheckTs: mon.lastTs || 0,
-      degraded: !mon.ok,
+      degraded: !backendOk,
       target: mon.target || null,
       lastCode: Number.isFinite(mon.lastCode) ? mon.lastCode : null,
       lastBodyOk: typeof mon.lastBodyOk === 'boolean' ? mon.lastBodyOk : null,
@@ -395,6 +402,7 @@ app.get('/site/observe', (req, res) => {
     c.ts = Date.now();
     c.loaded = loaded;
   }
+  const backendOk = _backendMonitorOk(mon);
   res.json({
     ok: true,
     ts: Date.now(),
@@ -402,10 +410,10 @@ app.get('/site/observe', (req, res) => {
     memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
     pid: process.pid,
     backend: {
-      ok: mon.ok,
+      ok: backendOk,
       fails: mon.fails || 0,
       lastCheckTs: mon.lastTs || 0,
-      degraded: !mon.ok,
+      degraded: !backendOk,
       target: mon.target || null,
       lastCode: Number.isFinite(mon.lastCode) ? mon.lastCode : null,
       lastBodyOk: typeof mon.lastBodyOk === 'boolean' ? mon.lastBodyOk : null,
@@ -438,7 +446,7 @@ app.get('/health/ready', (req, res) => {
   // Before the first probe (lastTs=0) we stay ready so cold boot is not
   // flapped by healers; after the monitor has observed failures, report 503.
   const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, lastTs: 0 };
-  const backendReady = !!mon.ok;
+  const backendReady = _backendMonitorOk(mon);
   const monitorWarmed = Number(mon.lastTs) > 0;
   const ready = !monitorWarmed || backendReady;
   const body = {
@@ -5506,15 +5514,16 @@ async function unicornHandler(req, res) {
     // adds backend monitor + SSE clients + uptime so the HTML pages and external probes can
     // detect degraded mode without a second request.
     var __mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+    var __backendOk = _backendMonitorOk(__mon);
     var __sse = { snapshot: (typeof streamClients !== 'undefined' && streamClients && streamClients.size) || 0,
                   unicorn:  (typeof unicornEventClients !== 'undefined' && unicornEventClients && unicornEventClients.size) || 0 };
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     return res.end(JSON.stringify({
-      ok: !!__mon.ok, service: 'unicorn-final', brand: 'ZeusAI',
-      status: __mon.ok ? 'healthy' : 'degraded',
-      degraded: !__mon.ok,
+      ok: __backendOk, service: 'unicorn-final', brand: 'ZeusAI',
+      status: __backendOk ? 'healthy' : 'degraded',
+      degraded: !__backendOk,
       uptimeSec: Math.round(process.uptime()),
-      backend: { ok: __mon.ok, fails: __mon.fails || 0, lastCheckTs: __mon.lastTs || 0 },
+      backend: { ok: __backendOk, fails: __mon.fails || 0, lastCheckTs: __mon.lastTs || 0 },
       sse: __sse,
       ts: Date.now()
     }));
@@ -6598,6 +6607,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   if (urlPath === '/site/observe') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     var _mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+    var _backendOk = _backendMonitorOk(_mon);
     var _obs = global.__UNICORN_SITE_OBSERVE_CACHE || { ts: 0, loaded: null };
     if (!_obs.loaded) _obs.loaded = {};
     return res.end(JSON.stringify({
@@ -6607,10 +6617,10 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       pid: process.pid,
       backend: {
-        ok: _mon.ok,
+        ok: _backendOk,
         fails: _mon.fails || 0,
         lastCheckTs: _mon.lastTs || 0,
-        degraded: !_mon.ok,
+        degraded: !_backendOk,
         target: _mon.target || null,
         lastCode: Number.isFinite(_mon.lastCode) ? _mon.lastCode : null,
         lastBodyOk: typeof _mon.lastBodyOk === 'boolean' ? _mon.lastBodyOk : null,
@@ -6630,7 +6640,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   if (urlPath === '/site/degraded' || urlPath === '/unicorn-degraded') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     var monitor = global.__UNICORN_BACKEND_MONITOR || { fails: 0, ok: true, lastTs: 0 };
-    return res.end(JSON.stringify({ ok: true, degraded: !monitor.ok, fails: monitor.fails, lastCheckTs: monitor.lastTs }));
+    var degraded = !_backendMonitorOk(monitor);
+    return res.end(JSON.stringify({ ok: true, degraded, fails: monitor.fails, lastCheckTs: monitor.lastTs }));
   }
 
 
@@ -12718,68 +12729,23 @@ if (require.main === module) {
     // Tolerance raised so transient health rebuild lag does not flap degraded.
     (function startBackendMonitor() {
       if (process.env.UNICORN_BACKEND_MONITOR_DISABLED === '1') return;
-      var monitor = { fails: 0, ok: true, lastTs: 0, target: null, lastCode: null, lastBodyOk: null, reason: null };
-      global.__UNICORN_BACKEND_MONITOR = monitor;
-      var BACKEND_URL = process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health/live';
-      monitor.target = BACKEND_URL;
-      var http2 = require('http');
       var MONITOR_TIMEOUT_MS = Math.max(3000, Number(process.env.UNICORN_BACKEND_MONITOR_TIMEOUT_MS || 8000));
       var MONITOR_FAIL_THRESHOLD = Math.max(3, Number(process.env.UNICORN_BACKEND_MONITOR_FAILS || 5));
-      function markFail(reason, code, bodyOk) {
-        monitor.fails++;
-        monitor.lastTs = Date.now();
-        monitor.reason = reason || 'failure';
-        if (Number.isFinite(code)) monitor.lastCode = code;
-        if (typeof bodyOk === 'boolean') monitor.lastBodyOk = bodyOk;
-        if (monitor.fails >= MONITOR_FAIL_THRESHOLD && monitor.ok) {
-          monitor.ok = false;
+      var created = require('./lib/backend-monitor').createBackendMonitor({
+        timeoutMs: MONITOR_TIMEOUT_MS,
+        failThreshold: MONITOR_FAIL_THRESHOLD,
+        target: process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health/live',
+        onDegraded: function (monitor) {
           console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails (' + monitor.reason + ')');
-        }
-      }
-      function ping() {
-        try {
-          var settled = false;
-          function failOnce(reason, code, bodyOk) {
-            if (settled) return;
-            settled = true;
-            markFail(reason, code, bodyOk);
-          }
-          var req = http2.get(BACKEND_URL, { timeout: MONITOR_TIMEOUT_MS }, function (r) {
-            monitor.lastTs = Date.now();
-            monitor.lastCode = Number.isFinite(r.statusCode) ? r.statusCode : null;
-            var chunks = '';
-            r.setEncoding('utf8');
-            r.on('data', function (d) {
-              if (chunks.length < 2048) chunks += String(d || '');
-            });
-            r.on('end', function () {
-              var bodyOk = false;
-              try {
-                var j = JSON.parse(chunks || '{}');
-                bodyOk = !!(j && (j.ok === true || j.status === 'ok' || j.ready === true));
-              } catch (_) { bodyOk = false; }
-              monitor.lastBodyOk = bodyOk;
-              var statusOk = r.statusCode >= 200 && r.statusCode < 400;
-              if (statusOk && bodyOk) {
-                settled = true;
-                monitor.fails = 0;
-                monitor.reason = null;
-                if (!monitor.ok) console.log('[backend-monitor] recovered');
-                monitor.ok = true;
-              } else {
-                failOnce('status/body mismatch', r.statusCode, bodyOk);
-              }
-            });
-          });
-          req.on('error', function () {
-            failOnce('request error');
-          });
-          req.on('timeout', function () { try { req.destroy(); } catch (_) {} failOnce('timeout'); });
-        } catch (_) { markFail('exception'); }
-      }
-      var t = setInterval(ping, 10000);
+        },
+        onRecovered: function () {
+          console.log('[backend-monitor] recovered');
+        },
+      });
+      global.__UNICORN_BACKEND_MONITOR = created.monitor;
+      var t = setInterval(created.ping, 10000);
       if (t && typeof t.unref === 'function') t.unref();
-      setTimeout(ping, 5000).unref?.();
+      setTimeout(created.ping, 5000).unref?.();
     })();
     // Prewarm public SSR shells so the first visitor after boot does not pay
     // the cold unified-catalog + shell render cost on click #1.

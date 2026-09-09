@@ -226,11 +226,19 @@ function listGeneratedModuleFiles() {
   return files.map((f) => ({ file: f, abs: path.join(genDir, f), name: baseName(f), sourceDir: 'generated' }));
 }
 
+const _looksLikeCache = new Map(); // abs -> { mtimeMs, size, ok }
+
 function looksLikeModuleSource(filePath) {
   try {
+    const st = fs.statSync(filePath);
+    const prev = _looksLikeCache.get(filePath);
+    if (prev && prev.mtimeMs === st.mtimeMs && prev.size === st.size) return prev.ok;
     const head = fs.readFileSync(filePath, 'utf8').slice(0, 12000);
-    if (/module\.exports\s*=\s*require\s*\(/.test(head) && head.length < 800) return false; // pure shim
-    return /getStatus\s*\(|getMetrics\s*\(|getRevenueStatus\s*\(|\.start\s*=\s*function|start\s*\(\s*\)|heal\s*\(/.test(head);
+    let ok = true;
+    if (/module\.exports\s*=\s*require\s*\(/.test(head) && head.length < 800) ok = false; // pure shim
+    else ok = /getStatus\s*\(|getMetrics\s*\(|getRevenueStatus\s*\(|\.start\s*=\s*function|start\s*\(\s*\)|heal\s*\(/.test(head);
+    _looksLikeCache.set(filePath, { mtimeMs: st.mtimeMs, size: st.size, ok });
+    return ok;
   } catch (_) {
     return false;
   }
