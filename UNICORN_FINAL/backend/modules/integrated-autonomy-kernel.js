@@ -38,6 +38,10 @@ const moduleDiscovery = require('./iak/module-discovery');
 const HARMONIC_MS = parseInt(process.env.IAK_HARMONIC_MS || '15000', 10);
 const REPORT_EVERY = Math.max(1, parseInt(process.env.IAK_REPORT_EVERY || '20', 10)); // every N ticks
 const SYNC_EVERY = Math.max(1, parseInt(process.env.IAK_SYNC_EVERY || '4', 10));
+const HEALTH_SLICE_MS = Math.max(10, parseInt(process.env.IAK_HEALTH_SLICE_MS || '40', 10));
+const HEALTH_SLICE_MAX = Math.max(8, parseInt(process.env.IAK_HEALTH_SLICE_MAX || '48', 10));
+const HEALTH_FRESH_MS = Math.max(5000, parseInt(process.env.IAK_HEALTH_FRESH_MS || '20000', 10));
+const DISCOVER_MIN_MS = Math.max(15000, parseInt(process.env.IAK_DISCOVER_MIN_MS || '45000', 10));
 const KERNEL_ID = 'IAK/1.1';
 
 const PHASES = Object.freeze(['sense', 'health', 'heal', 'sync', 'report']);
@@ -72,6 +76,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
       lastCausalStart: null,
     };
     this._startedByIak = new Set();
+    this._healthCursor = 0;
     this._continuumEvery = Math.max(2, parseInt(process.env.IAK_CONTINUUM_EVERY || '8', 10));
 
     // Facet handles (same instances as public shims export)
@@ -346,67 +351,109 @@ class IntegratedAutonomyKernel extends EventEmitter {
     } catch (_) { /* sense is best-effort */ }
   }
 
+  _healthSliceEnabled() {
+    if (process.env.NODE_ENV === 'test') return false;
+    if (process.env.IAK_HEALTH_SLICE === '0') return false;
+    return true;
+  }
+
+  _healthOne(name, snapshot) {
+    if (this.quarantine.has(name)) {
+      snapshot[name] = { healthy: false, quarantined: true };
+      return 'quarantined';
+    }
+    const entry = this.registry.get(name);
+    if (!entry) return 'missing';
+
+    if (
+      this._healthSliceEnabled()
+      && entry.healthy
+      && entry.lastSeen
+      && (Date.now() - entry.lastSeen) < HEALTH_FRESH_MS
+    ) {
+      snapshot[name] = {
+        healthy: true,
+        depsReady: entry.depsReady !== false,
+        live: !!entry.live,
+        ts: entry.lastSeen,
+        skippedFresh: true,
+      };
+      return 'fresh';
+    }
+
+    // Causal Boot: deps must be healthy before module is "live"
+    const deps = entry.dependsOn || [];
+    let depsReady = true;
+    for (const d of deps) {
+      const dep = this.registry.get(d);
+      if (dep && !dep.healthy) depsReady = false;
+      if (this.quarantine.has(d)) depsReady = false;
+    }
+    entry.depsReady = depsReady;
+
+    try {
+      // No statusFn → observe-only (healthy). Never invent health:'unknown'
+      // (that string used to trip BAD_HEALTH and spam "Modul degradat").
+      let status;
+      if (entry.statusFn && entry.instance && typeof entry.instance[entry.statusFn] === 'function') {
+        status = entry.instance[entry.statusFn]();
+      } else {
+        status = { ok: true, health: 'observe', note: 'no_status_fn' };
+      }
+
+      entry.lastStatus = status;
+      entry.lastSeen = Date.now();
+      const selfHealthy = this._isHealthy(status);
+      entry.healthy = selfHealthy && depsReady;
+      entry.live = entry.healthy;
+      entry.errors = entry.healthy ? 0 : entry.errors + 1;
+
+      snapshot[name] = {
+        healthy: entry.healthy,
+        depsReady,
+        live: entry.live,
+        ts: entry.lastSeen,
+      };
+
+      if (!entry.healthy) {
+        this._log(`⚠️  Modul degradat: ${name} (erori: ${entry.errors}${depsReady ? '' : ', deps-blocked'})`);
+        this.emit('module:unhealthy', { name, status, depsReady, ts: new Date().toISOString() });
+      }
+      return 'probed';
+    } catch (err) {
+      entry.errors++;
+      entry.healthy = false;
+      entry.live = false;
+      this._log(`❌ Eroare status ${name}: ${err.message}`);
+      this.emit('module:error', { name, error: err.message, ts: new Date().toISOString() });
+      snapshot[name] = { healthy: false, error: err.message };
+      return 'error';
+    }
+  }
+
   _phaseHealth() {
     const snapshot = {};
     const order = this.bootOrder.length ? this.bootOrder : [...this.registry.keys()];
+    const slice = this._healthSliceEnabled() && order.length > HEALTH_SLICE_MAX;
+    const start = slice ? (this._healthCursor || 0) % Math.max(1, order.length) : 0;
+    const t0 = Date.now();
+    let processed = 0;
+    let probed = 0;
 
-    for (const name of order) {
-      if (this.quarantine.has(name)) {
-        snapshot[name] = { healthy: false, quarantined: true };
-        continue;
+    for (let k = 0; k < order.length; k++) {
+      const idx = (start + k) % order.length;
+      const name = order[idx];
+      const kind = this._healthOne(name, snapshot);
+      processed += 1;
+      if (kind === 'probed' || kind === 'error') probed += 1;
+      if (slice && (probed >= HEALTH_SLICE_MAX || (Date.now() - t0) >= HEALTH_SLICE_MS)) {
+        this._healthCursor = (idx + 1) % order.length;
+        break;
       }
-      const entry = this.registry.get(name);
-      if (!entry) continue;
-
-      // Causal Boot: deps must be healthy before module is "live"
-      const deps = entry.dependsOn || [];
-      let depsReady = true;
-      for (const d of deps) {
-        const dep = this.registry.get(d);
-        if (dep && !dep.healthy) depsReady = false;
-        if (this.quarantine.has(d)) depsReady = false;
-      }
-      entry.depsReady = depsReady;
-
-      try {
-        // No statusFn → observe-only (healthy). Never invent health:'unknown'
-        // (that string used to trip BAD_HEALTH and spam "Modul degradat").
-        let status;
-        if (entry.statusFn && entry.instance && typeof entry.instance[entry.statusFn] === 'function') {
-          status = entry.instance[entry.statusFn]();
-        } else {
-          status = { ok: true, health: 'observe', note: 'no_status_fn' };
-        }
-
-        entry.lastStatus = status;
-        entry.lastSeen = Date.now();
-        const selfHealthy = this._isHealthy(status);
-        entry.healthy = selfHealthy && depsReady;
-        entry.live = entry.healthy;
-        entry.errors = entry.healthy ? 0 : entry.errors + 1;
-
-        snapshot[name] = {
-          healthy: entry.healthy,
-          depsReady,
-          live: entry.live,
-          ts: entry.lastSeen,
-        };
-
-        if (!entry.healthy) {
-          this._log(`⚠️  Modul degradat: ${name} (erori: ${entry.errors}${depsReady ? '' : ', deps-blocked'})`);
-          this.emit('module:unhealthy', { name, status, depsReady, ts: new Date().toISOString() });
-        }
-      } catch (err) {
-        entry.errors++;
-        entry.healthy = false;
-        entry.live = false;
-        this._log(`❌ Eroare status ${name}: ${err.message}`);
-        this.emit('module:error', { name, error: err.message, ts: new Date().toISOString() });
-        snapshot[name] = { healthy: false, error: err.message };
-      }
+      if (k === order.length - 1) this._healthCursor = 0;
     }
 
-    this.healthLog.push({ cycle: this.cycleCount, ts: new Date().toISOString(), snapshot });
+    this.healthLog.push({ cycle: this.cycleCount, ts: new Date().toISOString(), snapshot, processed, probed });
     if (this.healthLog.length > 100) this.healthLog.shift();
     this.emit('mesh:heartbeat', { cycle: this.cycleCount, modules: snapshot, ts: new Date().toISOString() });
   }
@@ -582,7 +629,14 @@ class IntegratedAutonomyKernel extends EventEmitter {
         continue;
       }
 
-      // Already running?
+      if (this._startedByIak.has(name) && !opts.force) {
+        skipped++;
+        details.push({ name, action: 'already_iak_started' });
+        continue;
+      }
+
+      // Already running? (after IAK-started skip — getStatus on 500+ modules
+      // was a live event-loop stall on every continuum reconcile.)
       try {
         if (entry.statusFn && typeof entry.instance[entry.statusFn] === 'function') {
           const st = entry.instance[entry.statusFn]();
@@ -593,12 +647,6 @@ class IntegratedAutonomyKernel extends EventEmitter {
           }
         }
       } catch (_) { /* proceed to start */ }
-
-      if (this._startedByIak.has(name) && !opts.force) {
-        skipped++;
-        details.push({ name, action: 'already_iak_started' });
-        continue;
-      }
 
       try {
         if (typeof entry.instance.init === 'function' && !entry.startedByIak) {
@@ -646,7 +694,17 @@ class IntegratedAutonomyKernel extends EventEmitter {
   _continuumReconcile() {
     this._discovery.continuumCycles++;
     try {
-      this.discoverAndRegister({ softRequireMissing: true, maxSoftRequires: 50 });
+      const last = this._discovery.lastScan && Date.parse(this._discovery.lastScan);
+      const due = !last || !Number.isFinite(last) || (Date.now() - last) >= DISCOVER_MIN_MS;
+      if (due) {
+        const already = this.registry.size;
+        this.discoverAndRegister({
+          // After the mesh is populated, skip bulk soft-require — requiring
+          // 50 heavy modules on the continuum tick stalled /api/health/live.
+          softRequireMissing: already < 120,
+          maxSoftRequires: already < 120 ? 50 : 8,
+        });
+      }
     } catch (e) {
       this._log(`⚠️ continuum discover failed: ${e.message}`);
     }

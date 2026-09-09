@@ -311,6 +311,7 @@ jobs:
             bash scripts/ci-green-preflight.sh
             node test/health.test.js
             node test/backend-health-truth.test.js
+            node test/backend-monitor-truth.test.js
             node test/ops-aggregator.test.js
             node test/site-proxy-circuit-breaker.test.js
             node test/server-never-recur.test.js

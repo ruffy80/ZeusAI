@@ -339,6 +339,27 @@ const PORT = process.env.PORT || 3000;
 // (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR) and can destabilize the process.
 app.set('trust proxy', 1);
 
+// Liveness MUST be registered before helmet / rate-limit / body parsers.
+// Live 2026-09-09: nginx `location = /api/health/live` used a 2s read timeout
+// while this route was registered thousands of lines later, so a lagged event
+// loop made the probe hang (0 bytes) even though /api/health still returned
+// 200. First-registered Express handler wins; later copies stay as needles.
+function _earlyLivenessHealth(req, res) {
+  res.set('Cache-Control', 'no-store, no-cache');
+  res.json({
+    ok: true,
+    status: 'ok',
+    ready: true,
+    live: true,
+    pid: process.pid,
+    uptime: Math.floor(process.uptime()),
+    ts: new Date().toISOString(),
+    protocol: 'UNICORN_LIVENESS/1.0',
+  });
+}
+app.get('/health/live', _earlyLivenessHealth);
+app.get('/api/health/live', _earlyLivenessHealth);
+
 // ── Phoenix Continuity OS — heartbeat lease (PCOS/1.0) ────────────────
 // Written BEFORE heavy module boot so the immortality edge can witness a
 // freeze during cold start. Separate PM2 process `unicorn-phoenix` reads
