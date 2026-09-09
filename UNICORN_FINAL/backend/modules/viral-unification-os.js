@@ -319,6 +319,10 @@ function liveReady() {
 }
 
 function getStatus() {
+  if (!_state.running && process.env.NODE_ENV !== 'test' && process.env.VUK_DISABLED !== '1') {
+    _state.running = true;
+    _state.startedAt = _state.startedAt || new Date().toISOString();
+  }
   _hydrate();
   const ready = liveReady();
   const successes = _state.posts.filter((p) => p && p.success).length;
