@@ -163,6 +163,18 @@ check('nginx live probe timeouts are 8s not 2s', () => {
   assert.ok(!/proxy_read_timeout\s+2s/.test(liveWin), '2s live timeout hung probes under lag');
 });
 
+check('IAK health tick is time-sliced and skips IAK-started getStatus', () => {
+  const src = fs.readFileSync(
+    path.join(ROOT, 'backend', 'modules', 'integrated-autonomy-kernel.js'),
+    'utf8'
+  );
+  assert.ok(/IAK_HEALTH_SLICE_MS/.test(src));
+  assert.ok(/_healthSliceEnabled/.test(src));
+  const startedIdx = src.indexOf('this._startedByIak.has(name)');
+  const alreadyRunning = src.indexOf('Already running?');
+  assert.ok(startedIdx > 0 && alreadyRunning > startedIdx, 'IAK-started skip must precede getStatus');
+});
+
 check('IAK looksLikeModuleSource caches by mtimeMs', () => {
   const src = fs.readFileSync(path.join(ROOT, 'backend', 'modules', 'iak', 'module-discovery.js'), 'utf8');
   assert.ok(src.includes('_looksLikeCache'));
