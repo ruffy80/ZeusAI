@@ -129,6 +129,8 @@ const STABLE_START_ALLOW = new Set([
   'commerceBondLoopOs',
   'origin-gravity-os',
   'originGravityOs',
+  'social-gravity-os',
+  'socialGravityOs',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

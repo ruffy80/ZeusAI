@@ -91,6 +91,7 @@ check('IAK stable allowlist includes ROCS + MPCT + live-pricing + CBLOS', () => 
   assert.ok(allow.has('live-pricing-broker'));
   assert.ok(allow.has('commerce-bond-loop-os'));
   assert.ok(allow.has('origin-gravity-os'));
+  assert.ok(allow.has('social-gravity-os'));
 });
 
 check('MPCT advances only on attested sense — never invents GMV', () => {

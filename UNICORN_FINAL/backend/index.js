@@ -5209,6 +5209,18 @@ try {
   console.warn('[OGP] load/start failed:', e && e.message);
 }
 
+// SGP/1.0 — Social Gravity Protocol (tracked social→origin landings; no fake reach)
+let socialGravityOs = null;
+try {
+  socialGravityOs = require('./modules/social-gravity-os');
+  if (process.env.NODE_ENV !== 'test' && process.env.SGP_DISABLED !== '1') {
+    socialGravityOs.start();
+  }
+  console.log('🧲 SGP/1.0 Social Gravity: MOUNTED (posts land on /from/{channel}, reach never invented)');
+} catch (e) {
+  console.warn('[SGP] load/start failed:', e && e.message);
+}
+
 function _cblosBtc(rate) {
   try {
     const cblos = commerceBondLoopOs || require('./modules/commerce-bond-loop-os');
@@ -9190,6 +9202,28 @@ app.post('/api/origin-gravity/pulse', adminTokenMiddleware, (req, res) => {
     })).then((out) => res.json(out));
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, protocol: 'OGP/1.0' });
+  }
+});
+
+app.get(['/api/social-gravity', '/api/social-gravity/status', '/.well-known/social-gravity.json'], (req, res) => {
+  try {
+    const m = socialGravityOs || require('./modules/social-gravity-os');
+    const hdr = m.gravityHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'public, max-age=8');
+    return res.json(m.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'SGP/1.0', inventsReach: false });
+  }
+});
+app.post('/api/social-gravity/pulse', adminTokenMiddleware, (req, res) => {
+  try {
+    const m = socialGravityOs || require('./modules/social-gravity-os');
+    return Promise.resolve(m.pulseDiscovery({
+      dryRun: !!(req.body && req.body.dryRun),
+    })).then((out) => res.json(out));
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'SGP/1.0' });
   }
 });
 

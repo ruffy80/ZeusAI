@@ -322,6 +322,23 @@ app.get('/health', (req, res) => {
         return { protocol: 'OGP/1.0', available: false, inventsHumans: false };
       }
     })(),
+    socialGravity: (function () {
+      try {
+        const sgp = require('../backend/modules/social-gravity-os');
+        const s = sgp.getStatus();
+        return {
+          protocol: 'SGP/1.0',
+          available: true,
+          paidHumans: s.paidHumans,
+          originOpen: !!s.originOpen,
+          liveReady: s.liveReady,
+          published: s.published,
+          inventsReach: false,
+        };
+      } catch (_) {
+        return { protocol: 'SGP/1.0', available: false, inventsReach: false };
+      }
+    })(),
     brandSpectrum: (function () {
       try {
         const cic = require('../backend/modules/brand-spectrum-os');
@@ -972,6 +989,17 @@ app.get(['/.well-known/origin-gravity.json', '/api/origin-gravity', '/api/origin
     return res.json(ogp.discovery());
   } catch (e) {
     return res.status(503).json({ ok: false, error: e.message, protocol: 'OGP/1.0', inventsHumans: false });
+  }
+});
+app.get(['/.well-known/social-gravity.json', '/api/social-gravity', '/api/social-gravity/status'], (req, res) => {
+  try {
+    const sgp = require('../backend/modules/social-gravity-os');
+    const hdr = sgp.gravityHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'no-store');
+    return res.json(sgp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'SGP/1.0', inventsReach: false });
   }
 });
 app.get('/api/origin-gravity/ledger', (req, res) => {
@@ -7737,6 +7765,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         origin_gravity:    '/.well-known/origin-gravity.json',
         ogp:               '/api/origin-gravity',
         origin_page:       '/origin',
+        social_gravity:    '/.well-known/social-gravity.json',
+        sgp:               '/api/social-gravity',
+        from_landing:      '/from/{channel}',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8229,6 +8260,25 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'OGP/1.0', inventsHumans: false }));
+    }
+  }
+
+  if (
+    urlPath === '/.well-known/social-gravity.json'
+    || urlPath === '/api/social-gravity'
+    || urlPath === '/api/social-gravity/status'
+  ) {
+    try {
+      const sgp = require('../backend/modules/social-gravity-os');
+      const hdr = sgp.gravityHeaders();
+      res.writeHead(200, Object.assign({
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      }, hdr));
+      return res.end(JSON.stringify(sgp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'SGP/1.0', inventsReach: false }));
     }
   }
 
@@ -12170,7 +12220,7 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
@@ -12320,6 +12370,11 @@ a{color:#8a5cff;text-decoration:none}
     }
     if (route.startsWith('/order/')) {
       if (!ssrParams.id) ssrParams.id = String(route.slice(7) || '').slice(0, 120);
+    }
+    if (route.startsWith('/from/')) {
+      ssrParams.channel = String(route.slice(6) || 'web').replace(/[^a-z0-9_-]/gi, '').slice(0, 24);
+      ssrParams.utmSource = String(requestUrl.searchParams.get('utm_source') || ssrParams.channel).slice(0, 40);
+      ssrParams.ref = String(requestUrl.searchParams.get('ref') || '').slice(0, 32);
     }
     // Process-local SSR HTML memo for public routes. SPA partial navigations
     // hit getHtml on every click; without a memo, cold catalog enrichment +
