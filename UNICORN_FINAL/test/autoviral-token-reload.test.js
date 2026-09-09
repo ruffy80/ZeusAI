@@ -65,7 +65,7 @@ test('reloadTokensFromEnv returns all expected token keys', () => {
     ? new SocialMediaViralizer()
     : SocialMediaViralizer;
   const tokens = instance.reloadTokensFromEnv();
-  const requiredKeys = ['youtube', 'xBearer', 'xAccessToken', 'telegram', 'devApi'];
+  const requiredKeys = ['youtube', 'xBearer', 'xAccessToken', 'telegram', 'devApi', 'facebookPageToken', 'instagramToken', 'tiktok'];
   for (const k of requiredKeys) {
     assert.ok(Object.prototype.hasOwnProperty.call(tokens, k), `missing key: ${k}`);
   }

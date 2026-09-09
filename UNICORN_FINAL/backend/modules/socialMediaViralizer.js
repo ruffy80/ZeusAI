@@ -220,24 +220,64 @@ class SocialMediaViralizer {
     this.viralTimer = null;
     this.ugcTimer = null;
     this.started = false;
+    this._http = axios;
 
     this.init().catch((err) => {
       console.error('❌ Social Media Auto-Viralizer init failed:', err.message);
     });
   }
 
+  secret(name, fallback = '') {
+    try {
+      const sec = require('../../src/config/secrets');
+      if (sec && typeof sec.getSecret === 'function') {
+        const v = sec.getSecret(name, '');
+        if (v) return String(v).trim();
+      }
+    } catch (_) { /* secrets module optional at boot */ }
+    return String(process.env[name] || fallback || '').trim();
+  }
+
   loadTokens() {
+    const linkedinOrg = this.secret('LINKEDIN_ORG_ID');
+    const linkedinUrn = this.secret('LINKEDIN_AUTHOR_URN')
+      || (linkedinOrg ? ('urn:li:organization:' + linkedinOrg) : '');
     return {
-      youtube: process.env.YOUTUBE_API_KEY || '',
-      pinterest: process.env.PINTEREST_TOKEN || '',
-      xBearer: process.env.X_BEARER_TOKEN || '',
-      xAccessToken: process.env.X_ACCESS_TOKEN || '',
-      xAccessSecret: process.env.X_ACCESS_SECRET || '',
-      telegram: process.env.TELEGRAM_BOT_TOKEN || '',
-      devApi: process.env.DEV_API_KEY || '',
-      producthuntApiKey: process.env.PRODUCTHUNT_API_KEY || '',
-      producthuntApiSecret: process.env.PRODUCTHUNT_API_SECRET || '',
-      producthuntDevToken: process.env.PRODUCTHUNT_DEVELOPER_TOKEN || ''
+      youtube: this.secret('YOUTUBE_API_KEY'),
+      youtubeOauth: this.secret('YOUTUBE_OAUTH_CLIENT_ID'),
+      pinterest: this.secret('PINTEREST_TOKEN'),
+      pinterestBoard: this.secret('PINTEREST_BOARD_ID'),
+      xBearer: this.secret('X_BEARER_TOKEN'),
+      xAccessToken: this.secret('X_ACCESS_TOKEN'),
+      xAccessSecret: this.secret('X_ACCESS_SECRET'),
+      telegram: this.secret('TELEGRAM_BOT_TOKEN'),
+      telegramChat: this.secret('ZEUS_TG_GROUP_CHAT_ID')
+        || this.secret('TELEGRAM_GROUP_CHAT_ID')
+        || this.secret('TELEGRAM_CHAT_ID'),
+      devApi: this.secret('DEV_API_KEY'),
+      producthuntApiKey: this.secret('PRODUCTHUNT_API_KEY'),
+      producthuntApiSecret: this.secret('PRODUCTHUNT_API_SECRET'),
+      producthuntDevToken: this.secret('PRODUCTHUNT_DEVELOPER_TOKEN'),
+      discord: this.secret('DISCORD_WEBHOOK_URL'),
+      linkedin: this.secret('LINKEDIN_ACCESS_TOKEN'),
+      linkedinAuthor: linkedinUrn,
+      facebookPageToken: this.secret('FACEBOOK_PAGE_TOKEN'),
+      facebookPageId: this.secret('FACEBOOK_PAGE_ID'),
+      instagramToken: this.secret('INSTAGRAM_ACCESS_TOKEN'),
+      instagramUserId: this.secret('INSTAGRAM_USER_ID'),
+      tiktok: this.secret('TIKTOK_ACCESS_TOKEN'),
+      threadsToken: this.secret('THREADS_ACCESS_TOKEN'),
+      threadsUserId: this.secret('THREADS_USER_ID'),
+      mastodonToken: this.secret('MASTODON_TOKEN'),
+      mastodonInstance: this.secret('MASTODON_INSTANCE') || 'https://mastodon.social',
+      blueskyHandle: this.secret('BLUESKY_HANDLE'),
+      blueskyPassword: this.secret('BLUESKY_APP_PASSWORD'),
+      redditClientId: this.secret('REDDIT_CLIENT_ID'),
+      redditClientSecret: this.secret('REDDIT_CLIENT_SECRET'),
+      redditUsername: this.secret('REDDIT_USERNAME'),
+      redditPassword: this.secret('REDDIT_PASSWORD'),
+      redditSubreddit: this.secret('REDDIT_SUBREDDIT'),
+      socialWebhook: this.secret('SOCIAL_WEBHOOK_URL'),
     };
   }
 
@@ -251,6 +291,7 @@ class SocialMediaViralizer {
     this.started = true;
     console.log('📢 Social Media Auto-Viralizer activ (mod gratuit)');
     await this.validateTokens();
+    if (process.env.NODE_ENV === 'test') return;
     this.startAutoPosting();
     this.startAutoReply();
     this.startViralDetector();
@@ -323,21 +364,49 @@ class SocialMediaViralizer {
     // secret bootstrap). Always refresh token snapshot before each outbound cycle.
     this.reloadTokensFromEnv();
     const content = await this.generatePostContent();
+    const t = this.tokens;
     const results = {};
     const skipped = [];
-    if (this.tokens.youtube) results.youtube = await this.postToYouTube(content); else skipped.push('youtube');
-    if (this.tokens.pinterest) results.pinterest = await this.postToPinterest(content); else skipped.push('pinterest');
-    if (this.tokens.xBearer && this.tokens.xAccessToken) results.x = await this.postToX(content); else skipped.push('x');
-    if (this.tokens.telegram) results.telegram = await this.postToTelegram(content); else skipped.push('telegram');
-    if (this.tokens.devApi) results.dev = await this.postToDev(content); else skipped.push('dev');
-    if (this.tokens.producthuntDevToken) results.producthunt = await this.postToProductHunt(content); else skipped.push('producthunt');
-    const published = Object.keys(results).length;
-    if (published === 0) {
-      console.warn('⚠️  postToAllPlatforms: 0 canale active — nimic postat (lipsesc: ' + skipped.join(', ') + ')');
+    const tryChannel = async (name, armed, fn, skipReason) => {
+      if (!armed) { skipped.push(name); return; }
+      try {
+        results[name] = await fn();
+      } catch (err) {
+        results[name] = { success: false, platform: name, error: err && err.message };
+      }
+      if (results[name] && results[name].skipped) {
+        skipped.push(name + ':' + (results[name].reason || skipReason || 'skipped'));
+      }
+    };
+
+    await tryChannel('pinterest', !!(t.pinterest && t.pinterestBoard && t.pinterestBoard !== 'unicorn_ai'), () => this.postToPinterest(content));
+    await tryChannel('x', !!t.xBearer, () => this.postToX(content));
+    await tryChannel('telegram', !!(t.telegram && t.telegramChat), () => this.postToTelegram(content));
+    await tryChannel('dev', !!t.devApi, () => this.postToDev(content));
+    await tryChannel('discord', !!t.discord, () => this.postToDiscord(content));
+    await tryChannel('linkedin', !!(t.linkedin && t.linkedinAuthor), () => this.postToLinkedIn(content));
+    await tryChannel('facebook', !!(t.facebookPageToken && t.facebookPageId), () => this.postToFacebook(content));
+    await tryChannel('instagram', !!(t.instagramToken && t.instagramUserId), () => this.postToInstagram(content));
+    await tryChannel('threads', !!(t.threadsToken && t.threadsUserId), () => this.postToThreads(content));
+    await tryChannel('mastodon', !!t.mastodonToken, () => this.postToMastodon(content));
+    await tryChannel('bluesky', !!(t.blueskyHandle && t.blueskyPassword), () => this.postToBluesky(content));
+    await tryChannel('reddit', !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit), () => this.postToReddit(content));
+    await tryChannel('webhook', !!t.socialWebhook, () => this.postToSocialWebhook(content));
+    // Honest skips: credentials exist but the API cannot publish this payload.
+    if (t.youtube) results.youtube = await this.postToYouTube(content);
+    else skipped.push('youtube');
+    if (t.tiktok && !t.socialWebhook) results.tiktok = await this.postToTikTok(content);
+    else if (!t.tiktok) skipped.push('tiktok');
+    if (t.producthuntDevToken) results.producthunt = await this.postToProductHunt(content);
+    else skipped.push('producthunt');
+
+    const published = Object.keys(results).filter((k) => results[k] && results[k].success);
+    if (published.length === 0) {
+      console.warn('⚠️  postToAllPlatforms: 0 canale publicate — skipped/lipsesc: ' + skipped.join(', '));
     } else {
-      console.log('📢 postToAllPlatforms: publicat pe ' + published + ' canal(e): ' + Object.keys(results).join(', '));
+      console.log('📢 postToAllPlatforms: publicat pe ' + published.length + ' canal(e): ' + published.join(', '));
     }
-    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(content.text || '').slice(0, 100), results, published, skipped });
+    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(content.text || '').slice(0, 100), results, published: published.length, skipped });
     if (this.postHistory.length > 500) this.postHistory.shift();
     return results;
   }
@@ -350,9 +419,11 @@ class SocialMediaViralizer {
   async checkAndReplyComments() {
     // Idle unless real social APIs are armed — never invent mock comment traffic.
     const armed = !!(
-      process.env.X_API_KEY
-      || process.env.TWITTER_BEARER_TOKEN
-      || process.env.TELEGRAM_BOT_TOKEN
+      this.secret('X_BEARER_TOKEN')
+      || this.secret('X_ACCESS_TOKEN')
+      || this.secret('TELEGRAM_BOT_TOKEN')
+      || this.secret('FACEBOOK_PAGE_TOKEN')
+      || this.secret('DISCORD_WEBHOOK_URL')
     );
     if (!armed) {
       return { ok: true, replied: 0, skipped: 'social_apis_not_configured' };
@@ -389,7 +460,7 @@ class SocialMediaViralizer {
     const successes = platforms.filter((k) => results[k] && results[k].success);
     if (!successes.length) return 0;
     // Ponderi de reach aproximative per canal (relative, nu absolute).
-    const reachWeight = { x: 1.0, youtube: 0.9, producthunt: 0.8, dev: 0.6, telegram: 0.5, pinterest: 0.4 };
+    const reachWeight = { x: 1.0, facebook: 0.9, instagram: 0.9, tiktok: 0.9, linkedin: 0.8, youtube: 0.9, producthunt: 0.8, threads: 0.7, reddit: 0.7, bluesky: 0.5, mastodon: 0.5, discord: 0.5, telegram: 0.5, pinterest: 0.4, webhook: 0.3, dev: 0.6 };
     const maxWeight = Object.values(reachWeight).reduce((a, b) => a + b, 0);
     const reachScore = successes.reduce((sum, k) => sum + (reachWeight[k] || 0.3), 0) / maxWeight;
     const coverage = successes.length / platforms.length;
@@ -432,24 +503,28 @@ class SocialMediaViralizer {
   }
 
   async rewardUserContent() {
-    const mentions = [{ userId: 'user123', platform: 'x', content: 'Check out @unicorn_ai', reach: 5000 }];
-    for (const mention of mentions) {
-      const reward = this.calculateReward(mention.reach);
-      await this.sendReward(mention.userId, reward);
-    }
+    return { ok: true, rewarded: 0, skipped: 'ugc_mentions_not_armed' };
   }
 
   async postToYouTube() {
-    return { success: true, platform: 'youtube', cost: 0 };
+    return { success: false, skipped: true, platform: 'youtube', reason: 'youtube_upload_requires_oauth_and_video' };
+  }
+
+  async postToTikTok() {
+    return { success: false, skipped: true, platform: 'tiktok', reason: 'tiktok_organic_post_requires_video' };
+  }
+
+  async postToProductHunt() {
+    return { success: false, skipped: true, platform: 'producthunt', reason: 'producthunt_ship_requires_oauth_app' };
   }
 
   async postToPinterest(content) {
     try {
-      await axios.post('https://api.pinterest.com/v5/pins', {
+      await this._http.post('https://api.pinterest.com/v5/pins', {
         title: String(content.text || '').slice(0, 100),
         description: String(content.text || ''),
         link: 'https://zeusai.pro',
-        board_id: process.env.PINTEREST_BOARD_ID || 'unicorn_ai'
+        board_id: this.tokens.pinterestBoard
       }, { headers: { Authorization: 'Bearer ' + this.tokens.pinterest }, timeout: 15000 });
       return { success: true, platform: 'pinterest', cost: 0 };
     } catch (err) {
@@ -459,7 +534,7 @@ class SocialMediaViralizer {
 
   async postToX(content) {
     try {
-      const response = await axios.post('https://api.twitter.com/2/tweets', { text: String(content.text || '').slice(0, 280) }, {
+      const response = await this._http.post('https://api.twitter.com/2/tweets', { text: String(content.text || '').slice(0, 280) }, {
         headers: { Authorization: 'Bearer ' + this.tokens.xBearer, 'Content-Type': 'application/json' }, timeout: 15000
       });
       return { success: true, platform: 'x', tweetId: response.data?.data?.id || null, cost: 0 };
@@ -470,8 +545,8 @@ class SocialMediaViralizer {
 
   async postToTelegram(content) {
     try {
-      const response = await axios.post('https://api.telegram.org/bot' + this.tokens.telegram + '/sendMessage', {
-        chat_id: process.env.ZEUS_TG_GROUP_CHAT_ID || process.env.TELEGRAM_GROUP_CHAT_ID || process.env.TELEGRAM_CHAT_ID || '@unicorn_platform',
+      const response = await this._http.post('https://api.telegram.org/bot' + this.tokens.telegram + '/sendMessage', {
+        chat_id: this.tokens.telegramChat,
         text: String(content.text || ''),
         parse_mode: 'HTML'
       }, { timeout: 15000 });
@@ -483,7 +558,7 @@ class SocialMediaViralizer {
 
   async postToDev(content) {
     try {
-      const response = await axios.post('https://dev.to/api/articles', {
+      const response = await this._http.post('https://dev.to/api/articles', {
         article: {
           title: 'Unicorn AI: ' + new Date().toLocaleDateString(),
           body_markdown: String(content.text || ''),
@@ -497,8 +572,195 @@ class SocialMediaViralizer {
     }
   }
 
-  async postToProductHunt() {
-    return { success: true, platform: 'producthunt', cost: 0 };
+  async postToDiscord(content) {
+    try {
+      await this._http.post(this.tokens.discord, {
+        content: String(content.text || '').slice(0, 2000),
+        username: 'ZeusAI Unicorn',
+        avatar_url: 'https://zeusai.pro/assets/og-image.png'
+      }, { timeout: 15000 });
+      return { success: true, platform: 'discord', cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToLinkedIn(content) {
+    try {
+      const r = await this._http.post('https://api.linkedin.com/v2/ugcPosts', {
+        author: this.tokens.linkedinAuthor,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: { text: String(content.text || '').slice(0, 3000) },
+            shareMediaCategory: 'NONE'
+          }
+        },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' }
+      }, {
+        headers: { Authorization: 'Bearer ' + this.tokens.linkedin, 'X-Restli-Protocol-Version': '2.0.0', 'Content-Type': 'application/json' },
+        timeout: 15000
+      });
+      return { success: true, platform: 'linkedin', id: r.data && r.data.id, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToFacebook(content) {
+    try {
+      const r = await this._http.post('https://graph.facebook.com/v19.0/' + this.tokens.facebookPageId + '/feed', null, {
+        params: { message: String(content.text || '').slice(0, 5000), access_token: this.tokens.facebookPageToken },
+        timeout: 15000
+      });
+      return { success: true, platform: 'facebook', id: r.data && r.data.id, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToInstagram(content) {
+    const imageUrl = content.imageUrl || content.image || 'https://zeusai.pro/assets/og-image.png';
+    try {
+      const created = await this._http.post('https://graph.facebook.com/v19.0/' + this.tokens.instagramUserId + '/media', null, {
+        params: {
+          image_url: imageUrl,
+          caption: String(content.text || '').slice(0, 2200),
+          access_token: this.tokens.instagramToken
+        },
+        timeout: 20000
+      });
+      const creationId = created.data && created.data.id;
+      if (!creationId) return { success: false, platform: 'instagram', error: 'instagram_container_missing' };
+      const published = await this._http.post('https://graph.facebook.com/v19.0/' + this.tokens.instagramUserId + '/media_publish', null, {
+        params: { creation_id: creationId, access_token: this.tokens.instagramToken },
+        timeout: 20000
+      });
+      return { success: true, platform: 'instagram', id: published.data && published.data.id, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToThreads(content) {
+    try {
+      const created = await this._http.post('https://graph.threads.net/v1.0/' + this.tokens.threadsUserId + '/threads', null, {
+        params: {
+          media_type: 'TEXT',
+          text: String(content.text || '').slice(0, 500),
+          access_token: this.tokens.threadsToken
+        },
+        timeout: 15000
+      });
+      const creationId = created.data && created.data.id;
+      if (!creationId) return { success: false, platform: 'threads', error: 'threads_container_missing' };
+      const published = await this._http.post('https://graph.threads.net/v1.0/' + this.tokens.threadsUserId + '/threads_publish', null, {
+        params: { creation_id: creationId, access_token: this.tokens.threadsToken },
+        timeout: 15000
+      });
+      return { success: true, platform: 'threads', id: published.data && published.data.id, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToMastodon(content) {
+    try {
+      const base = String(this.tokens.mastodonInstance || 'https://mastodon.social').replace(/\/+$/, '');
+      const r = await this._http.post(base + '/api/v1/statuses', { status: String(content.text || '').slice(0, 500) }, {
+        headers: { Authorization: 'Bearer ' + this.tokens.mastodonToken },
+        timeout: 15000
+      });
+      return { success: true, platform: 'mastodon', id: r.data && r.data.id, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToBluesky(content) {
+    try {
+      const session = await this._http.post('https://bsky.social/xrpc/com.atproto.server.createSession', {
+        identifier: this.tokens.blueskyHandle,
+        password: this.tokens.blueskyPassword
+      }, { timeout: 15000 });
+      const accessJwt = session.data && session.data.accessJwt;
+      const did = session.data && session.data.did;
+      if (!accessJwt || !did) return { success: false, platform: 'bluesky', error: 'bluesky_session_missing' };
+      const r = await this._http.post('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+        repo: did,
+        collection: 'app.bsky.feed.post',
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: String(content.text || '').slice(0, 300),
+          createdAt: new Date().toISOString()
+        }
+      }, { headers: { Authorization: 'Bearer ' + accessJwt }, timeout: 15000 });
+      return { success: true, platform: 'bluesky', uri: r.data && r.data.uri, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToReddit(content) {
+    try {
+      const basic = Buffer.from(this.tokens.redditClientId + ':' + this.tokens.redditClientSecret).toString('base64');
+      const tokenRes = await this._http.post('https://www.reddit.com/api/v1/access_token',
+        new URLSearchParams({
+          grant_type: 'password',
+          username: this.tokens.redditUsername,
+          password: this.tokens.redditPassword
+        }).toString(),
+        {
+          headers: {
+            Authorization: 'Basic ' + basic,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'zeusai-unicorn/1.0 by ' + this.tokens.redditUsername
+          },
+          timeout: 15000
+        });
+      const access = tokenRes.data && tokenRes.data.access_token;
+      if (!access) return { success: false, platform: 'reddit', error: 'reddit_token_missing' };
+      const r = await this._http.post('https://oauth.reddit.com/api/submit',
+        new URLSearchParams({
+          kind: 'self',
+          sr: this.tokens.redditSubreddit,
+          title: String(content.text || 'ZeusAI Unicorn').slice(0, 120),
+          text: String(content.text || '') + '\nhttps://zeusai.pro',
+          api_type: 'json'
+        }).toString(),
+        {
+          headers: {
+            Authorization: 'Bearer ' + access,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'zeusai-unicorn/1.0 by ' + this.tokens.redditUsername
+          },
+          timeout: 15000
+        });
+      const json = r.data && r.data.json;
+      const postId = json && json.data && (json.data.id || json.data.name);
+      const errors = json && json.errors;
+      if (errors && errors.length) return { success: false, platform: 'reddit', error: JSON.stringify(errors) };
+      return { success: true, platform: 'reddit', id: postId || null, cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async postToSocialWebhook(content) {
+    try {
+      await this._http.post(this.tokens.socialWebhook, {
+        title: 'ZeusAI Unicorn',
+        body: String(content.text || ''),
+        hashtags: content.hashtags || [],
+        image: content.imageUrl || content.image || 'https://zeusai.pro/assets/og-image.png',
+        url: 'https://zeusai.pro',
+        platforms: ['instagram', 'tiktok', 'reddit'],
+        ts: new Date().toISOString()
+      }, { timeout: 15000 });
+      return { success: true, platform: 'webhook', cost: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 
   getStats() {
@@ -516,6 +778,7 @@ class SocialMediaViralizer {
     router.use(typeof secretMiddleware === 'function' ? secretMiddleware : (req, res, next) => next());
     router.get('/stats', (req, res) => res.json(this.getStats()));
     router.get('/status', (req, res) => res.json(this.getStats()));
+    router.get('/providers', (req, res) => res.json(this.getProviderStatus()));
     router.get('/history', (req, res) => res.json(this.postHistory.slice(-50)));
     router.post('/post-now', async (req, res) => res.json(await this.postToAllPlatforms()));
     router.get('/trending-hashtags', async (req, res) => res.json({ hashtags: await this.generateSmartHashtags(['AI', 'Unicorn']) }));
@@ -533,41 +796,108 @@ class SocialMediaViralizer {
   // genuine "no token configured" cases.
   // ───────────────────────────────────────────────────────────────────
   getProviderStatus() {
-    // Use the central secrets module so a key configured via .env / runtime-secrets / aliases
-    // is recognised everywhere — no more silent "configured: false" because of trim/placeholder.
-    let cfg = (name) => {
-      const v = String(process.env[name] || '').trim();
-      return !!(v && v.length > 10 && !/^(your_|replace_with_|change[-_]?me|placeholder|xxx)/i.test(v));
-    };
-    try {
-      const sec = require('../../src/config/secrets');
-      if (sec && typeof sec.configured === 'function') cfg = sec.configured;
-    } catch (_) {}
+    const t = this.reloadTokensFromEnv();
     const providers = {
-      x_twitter:   {
-        configured: cfg('X_BEARER_TOKEN') && cfg('X_ACCESS_TOKEN'),
+      x_twitter: {
+        configured: !!t.xBearer,
         endpoint: 'https://api.twitter.com/2/tweets',
         envVar: 'X_BEARER_TOKEN',
-        requiredEnvVars: ['X_BEARER_TOKEN', 'X_ACCESS_TOKEN']
+        requiredEnvVars: ['X_BEARER_TOKEN']
       },
-      telegram:    { configured: cfg('TELEGRAM_BOT_TOKEN'),        endpoint: 'https://api.telegram.org',                  envVar: 'TELEGRAM_BOT_TOKEN' },
-      pinterest:   { configured: cfg('PINTEREST_TOKEN'),           endpoint: 'https://api.pinterest.com/v5',              envVar: 'PINTEREST_TOKEN' },
-      devto:       { configured: cfg('DEV_API_KEY'),               endpoint: 'https://dev.to/api/articles',               envVar: 'DEV_API_KEY' },
-      youtube:     { configured: cfg('YOUTUBE_API_KEY'),           endpoint: 'https://www.googleapis.com/youtube/v3',     envVar: 'YOUTUBE_API_KEY' },
-      producthunt: { configured: cfg('PRODUCTHUNT_DEVELOPER_TOKEN'), endpoint: 'https://api.producthunt.com/v2',          envVar: 'PRODUCTHUNT_DEVELOPER_TOKEN' },
+      telegram: {
+        configured: !!(t.telegram && t.telegramChat),
+        endpoint: 'https://api.telegram.org',
+        envVar: 'TELEGRAM_BOT_TOKEN',
+        requiredEnvVars: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']
+      },
+      pinterest: {
+        configured: !!(t.pinterest && t.pinterestBoard && t.pinterestBoard !== 'unicorn_ai'),
+        endpoint: 'https://api.pinterest.com/v5',
+        envVar: 'PINTEREST_TOKEN',
+        requiredEnvVars: ['PINTEREST_TOKEN', 'PINTEREST_BOARD_ID']
+      },
+      devto: { configured: !!t.devApi, endpoint: 'https://dev.to/api/articles', envVar: 'DEV_API_KEY' },
+      discord: { configured: !!t.discord, endpoint: 'discord-webhook', envVar: 'DISCORD_WEBHOOK_URL' },
+      linkedin: {
+        configured: !!(t.linkedin && t.linkedinAuthor),
+        endpoint: 'https://api.linkedin.com/v2/ugcPosts',
+        envVar: 'LINKEDIN_ACCESS_TOKEN',
+        requiredEnvVars: ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN']
+      },
+      facebook: {
+        configured: !!(t.facebookPageToken && t.facebookPageId),
+        endpoint: 'https://graph.facebook.com/v19.0/{page-id}/feed',
+        envVar: 'FACEBOOK_PAGE_TOKEN',
+        requiredEnvVars: ['FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID']
+      },
+      instagram: {
+        configured: !!(t.instagramToken && t.instagramUserId),
+        endpoint: 'https://graph.facebook.com/v19.0/{ig-user-id}/media',
+        envVar: 'INSTAGRAM_ACCESS_TOKEN',
+        requiredEnvVars: ['INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID']
+      },
+      threads: {
+        configured: !!(t.threadsToken && t.threadsUserId),
+        endpoint: 'https://graph.threads.net/v1.0/{user-id}/threads',
+        envVar: 'THREADS_ACCESS_TOKEN',
+        requiredEnvVars: ['THREADS_ACCESS_TOKEN', 'THREADS_USER_ID']
+      },
+      tiktok: {
+        configured: !!t.tiktok,
+        endpoint: 'tiktok-content-posting',
+        envVar: 'TIKTOK_ACCESS_TOKEN',
+        note: 'Organic TikTok publish needs a video file; token alone is not enough. SOCIAL_WEBHOOK_URL can relay.'
+      },
+      mastodon: {
+        configured: !!t.mastodonToken,
+        endpoint: 'mastodon /api/v1/statuses',
+        envVar: 'MASTODON_TOKEN'
+      },
+      bluesky: {
+        configured: !!(t.blueskyHandle && t.blueskyPassword),
+        endpoint: 'https://bsky.social/xrpc',
+        envVar: 'BLUESKY_HANDLE',
+        requiredEnvVars: ['BLUESKY_HANDLE', 'BLUESKY_APP_PASSWORD']
+      },
+      reddit: {
+        configured: !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit),
+        endpoint: 'https://oauth.reddit.com/api/submit',
+        envVar: 'REDDIT_CLIENT_ID',
+        requiredEnvVars: ['REDDIT_CLIENT_ID', 'REDDIT_CLIENT_SECRET', 'REDDIT_USERNAME', 'REDDIT_PASSWORD', 'REDDIT_SUBREDDIT']
+      },
+      webhook: {
+        configured: !!t.socialWebhook,
+        endpoint: 'SOCIAL_WEBHOOK_URL',
+        envVar: 'SOCIAL_WEBHOOK_URL'
+      },
+      youtube: {
+        configured: !!t.youtube,
+        endpoint: 'https://www.googleapis.com/youtube/v3',
+        envVar: 'YOUTUBE_API_KEY',
+        note: 'Data API key cannot upload. OAuth + video required.'
+      },
+      producthunt: {
+        configured: !!t.producthuntDevToken,
+        endpoint: 'https://api.producthunt.com/v2',
+        envVar: 'PRODUCTHUNT_DEVELOPER_TOKEN',
+        note: 'Developer token cannot ship a product by itself.'
+      },
     };
+    const livePosters = ['x_twitter', 'telegram', 'pinterest', 'devto', 'discord', 'linkedin', 'facebook', 'instagram', 'threads', 'mastodon', 'bluesky', 'reddit', 'webhook'];
     const configuredProviders = Object.keys(providers).filter((k) => providers[k].configured);
+    const liveReady = livePosters.filter((k) => providers[k].configured);
     return {
       ok: true,
       generatedAt: new Date().toISOString(),
       configuredProviders,
+      liveReady,
       totalProviders: Object.keys(providers).length,
       providers,
       postsAttempted: this.postHistory.length,
       lastPost: this.postHistory.length ? this.postHistory[this.postHistory.length - 1] : null,
-      hint: configuredProviders.length === 0
-        ? 'No social provider configured. Set X_BEARER_TOKEN + X_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, DEV_API_KEY, or PINTEREST_TOKEN in .env (or GitHub Actions secrets) to enable real posting. The central secrets bootstrap will auto-propagate them.'
-        : `${configuredProviders.length} provider(s) ready. Posting cron will publish via these only.`,
+      hint: liveReady.length === 0
+        ? 'No live social poster armed. Set FACEBOOK_PAGE_TOKEN+FACEBOOK_PAGE_ID, X_BEARER_TOKEN, TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID, DISCORD_WEBHOOK_URL, LINKEDIN_ACCESS_TOKEN+LINKEDIN_AUTHOR_URN, INSTAGRAM_ACCESS_TOKEN+INSTAGRAM_USER_ID, BLUESKY_HANDLE+BLUESKY_APP_PASSWORD, MASTODON_TOKEN, or SOCIAL_WEBHOOK_URL in GitHub secrets (sync-all-secrets.yml) or /etc/zeusai/social.env.'
+        : `${liveReady.length} live poster(s) ready: ${liveReady.join(', ')}.`,
     };
   }
 
