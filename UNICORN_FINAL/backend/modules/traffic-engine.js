@@ -116,6 +116,7 @@ function urlsToSubmit() {
   const urls = new Set(core.map((p) => APP_URL + p));
   urls.add(APP_URL + '/.well-known/origin-gravity.json');
   urls.add(APP_URL + '/.well-known/social-gravity.json');
+  urls.add(APP_URL + '/.well-known/viral-unification.json');
   for (const id of _catalogIds()) urls.add(APP_URL + '/services/' + encodeURIComponent(id));
   for (const id of _verticalIds()) urls.add(APP_URL + '/vertical/' + encodeURIComponent(id));
   // Billion Autonomy Loop — prioritize instant digital money pages when catalog is large
@@ -181,6 +182,37 @@ async function pingAll(opts) {
   const urlList = (opts && Array.isArray(opts.urls) && opts.urls.length > 0)
     ? opts.urls.slice(0, MAX_URLS)
     : urlsToSubmit();
+  const customUrls = !!(opts && Array.isArray(opts.urls) && opts.urls.length > 0);
+  if (!dryRun && !(opts && (opts.force || opts.bypassCoalesce))) {
+    try {
+      const vuk = require('./viral-unification-os');
+      const gate = vuk.admit({
+        channel: 'indexnow',
+        source: (opts && opts.reason) || 'traffic-engine',
+        kind: 'indexnow',
+        force: customUrls,
+      });
+      if (!gate.ok) {
+        const coalesced = {
+          at: new Date().toISOString(),
+          urlCount: urlList.length,
+          keyLocation: indexNowKeyLocation(),
+          engines: [],
+          dryRun: false,
+          coalesced: true,
+          skipped: true,
+          reason: gate.reason,
+          protocol: 'VUK/1.0',
+        };
+        state.lastSubmission = coalesced;
+        return coalesced;
+      }
+      if (typeof vuk.record === 'function') {
+        vuk.record({ channel: 'indexnow', source: (opts && opts.reason) || 'traffic-engine', kind: 'indexnow', success: true });
+      }
+      if (typeof vuk.markIndexNow === 'function') vuk.markIndexNow();
+    } catch (_) { /* VUK optional */ }
+  }
   const submission = {
     at: new Date().toISOString(),
     urlCount: urlList.length,

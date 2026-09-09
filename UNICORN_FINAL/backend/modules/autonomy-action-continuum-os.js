@@ -215,12 +215,38 @@ function buildIntent(evidence, source) {
 async function drainIntent(intent, opts = {}) {
   const at = isoNow();
   const outbound = _safeRequire('./marketing-innovations/outbound-publisher');
+  const vuk = _safeRequire('./viral-unification-os');
   const enabled = outbound && typeof outbound.enabledPlatforms === 'function'
     ? (outbound.enabledPlatforms() || [])
     : [];
 
+  let skipViralizer = !!(opts && opts.skipViralizer);
+  let skipOutboundSocial = false;
+  if (vuk && typeof vuk.shouldRunFullCycle === 'function' && !(opts && opts.force)) {
+    const cycle = vuk.shouldRunFullCycle((intent && intent.source) || (opts && opts.source) || 'aacos');
+    if (!cycle.ok) {
+      skipViralizer = true;
+      skipOutboundSocial = true;
+    }
+  }
+  if (vuk && typeof vuk.canonicalizeIntent === 'function') {
+    intent = vuk.canonicalizeIntent(intent, 'web');
+  }
+
+  if (skipOutboundSocial && skipViralizer) {
+    state.skipped += 1;
+    state.lastSkipReason = 'vuk_not_designated';
+    const action = {
+      at, type: 'skipped', intentId: intent && intent.id, reason: 'vuk_not_designated',
+      via: 'viral-unification-os', note: 'AACOS is a VUK client — designated executor is socialMediaViralizer',
+    };
+    record(action);
+    bus.emit('growth:skipped', action);
+    return action;
+  }
+
   // Prefer marketing outbound (telegram/discord/rss/generic) when armed.
-  if (outbound && typeof outbound.broadcast === 'function' && enabled.length) {
+  if (!skipOutboundSocial && outbound && typeof outbound.broadcast === 'function' && enabled.length) {
     try {
       const result = await outbound.broadcast({
         platforms: enabled,

@@ -289,12 +289,19 @@ class AutoViralGrowth {
       });
     }
 
-    // Hand off to AACOS so viral ↔ outbound ↔ CLOS actually communicate.
+    // Hand off to AACOS only when VUK says a full outbound cycle is due.
+    // autoViralGrowth is a metrics client — it must not flood Telegram/X every 40s.
     if (this.metrics.growthLoopsExecuted % 2 === 0) {
       try {
-        const aacos = require('./autonomy-action-continuum-os');
-        if (aacos && typeof aacos.tick === 'function') {
-          aacos.tick({ source: 'autoViralGrowth', force: false }).catch(() => {});
+        const vuk = require('./viral-unification-os');
+        const cycle = vuk && typeof vuk.shouldRunFullCycle === 'function'
+          ? vuk.shouldRunFullCycle('autoViralGrowth')
+          : { ok: true };
+        if (cycle.ok) {
+          const aacos = require('./autonomy-action-continuum-os');
+          if (aacos && typeof aacos.tick === 'function') {
+            aacos.tick({ source: 'autoViralGrowth', force: false }).catch(() => {});
+          }
         }
       } catch (_) { /* continuum optional at boot race */ }
     }

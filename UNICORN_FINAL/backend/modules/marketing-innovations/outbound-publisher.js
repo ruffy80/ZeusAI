@@ -368,6 +368,33 @@ async function publish(intent) {
   const platform = String((intent && intent.platform) || '').toLowerCase();
   const adapter = ADAPTERS[platform];
   if (!adapter) return { ok: false, reason: 'unknown_platform' };
+  let payload = intent || {};
+  let vuk = null;
+  try { vuk = require('../viral-unification-os'); } catch (_) { vuk = null; }
+  if (vuk && typeof vuk.canonicalizeIntent === 'function' && platform !== 'rss') {
+    payload = vuk.canonicalizeIntent(payload, platform);
+  }
+  let vukGate = null;
+  if (vuk && typeof vuk.admit === 'function' && platform !== 'rss') {
+    vukGate = vuk.admit({
+      channel: platform,
+      source: (payload && payload.source) || 'outbound-publisher',
+      kind: 'site-viral',
+      contentHash: payload && payload.contentHash,
+      force: !!(payload && payload.force),
+    });
+    if (!vukGate.ok) {
+      const evt = _record(platform, payload, { ok: false, reason: vukGate.reason || 'vuk_dedupe', skipped: true });
+      if (typeof vuk.record === 'function') {
+        vuk.record({
+          channel: platform, source: 'outbound-publisher', kind: 'site-viral',
+          skipped: true, reason: vukGate.reason, contentHash: payload && payload.contentHash,
+          inflightKey: vukGate.inflightKey,
+        });
+      }
+      return { ok: false, skipped: true, reason: vukGate.reason || 'vuk_dedupe', evtTs: evt.ts, protocol: 'VUK/1.0' };
+    }
+  }
   if (_breakerOpen(platform)) {
     const evt = _record(platform, intent, { ok: false, reason: 'breaker_open' });
     return { ok: false, reason: 'breaker_open', evtTs: evt.ts };
@@ -377,9 +404,21 @@ async function publish(intent) {
     return { ok: false, reason: 'rate_limited', evtTs: evt.ts };
   }
   let result;
-  try { result = await adapter(intent); } catch (e) { result = { ok: false, error: 'adapter_failed' }; }
+  try { result = await adapter(payload); } catch (e) { result = { ok: false, error: 'adapter_failed' }; }
   if (result && result.ok) _onSuccess(platform); else _onFailure(platform);
-  const evt = _record(platform, intent, result || { ok: false });
+  const evt = _record(platform, payload, result || { ok: false });
+  if (vuk && typeof vuk.record === 'function' && platform !== 'rss') {
+    vuk.record({
+      channel: platform,
+      source: (payload && payload.source) || 'outbound-publisher',
+      kind: 'site-viral',
+      success: !!(result && result.ok),
+      skipped: !!(result && result.skipped),
+      reason: result && (result.reason || result.error),
+      contentHash: payload && payload.contentHash,
+      inflightKey: vukGate && vukGate.inflightKey,
+    });
+  }
   return { ...(result || {}), evtTs: evt.ts };
 }
 

@@ -501,17 +501,21 @@ async function _writePublicFeed(entry) {
 
 async function _fanoutExtras(hypothesis, snapshot) {
   const extras = [];
-  // SEO: IndexNow + sitemap inventory via traffic-engine
+  let vuk = null;
+  try { vuk = require('./viral-unification-os'); } catch (_) { vuk = null; }
+  const cycleOk = !(vuk && typeof vuk.shouldRunFullCycle === 'function')
+    || vuk.shouldRunFullCycle('cvr').ok;
+  // SEO: IndexNow + sitemap inventory via traffic-engine (VUK coalesces pings)
   if (_traffic && typeof _traffic.pingAll === 'function' && (snapshot.starvingStage === 'traffic' || snapshot.starvingStage === 'expand' || snapshot.starvingScore < 40)) {
     try {
       const ping = await _traffic.pingAll({ reason: 'cvr', hookId: hypothesis.hookId });
-      extras.push({ platform: 'indexnow', ok: !!(ping && (ping.ok || ping.submitted || ping.engines)), detail: ping && (ping.status || ping) });
+      extras.push({ platform: 'indexnow', ok: !!(ping && (ping.ok || ping.submitted || ping.engines || ping.coalesced)), detail: ping && (ping.status || ping) });
     } catch (e) {
       extras.push({ platform: 'indexnow', ok: false, error: e && e.message });
     }
   }
-  // Legacy viralizer — posts to every social token it knows (X/YT/Pin/TG/DEV/PH)
-  if (_viralizer && typeof _viralizer.postToAllPlatforms === 'function') {
+  // Viralizer only when VUK designates a full cycle — otherwise outbound-publisher already gated.
+  if (cycleOk && _viralizer && typeof _viralizer.postToAllPlatforms === 'function') {
     try {
       const r = await _viralizer.postToAllPlatforms();
       const channels = r && typeof r === 'object' ? Object.keys(r) : [];
@@ -523,6 +527,8 @@ async function _fanoutExtras(hypothesis, snapshot) {
     } catch (e) {
       extras.push({ platform: 'socialMediaViralizer', ok: false, error: e && e.message });
     }
+  } else if (!cycleOk) {
+    extras.push({ platform: 'socialMediaViralizer', ok: false, skipped: true, reason: 'vuk_not_designated' });
   }
   // Public site feed (always)
   const feed = await _writePublicFeed({
@@ -561,6 +567,7 @@ async function act(hypothesis, snapshot, { force = false } = {}) {
       body,
       title: `ZeusAI CVR · ${hypothesis.hookId}`,
       url: SITE_ORIGIN,
+      source: 'cvr',
     });
     results.push({ platform, ...r });
   }

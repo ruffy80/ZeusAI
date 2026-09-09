@@ -131,6 +131,8 @@ const STABLE_START_ALLOW = new Set([
   'originGravityOs',
   'social-gravity-os',
   'socialGravityOs',
+  'viral-unification-os',
+  'viralUnificationOs',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

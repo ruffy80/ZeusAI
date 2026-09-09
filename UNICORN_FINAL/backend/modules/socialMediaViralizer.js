@@ -364,20 +364,38 @@ class SocialMediaViralizer {
     };
   }
 
-  async postToAllPlatforms() {
+  async postToAllPlatforms(opts) {
     // Runtime secrets can be injected/rotated after process boot (QuantumVault /
     // secret bootstrap). Always refresh token snapshot before each outbound cycle.
     this.reloadTokensFromEnv();
     const t = this.tokens;
     const results = {};
     const skipped = [];
+    const force = !!(opts && opts.force);
     let sgp = null;
+    let vuk = null;
     try { sgp = require('./social-gravity-os'); } catch (_) { sgp = null; }
+    try { vuk = require('./viral-unification-os'); } catch (_) { vuk = null; }
+    if (vuk && typeof vuk.noteFullCycle === 'function') vuk.noteFullCycle('viralizer');
 
     const tryChannel = async (name, armed, fn) => {
       if (!armed) { skipped.push(name); return; }
       const content = await this.generatePostContent(name);
-      if (sgp && content.contentHash && sgp.recentlyPosted(name, content.contentHash)) {
+      if (vuk && typeof vuk.admit === 'function') {
+        const gate = vuk.admit({
+          channel: name, source: 'viralizer', kind: 'site-viral',
+          contentHash: content.contentHash, force,
+        });
+        if (!gate.ok) {
+          results[name] = { success: false, skipped: true, platform: name, reason: gate.reason || 'vuk_dedupe' };
+          skipped.push(name + ':' + (gate.reason || 'vuk_dedupe'));
+          if (sgp && sgp.recordAttempt) {
+            sgp.recordAttempt({ channel: name, skipped: true, reason: gate.reason, contentHash: content.contentHash });
+          }
+          if (vuk.record) vuk.record({ channel: name, source: 'viralizer', kind: 'site-viral', skipped: true, reason: gate.reason, contentHash: content.contentHash, inflightKey: gate.inflightKey });
+          return;
+        }
+      } else if (sgp && content.contentHash && sgp.recentlyPosted(name, content.contentHash)) {
         results[name] = { success: false, skipped: true, platform: name, reason: 'deduped_12h' };
         skipped.push(name + ':deduped_12h');
         sgp.recordAttempt({ channel: name, skipped: true, reason: 'deduped_12h', contentHash: content.contentHash });
@@ -398,6 +416,17 @@ class SocialMediaViralizer {
           skipped: !!(results[name] && results[name].skipped),
           reason: results[name] && results[name].reason,
           error: results[name] && results[name].error,
+          contentHash: content.contentHash,
+        });
+      }
+      if (vuk && typeof vuk.record === 'function') {
+        vuk.record({
+          channel: name,
+          source: 'viralizer',
+          kind: 'site-viral',
+          success: !!(results[name] && results[name].success),
+          skipped: !!(results[name] && results[name].skipped),
+          reason: results[name] && (results[name].reason || results[name].error),
           contentHash: content.contentHash,
         });
       }
@@ -804,7 +833,7 @@ class SocialMediaViralizer {
     router.get('/status', (req, res) => res.json(this.getStats()));
     router.get('/providers', (req, res) => res.json(this.getProviderStatus()));
     router.get('/history', (req, res) => res.json(this.postHistory.slice(-50)));
-    router.post('/post-now', async (req, res) => res.json(await this.postToAllPlatforms()));
+    router.post('/post-now', async (req, res) => res.json(await this.postToAllPlatforms({ force: true })));
     router.get('/trending-hashtags', async (req, res) => res.json({ hashtags: await this.generateSmartHashtags(['AI', 'Unicorn']) }));
     router.post('/cross-thread', async (req, res) => res.json(await this.createCrossPlatformThread((req.body || {}).content || {})));
     router.get('/viral-score', (req, res) => {
