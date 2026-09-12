@@ -282,6 +282,10 @@ class SocialMediaViralizer {
   }
 
   reloadTokensFromEnv() {
+    try {
+      const sec = require('../../src/config/secrets');
+      if (sec && typeof sec.reloadSocialStores === 'function') sec.reloadSocialStores();
+    } catch (_) { /* secrets optional */ }
     this.tokens = this.loadTokens();
     return this.tokens;
   }
@@ -292,7 +296,15 @@ class SocialMediaViralizer {
     console.log('📢 Social Media Auto-Viralizer activ (mod gratuit)');
     await this.validateTokens();
     if (process.env.NODE_ENV === 'test') return;
+    try {
+      const vsp = require('./visible-social-os');
+      if (vsp && typeof vsp.completeCompanionIds === 'function') {
+        await vsp.completeCompanionIds();
+        this.reloadTokensFromEnv();
+      }
+    } catch (_) { /* companion completion is best-effort at boot */ }
     this.startAutoPosting();
+    this.startSocialStoreReload();
     this.startAutoReply();
     this.startViralDetector();
     this.startUGCIncentivizer();
@@ -327,6 +339,16 @@ class SocialMediaViralizer {
       await this.postToAllPlatforms();
     });
     setTimeout(() => this.postToAllPlatforms().catch(() => {}), 10000);
+  }
+
+  startSocialStoreReload() {
+    if (process.env.NODE_ENV === 'test' || process.env.UNICORN_RUNTIME_PROFILE === 'ci') return;
+    this._socialStoreReloadTimer = setInterval(() => {
+      try { this.reloadTokensFromEnv(); } catch (_) { /* ignore */ }
+    }, 15 * 60 * 1000);
+    if (this._socialStoreReloadTimer && typeof this._socialStoreReloadTimer.unref === 'function') {
+      this._socialStoreReloadTimer.unref();
+    }
   }
 
   getAllModules() {
@@ -368,6 +390,13 @@ class SocialMediaViralizer {
     // Runtime secrets can be injected/rotated after process boot (QuantumVault /
     // secret bootstrap). Always refresh token snapshot before each outbound cycle.
     this.reloadTokensFromEnv();
+    try {
+      const vsp = require('./visible-social-os');
+      if (vsp && typeof vsp.completeCompanionIds === 'function') {
+        await vsp.completeCompanionIds();
+        this.reloadTokensFromEnv();
+      }
+    } catch (_) { /* companion completion is best-effort */ }
     const t = this.tokens;
     const results = {};
     const skipped = [];
@@ -419,6 +448,22 @@ class SocialMediaViralizer {
           contentHash: content.contentHash,
         });
       }
+      try {
+        const vsp = require('./visible-social-os');
+        if (vsp && typeof vsp.recordReceipt === 'function') {
+          vsp.recordReceipt({
+            channel: name,
+            success: !!(results[name] && results[name].success),
+            skipped: !!(results[name] && results[name].skipped),
+            reason: results[name] && (results[name].reason || results[name].error),
+            permalink: results[name] && results[name].permalink,
+            id: results[name] && (results[name].id || results[name].tweetId || results[name].messageId),
+            tweetId: results[name] && results[name].tweetId,
+            messageId: results[name] && results[name].messageId,
+            chatId: results[name] && results[name].chatId,
+          });
+        }
+      } catch (_) { /* receipts never block a post */ }
       if (vuk && typeof vuk.record === 'function') {
         vuk.record({
           channel: name,
@@ -433,21 +478,31 @@ class SocialMediaViralizer {
     };
 
     await tryChannel('pinterest', !!(t.pinterest && t.pinterestBoard && t.pinterestBoard !== 'unicorn_ai'), (c) => this.postToPinterest(c));
-    await tryChannel('x', !!t.xBearer, (c) => this.postToX(c));
+    await tryChannel('x', !!(t.xBearer || (t.xAccessToken && t.xAccessSecret)), (c) => this.postToX(c));
     await tryChannel('telegram', !!(t.telegram && t.telegramChat), (c) => this.postToTelegram(c));
     await tryChannel('dev', !!t.devApi, (c) => this.postToDev(c));
     await tryChannel('discord', !!t.discord, (c) => this.postToDiscord(c));
     await tryChannel('linkedin', !!(t.linkedin && t.linkedinAuthor), (c) => this.postToLinkedIn(c));
-    await tryChannel('facebook', !!(t.facebookPageToken && t.facebookPageId), (c) => this.postToFacebook(c));
-    await tryChannel('instagram', !!(t.instagramToken && t.instagramUserId), (c) => this.postToInstagram(c));
+    await tryChannel('facebook', !!t.facebookPageToken, (c) => this.postToFacebook(c));
+    await tryChannel('instagram', !!t.instagramToken, (c) => this.postToInstagram(c));
     await tryChannel('threads', !!(t.threadsToken && t.threadsUserId), (c) => this.postToThreads(c));
     await tryChannel('mastodon', !!t.mastodonToken, (c) => this.postToMastodon(c));
     await tryChannel('bluesky', !!(t.blueskyHandle && t.blueskyPassword), (c) => this.postToBluesky(c));
     await tryChannel('reddit', !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit), (c) => this.postToReddit(c));
     await tryChannel('webhook', !!t.socialWebhook, (c) => this.postToSocialWebhook(c));
     if (t.youtube) results.youtube = await this.postToYouTube(); else skipped.push('youtube');
-    if (t.tiktok && !t.socialWebhook) results.tiktok = await this.postToTikTok();
-    else if (!t.tiktok) skipped.push('tiktok');
+    if (t.tiktok && !t.socialWebhook) {
+      results.tiktok = await this.postToTikTok();
+      try {
+        const vsp = require('./visible-social-os');
+        vsp.recordReceipt({
+          channel: 'tiktok',
+          success: !!(results.tiktok && results.tiktok.success),
+          skipped: !!(results.tiktok && results.tiktok.skipped),
+          reason: results.tiktok && (results.tiktok.reason || results.tiktok.error),
+        });
+      } catch (_) { /* receipts never block a post */ }
+    } else if (!t.tiktok) skipped.push('tiktok');
     if (t.producthuntDevToken) results.producthunt = await this.postToProductHunt();
     else skipped.push('producthunt');
 
@@ -587,10 +642,37 @@ class SocialMediaViralizer {
 
   async postToX(content) {
     try {
-      const response = await this._http.post('https://api.twitter.com/2/tweets', { text: String(content.text || '').slice(0, 280) }, {
-        headers: { Authorization: 'Bearer ' + this.tokens.xBearer, 'Content-Type': 'application/json' }, timeout: 15000
+      const text = String(content.text || '').slice(0, 280);
+      const headers = { 'Content-Type': 'application/json' };
+      let vsp = null;
+      try { vsp = require('./visible-social-os'); } catch (_) { vsp = null; }
+      if (vsp && typeof vsp.xUserContextArmed === 'function' && vsp.xUserContextArmed()) {
+        const secrets = require('../../src/config/secrets');
+        const g = (n) => secrets.getSecret(n, '');
+        headers.Authorization = vsp.oauth1Header(
+          'POST',
+          'https://api.twitter.com/2/tweets',
+          g('X_API_KEY'),
+          g('X_API_SECRET'),
+          g('X_ACCESS_TOKEN'),
+          g('X_ACCESS_SECRET')
+        );
+      } else if (this.tokens.xBearer) {
+        headers.Authorization = 'Bearer ' + this.tokens.xBearer;
+      } else {
+        return { success: false, skipped: true, platform: 'x', reason: 'x_user_context_or_bearer_missing' };
+      }
+      const response = await this._http.post('https://api.twitter.com/2/tweets', { text }, {
+        headers, timeout: 15000
       });
-      return { success: true, platform: 'x', tweetId: response.data?.data?.id || null, cost: 0 };
+      const tweetId = response.data?.data?.id || null;
+      return {
+        success: true,
+        platform: 'x',
+        tweetId,
+        permalink: tweetId ? 'https://x.com/i/web/status/' + tweetId : null,
+        cost: 0
+      };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -603,7 +685,13 @@ class SocialMediaViralizer {
         text: String(content.text || ''),
         parse_mode: 'HTML'
       }, { timeout: 15000 });
-      return { success: true, platform: 'telegram', messageId: response.data?.result?.message_id || null, cost: 0 };
+      const messageId = response.data?.result?.message_id || null;
+      let permalink = null;
+      try {
+        const vsp = require('./visible-social-os');
+        permalink = vsp.permalinkFor('telegram', { messageId, chatId: this.tokens.telegramChat, id: messageId });
+      } catch (_) { /* optional */ }
+      return { success: true, platform: 'telegram', messageId, chatId: this.tokens.telegramChat, permalink, cost: 0 };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -654,25 +742,49 @@ class SocialMediaViralizer {
         headers: { Authorization: 'Bearer ' + this.tokens.linkedin, 'X-Restli-Protocol-Version': '2.0.0', 'Content-Type': 'application/json' },
         timeout: 15000
       });
-      return { success: true, platform: 'linkedin', id: r.data && r.data.id, cost: 0 };
+      const id = r.data && r.data.id;
+      let permalink = null;
+      try {
+        const vsp = require('./visible-social-os');
+        permalink = vsp.permalinkFor('linkedin', { id });
+      } catch (_) { /* optional */ }
+      return { success: true, platform: 'linkedin', id, permalink, cost: 0 };
     } catch (err) {
       return { success: false, error: err.message };
     }
   }
 
   async postToFacebook(content) {
+    if (!this.tokens.facebookPageToken) {
+      return { success: false, skipped: true, platform: 'facebook', reason: 'facebook_page_token_missing' };
+    }
+    if (!this.tokens.facebookPageId) {
+      return { success: false, skipped: true, platform: 'facebook', reason: 'facebook_page_id_incomplete' };
+    }
     try {
       const r = await this._http.post('https://graph.facebook.com/v19.0/' + this.tokens.facebookPageId + '/feed', null, {
         params: { message: String(content.text || '').slice(0, 5000), access_token: this.tokens.facebookPageToken },
         timeout: 15000
       });
-      return { success: true, platform: 'facebook', id: r.data && r.data.id, cost: 0 };
+      const id = r.data && r.data.id;
+      let permalink = null;
+      try {
+        const vsp = require('./visible-social-os');
+        permalink = vsp.permalinkFor('facebook', { id });
+      } catch (_) { /* optional */ }
+      return { success: true, platform: 'facebook', id, permalink, cost: 0 };
     } catch (err) {
       return { success: false, error: err.message };
     }
   }
 
   async postToInstagram(content) {
+    if (!this.tokens.instagramToken) {
+      return { success: false, skipped: true, platform: 'instagram', reason: 'instagram_token_missing' };
+    }
+    if (!this.tokens.instagramUserId) {
+      return { success: false, skipped: true, platform: 'instagram', reason: 'instagram_user_id_incomplete' };
+    }
     const imageUrl = content.imageUrl || content.image || 'https://zeusai.pro/assets/og-image.png';
     try {
       const created = await this._http.post('https://graph.facebook.com/v19.0/' + this.tokens.instagramUserId + '/media', null, {
@@ -689,7 +801,13 @@ class SocialMediaViralizer {
         params: { creation_id: creationId, access_token: this.tokens.instagramToken },
         timeout: 20000
       });
-      return { success: true, platform: 'instagram', id: published.data && published.data.id, cost: 0 };
+      const id = published.data && published.data.id;
+      let permalink = null;
+      try {
+        const vsp = require('./visible-social-os');
+        permalink = vsp.permalinkFor('instagram', { id });
+      } catch (_) { /* optional */ }
+      return { success: true, platform: 'instagram', id, permalink, cost: 0 };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -711,7 +829,13 @@ class SocialMediaViralizer {
         params: { creation_id: creationId, access_token: this.tokens.threadsToken },
         timeout: 15000
       });
-      return { success: true, platform: 'threads', id: published.data && published.data.id, cost: 0 };
+      const id = published.data && published.data.id;
+      let permalink = null;
+      try {
+        const vsp = require('./visible-social-os');
+        permalink = vsp.permalinkFor('threads', { id });
+      } catch (_) { /* optional */ }
+      return { success: true, platform: 'threads', id, permalink, cost: 0 };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -724,7 +848,13 @@ class SocialMediaViralizer {
         headers: { Authorization: 'Bearer ' + this.tokens.mastodonToken },
         timeout: 15000
       });
-      return { success: true, platform: 'mastodon', id: r.data && r.data.id, cost: 0 };
+      return {
+        success: true,
+        platform: 'mastodon',
+        id: r.data && r.data.id,
+        permalink: (r.data && (r.data.url || r.data.uri)) || null,
+        cost: 0
+      };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -852,10 +982,14 @@ class SocialMediaViralizer {
     const t = this.reloadTokensFromEnv();
     const providers = {
       x_twitter: {
-        configured: !!t.xBearer,
+        configured: !!(t.xBearer || (t.xAccessToken && t.xAccessSecret)),
+        canPost: !!(t.xBearer || (t.xAccessToken && t.xAccessSecret)),
+        userContext: !!(t.xAccessToken && t.xAccessSecret && this.secret('X_API_KEY') && this.secret('X_API_SECRET')),
         endpoint: 'https://api.twitter.com/2/tweets',
         envVar: 'X_BEARER_TOKEN',
-        requiredEnvVars: ['X_BEARER_TOKEN']
+        requiredEnvVars: t.xBearer
+          ? ['X_BEARER_TOKEN']
+          : ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET']
       },
       telegram: {
         configured: !!(t.telegram && t.telegramChat),
@@ -878,13 +1012,17 @@ class SocialMediaViralizer {
         requiredEnvVars: ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN']
       },
       facebook: {
-        configured: !!(t.facebookPageToken && t.facebookPageId),
+        configured: !!t.facebookPageToken,
+        canPost: !!(t.facebookPageToken && t.facebookPageId),
+        companionPending: !!(t.facebookPageToken && !t.facebookPageId),
         endpoint: 'https://graph.facebook.com/v19.0/{page-id}/feed',
         envVar: 'FACEBOOK_PAGE_TOKEN',
         requiredEnvVars: ['FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID']
       },
       instagram: {
-        configured: !!(t.instagramToken && t.instagramUserId),
+        configured: !!t.instagramToken,
+        canPost: !!(t.instagramToken && t.instagramUserId),
+        companionPending: !!(t.instagramToken && !t.instagramUserId),
         endpoint: 'https://graph.facebook.com/v19.0/{ig-user-id}/media',
         envVar: 'INSTAGRAM_ACCESS_TOKEN',
         requiredEnvVars: ['INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID']
@@ -897,6 +1035,7 @@ class SocialMediaViralizer {
       },
       tiktok: {
         configured: !!t.tiktok,
+        canPost: false,
         endpoint: 'tiktok-content-posting',
         envVar: 'TIKTOK_ACCESS_TOKEN',
         note: 'Organic TikTok publish needs a video file; token alone is not enough. SOCIAL_WEBHOOK_URL can relay.'
@@ -938,7 +1077,12 @@ class SocialMediaViralizer {
     };
     const livePosters = ['x_twitter', 'telegram', 'pinterest', 'devto', 'discord', 'linkedin', 'facebook', 'instagram', 'threads', 'mastodon', 'bluesky', 'reddit', 'webhook'];
     const configuredProviders = Object.keys(providers).filter((k) => providers[k].configured);
-    const liveReady = livePosters.filter((k) => providers[k].configured);
+    const liveReady = livePosters.filter((k) => {
+      const p = providers[k];
+      if (!p || !p.configured) return false;
+      if (p.canPost === false) return false;
+      return true;
+    });
     return {
       ok: true,
       generatedAt: new Date().toISOString(),
@@ -949,8 +1093,8 @@ class SocialMediaViralizer {
       postsAttempted: this.postHistory.length,
       lastPost: this.postHistory.length ? this.postHistory[this.postHistory.length - 1] : null,
       hint: liveReady.length === 0
-        ? 'No live social poster armed. Set FACEBOOK_PAGE_TOKEN+FACEBOOK_PAGE_ID, X_BEARER_TOKEN, TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID, DISCORD_WEBHOOK_URL, LINKEDIN_ACCESS_TOKEN+LINKEDIN_AUTHOR_URN, INSTAGRAM_ACCESS_TOKEN+INSTAGRAM_USER_ID, BLUESKY_HANDLE+BLUESKY_APP_PASSWORD, MASTODON_TOKEN, or SOCIAL_WEBHOOK_URL in GitHub secrets (sync-all-secrets.yml) or /etc/zeusai/social.env.'
-        : `${liveReady.length} live poster(s) ready: ${liveReady.join(', ')}.`,
+        ? 'No live social poster armed. Gaze networks the owner checks (Facebook/X/Instagram) need FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN in GitHub secrets → sync-all-secrets → /etc/zeusai/social.env. Telegram/Discord/webhook are operator rails, not Facebook posts. Open /visible.'
+        : `${liveReady.length} live poster(s) ready: ${liveReady.join(', ')}. Gaze proof: /visible`,
     };
   }
 

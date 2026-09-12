@@ -363,6 +363,25 @@ app.get('/health', (req, res) => {
         return { protocol: 'VUK/1.0', available: false, inventsReach: false };
       }
     })(),
+    visibleSocial: (function () {
+      try {
+        const vsp = require('../backend/modules/visible-social-os');
+        const s = vsp.getStatus();
+        return {
+          protocol: 'VSP/1.0',
+          available: true,
+          gazeDark: s.gazeDark,
+          gazeLit: s.gazeLit,
+          railsArmed: s.railsArmed,
+          visibleReceipts: s.visibleReceipts,
+          whyYouSeeNothing: s.whyYouSeeNothing,
+          inventsReach: false,
+          inventsPosts: false,
+        };
+      } catch (_) {
+        return { protocol: 'VSP/1.0', available: false, inventsReach: false, inventsPosts: false };
+      }
+    })(),
     brandSpectrum: (function () {
       try {
         const cic = require('../backend/modules/brand-spectrum-os');
@@ -1036,6 +1055,27 @@ app.get(['/.well-known/viral-unification.json', '/api/viral-unification', '/api/
     return res.json(vuk.discovery());
   } catch (e) {
     return res.status(503).json({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false });
+  }
+});
+app.get(['/.well-known/visible-social.json', '/api/visible-social', '/api/visible-social/status'], (req, res) => {
+  try {
+    const vsp = require('../backend/modules/visible-social-os');
+    const hdr = vsp.visibleHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'no-store');
+    return res.json(vsp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false });
+  }
+});
+app.get(['/visible', '/gaze'], (req, res) => {
+  try {
+    const vsp = require('../backend/modules/visible-social-os');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    return res.send(vsp.gazeProofHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>visible</title><p>VSP unavailable</p>');
   }
 });
 app.get('/api/origin-gravity/ledger', (req, res) => {
@@ -7809,6 +7849,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         from_landing:      '/from/{channel}',
         viral_unification: '/.well-known/viral-unification.json',
         vuk:               '/api/viral-unification',
+        visible_social:    '/.well-known/visible-social.json',
+        vsp:               '/api/visible-social',
+        visible_page:      '/visible',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8339,6 +8382,39 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false }));
+    }
+  }
+
+  if (
+    urlPath === '/.well-known/visible-social.json'
+    || urlPath === '/api/visible-social'
+    || urlPath === '/api/visible-social/status'
+  ) {
+    try {
+      const vsp = require('../backend/modules/visible-social-os');
+      const hdr = vsp.visibleHeaders();
+      res.writeHead(200, Object.assign({
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      }, hdr));
+      return res.end(JSON.stringify(vsp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false }));
+    }
+  }
+
+  if (urlPath === '/visible' || urlPath === '/gaze') {
+    try {
+      const vsp = require('../backend/modules/visible-social-os');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      return res.end(vsp.gazeProofHtml());
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>visible</title><p>VSP unavailable</p>');
     }
   }
 

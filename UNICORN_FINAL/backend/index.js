@@ -5254,6 +5254,18 @@ try {
   console.warn('[VUK] load/start failed:', e && e.message);
 }
 
+// VSP/1.0 — Visible Surface Protocol (gaze permalinks only; rails are not posts)
+let visibleSocialOs = null;
+try {
+  visibleSocialOs = require('./modules/visible-social-os');
+  if (process.env.NODE_ENV !== 'test' && process.env.VSP_DISABLED !== '1') {
+    visibleSocialOs.start();
+  }
+  console.log('👁 VSP/1.0 Visible Surface: MOUNTED (Telegram/Discord are rails, not Facebook posts)');
+} catch (e) {
+  console.warn('[VSP] load/start failed:', e && e.message);
+}
+
 function _cblosBtc(rate) {
   try {
     const cblos = commerceBondLoopOs || require('./modules/commerce-bond-loop-os');
@@ -9269,6 +9281,28 @@ app.get(['/api/viral-unification', '/api/viral-unification/status', '/.well-know
     return res.json(m.discovery());
   } catch (e) {
     return res.status(503).json({ ok: false, error: e.message, protocol: 'VUK/1.0', inventsReach: false });
+  }
+});
+
+app.get(['/api/visible-social', '/api/visible-social/status', '/.well-known/visible-social.json'], (req, res) => {
+  try {
+    const m = visibleSocialOs || require('./modules/visible-social-os');
+    const hdr = m.visibleHeaders();
+    Object.keys(hdr).forEach((k) => res.set(k, hdr[k]));
+    res.set('Cache-Control', 'public, max-age=8');
+    return res.json(m.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false });
+  }
+});
+app.get(['/visible', '/gaze'], (req, res) => {
+  try {
+    const m = visibleSocialOs || require('./modules/visible-social-os');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    return res.send(m.gazeProofHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>visible</title><p>VSP unavailable</p>');
   }
 });
 

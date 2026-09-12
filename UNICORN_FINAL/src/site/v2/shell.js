@@ -1317,6 +1317,20 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
   </div>
 </section>
 
+<section id="homeVisibleSocial" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(255,176,32,.35);background:linear-gradient(135deg,rgba(255,176,32,.08),rgba(0,212,255,.04))" data-vsp-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#ffb020">VSP/1.0 · Visible Surface</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">A Facebook post exists only if you can <span class="grad">open a public permalink.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Telegram bots, Discord webhooks, and generic webhooks are operator rails — they are not posts on Facebook, X, TikTok, or Instagram. Open /visible. If gazeLit is empty, those apps were not posted to. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/visible" data-link>Open gaze proof →</a>
+      <a class="btn btn-ghost" href="/.well-known/visible-social.json" data-allow-raw="1">visible-social.json</a>
+    </div>
+  </div>
+</section>
+
 ${merchantStandardSurface.homeStripHtml()}
 
 ${_featuredHtml}
