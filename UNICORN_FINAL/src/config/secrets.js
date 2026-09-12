@@ -30,7 +30,18 @@ const ENV_FILES = [
   '/var/www/unicorn/shared/.env',
   '/etc/zeusai/secrets/ai-keys.env',
   '/etc/zeusai/social.env',
+  '/etc/zeusai/secrets/social.env',
+  '/var/www/unicorn/shared/social.env',
 ];
+
+/** Host-durable social stores. Empty keys in shared/.env must not mask these. */
+const SOCIAL_STORE_FILES = [
+  '/etc/zeusai/social.env',
+  '/etc/zeusai/secrets/social.env',
+  '/var/www/unicorn/shared/social.env',
+];
+
+const SOCIAL_KEY_RE = /^(X_|TWITTER_|FACEBOOK_|FB_|INSTAGRAM_|IG_|TIKTOK_|THREADS_|TELEGRAM_|TG_|ZAC_TELEGRAM|ZEUS_TG_|DISCORD_|LINKEDIN_|BLUESKY_|MASTODON_|PINTEREST_|REDDIT_|SOCIAL_WEBHOOK|GENERIC_WEBHOOK|DEV_API|YOUTUBE_|PRODUCTHUNT_)/;
 
 const ALIASES = {
   ADMIN_SECRET: ['ADMIN_TOKEN'],
@@ -364,6 +375,51 @@ function loadDotenvFile(filePath) {
   }
 }
 
+/**
+ * Re-read durable social stores and fill empty/placeholder process.env keys.
+ * Live 2026-09-12: FACEBOOK/X/TikTok can sit in /etc/zeusai/social.env while
+ * shared/.env already pinned FACEBOOK_PAGE_TOKEN= — dotenv override:false
+ * then never arms the gaze networks the owner actually checks.
+ */
+function socialStoreFiles() {
+  const extra = String(process.env.UNICORN_SOCIAL_STORE_FILE || '').trim();
+  // Unit tests must not inherit the host's /etc/zeusai/social.env — that made
+  // "unconfigured" cycles post to Facebook whenever a durable store existed.
+  if (process.env.NODE_ENV === 'test' && process.env.UNICORN_SOCIAL_STORE_ALLOW_HOST !== '1') {
+    return extra ? [extra] : [];
+  }
+  return extra ? SOCIAL_STORE_FILES.concat(extra) : SOCIAL_STORE_FILES.slice();
+}
+
+function reloadSocialStores() {
+  const filled = [];
+  for (const file of socialStoreFiles()) {
+    if (!fs.existsSync(file)) continue;
+    let text = '';
+    try { text = fs.readFileSync(file, 'utf8'); } catch (_) { continue; }
+    for (const rawLine of String(text).split(/\r?\n/)) {
+      const line = String(rawLine || '').trim();
+      if (!line || line.startsWith('#')) continue;
+      const m = line.match(/^([A-Z0-9_]+)\s*=\s*(.*)$/);
+      if (!m || !SOCIAL_KEY_RE.test(m[1])) continue;
+      let val = m[2].trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      val = val.replace(/\\n/g, '\n').trim();
+      if (!val || PLACEHOLDER_RE.test(val)) continue;
+      const cur = process.env[m[1]];
+      const curS = cur == null ? '' : String(cur).trim();
+      if (!curS || PLACEHOLDER_RE.test(curS)) {
+        process.env[m[1]] = val;
+        filled.push(m[1]);
+      }
+    }
+  }
+  normalizeAliases();
+  return filled;
+}
+
 function normalizeAliases() {
   const resolved = {};
   for (const [canonical, aliases] of Object.entries(ALIASES)) {
@@ -400,6 +456,7 @@ function groupStatus(names) {
 
 function bootstrap(options = {}) {
   const loaded = ENV_FILES.map(loadDotenvFile).filter(Boolean);
+  const socialFilled = reloadSocialStores();
   const resolved = {
     ...materializeEnvTemplates(),
     ...applyDefaults(),
@@ -424,9 +481,9 @@ function bootstrap(options = {}) {
     optionalPaymentProvidersReady: features.optionalPayments.configured,
   };
   if (options.log) {
-    console.log('[secrets] bootstrap loaded', loaded.length, 'env files · resolved aliases', Object.keys(resolved).length, '· configured known', `${knownConfigured.length}/${ALL_SECRET_KEYS.length}`);
+    console.log('[secrets] bootstrap loaded', loaded.length, 'env files · social-filled', socialFilled.length, '· resolved aliases', Object.keys(resolved).length, '· configured known', `${knownConfigured.length}/${ALL_SECRET_KEYS.length}`);
   }
-  return { loaded, resolved, features, summary };
+  return { loaded, resolved, features, summary, socialFilled };
 }
 
 function features() {
@@ -456,7 +513,10 @@ module.exports = {
   getSecret,
   requireSecret,
   materializeDeployKey,
+  reloadSocialStores,
+  socialStoreFiles,
   FEATURE_GROUPS,
   ALIASES,
   DEFAULT_VALUES,
+  SOCIAL_STORE_FILES,
 };

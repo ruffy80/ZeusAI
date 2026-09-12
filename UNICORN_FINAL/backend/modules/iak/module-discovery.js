@@ -133,6 +133,8 @@ const STABLE_START_ALLOW = new Set([
   'socialGravityOs',
   'viral-unification-os',
   'viralUnificationOs',
+  'visible-social-os',
+  'visibleSocialOs',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */
