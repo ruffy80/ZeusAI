@@ -99,6 +99,9 @@ check('nav wordmark uses lightning volt on every letter + frameless Zeus mark', 
   assert.ok(shell.includes('width="72"'));
   assert.ok(shell.includes('Zeus<span class="ai">AI</span>'));
   assert.ok(shell.includes('cicPanel') || shell.includes('Chromatic Identity Continuum'));
+  assert.ok(shell.includes('font-size:36px'));
+  assert.ok(!/brand-logo\{[^}]*3px solid transparent/.test(shell.replace(/\s+/g, '')));
+  assert.ok(shell.includes('linear-gradient(180deg,#ffffff,#E8FFF8,#7CF7C0,#00E8A0'));
   const css = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'styles.js'), 'utf8');
   assert.ok(css.includes('#00E8A0'));
   assert.ok(css.includes('width:72px'));
