@@ -339,6 +339,32 @@ class PaymentGateway {
         updatedAt: new Date(cache.updatedAt).toISOString()
       };
     }
+    // Stale-while-revalidate: if last-good exists, never block checkout on the
+    // 5-source fan-out. Refresh in the background. Cold cache still waits.
+    if (cache.rate > 0) {
+      if (!PaymentGateway._btcRefreshInFlight) {
+        PaymentGateway._btcRefreshInFlight = this._refreshBitcoinRate().finally(() => {
+          PaymentGateway._btcRefreshInFlight = null;
+        });
+      }
+      return {
+        asset: 'BTC',
+        currency: 'USD',
+        rate: cache.rate,
+        source: cache.source + '+stale',
+        updatedAt: new Date(cache.updatedAt).toISOString(),
+        warning: 'Serving last-good BTC rate while sources refresh.'
+      };
+    }
+    return this._refreshBitcoinRate();
+  }
+
+  async _refreshBitcoinRate() {
+    const now = Date.now();
+    if (!PaymentGateway._btcRateCache) {
+      PaymentGateway._btcRateCache = { rate: 0, source: 'bootstrap', updatedAt: 0 };
+    }
+    const cache = PaymentGateway._btcRateCache;
     const sources = [
       { name: 'coinbase',  url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot',                          pick: (j) => Number(j && j.data && j.data.amount) },
       { name: 'kraken',    url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD',                       pick: (j) => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch (_) { return null; } } },

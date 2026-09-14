@@ -1166,7 +1166,7 @@ function pageHome() {
         <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
         <span style="font-size:11px;color:var(--ink-dim)">BTC on-chain · PayPal · card/crypto when armed</span>
       </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Live paid orders load here — BTC entries link to mempool.space; alt-rail pays show provider refs.</div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">No on-chain settlements yet — paidHumans = 0. Be Origin #1: Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></div>
     </div>
     <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
       <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
@@ -1179,19 +1179,26 @@ function pageHome() {
     </div>
   </div>
 </section>`;
-  // Hero quick-buy — pre-populated with top 6 catalog services (cheapest of
-  // each) so a first-time visitor can jump straight from the hero to a BTC
-  // invoice without touching the catalog. Hydrated by client.js.
-  const _heroQuickPicks = _all
-    .filter(p => Number(p.priceUSD || p.priceUsd || p.price || 0) > 0)
-    .sort((a,b)=> (Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0)))
-    .slice(0, 6);
+  // Hero quick-buy — First-Dollar Gravity: default SKU is the cheapest
+  // honest instant deliverable (instant-resume-makeover $39), never api-call
+  // or global-giants. Hydrated by client.js bindHeroQuickBuy().
+  let _heroQuickPicks = [];
+  try {
+    const gravity = require('../../commerce/storefront-gravity-os');
+    _heroQuickPicks = gravity.pickHeroQuickPicks(_all, 6);
+  } catch (_) {
+    _heroQuickPicks = _all
+      .filter(p => Number(p.priceUSD || p.priceUsd || p.price || 0) >= 29)
+      .sort((a,b)=> (Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0)))
+      .slice(0, 6);
+  }
   const _heroQuickOpts = _heroQuickPicks.map(p => {
     const id = _esc(p.id || '');
     const title = _esc(p.title || p.id || 'Service');
     const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
     const label = price > 0 ? (title + ' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : title;
-    return `<option value="${id}">${label}</option>`;
+    const selected = id === 'instant-resume-makeover' ? ' selected' : '';
+    return `<option value="${id}"${selected}>${label}</option>`;
   }).join('');
   const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
       <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · BTC · PayPal · card/crypto</span>

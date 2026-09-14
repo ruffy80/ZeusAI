@@ -2100,7 +2100,7 @@ async function hydrateHomeProof(){
       const r = await api('/api/commerce/recent-sales?limit=8');
       const sales = (r && Array.isArray(r.sales)) ? r.sales : [];
       if (!sales.length) {
-        body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — be the first. Every paid order will appear here with a mempool.space proof link.</span>';
+        body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — paidHumans = 0. Be Origin #1: Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></span>';
       } else {
         const fmtTime = function(iso){
           try {
