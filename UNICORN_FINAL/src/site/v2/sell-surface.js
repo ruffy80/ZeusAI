@@ -69,9 +69,14 @@ function _loadBuyable() {
 
 function pageBuy() {
   const all = _loadBuyable();
-  const instant = all.filter((p) => p.tier === 'instant' && p.mode === 'btc');
-  const professional = all.filter((p) => p.tier === 'professional' || p.mode === 'reserve');
-  const contact = all.filter((p) => p.mode === 'contact');
+  let gravity = null;
+  try { gravity = require('../../commerce/storefront-gravity-os'); } catch (_) {}
+  const ranked = gravity && typeof gravity.rankPublicCatalogItems === 'function'
+    ? gravity.rankPublicCatalogItems(all)
+    : all.slice().sort((a, b) => (a.priceUSD || 0) - (b.priceUSD || 0));
+  const instant = ranked.filter((p) => p.tier === 'instant' && p.mode === 'btc');
+  const professional = ranked.filter((p) => p.tier === 'professional' || p.mode === 'reserve');
+  const contact = ranked.filter((p) => p.mode === 'contact');
 
   function card(p) {
     const mins = p.deliveryMinutes ? `<span class="tag">${_esc(String(p.deliveryMinutes))} min delivery</span>` : '';

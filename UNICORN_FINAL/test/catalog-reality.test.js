@@ -160,6 +160,18 @@ async function run() {
         'checkout create should succeed for core plan');
     });
 
+    await check('public catalog gravity hides ghosts and leads with self-serve', async () => {
+      const res = await request(base, '/api/catalog');
+      assert.strictEqual(res.status, 200);
+      const items = Array.isArray(res.body) ? res.body : [];
+      const ids = items.map((x) => x.id);
+      assert.ok(!ids.includes('api-call'), 'api-call ghost leaked');
+      assert.notStrictEqual(ids[0], 'global-giants');
+      const resumeIdx = ids.indexOf('instant-resume-makeover');
+      const giantsIdx = ids.indexOf('global-giants');
+      if (resumeIdx >= 0 && giantsIdx >= 0) assert.ok(resumeIdx < giantsIdx);
+    });
+
     console.log(`\n✅ catalog-reality: ${passed} tests passed\n`);
   } finally {
     if (typeof app.closeAllConnections === 'function') {

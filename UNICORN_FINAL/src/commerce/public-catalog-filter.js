@@ -70,9 +70,20 @@ const ASPIRATIONAL_GROUPS = new Set([
 // Ghost metered SKUs (api-call, wealth-engine, …) are NOT treated as
 // fulfillment recipes for the public storefront.
 const CANONICAL_CORE_PLAN_IDS = new Set([
-  'free', 'starter', 'pro', 'enterprise', 'ai-analysis', 'data-export',
-  'sme', 'mid-market', 'enterprise-tier', 'global-giants',
+  'starter', 'pro', 'enterprise', 'ai-analysis', 'data-export',
 ]);
+
+// Metered / $0 ghosts — not first-dollar products. Hidden on the public shelf.
+const GHOST_METERED_IDS = new Set([
+  'api-call',
+  'free',
+]);
+
+function isGhostMeteredItem(item) {
+  if (!item) return false;
+  const id = String(item.id || item.serviceId || '').trim();
+  return GHOST_METERED_IDS.has(id);
+}
 
 function hasExplicitFulfillmentRecipe(item) {
   if (!item || typeof item !== 'object') return false;
@@ -148,7 +159,7 @@ function filterPublicCatalogItems(items, options = {}) {
   if (options.includeSynthetic === true) {
     return list.slice();
   }
-  return list.filter((item) => !isSyntheticCatalogItem(item));
+  return list.filter((item) => !isSyntheticCatalogItem(item) && !isGhostMeteredItem(item));
 }
 
 function applyPublicCatalogFilter(catalog, options = {}) {
@@ -193,6 +204,7 @@ function applyPublicCatalogFilter(catalog, options = {}) {
 module.exports = {
   isSyntheticCatalogItem,
   isAspirationalCatalogItem,
+  isGhostMeteredItem,
   hasFulfillmentRecipe,
   hasExplicitFulfillmentRecipe,
   isPhysicalOrDropshipItem,
@@ -203,4 +215,5 @@ module.exports = {
   CURATED_RECIPE_GROUPS,
   ASPIRATIONAL_GROUPS,
   CANONICAL_CORE_PLAN_IDS,
+  GHOST_METERED_IDS,
 };

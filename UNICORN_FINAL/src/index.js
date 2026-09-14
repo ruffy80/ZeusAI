@@ -1068,6 +1068,26 @@ app.get(['/.well-known/visible-social.json', '/api/visible-social', '/api/visibl
     return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false });
   }
 });
+app.get(['/.well-known/first-dollar.json', '/api/first-dollar', '/api/first-dollar/status'], (req, res) => {
+  try {
+    const fdgp = require('./commerce/storefront-gravity-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'FDGP/1.0');
+    return res.json(fdgp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'FDGP/1.0', inventsHumans: false, inventsGmv: false });
+  }
+});
+app.get('/first-dollar', (req, res) => {
+  try {
+    const fdgp = require('./commerce/storefront-gravity-os');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    return res.send(fdgp.firstDollarHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>first-dollar</title><p>FDGP unavailable</p>');
+  }
+});
 app.get(['/visible', '/gaze'], (req, res) => {
   try {
     const vsp = require('../backend/modules/visible-social-os');
@@ -1863,6 +1883,7 @@ let notifier = null; try { notifier = require('./commerce/notifier'); } catch (e
 let instantCatalog = null; try { instantCatalog = require('./commerce/instant-catalog'); } catch (e) { console.warn('[instant-catalog] not loaded:', e.message); }
 let unifiedCatalog = null; try { unifiedCatalog = require('./commerce/unified-catalog'); } catch (e) { console.warn('[unified-catalog] not loaded:', e.message); }
 const publicCatalogFilter = require('./commerce/public-catalog-filter');
+const storefrontGravity = require('./commerce/storefront-gravity-os');
 let productEngine = null; try { productEngine = require('./commerce/product-engine'); } catch (e) { console.warn('[product-engine] not loaded:', e.message); }
 let portal = null; try { portal = require('./commerce/customer-portal'); } catch (e) { console.warn('[portal] not loaded:', e.message); }
 let provisioner = null; try { provisioner = require('./commerce/provisioner'); } catch (e) { console.warn('[provisioner] not loaded:', e.message); }
@@ -2810,9 +2831,9 @@ const _btcSpotCache = { usdPerBtc: 95000, fetchedAt: 0, source: 'bootstrap', las
 // importing this file and creating circular dependencies.
 global.__btcSpotCache = _btcSpotCache;
 const BTC_DIVERGENCE_MAX_PCT = Number(process.env.UNICORN_BTC_DIVERGENCE_MAX_PCT || 5); // %
-async function getBtcUsdSpot() {
+let _btcSpotRefreshInFlight = null;
+async function _refreshBtcUsdSpot() {
   const now = Date.now();
-  if (now - _btcSpotCache.fetchedAt < 60000) return _btcSpotCache.usdPerBtc;
   const sources = [
     { name: 'coinbase', url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot', pick: j => Number(j && j.data && j.data.amount) },
     { name: 'kraken', url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD', pick: j => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch(_){ return null; } } },
@@ -2854,6 +2875,19 @@ async function getBtcUsdSpot() {
   _btcSpotCache.fetchedAt = now;
   _btcSpotCache.source = 'median(' + results.filter(Boolean).map(r => r.name).join('+') + ')';
   return _btcSpotCache.usdPerBtc;
+}
+async function getBtcUsdSpot() {
+  const now = Date.now();
+  if (now - _btcSpotCache.fetchedAt < 60000) return _btcSpotCache.usdPerBtc;
+  // Stale-while-revalidate: never block checkout on a 5-source fan-out when
+  // a last-good (or bootstrap) rate exists. Cold zero still awaits refresh.
+  if (_btcSpotCache.usdPerBtc > 0) {
+    if (!_btcSpotRefreshInFlight) {
+      _btcSpotRefreshInFlight = _refreshBtcUsdSpot().finally(() => { _btcSpotRefreshInFlight = null; });
+    }
+    return _btcSpotCache.usdPerBtc;
+  }
+  return _refreshBtcUsdSpot();
 }
 function usdToBtc(usd, spot) { const p = Number(spot) || 95000; return Number((Number(usd || 0) / p).toFixed(8)); }
 function buildBtcUri(address, btcAmount, label) {
@@ -3098,7 +3132,8 @@ async function getCachedMasterCatalog(options = {}) {
   }
   const includeSynthetic = options.includeSynthetic === true;
   if (includeSynthetic) return _masterCatalogCache.catalog;
-  return publicCatalogFilter.applyPublicCatalogFilter(_masterCatalogCache.catalog, { includeSynthetic: false });
+  const filtered = publicCatalogFilter.applyPublicCatalogFilter(_masterCatalogCache.catalog, { includeSynthetic: false });
+  return storefrontGravity.applyStorefrontGravity(filtered, { includeSynthetic: false });
 }
 
 const modules = [
@@ -3305,6 +3340,7 @@ async function buildPublicStorefrontServices(requestUrl) {
     const runtimeServices = getRuntimeDataSources().services || [];
     services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
     services = publicCatalogFilter.filterPublicCatalogItems(services, { includeSynthetic });
+    if (!includeSynthetic) services = storefrontGravity.rankPublicCatalogItems(services);
   }
   try {
     services = await enrichServicesWithLivePricing(services);
@@ -4866,7 +4902,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -7852,6 +7888,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         visible_social:    '/.well-known/visible-social.json',
         vsp:               '/api/visible-social',
         visible_page:      '/visible',
+        first_dollar:      '/.well-known/first-dollar.json',
+        fdgp:              '/api/first-dollar',
+        first_dollar_page: '/first-dollar',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8128,7 +8167,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     try {
       const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
       const cat = await getCachedMasterCatalog({ includeSynthetic });
-      const items = (cat.items || []).map(item => {
+      let items = (cat.items || []).map(item => {
         const meta = canonicalPlanMeta(item.id) || {};
         const description = item.description || meta.description || ('ZeusAI ' + (item.title || item.name || item.id) + ' — BTC-settled activation with signed delivery.');
         return {
@@ -8146,13 +8185,15 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
           synthetic: !!item.synthetic
         };
       });
-      // Ensure core plans always appear even if master catalog omitted them.
-      for (const id of Object.keys(CANONICAL_CORE_PLANS)) {
+      // Ensure priced self-serve core plans exist — APPEND, never unshift.
+      // Unshifting Object.keys(CANONICAL_CORE_PLANS) put global-giants first
+      // on the live storefront and killed first-dollar conversion.
+      for (const id of storefrontGravity.PUBLIC_SELF_SERVE_CORE_IDS) {
         if (items.some((it) => it.id === id)) continue;
         const meta = canonicalPlanMeta(id);
         const priceUsd = resolveCanonicalUsd(id);
-        if (priceUsd == null) continue;
-        items.unshift({
+        if (priceUsd == null || priceUsd < storefrontGravity.FIRST_DOLLAR_FLOOR_USD) continue;
+        items.push({
           id,
           name: meta.title || id,
           title: meta.title || id,
@@ -8163,6 +8204,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
           group: 'service',
           buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id)
         });
+      }
+      if (!includeSynthetic) {
+        items = storefrontGravity.rankPublicCatalogItems(storefrontGravity.filterStorefrontGhosts(items));
       }
       try {
         const cblos = require('../backend/modules/commerce-bond-loop-os');
@@ -8418,6 +8462,39 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  if (
+    urlPath === '/.well-known/first-dollar.json'
+    || urlPath === '/api/first-dollar'
+    || urlPath === '/api/first-dollar/status'
+  ) {
+    try {
+      const fdgp = require('./commerce/storefront-gravity-os');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'FDGP/1.0',
+      });
+      return res.end(JSON.stringify(fdgp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'FDGP/1.0', inventsHumans: false, inventsGmv: false }));
+    }
+  }
+
+  if (urlPath === '/first-dollar') {
+    try {
+      const fdgp = require('./commerce/storefront-gravity-os');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      return res.end(fdgp.firstDollarHtml());
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>first-dollar</title><p>FDGP unavailable</p>');
+    }
+  }
+
   // CIC/1.0 — Chromatic Identity Continuum (40y brand spectrum)
   if (
     urlPath === '/.well-known/brand-spectrum.json'
@@ -8657,19 +8734,25 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         ctaPromptStrength: promotedId && it.id === promotedId ? 'primary' : 'secondary',
       }));
 
-      // Never promote a synthetic SKU on the public storefront.
+      if (!includeSynthetic) {
+        items = storefrontGravity.rankPublicCatalogItems(storefrontGravity.filterStorefrontGhosts(items));
+      }
+      // Never promote synthetics, ghosts, or contact-only giants over first-dollar SKUs.
       if (promotedId && !includeSynthetic) {
         const promoted = items.find((x) => x.id === promotedId);
-        if (promoted && publicCatalogFilter.isSyntheticCatalogItem(promoted)) {
-          /* drop promotion */
-        } else if (promotedId) {
+        const promotable = promoted
+          && !publicCatalogFilter.isSyntheticCatalogItem(promoted)
+          && !storefrontGravity.isGhostMeteredItem(promoted)
+          && !storefrontGravity.isContactShelf(promoted)
+          && storefrontGravity.rankBand(promoted) <= 20;
+        if (promotable) {
           const promotedIdx = items.findIndex(x => x.id === promotedId);
           if (promotedIdx > 0) {
             const moved = items.splice(promotedIdx, 1);
             items.unshift(moved[0]);
           }
         }
-      } else if (promotedId) {
+      } else if (promotedId && includeSynthetic) {
         const promotedIdx = items.findIndex(x => x.id === promotedId);
         if (promotedIdx > 0) {
           const moved = items.splice(promotedIdx, 1);

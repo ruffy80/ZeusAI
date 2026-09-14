@@ -11,6 +11,7 @@ const PROTOCOL = 'SEO/1.0';
 const CORE_PUBLIC_PATHS = [
   '/',
   '/buy',
+  '/first-dollar',
   '/origin',
   '/from/x',
   '/from/facebook',
