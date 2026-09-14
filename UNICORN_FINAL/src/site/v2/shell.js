@@ -507,10 +507,10 @@ img{max-width:100%;display:block}
 .zeus-page-bg__veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,4,10,.42),rgba(5,4,10,.74))}
 .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
 .brand{display:flex;align-items:center;gap:16px}
-.brand-logo{width:72px;height:72px;border-radius:22px;border:3px solid transparent;background:linear-gradient(#0a0818,#0a0818) padding-box,conic-gradient(from 210deg,#FF3B5C,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,#FF3B5C) border-box;overflow:hidden;box-shadow:0 0 36px rgba(255,159,28,.48)}
-.brand-logo img{width:100%;height:100%;object-fit:cover;object-position:center 18%;border-radius:18px}
-.zeus-wordmark{font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.038em;background:linear-gradient(115deg,#FF3B5C,#FF9F1C,#FFEE32,#FF6B35);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-.zeus-wordmark .ai{background:linear-gradient(125deg,#00E8A0,#2DE2E6,#E8FFF8,#7CF7C0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.brand-logo{width:72px;height:72px;border-radius:22px;border:none;background:#0a0818;overflow:hidden;box-shadow:none}
+.brand-logo img{width:100%;height:100%;object-fit:cover;object-position:center 18%;border-radius:inherit}
+.zeus-wordmark{font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;font-weight:800;font-size:36px;letter-spacing:-.038em;background:linear-gradient(180deg,#ffffff,#E8FFF8,#7CF7C0,#00E8A0,#2DE2E6,#ffffff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#00E8A0;filter:drop-shadow(0 0 12px #00E8A0)}
+.zeus-wordmark .ai{background:linear-gradient(180deg,#ffffff,#E8FFF8,#7CF7C0,#00E8A0,#2DE2E6,#ffffff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#00E8A0;filter:drop-shadow(0 0 12px #00E8A0)}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}

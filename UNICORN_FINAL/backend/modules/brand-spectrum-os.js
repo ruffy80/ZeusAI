@@ -30,11 +30,11 @@ const SPECTRUM = Object.freeze({
   id: 'volt-aurora',
   name: 'Volt Aurora',
   wordmark: {
-    zeus: ['#FF3B5C', '#FF9F1C', '#FFEE32', '#FF6B35'],
-    ai: ['#00E8A0', '#2DE2E6', '#E8FFF8', '#7CF7C0'],
+    zeus: ['#FFFFFF', '#7CF7C0', '#00E8A0', '#2DE2E6'],
+    ai: ['#FFFFFF', '#7CF7C0', '#00E8A0', '#2DE2E6'],
     bolt: ['#FFFFFF', '#7CF7C0', '#00E8A0', '#2DE2E6'],
   },
-  frame: ['#FF3B5C', '#FF9F1C', '#FFEE32', '#00E8A0', '#2DE2E6', '#FF3B5C'],
+  frame: [],
   cssVars: {
     '--cic-zeus-a': '#FF3B5C',
     '--cic-zeus-b': '#FF9F1C',
@@ -126,7 +126,7 @@ function continuumPayload() {
     letterform: LETTERFORM,
     mark: {
       role: 'zeus-bust-left-of-wordmark',
-      frame: 'aurora-conic-ring',
+      frame: 'none',
       targetPx: { desktop: 72, tablet: 58, phone: 50 },
       asset: '/assets/zeus/brand-176.jpg',
     },
