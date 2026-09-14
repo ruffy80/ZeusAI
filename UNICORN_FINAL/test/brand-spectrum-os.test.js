@@ -42,8 +42,9 @@ check('Volt Aurora spectrum has vibrant wordmark tokens', () => {
   const s = m.getStatus();
   assert.ok(s.ok);
   assert.strictEqual(s.continuumId, 'volt-aurora');
-  assert.ok(s.spectrum.wordmark.zeus.includes('#FF3B5C'));
+  assert.ok(s.spectrum.wordmark.zeus.includes('#00E8A0'));
   assert.ok(s.spectrum.wordmark.ai.includes('#00E8A0'));
+  assert.ok(s.spectrum.wordmark.bolt.includes('#00E8A0'));
   assert.ok(s.cssVars['--cic-zeus-a']);
   assert.ok(s.cssVars['--cic-ai-a']);
   assert.ok(s.score >= 70);
@@ -91,7 +92,7 @@ check('backend + site wire CIC routes', () => {
   assert.ok(site.includes("require('../backend/modules/brand-spectrum-os')"));
 });
 
-check('nav wordmark uses Volt Aurora blade letterforms + larger Zeus mark', () => {
+check('nav wordmark uses lightning volt on every letter + frameless Zeus mark', () => {
   const shell = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'shell.js'), 'utf8');
   assert.ok(shell.includes('data-cic="volt-aurora"'));
   assert.ok(shell.includes('brand-176.jpg'));
@@ -99,11 +100,13 @@ check('nav wordmark uses Volt Aurora blade letterforms + larger Zeus mark', () =
   assert.ok(shell.includes('Zeus<span class="ai">AI</span>'));
   assert.ok(shell.includes('cicPanel') || shell.includes('Chromatic Identity Continuum'));
   const css = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'styles.js'), 'utf8');
-  assert.ok(css.includes('#FF3B5C'));
   assert.ok(css.includes('#00E8A0'));
   assert.ok(css.includes('width:72px'));
   assert.ok(css.includes('Avenir Next Condensed') || css.includes('Segoe UI Variable Display'));
   assert.ok(css.includes('font-stretch:condensed') || css.includes('letter-spacing:-.038em'));
+  assert.ok(css.includes('.brand-logo-photo'));
+  assert.ok(/\.brand-logo-photo\{[^}]*border:none/.test(css.replace(/\s+/g, '')));
+  assert.ok(css.includes('font-size:36px'));
 });
 
 check('nginx self-heal requires brand-spectrum', () => {

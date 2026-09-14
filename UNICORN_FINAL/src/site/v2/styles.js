@@ -54,21 +54,23 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .brand{display:flex;align-items:center;gap:16px;font-weight:700;letter-spacing:.5px;font-size:18px}
 /* CIC/1.0 Volt Aurora frame — larger Zeus bust left of wordmark */
 .brand-logo{
-  --cic-frame:conic-gradient(from 210deg,var(--cic-zeus-a,#FF3B5C),var(--cic-zeus-b,#FF9F1C),var(--cic-zeus-c,#FFEE32),var(--cic-ai-a,#00E8A0),var(--cic-ai-b,#2DE2E6),var(--cic-zeus-a,#FF3B5C));
   width:72px;height:72px;border-radius:22px;position:relative;overflow:hidden;
-  background:
-    linear-gradient(#0a0818,#0a0818) padding-box,
-    var(--cic-frame) border-box;
-  border:3px solid transparent;
-  box-shadow:0 0 36px var(--cic-frame-glow,rgba(255,159,28,.48)),0 0 56px rgba(0,232,160,.22),inset 0 0 12px rgba(255,255,255,.18);
-  animation:cicFramePulse 3.8s ease-in-out infinite;
+  background:#0a0818;
+  border:none;
+  box-shadow:none;
 }
-.brand-logo::after{content:"";position:absolute;inset:5px;border-radius:16px;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.7),rgba(255,255,255,0) 60%),#0a0818}
+.brand-logo::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.55),rgba(255,255,255,0) 60%),#0a0818}
+.brand-logo-photo{
+  background:transparent;
+  border:none;
+  box-shadow:none;
+  animation:none;
+}
 .brand-logo-photo::after{display:none}
 .brand-logo-photo img,.brand-logo-photo picture,.brand-logo-photo picture img{
   width:100%;height:100%;object-fit:cover;object-position:center 18%;display:block;
   filter:contrast(1.1) saturate(1.18) brightness(1.04);
-  border-radius:18px;
+  border-radius:inherit;
 }
 .brand small{display:block;font-weight:500;font-size:10px;color:var(--ink-dim);letter-spacing:2.5px;text-transform:uppercase;font-family:'Orbitron',ui-monospace,monospace;margin-top:3px;text-shadow:0 0 8px rgba(255,159,28,.35)}
 
@@ -76,45 +78,33 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .zeus-wordmark{
   --cic-zeus-a:#FF3B5C;--cic-zeus-b:#FF9F1C;--cic-zeus-c:#FFEE32;--cic-zeus-d:#FF6B35;
   --cic-ai-a:#00E8A0;--cic-ai-b:#2DE2E6;--cic-ai-c:#E8FFF8;--cic-ai-d:#7CF7C0;
+  --cic-bolt-fill:linear-gradient(180deg,#ffffff 0%,var(--cic-ai-c,#E8FFF8) 18%,var(--cic-ai-d,#7CF7C0) 38%,var(--cic-ai-a,#00E8A0) 52%,var(--cic-ai-b,#2DE2E6) 72%,#ffffff 100%);
   position:relative;display:inline-flex;align-items:baseline;gap:.08em;
   font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;
   font-weight:800;font-stretch:condensed;letter-spacing:-.038em;line-height:.92;
   font-feature-settings:"kern" 1,"liga" 1;
-  background:linear-gradient(115deg,
-    var(--cic-zeus-a) 0%,
-    var(--cic-zeus-b) 28%,
-    var(--cic-zeus-c) 52%,
-    var(--cic-zeus-d) 78%,
-    var(--cic-zeus-a) 100%);
-  background-size:220% 100%;
+  background:var(--cic-bolt-fill);
   -webkit-background-clip:text;background-clip:text;
-  -webkit-text-fill-color:transparent;color:transparent;
-  -webkit-text-stroke:.45px rgba(40,8,4,.55);
-  filter:drop-shadow(0 1px 0 rgba(0,0,0,.65))
-         drop-shadow(0 0 16px rgba(255,159,28,.55))
-         drop-shadow(0 0 28px rgba(255,59,92,.28));
-  animation:cicAuroraFlow 4.8s ease-in-out infinite;
+  -webkit-text-fill-color:transparent;color:var(--cic-ai-a,#00E8A0);
+  -webkit-text-stroke:.35px rgba(0,40,32,.4);
+  filter:drop-shadow(0 0 4px #ffffff)
+         drop-shadow(0 0 12px var(--cic-ai-a,#00E8A0))
+         drop-shadow(0 0 28px var(--cic-ai-b,#2DE2E6));
+  animation:zeusBoltPulse 1.8s ease-in-out infinite;
   transform:skewX(-1.6deg);
-  /* Blade letterform DNA without nested spans (nested clip:text hid the Z) */
   font-variation-settings:"wght" 800;
 }
 .zeus-wordmark .ai{
   position:relative;
   font-family:inherit;font-weight:800;font-size:1em;letter-spacing:-.02em;margin-left:.1em;
-  background:linear-gradient(125deg,
-    var(--cic-ai-a) 0%,
-    var(--cic-ai-b) 35%,
-    var(--cic-ai-c) 55%,
-    var(--cic-ai-d) 78%,
-    var(--cic-ai-a) 100%);
-  background-size:220% 100%;
+  background:var(--cic-bolt-fill);
   -webkit-background-clip:text;background-clip:text;
-  -webkit-text-fill-color:transparent;color:transparent;
-  -webkit-text-stroke:.4px rgba(0,40,32,.45);
-  filter:drop-shadow(0 1px 0 rgba(0,0,0,.55))
-         drop-shadow(0 0 14px rgba(0,232,160,.55))
-         drop-shadow(0 0 26px rgba(45,226,230,.35));
-  animation:cicVoltFlow 4.8s ease-in-out infinite;
+  -webkit-text-fill-color:transparent;color:var(--cic-ai-a,#00E8A0);
+  -webkit-text-stroke:.35px rgba(0,40,32,.4);
+  filter:drop-shadow(0 0 4px #ffffff)
+         drop-shadow(0 0 12px var(--cic-ai-a,#00E8A0))
+         drop-shadow(0 0 28px var(--cic-ai-b,#2DE2E6));
+  animation:zeusBoltPulse 1.8s ease-in-out infinite;
   transform:skewX(3.8deg);
 }
 /* VOLT BOLT — mint/cyan between Zeus and AI */
@@ -169,7 +159,7 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
   20%{opacity:.55}44%{opacity:.7}84%{opacity:.45}
 }
 
-.brand .zeus-wordmark{font-size:26px}
+.brand .zeus-wordmark{font-size:36px}
 .zeus-wordmark-hero{display:inline-flex;font-size:clamp(72px,11vw,168px);margin:0 0 6px}
 .zeus-wordmark-hero .ai{font-size:1em}
 .zeus-wordmark-hero .ai::before{width:.46em;height:1.5em;margin:0 .22em 0 .04em}
@@ -661,7 +651,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .lang-btn{min-width:36px;min-height:36px}
   .brand small{display:none}
   .brand-logo{width:58px;height:58px;border-radius:18px}
-  .brand .zeus-wordmark{font-size:clamp(18px,4vw,24px) !important}
+  .brand .zeus-wordmark{font-size:clamp(24px,5.4vw,34px) !important}
 }
 
 /* Laptop: tighten hero grid */
@@ -744,8 +734,8 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Small phone (iPhone SE / 360px range) */
 @media (max-width:480px){
-  .brand-logo{width:50px;height:50px;border-radius:16px;border-width:2px}
-  .brand .zeus-wordmark{font-size:18px !important;letter-spacing:-.02em !important}
+  .brand-logo{width:50px;height:50px;border-radius:16px;border:none}
+  .brand .zeus-wordmark{font-size:24px !important;letter-spacing:-.02em !important}
   .lang-switch{padding:2px}
   .lang-btn{padding:5px 8px;font-size:11px;min-width:32px;min-height:32px}
   .hero h1{font-size:clamp(26px,9vw,38px)}
