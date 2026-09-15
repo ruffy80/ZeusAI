@@ -49,6 +49,8 @@ check('composePost Origin #1 copy has tracked /from/x URL and no random module n
   assert.ok(post.url.includes('/from/x'));
   assert.ok(post.url.includes('utm_source=x'));
   assert.ok(post.url.includes('ref=SGP-X'));
+  assert.ok(post.firstDollarUrl && post.firstDollarUrl.includes('/first-dollar'));
+  assert.ok(post.visibleWorldUrl && post.visibleWorldUrl.includes('/visible-world'));
   assert.equal(post.inventsReach, false);
   assert.ok(!/hang-watchdog|module-ranker|unicornEternal/.test(post.text));
 });

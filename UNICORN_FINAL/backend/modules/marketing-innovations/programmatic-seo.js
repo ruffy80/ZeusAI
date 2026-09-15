@@ -110,11 +110,21 @@ function buildSitemap(items) {
  * Prepare an IndexNow payload. If MARKETING_INDEXNOW_KEY is set and
  * MARKETING_INDEXNOW_PING=1, attempt the ping via fetch (best-effort).
  */
+function resolveIndexNowKey() {
+  const envKey = process.env.MARKETING_INDEXNOW_KEY || process.env.INDEXNOW_KEY || '';
+  if (envKey) return String(envKey);
+  try {
+    const te = require('../traffic-engine');
+    if (te && typeof te.indexNowKey === 'function') return te.indexNowKey();
+  } catch (_) { /* optional */ }
+  return '';
+}
+
 async function indexNowPing(opts) {
   const o = opts || {};
-  // Prefer marketing-specific key; fall back to traffic-engine INDEXNOW_KEY so
-  // a single armed key unlocks both SEO surfaces.
-  const key = process.env.MARKETING_INDEXNOW_KEY || process.env.INDEXNOW_KEY || '';
+  // Prefer marketing-specific key; fall back to traffic-engine INDEXNOW_KEY /
+  // deterministic host key so a single armed key unlocks both SEO surfaces.
+  const key = resolveIndexNowKey();
   if (!key) return { ok: false, reason: 'no_key', urls: o.urls || [] };
   const rawHost = String(o.host || 'unicorn.local');
   // Strip optional scheme + any path, without using regex (avoids polynomial-redos).
@@ -123,7 +133,8 @@ async function indexNowPing(opts) {
   if (schemeIdx !== -1) host = host.slice(schemeIdx + 3);
   const slashIdx = host.indexOf('/');
   if (slashIdx !== -1) host = host.slice(0, slashIdx);
-  const payload = { host, key, urlList: (o.urls || []).slice(0, 10000) };
+  const keyLocation = o.keyLocation || ('https://' + host + '/' + key + '.txt');
+  const payload = { host, key, keyLocation, urlList: (o.urls || []).slice(0, 10000) };
   if (process.env.MARKETING_INDEXNOW_PING !== '1' || typeof fetch !== 'function') {
     return { ok: true, dryRun: true, payload };
   }
@@ -145,8 +156,8 @@ function status() {
     disabled: DISABLED,
     sitemapFile: SITEMAP_FILE,
     sitemapExists: exists,
-    indexNowConfigured: !!(process.env.MARKETING_INDEXNOW_KEY || process.env.INDEXNOW_KEY),
+    indexNowConfigured: !!resolveIndexNowKey(),
   };
 }
 
-module.exports = { buildPage, buildBatch, buildSitemap, indexNowPing, status, _slug };
+module.exports = { buildPage, buildBatch, buildSitemap, indexNowPing, resolveIndexNowKey, status, _slug };

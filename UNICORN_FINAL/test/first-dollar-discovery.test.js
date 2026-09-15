@@ -47,6 +47,15 @@ check('pingAll dryRun uses protocol keyLocation', async () => {
   assert.ok(sub.engines.some((e) => e.engine === 'indexnow.org'));
 });
 
+check('urlsToSubmit includes first-dollar + world-index surfaces', () => {
+  const te = require('../backend/modules/traffic-engine');
+  const urls = te.urlsToSubmit();
+  const joined = urls.join('\n');
+  for (const p of ['/first-dollar', '/visible-world', '/.well-known/first-dollar.json', '/.well-known/world-index.json']) {
+    assert.ok(joined.includes(p), 'missing ' + p);
+  }
+});
+
 check('site serves /{key}.txt and /indexnow-{key}.txt', () => {
   const src = read('src/index.js');
   assert.ok(src.includes("fu === '/' + inKey + '.txt'"));

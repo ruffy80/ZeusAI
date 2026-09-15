@@ -1,8 +1,8 @@
 User-agent: *
 Allow: /
-Disallow: /admin/
-Disallow: /api/
-Disallow: /dashboard-client
-Disallow: /reset-password
+Disallow: /api/admin/
+Disallow: /dashboard
+Disallow: /account
 
-Sitemap: https://unicorn.vladoi.io/sitemap.xml
+# Canonical live host is https://zeusai.pro — do not advertise a stale domain.
+Sitemap: https://zeusai.pro/sitemap.xml

@@ -106,6 +106,9 @@ check('nginx pins BTC rate aliases to unicorn_site', () => {
   const fd = conf.indexOf('location = /.well-known/first-dollar.json');
   assert.ok(fd >= 0);
   assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(conf.slice(fd, fd + 420)));
+  const wi = conf.indexOf('location = /.well-known/world-index.json');
+  assert.ok(wi >= 0);
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(conf.slice(wi, wi + 420)));
 });
 
 check('paymentGateway serves last-good without blocking', () => {
@@ -118,6 +121,8 @@ check('firstDollarHtml is honest about zero revenue', () => {
   const html = gravity.firstDollarHtml();
   assert.ok(html.includes('paidHumans'));
   assert.ok(html.includes('FDGP/1.0'));
+  assert.ok(html.includes('og:image'));
+  assert.ok(html.includes('application/ld+json'));
   assert.ok(!/trusted by thousands|millions of users|billions in revenue/i.test(html));
 });
 
@@ -146,6 +151,26 @@ async function runHttp() {
       assert.strictEqual(body.inventsHumans, false);
       assert.strictEqual(body.inventsGmv, false);
       assert.ok(body.firstDollar && body.firstDollar.serviceId === 'instant-resume-makeover');
+    });
+
+    await check('GET /.well-known/world-index.json never invents visitors', async () => {
+      const res = await fetch(base + '/.well-known/world-index.json');
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.protocol, 'WIVP/1.0');
+      assert.strictEqual(body.inventsVisitors, false);
+      assert.strictEqual(body.inventsUsers, false);
+      assert.ok(body.whyZeroVisitors && body.whyZeroVisitors.code);
+    });
+
+    await check('GET /visible-world ships Open Graph', async () => {
+      const res = await fetch(base + '/visible-world');
+      assert.strictEqual(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('og:image'));
+      assert.ok(html.includes('WIVP/1.0'));
+      assert.ok(html.includes('inventsVisitors'));
+      assert.ok(!/millions of users|biggest site in the world/i.test(html));
     });
 
     await check('GET /api/catalog ranks resume-makeover before global-giants', async () => {

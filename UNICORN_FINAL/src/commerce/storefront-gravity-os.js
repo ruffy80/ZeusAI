@@ -241,14 +241,24 @@ function firstDollarHtml() {
   const sku = d.firstDollar.serviceId;
   const usd = d.firstDollar.priceUsd;
   const why = d.whyZero.message;
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
+  let head = `  <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>First Dollar · ZeusAI</title>
   <meta name="description" content="Honest first-dollar path. paidHumans is never invented."/>
-  <link rel="canonical" href="${PUBLIC_URL.replace(/\/$/, '')}/first-dollar"/>
+  <link rel="canonical" href="${PUBLIC_URL.replace(/\/$/, '')}/first-dollar"/>`;
+  try {
+    const wivp = require('./world-index-os');
+    head = wivp.shareHead({
+      title: 'First Dollar · ZeusAI',
+      description: 'Honest first-dollar path. paidHumans is never invented. Cheapest self-serve SKU with live BTC checkout.',
+      path: '/first-dollar',
+      protocol: PROTOCOL,
+    });
+  } catch (_) { /* share head optional */ }
+  return `<!doctype html>
+<html lang="en">
+<head>
+${head}
 </head>
 <body style="margin:0;background:#07080f;color:#e8eef8;font:16px/1.55 system-ui,sans-serif">
   <main style="max-width:720px;margin:0 auto;padding:48px 20px 80px">
@@ -265,7 +275,7 @@ function firstDollarHtml() {
       <li>Facebook / X / TikTok ads and posts stay dark until gaze tokens exist. Telegram is an operator rail, not a public post.</li>
       <li>Unicorn modules do not mint GMV. Origin #1 is the first confirmed settlement.</li>
     </ul>
-    <p style="font-size:13px;color:#7aa9ff"><a href="/.well-known/first-dollar.json" style="color:#7aa9ff">/.well-known/first-dollar.json</a> · <a href="/.well-known/origin-gravity.json" style="color:#7aa9ff">origin-gravity.json</a></p>
+    <p style="font-size:13px;color:#7aa9ff"><a href="/.well-known/first-dollar.json" style="color:#7aa9ff">/.well-known/first-dollar.json</a> · <a href="/.well-known/origin-gravity.json" style="color:#7aa9ff">origin-gravity.json</a> · <a href="/visible-world" style="color:#7aa9ff">World Index</a></p>
   </main>
 </body>
 </html>`;
