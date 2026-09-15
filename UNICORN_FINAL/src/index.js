@@ -1128,13 +1128,45 @@ app.get(['/visible-world', '/discover', '/world-index'], (req, res) => {
 app.get(/^\/google[A-Za-z0-9_-]+\.html$/, (req, res, next) => {
   try {
     const wivp = require('./commerce/world-index-os');
-    const gsc = wivp.googleHtmlVerification();
-    if (!gsc || req.path !== gsc.path) return next();
+    const gsc = wivp.googleHtmlVerification(req.path);
+    if (!gsc) return next();
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('Cache-Control', 'public, max-age=300');
     return res.send(gsc.body);
   } catch (_) {
     return next();
+  }
+});
+// HSDP/1.0 — one-tap human share. Web intents only, zero API tokens.
+app.get(['/share', '/post'], (req, res) => {
+  try {
+    const hsdp = require('./commerce/share-surface');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'HSDP/1.0');
+    return res.send(hsdp.shareHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>share</title><p>HSDP unavailable</p>');
+  }
+});
+app.get(['/.well-known/share-surface.json', '/api/share/targets'], (req, res) => {
+  try {
+    const hsdp = require('./commerce/share-surface');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'HSDP/1.0');
+    return res.json(hsdp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'HSDP/1.0', inventsVisitors: false });
+  }
+});
+app.get('/api/world-index/activation', (req, res) => {
+  try {
+    const wivp = require('./commerce/world-index-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'WIVP/1.0');
+    return res.json(wivp.activation());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'WIVP/1.0', inventsVisitors: false });
   }
 });
 app.get(['/visible', '/gaze'], (req, res) => {
@@ -4951,7 +4983,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -7942,7 +7974,11 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         first_dollar_page: '/first-dollar',
         world_index:       '/.well-known/world-index.json',
         wivp:              '/api/world-index',
+        wivp_activation:   '/api/world-index/activation',
         visible_world:     '/visible-world',
+        share_surface:     '/.well-known/share-surface.json',
+        hsdp:              '/api/share/targets',
+        share_page:        '/share',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8581,8 +8617,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   try {
-    const wivpGsc = require('./commerce/world-index-os').googleHtmlVerification();
-    if (wivpGsc && urlPath === wivpGsc.path) {
+    const wivpGsc = require('./commerce/world-index-os').googleHtmlVerification(urlPath);
+    if (wivpGsc) {
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=300',
@@ -8590,6 +8626,51 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       return res.end(wivpGsc.body);
     }
   } catch (_) { /* optional GSC file */ }
+
+  if (urlPath === '/share' || urlPath === '/post') {
+    try {
+      const hsdp = require('./commerce/share-surface');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'HSDP/1.0',
+      });
+      return res.end(hsdp.shareHtml());
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>share</title><p>HSDP unavailable</p>');
+    }
+  }
+
+  if (urlPath === '/.well-known/share-surface.json' || urlPath === '/api/share/targets') {
+    try {
+      const hsdp = require('./commerce/share-surface');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'HSDP/1.0',
+      });
+      return res.end(JSON.stringify(hsdp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'HSDP/1.0', inventsVisitors: false }));
+    }
+  }
+
+  if (urlPath === '/api/world-index/activation') {
+    try {
+      const wivp = require('./commerce/world-index-os');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'WIVP/1.0',
+      });
+      return res.end(JSON.stringify(wivp.activation()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'WIVP/1.0', inventsVisitors: false }));
+    }
+  }
 
   // CIC/1.0 — Chromatic Identity Continuum (40y brand spectrum)
   if (

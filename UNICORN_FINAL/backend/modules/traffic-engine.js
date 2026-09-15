@@ -110,7 +110,7 @@ function _verticalIds() {
 
 /** Canonical list of every URL worth indexing. Deterministic, capped. */
 function urlsToSubmit() {
-  const core = ['/', '/buy', '/first-dollar', '/visible-world', '/visible', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
+  const core = ['/', '/buy', '/first-dollar', '/visible-world', '/visible', '/share', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
     '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
     '/enterprise', '/wizard', '/dropship', '/zacc', '/marketplace', '/tg', '/llms.txt'];
   const urls = new Set(core.map((p) => APP_URL + p));
@@ -120,6 +120,7 @@ function urlsToSubmit() {
   urls.add(APP_URL + '/.well-known/first-dollar.json');
   urls.add(APP_URL + '/.well-known/world-index.json');
   urls.add(APP_URL + '/.well-known/visible-social.json');
+  urls.add(APP_URL + '/.well-known/share-surface.json');
   try {
     const wivp = require('../../src/commerce/world-index-os');
     for (const u of wivp.indexNowPriorityUrls(APP_URL)) urls.add(u);
@@ -290,13 +291,32 @@ function buildOutreachQueue(opts) {
 // ── Lifecycle ────────────────────────────────────────────────────────
 let _interval = null;
 
+/**
+ * SEBP/1.0 — ownership + sitemap submission for the engines IndexNow cannot
+ * reach on its own (Google) or that reject unverified hosts (Bing). Runs only
+ * when the owner armed a secret; a missing secret is reported, never faked.
+ */
+async function _searchConsoleBridge(opts) {
+  try {
+    const bridge = require('./search-console-bridge');
+    if (bridge.disabled()) return { skipped: true, reason: 'SEO_BRIDGE_DISABLED=1' };
+    if (bridge.armedEngines().length === 0) {
+      return { skipped: true, reason: 'no_engine_secret', missingSecrets: bridge.missingSecrets() };
+    }
+    return await bridge.runCycle({ urls: (opts && opts.urls) || undefined, dryRun: !!(opts && opts.dryRun) });
+  } catch (e) {
+    return { skipped: true, error: (e && e.message) || 'bridge_failed' };
+  }
+}
+
 async function runCycle(opts) {
   state.runs += 1;
   state.lastRunAt = new Date().toISOString();
   const submission = await pingAll(opts);
+  const searchConsole = await _searchConsoleBridge(opts);
   const outreach = buildOutreachQueue(opts);
   _saveState();
-  return { ok: true, submission, outreach };
+  return { ok: true, submission, searchConsole, outreach };
 }
 
 function start() {

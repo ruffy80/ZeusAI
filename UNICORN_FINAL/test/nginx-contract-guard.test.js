@@ -88,6 +88,7 @@ const SITE_PINNED = [
   '/api/btc/rate',
   '/.well-known/first-dollar.json',
   '/.well-known/world-index.json',
+  '/.well-known/share-surface.json',
 ];
 for (const p of SITE_PINNED) {
   check('site-pinned: ' + p + ' → unicorn_site', () => assertSitePinned(p));
