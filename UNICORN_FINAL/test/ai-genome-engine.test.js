@@ -130,18 +130,76 @@ check('searchGenomes finds by sku/title', () => {
 
 check('persistence under ZEUS_GENOME_DIR', () => {
   const dir = process.env.ZEUS_GENOME_DIR;
+  const flushed = genome.flush();
+  assert.equal(flushed.ok, true);
   assert.ok(fs.existsSync(path.join(dir, 'genomes.json')));
   assert.ok(fs.existsSync(path.join(dir, 'graph.json')));
   assert.ok(fs.existsSync(path.join(dir, 'state.json')));
+  const raw = fs.readFileSync(path.join(dir, 'genomes.json'), 'utf8');
+  assert.equal(raw.trim().startsWith('{'), true);
+  assert.ok(!/\n {2}"/.test(raw), 'genomes.json must stay compact so catalog walks do not pretty-print megabytes');
 });
 
-check('getStatus exposes orchestrator + zero-maintenance counts', () => {
+check('getStatus exposes orchestrator + coalesced persistence', () => {
   const st = genome.getStatus();
   assert.equal(st.ok, true);
   assert.equal(st.protocol, 'GENOME/1.0');
   assert.equal(st.design, 'Living Genome + Universal Intelligence Graph');
   assert.ok(st.counts.graphNodes >= 1);
   assert.ok(st.endpoints.human.includes('/genome'));
+  assert.equal(st.persistence.mode, 'coalesced');
+  assert.equal(typeof st.persistence.debounceMs, 'number');
+  assert.ok(st.persistence.flushes >= 1);
+});
+
+check('catalog enrich coalesces disk writes instead of writing per item', () => {
+  genome._resetForTests();
+  const dir = process.env.ZEUS_GENOME_DIR;
+  const genomesPath = path.join(dir, 'genomes.json');
+  for (let i = 0; i < 40; i += 1) {
+    genome.enrichCatalogItem({ id: `walk-sku-${i}`, title: `Walk ${i}`, priceUSD: i + 1 });
+  }
+  const pending = genome.getStatus();
+  assert.equal(pending.persistence.pending, true);
+  assert.equal(pending.persistence.flushes, 0);
+  assert.equal(fs.existsSync(genomesPath), false);
+  const flushed = genome.flush();
+  assert.equal(flushed.ok, true);
+  assert.equal(flushed.flushes, 1);
+  assert.equal(fs.existsSync(genomesPath), true);
+  const skipped = genome.flush();
+  assert.equal(skipped.skipped, true);
+  assert.equal(skipped.flushes, 1);
+});
+
+check('idempotent catalog re-walk does not dirty persistence', () => {
+  const items = [];
+  for (let i = 0; i < 12; i += 1) {
+    items.push(genome.enrichCatalogItem({ id: `walk-sku-${i}`, title: `Walk ${i}`, priceUSD: i + 1 }));
+  }
+  assert.equal(genome.getStatus().persistence.pending, false);
+  const before = genome.getStatus().persistence.flushes;
+  const skipped = genome.flush();
+  assert.equal(skipped.skipped, true);
+  assert.equal(genome.getStatus().persistence.flushes, before);
+  assert.ok(items.every((it) => it.genomeReady === true));
+});
+
+check('evolveOnce keeps version current climbing after history trim', () => {
+  genome._resetForTests();
+  genome.registerProduct({ id: 'seq-sku', title: 'Seq' });
+  for (let i = 0; i < 36; i += 1) {
+    const out = genome.evolveOnce();
+    assert.ok(out.ok);
+  }
+  const full = genome.getGenome('seq-sku');
+  assert.ok(full.ok);
+  assert.ok(full.dna.learning.history.length <= 50);
+  assert.ok(full.dna.versioning.versions.length <= 30);
+  const last = full.dna.versioning.current;
+  assert.ok(/^1\.0\.\d+$/.test(last));
+  const seq = Number(String(last).split('.')[2]);
+  assert.ok(seq >= 36);
 });
 
 console.log('\n✅ ai-genome-engine:', passed, 'tests passed');
