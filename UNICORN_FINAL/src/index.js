@@ -382,6 +382,23 @@ app.get('/health', (req, res) => {
         return { protocol: 'VSP/1.0', available: false, inventsReach: false, inventsPosts: false };
       }
     })(),
+    worldIndex: (function () {
+      try {
+        const wivp = require('./commerce/world-index-os');
+        const s = wivp.discovery();
+        return {
+          protocol: 'WIVP/1.0',
+          available: true,
+          inventsVisitors: false,
+          inventsUsers: false,
+          paidHumans: s.paidHumans,
+          whyZero: s.whyZeroVisitors && s.whyZeroVisitors.code,
+          indexNowArmed: !!(s.indexNow && s.indexNow.armed),
+        };
+      } catch (_) {
+        return { protocol: 'WIVP/1.0', available: false, inventsVisitors: false, inventsUsers: false };
+      }
+    })(),
     brandSpectrum: (function () {
       try {
         const cic = require('../backend/modules/brand-spectrum-os');
@@ -1086,6 +1103,38 @@ app.get('/first-dollar', (req, res) => {
     return res.send(fdgp.firstDollarHtml());
   } catch (e) {
     return res.status(503).type('html').send('<!doctype html><title>first-dollar</title><p>FDGP unavailable</p>');
+  }
+});
+app.get(['/.well-known/world-index.json', '/api/world-index', '/api/world-index/status'], (req, res) => {
+  try {
+    const wivp = require('./commerce/world-index-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'WIVP/1.0');
+    return res.json(wivp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'WIVP/1.0', inventsVisitors: false, inventsUsers: false });
+  }
+});
+app.get(['/visible-world', '/discover', '/world-index'], (req, res) => {
+  try {
+    const wivp = require('./commerce/world-index-os');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    return res.send(wivp.visibleWorldHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>visible-world</title><p>WIVP unavailable</p>');
+  }
+});
+app.get(/^\/google[A-Za-z0-9_-]+\.html$/, (req, res, next) => {
+  try {
+    const wivp = require('./commerce/world-index-os');
+    const gsc = wivp.googleHtmlVerification();
+    if (!gsc || req.path !== gsc.path) return next();
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(gsc.body);
+  } catch (_) {
+    return next();
   }
 });
 app.get(['/visible', '/gaze'], (req, res) => {
@@ -4902,7 +4951,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -7891,6 +7940,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         first_dollar:      '/.well-known/first-dollar.json',
         fdgp:              '/api/first-dollar',
         first_dollar_page: '/first-dollar',
+        world_index:       '/.well-known/world-index.json',
+        wivp:              '/api/world-index',
+        visible_world:     '/visible-world',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8494,6 +8546,50 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       return res.end('<!doctype html><title>first-dollar</title><p>FDGP unavailable</p>');
     }
   }
+
+  if (
+    urlPath === '/.well-known/world-index.json'
+    || urlPath === '/api/world-index'
+    || urlPath === '/api/world-index/status'
+  ) {
+    try {
+      const wivp = require('./commerce/world-index-os');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'WIVP/1.0',
+      });
+      return res.end(JSON.stringify(wivp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'WIVP/1.0', inventsVisitors: false, inventsUsers: false }));
+    }
+  }
+
+  if (urlPath === '/visible-world' || urlPath === '/discover' || urlPath === '/world-index') {
+    try {
+      const wivp = require('./commerce/world-index-os');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      return res.end(wivp.visibleWorldHtml());
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>visible-world</title><p>WIVP unavailable</p>');
+    }
+  }
+
+  try {
+    const wivpGsc = require('./commerce/world-index-os').googleHtmlVerification();
+    if (wivpGsc && urlPath === wivpGsc.path) {
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      });
+      return res.end(wivpGsc.body);
+    }
+  } catch (_) { /* optional GSC file */ }
 
   // CIC/1.0 — Chromatic Identity Continuum (40y brand spectrum)
   if (

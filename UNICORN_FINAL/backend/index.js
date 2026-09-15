@@ -4568,6 +4568,11 @@ if (_isPrimaryWorker) {
   // perpetual IndexNow silence / zero organic visitors.
   if (process.env.NODE_ENV !== 'test' && process.env.TRAFFIC_ENGINE_DISABLED !== '1') {
     try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
+  } else if (process.env.NODE_ENV !== 'test' && process.env.TRAFFIC_ENGINE_DISABLED === '1') {
+    console.warn('[traffic-engine] TRAFFIC_ENGINE_DISABLED=1 — IndexNow will not ping. Organic visitors stay at whatever crawlers already know.');
+  }
+  if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED === '1') {
+    console.warn('[growth-stack] GROWTH_STACK_DISABLED=1 — flywheel parked. traffic-engine is independent of this flag.');
   }
   if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1') {
     try {

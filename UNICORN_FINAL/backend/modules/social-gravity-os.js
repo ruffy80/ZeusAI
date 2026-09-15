@@ -69,7 +69,11 @@ function refCode(channel) {
 function trackedUrl(channel, opts) {
   const ch = normalizeChannel(channel);
   const dest = (opts && opts.dest) || 'from';
-  const pathPart = dest === 'buy' ? '/buy' : (dest === 'origin' ? '/origin' : ('/from/' + encodeURIComponent(ch)));
+  const pathPart = dest === 'buy' ? '/buy'
+    : dest === 'origin' ? '/origin'
+    : dest === 'first-dollar' ? '/first-dollar'
+    : dest === 'visible-world' ? '/visible-world'
+    : ('/from/' + encodeURIComponent(ch));
   const u = new URL(APP_URL + pathPart);
   u.searchParams.set('utm_source', ch);
   u.searchParams.set('utm_medium', 'social');
@@ -114,8 +118,11 @@ function composePost(channel) {
   const ch = normalizeChannel(channel);
   const origin = _originSnapshot();
   const sku = origin.originOpen ? null : _skuHint();
-  const url = trackedUrl(ch, { dest: 'from', campaign: origin.originOpen ? 'origin1' : 'next-origin' });
-  const buy = trackedUrl(ch, { dest: 'buy', campaign: origin.originOpen ? 'origin1' : 'next-origin' });
+  const campaign = origin.originOpen ? 'origin1' : 'next-origin';
+  const url = trackedUrl(ch, { dest: 'from', campaign });
+  const buy = trackedUrl(ch, { dest: 'buy', campaign });
+  const firstDollarUrl = trackedUrl(ch, { dest: 'first-dollar', campaign });
+  const visibleWorldUrl = trackedUrl(ch, { dest: 'visible-world', campaign });
   const hashtags = origin.originOpen
     ? ['AI', 'Origin1', 'ZeusAI', 'Autonomous']
     : ['AI', 'ZeusAI', 'AutonomousCommerce'];
@@ -137,6 +144,8 @@ function composePost(channel) {
     text,
     url,
     buyUrl: buy,
+    firstDollarUrl,
+    visibleWorldUrl,
     imageUrl: APP_URL + '/assets/og-image.png',
     hashtags,
     campaign: origin.originOpen ? 'origin1' : 'next-origin',
@@ -273,6 +282,8 @@ function getStatus() {
       landing: '/from/{channel}',
       origin: '/origin',
       buy: '/buy',
+      firstDollar: '/first-dollar',
+      visibleWorld: '/visible-world',
       llms: '/llms.txt',
     },
   };
@@ -283,9 +294,14 @@ function discoveryUrls() {
     APP_URL + '/',
     APP_URL + '/origin',
     APP_URL + '/buy',
+    APP_URL + '/first-dollar',
+    APP_URL + '/visible-world',
+    APP_URL + '/visible',
     APP_URL + '/llms.txt',
     APP_URL + '/.well-known/social-gravity.json',
     APP_URL + '/.well-known/origin-gravity.json',
+    APP_URL + '/.well-known/first-dollar.json',
+    APP_URL + '/.well-known/world-index.json',
   ];
   for (const ch of CHANNELS) urls.push(APP_URL + '/from/' + ch);
   return urls;
