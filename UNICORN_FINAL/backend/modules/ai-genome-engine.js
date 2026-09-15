@@ -81,6 +81,22 @@ const MIGRATIONS_FILE = path.join(DATA_DIR, 'migrations.json');
 let _started = false;
 let _timer = null;
 
+/** Coalesced persistence — see _save(). `0` is a valid test/dev value. */
+const _debounceRaw = Number(process.env.ZEUS_GENOME_SAVE_DEBOUNCE_MS);
+const SAVE_DEBOUNCE_MS = Number.isFinite(_debounceRaw) ? Math.max(0, _debounceRaw) : 5000;
+let _dirty = false;
+let _saveTimer = null;
+let _flushes = 0;
+
+/**
+ * Caps on the per-genome arrays that evolveOnce() appends to on every tick.
+ * Without them genomes.json grows forever and each flush gets slower for the
+ * life of the deployment.
+ */
+const MAX_LEARNING_HISTORY = 50;
+const MAX_VERSIONS = 30;
+const MAX_BUSINESS_RULES = 40;
+
 const state = {
   startedAt: null,
   registrations: 0,
@@ -137,24 +153,68 @@ function _load() {
   if (!Array.isArray(migrations)) migrations = [];
 }
 
-function _save() {
-  _ensureDir();
-  try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ ...state, savedAt: new Date().toISOString() }, null, 2));
-  } catch (_) { /* ignore */ }
-  try {
-    fs.writeFileSync(GENOMES_FILE, JSON.stringify({ genomes, skuIndex }, null, 2));
-  } catch (_) { /* ignore */ }
-  try {
-    fs.writeFileSync(GRAPH_FILE, JSON.stringify(graph, null, 2));
-  } catch (_) { /* ignore */ }
-  try {
-    fs.writeFileSync(OPPORTUNITIES_FILE, JSON.stringify(opportunities.slice(-200), null, 2));
-  } catch (_) { /* ignore */ }
-  try {
-    fs.writeFileSync(MIGRATIONS_FILE, JSON.stringify(migrations.slice(-50), null, 2));
-  } catch (_) { /* ignore */ }
+function _writeAtomic(file, text) {
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, file);
 }
+
+/**
+ * Write all genome files. Synchronous by design, so it must only run from the
+ * debounced flush or on shutdown — never from a request or read path.
+ * genomes.json and graph.json are machine-only, so they are not indented:
+ * pretty-printing roughly doubled both the bytes and the stringify cost of
+ * every write.
+ */
+function _saveNow() {
+  _dirty = false;
+  _ensureDir();
+  const writes = [
+    [STATE_FILE, JSON.stringify({ ...state, savedAt: new Date().toISOString() }, null, 2)],
+    [GENOMES_FILE, JSON.stringify({ genomes, skuIndex })],
+    [GRAPH_FILE, JSON.stringify(graph)],
+    [OPPORTUNITIES_FILE, JSON.stringify(opportunities.slice(-200))],
+    [MIGRATIONS_FILE, JSON.stringify(migrations.slice(-50))],
+  ];
+  for (const [file, text] of writes) {
+    try { _writeAtomic(file, text); } catch (_) { /* ignore */ }
+  }
+  _flushes += 1;
+  return { ok: true, flushes: _flushes };
+}
+
+/**
+ * Mark state dirty and persist once, later.
+ *
+ * enrichCatalogItem() stamps a genome onto every catalog item, and the pricing
+ * path walks the whole catalog on every quote, so persisting inline meant
+ * hundreds of synchronous whole-file writes per price lookup. That held the
+ * event loop for tens of seconds at a time and was the top CPU cost in the
+ * backend. Genomes are derived from the catalog and opportunities are
+ * explicitly signal-only, so losing the last debounce window on a hard kill
+ * costs nothing that cannot be regenerated — unlike orders, which this module
+ * never owns.
+ */
+function _save() {
+  _dirty = true;
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    if (_dirty) _saveNow();
+  }, SAVE_DEBOUNCE_MS);
+  if (_saveTimer.unref) _saveTimer.unref();
+}
+
+/** Persist immediately if anything is pending. Used on shutdown and by tests. */
+function flush() {
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  if (!_dirty) return { ok: true, flushes: _flushes, skipped: true };
+  return _saveNow();
+}
+
+// The debounce timer is unref'd so it can never hold the process open, which
+// means a normal exit could otherwise drop pending state.
+process.once('exit', () => { try { if (_dirty) _saveNow(); } catch (_) { /* ignore */ } });
 
 function _append(obj) {
   _ensureDir();
@@ -259,7 +319,7 @@ function _buildChromosomes(meta, genomeId) {
     },
     learning: { history: [{ at: now, event: 'genome_birth', note: 'Initial DNA assembled' }] },
     deployment: { history: [{ at: now, event: 'registered', channel: 'global_product_registry' }] },
-    versioning: { versions: [{ v: '1.0.0', at: now, note: 'genome_v1' }], current: '1.0.0' },
+    versioning: { versions: [{ v: '1.0.0', at: now, note: 'genome_v1' }], current: '1.0.0', seq: 0 },
     adaptation: { customerAdaptations: [] },
     business_rules: {
       rules: [
@@ -439,12 +499,18 @@ function registerProduct(product) {
     const existingId = skuIndex[meta.sku];
     if (existingId && genomes[existingId]) {
       const g = genomes[existingId];
-      g.title = meta.title || g.title;
-      g.tier = meta.tier || g.tier;
-      g.updatedAt = new Date().toISOString();
-      if (meta.omega) g.dna.capability.omegaReady = true;
-      _upsertGraphNode(g);
-      _save();
+      let changed = false;
+      if (meta.title && meta.title !== g.title) { g.title = meta.title; changed = true; }
+      if (meta.tier && meta.tier !== g.tier) { g.tier = meta.tier; changed = true; }
+      if (meta.omega && g.dna && g.dna.capability && !g.dna.capability.omegaReady) {
+        g.dna.capability.omegaReady = true;
+        changed = true;
+      }
+      if (changed) {
+        g.updatedAt = new Date().toISOString();
+        _upsertGraphNode(g);
+        _save();
+      }
       return { ok: true, already: true, genomeId: g.id, genome: _publicGenome(g) };
     }
 
@@ -752,6 +818,9 @@ function evolveOnce() {
           when: 'manual_task_detected',
           then: 'automate_if_safe',
         });
+        if (g.dna.business_rules.rules.length > MAX_BUSINESS_RULES) {
+          g.dna.business_rules.rules = g.dna.business_rules.rules.slice(-MAX_BUSINESS_RULES);
+        }
       } },
       { q: 'increase_value', apply: (g) => {
         g.dna.capability.list = Array.from(new Set([...(g.dna.capability.list || []), 'value_loop', 'cross_product_assist']));
@@ -763,7 +832,17 @@ function evolveOnce() {
     for (const g of Object.values(genomes).slice(0, 40)) {
       pick.apply(g);
       g.dna.learning.history.push({ at: now, event: 'evolution', question: pick.q, answer: 'yes_safe_apply' });
-      g.dna.versioning.versions.push({ v: `1.0.${g.dna.versioning.versions.length}`, at: now, note: pick.q });
+      if (g.dna.learning.history.length > MAX_LEARNING_HISTORY) {
+        g.dna.learning.history = g.dna.learning.history.slice(-MAX_LEARNING_HISTORY);
+      }
+      // Version numbers keep counting up even though old entries are dropped,
+      // so `current` never goes backwards after a trim.
+      const prevSeq = Number(g.dna.versioning.seq);
+      g.dna.versioning.seq = (Number.isFinite(prevSeq) ? prevSeq : g.dna.versioning.versions.length) + 1;
+      g.dna.versioning.versions.push({ v: `1.0.${g.dna.versioning.seq}`, at: now, note: pick.q });
+      if (g.dna.versioning.versions.length > MAX_VERSIONS) {
+        g.dna.versioning.versions = g.dna.versioning.versions.slice(-MAX_VERSIONS);
+      }
       g.dna.versioning.current = g.dna.versioning.versions[g.dna.versioning.versions.length - 1].v;
       g.living = true;
       g.updatedAt = now;
@@ -879,6 +958,13 @@ function getStatus() {
       migrationsPlanned: state.migrationsPlanned,
       errors: state.errors,
     },
+    persistence: {
+      mode: 'coalesced',
+      debounceMs: SAVE_DEBOUNCE_MS,
+      flushes: _flushes,
+      pending: _dirty,
+      note: 'Genome writes are batched and atomic so the catalog read path never blocks the event loop on disk.',
+    },
     lastOrchestratorAt: state.lastOrchestratorAt,
     lastEvolveAt: state.lastEvolveAt,
     site: SITE,
@@ -909,7 +995,7 @@ function stop() {
   if (_timer) clearInterval(_timer);
   _timer = null;
   _started = false;
-  _save();
+  flush();
   return { ok: true };
 }
 
@@ -930,7 +1016,11 @@ async function processInput(input = {}) {
 }
 
 function _resetForTests() {
-  stop();
+  if (_timer) { clearInterval(_timer); _timer = null; }
+  _started = false;
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  _dirty = false;
+  _flushes = 0;
   genomes = {};
   skuIndex = {};
   graph = { nodes: {}, edges: [] };
@@ -968,6 +1058,7 @@ module.exports = {
   scoreAffinity,
   discovery,
   getStatus,
+  flush,
   start,
   stop,
   process: processInput,
