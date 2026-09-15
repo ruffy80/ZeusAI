@@ -351,7 +351,9 @@ async function runGoogle(opts) {
   if (!persisted.ok) {
     return { engine: 'google', armed: true, at: new Date().toISOString(), ok: false, steps, invented: false };
   }
-  await new Promise((resolve) => { const t = setTimeout(resolve, 1500); if (t.unref) t.unref(); });
+  // Deliberately not unref'd: a 1.5s wait must survive an otherwise-idle
+  // event loop, or the chain would abandon itself in a short-lived process.
+  await new Promise((resolve) => { setTimeout(resolve, 1500); });
 
   // 3. Claim ownership.
   const insert = await _postJson(
