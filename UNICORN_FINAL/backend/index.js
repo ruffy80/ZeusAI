@@ -4574,6 +4574,27 @@ if (_isPrimaryWorker) {
   if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED === '1') {
     console.warn('[growth-stack] GROWTH_STACK_DISABLED=1 — flywheel parked. traffic-engine is independent of this flag.');
   }
+  // SEBP/1.0 — name the exact secret that still blocks search-engine ownership
+  // so a boot log is enough to know what to arm. Never claims a submission.
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      const bridge = require('./modules/search-console-bridge');
+      if (bridge.disabled()) {
+        console.warn('[search-console-bridge] SEO_BRIDGE_DISABLED=1 — Bing/Google ownership + sitemap submission parked.');
+      } else {
+        const armed = bridge.armedEngines();
+        const missing = bridge.missingSecrets();
+        if (armed.length > 0) {
+          console.log('🔎 [search-console-bridge] armed: ' + armed.join(', ') + ' — ownership + sitemap submission run with the traffic-engine cycle.');
+        }
+        for (const m of missing) {
+          console.warn('[search-console-bridge] ' + m.engine + ' blocked — set ' + m.secret + ' to unlock ' + m.unlocks + '.');
+        }
+      }
+    } catch (e) {
+      console.warn('[search-console-bridge] unavailable:', e && e.message);
+    }
+  }
   if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1') {
     try {
       if (memoryGuardian) {

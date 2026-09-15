@@ -14,6 +14,7 @@ const CORE_PUBLIC_PATHS = [
   '/first-dollar',
   '/visible-world',
   '/visible',
+  '/share',
   '/origin',
   '/from/x',
   '/from/facebook',
