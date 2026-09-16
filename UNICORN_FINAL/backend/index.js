@@ -9326,6 +9326,23 @@ app.get(['/api/visible-social', '/api/visible-social/status', '/.well-known/visi
     return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false });
   }
 });
+app.get('/api/visible-social/arm', (req, res) => {
+  try {
+    const m = visibleSocialOs || require('./modules/visible-social-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Visible-Social', 'VSP/1.0');
+    return res.json(m.armInventory());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false });
+  }
+});
+app.post('/api/visible-social/arm', requireAdminSecretOrJwt, express.json({ limit: '32kb' }), (req, res) => {
+  const m = visibleSocialOs || require('./modules/visible-social-os');
+  const keys = (req.body && (req.body.keys || req.body.secrets || req.body)) || {};
+  return Promise.resolve(m.armFromOwner(keys)).then((out) => res.json(out)).catch((e) => {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false });
+  });
+});
 app.get(['/visible', '/gaze'], (req, res) => {
   try {
     const m = visibleSocialOs || require('./modules/visible-social-os');

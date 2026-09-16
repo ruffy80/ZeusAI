@@ -391,6 +391,18 @@ function socialStoreFiles() {
   return extra ? SOCIAL_STORE_FILES.concat(extra) : SOCIAL_STORE_FILES.slice();
 }
 
+function isSocialKey(name) {
+  return SOCIAL_KEY_RE.test(String(name || ''));
+}
+
+function _unquoteEnvValue(raw) {
+  let val = String(raw == null ? '' : raw).trim();
+  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    val = val.slice(1, -1);
+  }
+  return val.replace(/\\n/g, '\n').trim();
+}
+
 function reloadSocialStores() {
   const filled = [];
   for (const file of socialStoreFiles()) {
@@ -402,11 +414,7 @@ function reloadSocialStores() {
       if (!line || line.startsWith('#')) continue;
       const m = line.match(/^([A-Z0-9_]+)\s*=\s*(.*)$/);
       if (!m || !SOCIAL_KEY_RE.test(m[1])) continue;
-      let val = m[2].trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      val = val.replace(/\\n/g, '\n').trim();
+      const val = _unquoteEnvValue(m[2]);
       if (!val || PLACEHOLDER_RE.test(val)) continue;
       const cur = process.env[m[1]];
       const curS = cur == null ? '' : String(cur).trim();
@@ -418,6 +426,81 @@ function reloadSocialStores() {
   }
   normalizeAliases();
   return filled;
+}
+
+function upsertEnvFile(filePath, kv) {
+  const entries = kv && typeof kv === 'object' ? kv : {};
+  const keys = Object.keys(entries);
+  if (!keys.length) return false;
+  let text = '';
+  try { text = fs.readFileSync(filePath, 'utf8'); } catch (_) { text = ''; }
+  const lines = text.length ? text.split(/\r?\n/) : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of lines) {
+    const m = String(raw).match(/^([A-Z0-9_]+)\s*=/);
+    if (m && Object.prototype.hasOwnProperty.call(entries, m[1])) {
+      out.push(m[1] + '=' + String(entries[m[1]]).replace(/\n/g, '\\n'));
+      seen.add(m[1]);
+    } else if (raw !== undefined) {
+      out.push(raw);
+    }
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  for (const k of keys) {
+    if (!seen.has(k)) out.push(k + '=' + String(entries[k]).replace(/\n/g, '\\n'));
+  }
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, out.join('\n') + '\n', { mode: 0o600 });
+  return true;
+}
+
+/**
+ * Persist owner-supplied organic-posting tokens into durable social.env
+ * planes and into process.env. Never logs values. GitHub cannot mint
+ * Meta/X tokens — this is the on-box arm path once the owner pastes them.
+ */
+function persistSocialKeys(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  const kv = {};
+  const rejected = [];
+  for (const [rawK, rawV] of Object.entries(src)) {
+    const k = String(rawK || '').trim();
+    if (!isSocialKey(k)) {
+      if (k) rejected.push(k);
+      continue;
+    }
+    const val = _unquoteEnvValue(rawV);
+    if (!val || PLACEHOLDER_RE.test(val) || SHELL_TEMPLATE_RE.test(val)) {
+      rejected.push(k);
+      continue;
+    }
+    kv[k] = val;
+    process.env[k] = val;
+  }
+  normalizeAliases();
+  const files = [];
+  const extra = String(process.env.UNICORN_SOCIAL_STORE_FILE || '').trim();
+  const targets = extra ? [extra] : [];
+  if (process.env.NODE_ENV !== 'test' || process.env.UNICORN_SOCIAL_STORE_ALLOW_HOST === '1') {
+    for (const f of SOCIAL_STORE_FILES) {
+      if (!targets.includes(f)) targets.push(f);
+    }
+  }
+  for (const file of targets) {
+    try {
+      if (upsertEnvFile(file, kv)) files.push(file);
+    } catch (_) { /* host path may be unwritable in CI */ }
+  }
+  reloadSocialStores();
+  normalizeAliases();
+  return {
+    ok: true,
+    written: Object.keys(kv),
+    rejected,
+    files,
+    inventsPosts: false,
+  };
 }
 
 function normalizeAliases() {
@@ -514,9 +597,12 @@ module.exports = {
   requireSecret,
   materializeDeployKey,
   reloadSocialStores,
+  persistSocialKeys,
+  isSocialKey,
   socialStoreFiles,
   FEATURE_GROUPS,
   ALIASES,
   DEFAULT_VALUES,
   SOCIAL_STORE_FILES,
+  SOCIAL_KEY_RE,
 };

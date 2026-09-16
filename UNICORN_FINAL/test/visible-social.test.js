@@ -27,6 +27,7 @@ const PATCH = path.join(ROOT, 'scripts', 'nginx-patch-public-discovery.py');
 
 const SOCIAL_KEYS = [
   'FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID', 'FB_PAGE_TOKEN',
+  'FACEBOOK_ACCESS_TOKEN', 'FB_ACCESS_TOKEN',
   'INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID',
   'THREADS_ACCESS_TOKEN', 'THREADS_USER_ID',
   'X_BEARER_TOKEN', 'X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET',
@@ -238,13 +239,67 @@ console.log('\n🧪 Visible Surface Protocol (VSP/1.0)\n');
     assert.match(html, /whyYouSeeNothing|Autoviralizer is not publishing|operator rails/i);
   });
 
+  await test('persistSocialKeys writes durable store and hot-loads viralizer', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vsp-persist-'));
+    const store = path.join(dir, 'social.env');
+    clearGazeEnv();
+    process.env.UNICORN_SOCIAL_STORE_FILE = store;
+    const out = secrets.persistSocialKeys({
+      FACEBOOK_PAGE_TOKEN: 'persist-page-token-xyz',
+      FACEBOOK_PAGE_ID: '424242',
+      JWT_SECRET: 'must-reject-non-social',
+    });
+    assert.ok(out.written.includes('FACEBOOK_PAGE_TOKEN'));
+    assert.ok(out.written.includes('FACEBOOK_PAGE_ID'));
+    assert.ok(out.rejected.includes('JWT_SECRET'));
+    assert.equal(out.inventsPosts, false);
+    assert.equal(process.env.FACEBOOK_PAGE_TOKEN, 'persist-page-token-xyz');
+    const disk = fs.readFileSync(store, 'utf8');
+    assert.ok(disk.includes('FACEBOOK_PAGE_TOKEN=persist-page-token-xyz'));
+    assert.ok(!disk.includes('JWT_SECRET='));
+    const tokens = viralizer.reloadTokensFromEnv();
+    assert.equal(tokens.facebookPageToken, 'persist-page-token-xyz');
+    assert.equal(tokens.facebookPageId, '424242');
+    const status = viralizer.getProviderStatus();
+    assert.equal(status.providers.facebook.canPost, true);
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
+  });
+
+  await test('armFromOwner rejects placeholders and does not invent gazeLit', async () => {
+    clearGazeEnv();
+    const out = await vsp.armFromOwner({
+      FACEBOOK_PAGE_TOKEN: 'changeme',
+      X_API_KEY: '',
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.inventsPosts, false);
+    assert.equal(out.persisted.written.length, 0);
+    assert.ok(out.gazeDark.includes('facebook'));
+    assert.equal(out.gazeLit.includes('facebook'), false);
+  });
+
+  await test('armInventory lists exact GitHub secret names without values', () => {
+    clearGazeEnv();
+    const inv = vsp.armInventory();
+    assert.equal(inv.protocol, 'VSP/1.0');
+    assert.deepEqual(inv.required.facebook, ['FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID']);
+    assert.ok(inv.networks.facebook.missing.includes('FACEBOOK_PAGE_TOKEN'));
+    assert.equal(inv.path.ownerPost, 'POST /api/visible-social/arm');
+    assert.equal(inv.path.tokenless, '/share');
+    const dump = JSON.stringify(inv);
+    assert.ok(!dump.includes('persist-page-token'));
+  });
+
   await test('backend + site expose well-known visible-social.json and /visible', () => {
     const be = fs.readFileSync(BACKEND_INDEX, 'utf8');
     const site = fs.readFileSync(SITE_INDEX, 'utf8');
     assert.ok(be.includes('/.well-known/visible-social.json'));
     assert.ok(be.includes('visible-social-os'));
+    assert.ok(be.includes('/api/visible-social/arm'));
+    assert.ok(be.includes('armFromOwner'));
     assert.ok(site.includes('/.well-known/visible-social.json'));
     assert.ok(site.includes('visibleSocial'));
+    assert.ok(site.includes('/api/visible-social/arm'));
     assert.ok(site.includes("'/visible'") || site.includes('"/visible"') || site.includes("['/visible'"));
   });
 

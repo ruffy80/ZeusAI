@@ -178,6 +178,29 @@ TikTok organic publish additionally requires a video file; without one the viral
 skips honestly unless `SOCIAL_WEBHOOK_URL` relays the payload (Zapier/Make/n8n).
 YouTube Data API keys cannot upload; OAuth + a video is required.
 
+GitHub Actions cannot mint Meta/X tokens. Repo-level Actions secrets for
+Facebook / X / Instagram / TikTok / Threads / LinkedIn have been **empty**
+on every `sync-all-secrets` run (the job env dump shows unmasked blanks;
+`TELEGRAM_CHAT_ID` is the only social-adjacent repo secret that is set).
+Tokens may still live under **GitHub Environments** (`Production`,
+`Production – unicorn-final`, `Production – zeusai`) — those are a different
+store and are invisible unless the workflow binds `environment:`.
+`sync-all-secrets.yml` now runs once per Production environment so those
+values, if present, merge into `/etc/zeusai/social.env`.
+
+Two owner arm paths if the Environments are also empty:
+
+1. Add the names above under **GitHub → Settings → Secrets and variables → Actions**.
+   `sync-all-secrets.yml` writes non-empty social keys into `/etc/zeusai/social.env`
+   (and shared `social.env`) then reloads PM2. Empty social keys are omitted so
+   they cannot pin over a host store.
+2. Owner POST `/api/visible-social/arm` with `x-admin-token` and a JSON `keys`
+   object. That persists into durable `social.env` and hot-reloads the viralizer
+   without waiting for GitHub.
+
+Tokenless distribution (no API token): `https://zeusai.pro/share`.
+Inventory of what is still missing (names only): `GET /api/visible-social/arm`.
+
 ### 2.12 AWS (shared, optional backup)
 
 ```

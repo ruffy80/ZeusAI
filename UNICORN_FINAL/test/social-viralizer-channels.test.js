@@ -171,6 +171,12 @@ async function main() {
     assert.ok(yml.includes('INSTAGRAM_ACCESS_TOKEN:'));
     assert.ok(yml.includes('TIKTOK_ACCESS_TOKEN:'));
     assert.ok(yml.includes('/etc/zeusai/social.env'));
+    assert.ok(yml.includes('/tmp/social.env'), 'must emit a dedicated social.env payload');
+    assert.ok(yml.includes('Merged GitHub social keys'), 'must merge GitHub social keys into durable stores');
+    assert.ok(!/echo \\"🔐 Reconciled payment rails from \$STORE\\"\s*\n\s*break/.test(yml), 'must not break after first durable store');
+    assert.ok(yml.includes('Reconciled durable secrets from'), 'must reconcile every durable store');
+    assert.ok(yml.includes('environment: ${{ matrix.gh_env }}'), 'must bind GitHub Environment secrets');
+    assert.ok(yml.includes('Production – unicorn-final'), 'must also read Production – unicorn-final env secrets');
   });
 
   await test('test:chain includes social-viralizer-channels.test.js', () => {

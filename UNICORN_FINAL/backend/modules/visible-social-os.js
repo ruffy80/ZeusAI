@@ -342,7 +342,7 @@ function getStatus() {
       + (railsArmed.length
         ? ('It is armed only on operator rails: ' + railsArmed.join(', ') + '. Those are not the apps you open.')
         : 'No social poster is armed.')
-      + ' Put FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN, TIKTOK_ACCESS_TOKEN in GitHub secrets and let sync-all-secrets write /etc/zeusai/social.env.';
+      + ' Put FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN, TIKTOK_ACCESS_TOKEN in GitHub Actions secrets (sync-all-secrets writes /etc/zeusai/social.env) or POST them to /api/visible-social/arm.';
   }
   return {
     ok: true,
@@ -393,6 +393,9 @@ function discovery() {
       x: ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'],
       instagram: ['INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID (auto from Graph /me)'],
       tiktok: ['TIKTOK_ACCESS_TOKEN', 'and a video — token alone cannot publish'],
+      github: 'Repo Settings → Secrets and variables → Actions, then sync-all-secrets.yml writes /etc/zeusai/social.env',
+      ownerPost: 'POST /api/visible-social/arm with x-admin-token (persists to social.env and hot-reloads the viralizer)',
+      tokenless: '/share',
     },
     urls: [
       APP_URL + '/.well-known/visible-social.json',
@@ -478,10 +481,86 @@ function gazeProofHtml() {
     + '<p class="rails">Operator rails armed (not gaze): ' + _esc((st.railsArmed || []).join(', ') || 'none') + '</p>'
     + '<table><thead><tr><th>Gaze network</th><th>Public permalink</th><th>Why dark</th></tr></thead><tbody>'
     + rows + '</tbody></table>'
+    + '<p class="rails">Arm path: GitHub Actions secrets named FACEBOOK_PAGE_TOKEN, FACEBOOK_PAGE_ID, X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET, INSTAGRAM_ACCESS_TOKEN → workflow sync-all-secrets writes /etc/zeusai/social.env. Same keys can be POSTed to /api/visible-social/arm (x-admin-token). Tokenless one-tap is <a href="/share">/share</a>. Ads keys do not publish posts. This process cannot mint Meta/X tokens.</p>'
     + '<p><a href="/.well-known/visible-social.json">visible-social.json</a> · '
+    + '<a href="/api/visible-social/arm">arm inventory</a> · '
     + '<a href="/.well-known/social-gravity.json">social-gravity.json</a> · '
-    + '<a href="/.well-known/viral-unification.json">viral-unification.json</a></p>'
+    + '<a href="/.well-known/viral-unification.json">viral-unification.json</a> · '
+    + '<a href="/share">/share</a></p>'
     + '</main></body></html>';
+}
+
+const GAZE_SECRET_MAP = Object.freeze({
+  facebook: ['FACEBOOK_PAGE_TOKEN', 'FACEBOOK_PAGE_ID'],
+  x: ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'],
+  instagram: ['INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID'],
+  tiktok: ['TIKTOK_ACCESS_TOKEN'],
+  threads: ['THREADS_ACCESS_TOKEN', 'THREADS_USER_ID'],
+  linkedin: ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN'],
+});
+
+function armInventory() {
+  const secrets = require('../../src/config/secrets');
+  if (typeof secrets.reloadSocialStores === 'function') secrets.reloadSocialStores();
+  const networks = {};
+  for (const [net, names] of Object.entries(GAZE_SECRET_MAP)) {
+    const present = names.filter((n) => secrets.configured(n));
+    const missing = names.filter((n) => !secrets.configured(n));
+    networks[net] = {
+      present,
+      missing,
+      armed: missing.length === 0,
+    };
+  }
+  return {
+    ok: true,
+    protocol: PROTOCOL,
+    inventsPosts: false,
+    inventsReach: false,
+    path: {
+      githubSecrets: 'GitHub → Settings → Secrets and variables → Actions',
+      syncWorkflow: '.github/workflows/sync-all-secrets.yml',
+      durableStore: '/etc/zeusai/social.env',
+      ownerPost: 'POST /api/visible-social/arm',
+      tokenless: '/share',
+    },
+    required: GAZE_SECRET_MAP,
+    networks,
+    note: 'This process cannot mint Facebook/X/Instagram tokens. Owner pastes them into GitHub Actions secrets or POST /api/visible-social/arm. Telegram/Discord/webhook are operator rails, not gaze posts.',
+  };
+}
+
+async function armFromOwner(keys, opts) {
+  const secrets = require('../../src/config/secrets');
+  const persisted = typeof secrets.persistSocialKeys === 'function'
+    ? secrets.persistSocialKeys(keys || {})
+    : { ok: false, written: [], rejected: Object.keys(keys || {}), files: [] };
+  if (typeof secrets.reloadSocialStores === 'function') secrets.reloadSocialStores();
+  let companions = null;
+  try { companions = await completeCompanionIds(opts); } catch (_) { companions = null; }
+  let providers = {};
+  try {
+    const viralizer = require('./socialMediaViralizer');
+    if (viralizer && typeof viralizer.reloadTokensFromEnv === 'function') viralizer.reloadTokensFromEnv();
+    if (viralizer && typeof viralizer.getProviderStatus === 'function') providers = viralizer.getProviderStatus();
+  } catch (_) { providers = {}; }
+  const st = getStatus();
+  return {
+    ok: true,
+    protocol: PROTOCOL,
+    inventsPosts: false,
+    inventsReach: false,
+    persisted,
+    companions,
+    configuredProviders: (providers && providers.configuredProviders) || [],
+    liveReady: (providers && providers.liveReady) || [],
+    gazeLit: st.gazeLit,
+    gazeDark: st.gazeDark,
+    inventory: armInventory(),
+    note: persisted.written && persisted.written.length
+      ? 'Tokens persisted to durable social.env and loaded into the viralizer. A gaze network lights only after a real public permalink exists.'
+      : 'No social keys accepted. Gaze networks need FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN.',
+  };
 }
 
 function start() {
@@ -514,6 +593,7 @@ module.exports = {
   GAZE,
   RAILS,
   CLAIM,
+  GAZE_SECRET_MAP,
   permalinkFor,
   recordReceipt,
   completeCompanionIds,
@@ -524,6 +604,8 @@ module.exports = {
   visibleHeaders,
   gazeChallenge,
   gazeProofHtml,
+  armInventory,
+  armFromOwner,
   start,
   stop,
   _resetForTests,
