@@ -149,18 +149,25 @@ function _fireDelivery(order) {
       plan: order.serviceId,
       amount: order.subtotal_fiat,
     };
-    Promise.resolve().then(async () => {
-      try {
-        const payFulfill = require('../commerce/pay-fulfill');
-        await payFulfill.settleAndNotify({
-          receipt: receiptLike,
-          deliveryFn: _deliveryHook,
-          source: 'btc-sovereign',
-        });
-      } catch (e) {
-        console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e && e.message);
-      }
-    });
+    let payFulfill = null;
+    try { payFulfill = require('../commerce/pay-fulfill'); } catch (_) { payFulfill = null; }
+    // Delivery must run synchronously so settle never races the buyer poll /
+    // payment-honesty contract. Emails stay async via settleAndNotify.
+    if (payFulfill && typeof payFulfill.runDeliveryOnce === 'function') {
+      payFulfill.runDeliveryOnce(receiptLike, _deliveryHook);
+    } else {
+      Promise.resolve(_deliveryHook(receiptLike)).catch((e) =>
+        console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e && e.message)
+      );
+    }
+    if (payFulfill && typeof payFulfill.settleAndNotify === 'function') {
+      Promise.resolve(payFulfill.settleAndNotify({
+        receipt: receiptLike,
+        source: 'btc-sovereign',
+      })).catch((e) =>
+        console.warn('[commerce] pay-fulfill notify error for ' + order.orderId + ':', e && e.message)
+      );
+    }
   } catch (e) {
     console.warn('[commerce] delivery hook fire error for ' + order.orderId + ':', e.message);
   }
