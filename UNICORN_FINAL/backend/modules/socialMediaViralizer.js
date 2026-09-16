@@ -1093,7 +1093,7 @@ class SocialMediaViralizer {
       postsAttempted: this.postHistory.length,
       lastPost: this.postHistory.length ? this.postHistory[this.postHistory.length - 1] : null,
       hint: liveReady.length === 0
-        ? 'No live social poster armed. Gaze networks the owner checks (Facebook/X/Instagram) need FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN in GitHub secrets → sync-all-secrets → /etc/zeusai/social.env. Telegram/Discord/webhook are operator rails, not Facebook posts. Open /visible.'
+        ? 'No live social poster armed. Gaze networks the owner checks (Facebook/X/Instagram) need FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN in GitHub secrets → sync-all-secrets → /etc/zeusai/social.env, or POST /api/visible-social/arm. Telegram/Discord/webhook are operator rails, not Facebook posts. Open /visible.'
         : `${liveReady.length} live poster(s) ready: ${liveReady.join(', ')}. Gaze proof: /visible`,
     };
   }

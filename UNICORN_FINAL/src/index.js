@@ -1085,6 +1085,35 @@ app.get(['/.well-known/visible-social.json', '/api/visible-social', '/api/visibl
     return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsReach: false, inventsPosts: false });
   }
 });
+app.get('/api/visible-social/arm', (req, res) => {
+  try {
+    const vsp = require('../backend/modules/visible-social-os');
+    res.set('Cache-Control', 'no-store');
+    return res.json(vsp.armInventory());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false });
+  }
+});
+app.post('/api/visible-social/arm', express.json({ limit: '32kb' }), (req, res) => {
+  const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+  const provided = String(
+    req.headers['x-admin-secret']
+    || req.headers['x-admin-token']
+    || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+    || ''
+  );
+  if (expected && provided !== expected) {
+    return res.status(401).json({ ok: false, error: 'unauthorized', protocol: 'VSP/1.0' });
+  }
+  if (!expected && process.env.NODE_ENV !== 'test') {
+    return res.status(503).json({ ok: false, error: 'admin_secret_not_configured', protocol: 'VSP/1.0' });
+  }
+  const vsp = require('../backend/modules/visible-social-os');
+  const keys = (req.body && (req.body.keys || req.body.secrets || req.body)) || {};
+  return Promise.resolve(vsp.armFromOwner(keys)).then((out) => res.json(out)).catch((e) => {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false });
+  });
+});
 app.get(['/.well-known/first-dollar.json', '/api/first-dollar', '/api/first-dollar/status'], (req, res) => {
   try {
     const fdgp = require('./commerce/storefront-gravity-os');
@@ -4994,7 +5023,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/visible-social/arm'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -8547,6 +8576,54 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  if (urlPath === '/api/visible-social/arm' && req.method === 'GET') {
+    try {
+      const vsp = require('../backend/modules/visible-social-os');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(vsp.armInventory()));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false }));
+    }
+  }
+
+  if (urlPath === '/api/visible-social/arm' && req.method === 'POST') {
+    const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+    const provided = String(
+      (req.headers && (req.headers['x-admin-secret'] || req.headers['x-admin-token']))
+      || (req.headers && req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+      || ''
+    );
+    if (expected && provided !== expected) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'unauthorized', protocol: 'VSP/1.0' }));
+    }
+    if (!expected && process.env.NODE_ENV !== 'test') {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'admin_secret_not_configured', protocol: 'VSP/1.0' }));
+    }
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 32 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const keys = payload.keys || payload.secrets || payload;
+        const vsp = require('../backend/modules/visible-social-os');
+        Promise.resolve(vsp.armFromOwner(keys)).then((out) => {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify(out));
+        }).catch((e) => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VSP/1.0', inventsPosts: false }));
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'VSP/1.0' }));
+      }
+    });
+    return;
+  }
+
   if (urlPath === '/visible' || urlPath === '/gaze') {
     try {
       const vsp = require('../backend/modules/visible-social-os');
@@ -10242,12 +10319,13 @@ setInterval(function(){loadOrder().then(render);},10000);
         const payload = JSON.parse(body || '{}');
         const keys = payload.keys || payload;
         const allow = /^[A-Z][A-Z0-9_]{1,64}$/;
-        const ALLOWED = /^(RESEND|BREVO|MAILERSEND|SMTP|TWILIO|LINKEDIN|BTC_WEBHOOK|PAYPAL_WEBHOOK|BANK_WEBHOOK|OWNER|ADMIN)_/;
+        const ALLOWED = /^(RESEND_|BREVO_|MAILERSEND_|SMTP_|TWILIO_|LINKEDIN_|FACEBOOK_|FB_|INSTAGRAM_|IG_|TIKTOK_|THREADS_|X_|TWITTER_|TELEGRAM_|TG_|DISCORD_|BLUESKY_|MASTODON_|PINTEREST_|REDDIT_|SOCIAL_WEBHOOK_|GENERIC_WEBHOOK_|BTC_WEBHOOK_|PAYPAL_WEBHOOK_|BANK_WEBHOOK_|OWNER_|ADMIN_)/;
         const envFile = require('path').join(__dirname, '..', '.env.unicorn');
         let existing = '';
         try { existing = fs.readFileSync(envFile, 'utf8'); } catch(_){}
         const lines = existing.split(/\r?\n/).filter(Boolean);
         const written = [];
+        const socialKeys = {};
         for (const [k, v] of Object.entries(keys)) {
           if (!allow.test(k) || !ALLOWED.test(k)) continue;
           const val = String(v == null ? '' : v);
@@ -10256,10 +10334,21 @@ setInterval(function(){loadOrder().then(render);},10000);
           const line = k + '=' + val;
           if (idx >= 0) lines[idx] = line; else lines.push(line);
           written.push(k);
+          try {
+            const sec = require('./config/secrets');
+            if (sec && typeof sec.isSocialKey === 'function' && sec.isSocialKey(k)) socialKeys[k] = val;
+          } catch (_) { /* ignore */ }
         }
         fs.writeFileSync(envFile, lines.join('\n') + '\n', { mode: 0o600 });
+        let social = null;
+        try {
+          if (Object.keys(socialKeys).length) {
+            const sec = require('./config/secrets');
+            if (sec && typeof sec.persistSocialKeys === 'function') social = sec.persistSocialKeys(socialKeys);
+          }
+        } catch (_) { social = null; }
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok:true, written, note: 'values injected into process.env and persisted to .env.unicorn' }));
+        res.end(JSON.stringify({ ok:true, written, social, note: 'values injected into process.env and persisted to .env.unicorn' }));
       } catch (e) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ error: e.message })); }
     });
     return;

@@ -178,6 +178,20 @@ TikTok organic publish additionally requires a video file; without one the viral
 skips honestly unless `SOCIAL_WEBHOOK_URL` relays the payload (Zapier/Make/n8n).
 YouTube Data API keys cannot upload; OAuth + a video is required.
 
+GitHub Actions cannot mint Meta/X tokens. If those secrets are empty, gaze
+networks stay dark. Two arm paths exist:
+
+1. Add the names above under **GitHub → Settings → Secrets and variables → Actions**.
+   `sync-all-secrets.yml` writes non-empty social keys into `/etc/zeusai/social.env`
+   (and shared `social.env`) then reloads PM2. Empty social keys are omitted so
+   they cannot pin over a host store.
+2. Owner POST `/api/visible-social/arm` with `x-admin-token` and a JSON `keys`
+   object. That persists into durable `social.env` and hot-reloads the viralizer
+   without waiting for GitHub.
+
+Tokenless distribution (no API token): `https://zeusai.pro/share`.
+Inventory of what is still missing (names only): `GET /api/visible-social/arm`.
+
 ### 2.12 AWS (shared, optional backup)
 
 ```

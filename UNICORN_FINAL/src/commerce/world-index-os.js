@@ -268,7 +268,7 @@ function operatorChecklist(opts) {
       ready: gazeLit.length > 0,
       action: gazeLit.length > 0
         ? ('Public gaze permalinks exist: ' + gazeLit.join(', '))
-        : 'Put Facebook / X / TikTok / Instagram tokens in GitHub secrets so sync-all-secrets.yml writes /etc/zeusai/social.env and PM2 can post. Telegram/Discord are operator rails, not public posts.',
+        : 'Put FACEBOOK_PAGE_TOKEN / X user-context keys / INSTAGRAM_ACCESS_TOKEN in GitHub Actions secrets (sync-all-secrets.yml writes /etc/zeusai/social.env) or POST them to /api/visible-social/arm. Telegram/Discord are operator rails, not public posts. Tokenless one-tap: /share.',
     },
     {
       id: 'traffic-engine',
@@ -333,7 +333,7 @@ function activation() {
       secret: g.secret,
       unlocks: 'autonomous public posting to ' + g.network,
       automatedAfterSecret: true,
-      humanAlternative: '/share posts to ' + g.network + ' in one tap with no token at all',
+      humanAlternative: '/share posts to ' + g.network + ' in one tap with no token; POST /api/visible-social/arm persists tokens without waiting for GitHub',
     });
   }
   return {
