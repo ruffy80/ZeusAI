@@ -149,9 +149,18 @@ function _fireDelivery(order) {
       plan: order.serviceId,
       amount: order.subtotal_fiat,
     };
-    Promise.resolve(_deliveryHook(receiptLike)).catch((e) =>
-      console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e.message)
-    );
+    Promise.resolve().then(async () => {
+      try {
+        const payFulfill = require('../commerce/pay-fulfill');
+        await payFulfill.settleAndNotify({
+          receipt: receiptLike,
+          deliveryFn: _deliveryHook,
+          source: 'btc-sovereign',
+        });
+      } catch (e) {
+        console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e && e.message);
+      }
+    });
   } catch (e) {
     console.warn('[commerce] delivery hook fire error for ' + order.orderId + ':', e.message);
   }
@@ -714,7 +723,7 @@ async function resolveService(ctx, serviceId) {
         || (parsed && parsed.prefix === 'dropship' ? ('Dropship · ' + (parsed.id || 'product'))
           : (parsed && (parsed.prefix === 'social-tip' || parsed.prefix === 'tip')
             ? ('Social tip · ' + (parsed.id || 'creator'))
-            : serviceId));
+            : (parsed && parsed.prefix === 'custom' ? 'Custom order' : serviceId)));
       const price = (Number.isFinite(amountOverride) && amountOverride > 0)
         ? amountOverride
         : 0;
@@ -827,9 +836,12 @@ async function createOrder(ctx, input) {
   let amountUsdOverride = null;
   try {
     const upr = require('../commerce/universal-payment-rails');
-    if (upr && upr.isVirtualSku(serviceId) && input && input.amountUsd != null) {
-      const n = Number(input.amountUsd);
-      if (Number.isFinite(n) && n >= 1 && n <= 10000000) amountUsdOverride = Math.round(n * 100) / 100;
+    if (upr && upr.isVirtualSku(serviceId)) {
+      const rawAmt = input && (input.amountUsd != null ? input.amountUsd : input.amount);
+      if (rawAmt != null) {
+        const n = Number(rawAmt);
+        if (Number.isFinite(n) && n >= 1 && n <= 10000000) amountUsdOverride = Math.round(n * 100) / 100;
+      }
     }
   } catch (_) { /* ignore */ }
   if (amountUsdOverride != null) {
@@ -904,6 +916,13 @@ async function createOrder(ctx, input) {
   const subtotalFiat = Number((unit * q).toFixed(2));
   if (!(subtotalFiat > 0)) return { error: 'service_not_priced', status: 409 };
 
+  let wallet = OWNER_BTC;
+  try {
+    const truth = require('../../backend/modules/btc-wallet-truth');
+    if (!truth.isInvoiceAllowed()) return truth.refusePayload();
+    wallet = truth.invoiceOwnerBtc() || OWNER_BTC;
+  } catch (_) { /* keep OWNER_BTC */ }
+
   const price = await getBtcPrice({ fast: true });
   const fiatPerBtc = String(currency).toUpperCase() === 'EUR' ? price.eur : price.usd;
   if (priceUnavailableForNewInvoices(price)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
@@ -937,8 +956,8 @@ async function createOrder(ctx, input) {
     amount_sats: alloc.amount_sats,
     amount_btc: amountBtc,
     nonce: alloc.nonce,
-    receive_address: OWNER_BTC,
-    bip21: `bitcoin:${OWNER_BTC}?amount=${amountBtc.toFixed(8)}&label=${encodeURIComponent('ZeusAI ' + orderId)}&message=${encodeURIComponent(svc.name || serviceId)}`,
+    receive_address: wallet,
+    bip21: `bitcoin:${wallet}?amount=${amountBtc.toFixed(8)}&label=${encodeURIComponent('ZeusAI ' + orderId)}&message=${encodeURIComponent(svc.name || serviceId)}`,
     checkout_url: `${OWNER_DOMAIN}/checkout/${orderId}`,
     status_url:   `${OWNER_DOMAIN}/api/order/${orderId}/status`,
     // Served under /checkout/ (nginx ^~ /checkout/ → site). /api/checkout/*/qr.svg
@@ -1637,6 +1656,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <div class="row"><span class="k">Access token</span><span class="v mono" id="tok"></span></div>
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
+  <div class="row"><span class="k">Fulfillment</span><span class="v" id="packStatus">processing</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
@@ -1694,6 +1714,12 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
         var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
+        var pack=document.getElementById('packStatus');
+        if(pack){
+          pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
+        }
+        if(j.deliveryReady) return;
+        setTimeout(poll,4000);
         return;
       }
       if(j.status==='expired')return;
@@ -2351,6 +2377,10 @@ async function handle(req, res, ctx) {
       const pios = require('../commerce/payment-innovation-os');
       Object.assign(slim, pios.enrichOrderStatus(order));
     } catch (_) { /* status enrichment best-effort */ }
+    try {
+      const mpc = require('../commerce/money-pack-continuum');
+      Object.assign(slim, mpc.enrichOrderStatus(order));
+    } catch (_) { /* pack continuum best-effort */ }
     return sendJson(res, 200, slim), true;
   }
 
@@ -2824,7 +2854,12 @@ async function recoverStuckPending(opts) {
       skipped.push({ orderId: o.orderId, reason: emailReason || 'no_channel' });
     }
   }
-  return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped };
+  let packRetry = null;
+  try {
+    const mpc = require('../commerce/money-pack-continuum');
+    packRetry = mpc.recoverPaidUndelivered(ORDERS, _fireDelivery, { minAgeMs: 2 * 60 * 1000 });
+  } catch (_) { /* continuum best-effort */ }
+  return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped, packRetry };
 }
 
 function ageMsOf(o, now) {

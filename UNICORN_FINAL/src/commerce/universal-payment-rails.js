@@ -19,12 +19,14 @@ const VIRTUAL_PREFIXES = ['dropship:', 'ds:', 'social-tip:', 'tip:'];
 
 function isVirtualSku(serviceId) {
   const id = String(serviceId || '').trim().toLowerCase();
+  if (id === 'custom') return true;
   return VIRTUAL_PREFIXES.some((p) => id.startsWith(p));
 }
 
 function parseVirtualSku(serviceId) {
   const raw = String(serviceId || '').trim();
   const lower = raw.toLowerCase();
+  if (lower === 'custom') return { prefix: 'custom', id: 'invoice', raw };
   for (const p of VIRTUAL_PREFIXES) {
     if (lower.startsWith(p)) {
       return { prefix: p.replace(/:$/, ''), id: raw.slice(p.length).trim(), raw };
@@ -154,6 +156,15 @@ function assessVirtualBuyability(serviceId, itemOrOpts) {
       buyable: true,
       reason: 'social_tip',
       ctaLabel: 'Tip → choose payment',
+      ctaHref: chooserHref(serviceId),
+    };
+  }
+  if (v.prefix === 'custom') {
+    return {
+      mode: 'checkout',
+      buyable: true,
+      reason: 'custom_invoice',
+      ctaLabel: 'Custom invoice → choose payment',
       ctaHref: chooserHref(serviceId),
     };
   }

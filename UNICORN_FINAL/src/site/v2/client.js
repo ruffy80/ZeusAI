@@ -2573,12 +2573,20 @@ function initFinalLive(services){
       return;
     }
     out.textContent = 'Creating order…';
-    const res = await fetch('/api/services/buy', {
+    const res = await fetch('/api/checkout/create', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ serviceId, paymentMethod:'BTC', amount: amountUsd, email })
+      body: JSON.stringify({ serviceId, qty: 1, email })
     }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; });
-    out.textContent = JSON.stringify(res, null, 2);
+    const href = (res && (res.checkout_url || res.checkoutUrl))
+      || (res && res.orderId ? ('/checkout/' + encodeURIComponent(res.orderId)) : '');
+    if (href) {
+      out.textContent = 'Opening invoice…';
+      if (typeof navigateSpa === 'function') navigateSpa(href);
+      else window.location.href = href;
+      return;
+    }
+    out.textContent = (res && (res.error || res.reason)) || JSON.stringify(res, null, 2);
   };
 
   if (aiBtn && aiOut && aiPrompt) {

@@ -262,6 +262,11 @@ elif [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT_PM2_CWD" ]; then
   exit 1
 fi
 
+if [ "${MONEY_GATE:-0}" = "1" ]; then
+  MONEY_GATE_BASE="${MONEY_GATE_BASE:-$BASE_URL}" bash "$(dirname "$0")/smoke-money-gate.sh"
+  echo "✅ money gate"
+fi
+
 if [ "$SKIP_PUBLIC" != "1" ]; then
   STATUS="$(curl -fsSI --max-time 15 "$PUBLIC_URL/" | awk 'NR==1{print $2}')"
   case "$STATUS" in

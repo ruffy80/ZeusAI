@@ -87,13 +87,14 @@ async function run() {
     assert.strictEqual(buyability.assessBuyability({ id: 'bs-1', group: 'billion-scale-package', priceUSD: 14000000 }).buyable, false);
   });
 
-  await check('fulfillment AI allowlist defaults to 5 clear digital SKUs', () => {
+  await check('fulfillment AI allowlist defaults to 6 clear digital SKUs including hero resume', () => {
     // Eternal OS: unset/auto without keys stays off; force-on uses allowlist.
     delete process.env.FULFILLMENT_AI_ENABLED;
     assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), false);
     process.env.FULFILLMENT_AI_ENABLED = '1';
     assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), true);
     assert.strictEqual(engine.shouldUseAiForSku('instant-landing-page'), true);
+    assert.strictEqual(engine.shouldUseAiForSku('instant-resume-makeover'), true, 'homepage hero SKU must be AI-fulfillable');
     assert.strictEqual(engine.shouldUseAiForSku('instant-logo-kit'), false, 'logo kit not in default AI allowlist');
     assert.strictEqual(engine.shouldUseAiForSku('professional-saas-mvp'), false);
     process.env.FULFILLMENT_AI_SKUS = '*';

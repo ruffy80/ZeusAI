@@ -2491,28 +2491,39 @@ function verifyDeliveryAccess(id, req, params) {
     || (req && req.headers && (req.headers['x-access-token'] || req.headers['x-order-token']))
     || ''
   ).trim();
-  if (!token) return false;
+  if (token) {
+    try {
+      const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
+        ? commerce.ORDERS.get(id)
+        : null;
+      if (order && safeTokenEqual(token, order.access_token)) return true;
+    } catch (_) {}
+    try {
+      if (portal && typeof portal.verifyOrderAccessToken === 'function') {
+        const verified = portal.verifyOrderAccessToken(token);
+        if (verified && safeTokenEqual(verified.orderId, id)) return true;
+      }
+    } catch (_) {}
+    try {
+      const receipt = findReceipt(id);
+      const receiptTokens = [
+        receipt && receipt.access_token,
+        receipt && receipt.accessToken,
+        receipt && receipt.orderAccessToken,
+        receipt && receipt.license && receipt.license.token,
+      ].filter(Boolean);
+      if (receiptTokens.some((candidate) => safeTokenEqual(token, candidate))) return true;
+    } catch (_) {}
+  }
   try {
     const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
       ? commerce.ORDERS.get(id)
       : null;
-    if (order && safeTokenEqual(token, order.access_token)) return true;
-  } catch (_) {}
-  try {
-    if (portal && typeof portal.verifyOrderAccessToken === 'function') {
-      const verified = portal.verifyOrderAccessToken(token);
-      if (verified && safeTokenEqual(verified.orderId, id)) return true;
+    if (order && order.status === 'paid') {
+      const buyer = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
+      const hdr = String((req && req.headers && req.headers['x-user-email']) || '').trim().toLowerCase();
+      if (buyer && hdr && buyer === hdr) return true;
     }
-  } catch (_) {}
-  try {
-    const receipt = findReceipt(id);
-    const receiptTokens = [
-      receipt && receipt.access_token,
-      receipt && receipt.accessToken,
-      receipt && receipt.orderAccessToken,
-      receipt && receipt.license && receipt.license.token,
-    ].filter(Boolean);
-    if (receiptTokens.some((candidate) => safeTokenEqual(token, candidate))) return true;
   } catch (_) {}
   return false;
 }
@@ -11244,11 +11255,22 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         deliverableType: a.deliverableType, requiresHumanFulfillment: !!a.requiresHumanFulfillment,
         downloadUrl: `/api/delivery/${encodeURIComponent(rid)}?format=artifact&serviceId=${encodeURIComponent(a.serviceId || '')}`,
       }));
+      let accessToken = '';
+      try {
+        const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
+          ? commerce.ORDERS.get(rid)
+          : null;
+        accessToken = String((order && order.access_token) || '').trim();
+      } catch (_) { accessToken = ''; }
+      const qs = accessToken ? `?access_token=${encodeURIComponent(accessToken)}` : '';
+      const artQs = accessToken
+        ? `?format=artifacts&access_token=${encodeURIComponent(accessToken)}`
+        : '?format=artifacts';
       return {
         id: d.id, receiptId: rid, email: d.email, status: d.status,
         fulfillmentStatus: d.fulfillmentStatus || null, createdAt: d.createdAt,
-        deliveryUrl: `/api/delivery/${encodeURIComponent(rid)}`,
-        artifactsUrl: `/api/delivery/${encodeURIComponent(rid)}?format=artifacts`,
+        deliveryUrl: `/api/delivery/${encodeURIComponent(rid)}${qs}`,
+        artifactsUrl: `/api/delivery/${encodeURIComponent(rid)}${artQs}`,
         licenseUrl: `/api/license/${encodeURIComponent(rid)}`,
         invoiceUrl: `/api/invoice/${encodeURIComponent(rid)}`,
         files, artifacts,
