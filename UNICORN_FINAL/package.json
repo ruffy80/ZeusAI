@@ -91,7 +91,7 @@
     "test:api-aliases": "node test/api-aliases.test.js",
     "test:site-commerce": "node test/site-commerce-smoke.test.js",
     "smoke": "bash scripts/smoke-tests.sh",
-    "smoke:forward": "bash scripts/smoke-forward-only.sh",
+    "smoke:money-gate": "bash scripts/smoke-money-gate.sh",
     "alignment:monitor": "bash scripts/alignment-monitor.sh",
     "alignment:report": "bash scripts/alignment-report.sh",
     "live:sync": "node scripts/live-sync-forward.js",

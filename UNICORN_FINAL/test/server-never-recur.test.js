@@ -120,6 +120,12 @@ check('ops-aggregator never uses execSync for pm2 jlist', () => {
   assert.ok(src.includes('OPS_PM2_BOOT_GRACE_MS'), 'ops-aggregator must honor boot grace');
 });
 
+check('deploy final smoke runs the money gate', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
+  assert.ok(src.includes('MONEY_GATE=1'), 'final live smoke must fail-closed on checkout create');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'scripts', 'smoke-money-gate.sh')));
+});
+
 check('deploy-atomic-forward does not treat unreachable health as stale uptime', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'), 'utf8');
   assert.ok(!/uptime\|\|999999/.test(src), 'must not coerce missing uptime to 999999');

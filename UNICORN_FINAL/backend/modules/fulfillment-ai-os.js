@@ -186,6 +186,7 @@ function defaultSkuAllowlist() {
     'instant-landing-page',
     'instant-pitch-deck',
     'instant-email-sequence',
+    'instant-resume-makeover',
   ];
 }
 

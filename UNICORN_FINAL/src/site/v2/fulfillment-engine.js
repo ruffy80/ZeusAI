@@ -407,6 +407,7 @@ function aiSkuAllowlist() {
       'instant-landing-page',
       'instant-pitch-deck',
       'instant-email-sequence',
+      'instant-resume-makeover',
     ]);
   }
   if (raw === '*' || raw.toLowerCase() === 'all') return null; // all non-human SKUs

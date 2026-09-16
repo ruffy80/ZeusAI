@@ -7831,7 +7831,12 @@ if (_aiIntelCore) {
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
-app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
+app.post('/api/chat', authRateLimit(30, 60_000), (req, res, next) => {
+  try {
+    const gate = require('./modules/public-ai-spend-gate');
+    return gate.publicAiSpendGate(req, res, next);
+  } catch (_) { return next(); }
+}, async (req, res) => {
   const { message, history = [], taskType = 'auto' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
   const cleanMessage = sanitizeString(message, 2000);

@@ -66,6 +66,7 @@ check('auto + real key = armed for default allowlist SKUs', () => {
   assert.strictEqual(eternal.isArmed(), true);
   assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), true);
   assert.strictEqual(engine.shouldUseAiForSku('instant-landing-page'), true);
+  assert.strictEqual(engine.shouldUseAiForSku('instant-resume-makeover'), true);
   assert.strictEqual(engine.shouldUseAiForSku('instant-logo-kit'), false);
   assert.strictEqual(engine.shouldUseAiForSku('professional-saas-mvp'), false);
 });

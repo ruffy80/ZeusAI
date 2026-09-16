@@ -763,7 +763,7 @@ done
 
 FINAL_SMOKE_OK=0
 for _ in $(seq 1 "$FINAL_SMOKE_ATTEMPTS"); do
-  if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" QIS_TOLERANT=1 bash scripts/smoke-forward-only.sh; then
+  if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" QIS_TOLERANT=1 MONEY_GATE=1 bash scripts/smoke-forward-only.sh; then
     FINAL_SMOKE_OK=1
     break
   fi
