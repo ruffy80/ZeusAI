@@ -99,6 +99,9 @@ server.listen(0, '127.0.0.1', async () => {
     assert.strictEqual(accountPage.status, 200, `/account status=${accountPage.status}`);
     assert.ok(/cryptoauth|Ed25519|zeus-vault|Web Crypto/.test(accountPage.body),
       '/account page must render new cryptoauth UI markers');
+    assert.ok(/zeus-login-v1|oneshotPayload/.test(accountPage.body),
+      '/account page must include one-shot login signing');
+    assert.ok(mJson.oneShot === true, 'cryptoauth manifest advertises oneShot');
 
     server.close(() => {
       console.log('site-auth-e2e (cryptoauth edition) test passed');
