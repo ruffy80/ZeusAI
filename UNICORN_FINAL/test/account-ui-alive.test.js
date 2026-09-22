@@ -73,6 +73,12 @@ check('runtime: /account HTML boots Create/Sign-in/Recover', () => {
   assert.ok(html.includes('nacl-fast.min.js'), 'local nacl url in page');
   assert.ok(!html.includes('id="acSignupBtn"'), 'retired signup form not in SSR');
   assert.ok(!html.includes('id="acLoginBtn"'), 'retired login form not in SSR');
+  const iife = html.match(/<script[^>]*>\s*\(function\(\)\{[\s\S]*?__zeusCryptoAuthInit[\s\S]*?\}\)\(\);\s*<\/script>/);
+  assert.ok(iife, 'cryptoauth IIFE present');
+  const tmp = path.join(require('os').tmpdir(), 'zeus-account-iife-check.js');
+  fs.writeFileSync(tmp, iife[0].replace(/^<script[^>]*>/, '').replace(/<\/script>$/, ''));
+  require('child_process').execFileSync(process.execPath, ['--check', tmp]);
+  assert.ok(!/v1\n'/.test(fs.readFileSync(tmp, 'utf8')), 'oneshot message keeps \\n inside the JS string');
 });
 
 check('runtime: site serves /account + cryptoauth oneshot + local nacl', () => {

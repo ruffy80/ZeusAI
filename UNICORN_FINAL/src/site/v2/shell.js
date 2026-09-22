@@ -2952,7 +2952,7 @@ function pageAccount(opts) {
   function oneshotPayload(kind, privKey, publicKeyB64) {
     var ts = Date.now();
     var nonce = randomNonce();
-    var msg = 'zeus-' + kind + '-v1\n' + publicKeyB64 + '\n' + ts + '\n' + nonce;
+    var msg = 'zeus-' + kind + '-v1\\n' + publicKeyB64 + '\\n' + ts + '\\n' + nonce;
     return sign(privKey, utf8(msg)).then(function(sig){
       return { publicKey: publicKeyB64, ts: ts, nonce: nonce, signature: b64encode(sig) };
     });
