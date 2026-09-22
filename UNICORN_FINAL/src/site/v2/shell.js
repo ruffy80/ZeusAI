@@ -2587,7 +2587,7 @@ function pageAccount(opts) {
     </div>
 
     <div id="acaPanels" style="margin-top:22px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px">
         <div class="card" style="padding:22px">
           <h3 style="margin:0 0 6px">Create new account</h3>
           <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>
@@ -3054,7 +3054,7 @@ function pageAccount(opts) {
       setHtml($state,
         '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>');
       setHtml($panels,
-        '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
+        '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px\">' +
           '<div class=\"card\" style=\"padding:22px\">' +
             '<h3 style=\"margin:0 0 6px\">Create new account</h3>' +
             '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>' +
