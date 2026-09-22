@@ -2792,10 +2792,17 @@ function pageAccount(opts) {
   }
 
   // ── AES-GCM vault encrypt/decrypt with PBKDF2 ──
-  function deriveAesKey(password, salt) {
+  // v1 = 250k (legacy backups). v2 = 100k for new vaults — still strong for
+  // a local file password, ~2.5× faster on recover / download.
+  function vaultIterations(vault) {
+    if (vault && vault.format === 'zeus-vault-v2') return 100000;
+    return 250000;
+  }
+  function deriveAesKey(password, salt, iterations) {
+    var iters = iterations || 250000;
     return subtle.importKey('raw', utf8(password), 'PBKDF2', false, ['deriveKey']).then(function(km){
       return subtle.deriveKey(
-        { name: 'PBKDF2', salt: salt, iterations: 250000, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: salt, iterations: iters, hash: 'SHA-256' },
         km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
       );
     });
@@ -2803,7 +2810,7 @@ function pageAccount(opts) {
   function encryptVault(privatePkcs8, publicRaw, meta, password) {
     var salt = crypto.getRandomValues(new Uint8Array(16));
     var iv = crypto.getRandomValues(new Uint8Array(12));
-    return deriveAesKey(password, salt).then(function(key){
+    return deriveAesKey(password, salt, 100000).then(function(key){
       var blob = JSON.stringify({
         priv: b64encode(privatePkcs8),
         pub: b64encode(publicRaw),
@@ -2812,8 +2819,8 @@ function pageAccount(opts) {
       });
       return subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, utf8(blob)).then(function(ct){
         return {
-          format: 'zeus-vault-v1',
-          alg: 'AES-GCM-256+PBKDF2-SHA256-250k',
+          format: 'zeus-vault-v2',
+          alg: 'AES-GCM-256+PBKDF2-SHA256-100k',
           salt: b64encode(salt),
           iv: b64encode(iv),
           ciphertext: b64encode(ct),
@@ -2823,11 +2830,11 @@ function pageAccount(opts) {
     });
   }
   function decryptVault(vault, password) {
-    if (!vault || vault.format !== 'zeus-vault-v1') throw new Error('Unknown vault format');
+    if (!vault || (vault.format !== 'zeus-vault-v1' && vault.format !== 'zeus-vault-v2')) throw new Error('Unknown vault format');
     var salt = b64decode(vault.salt);
     var iv = b64decode(vault.iv);
     var ct = b64decode(vault.ciphertext);
-    return deriveAesKey(password, salt).then(function(key){
+    return deriveAesKey(password, salt, vaultIterations(vault)).then(function(key){
       return subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
     }).then(function(plain){
       return JSON.parse(new TextDecoder().decode(plain));
@@ -2835,16 +2842,27 @@ function pageAccount(opts) {
   }
 
   // ── Server interactions ──
-  // Instant Identity Continuum — faster fail + one retry (was 15s × 3).
-  var API_TIMEOUT_MS = 8000;
+  // Instant Identity Continuum — 4s fail + one retry. Clone opts so a spent
+  // AbortController signal is never reused (that used to make retries instant-fail
+  // after the first timeout and feel like a 8–17s hang).
+  var API_TIMEOUT_MS = 4000;
   var API_MAX_ATTEMPTS = 2; // 1 initial + 1 retry
   var IIC_SNAP_KEY = 'zeus_iic_snapshot_v1';
   function _delay(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+  function _cloneOpts(opts) {
+    var out = {};
+    if (!opts) return out;
+    for (var k in opts) {
+      if (Object.prototype.hasOwnProperty.call(opts, k) && k !== 'signal') out[k] = opts[k];
+    }
+    return out;
+  }
   function _fetchOnce(path, opts) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, API_TIMEOUT_MS) : null;
-    opts.signal = ctrl ? ctrl.signal : undefined;
-    return fetch(path, opts).then(function(r){
+    var reqOpts = _cloneOpts(opts);
+    if (ctrl) reqOpts.signal = ctrl.signal;
+    return fetch(path, reqOpts).then(function(r){
       if (tid) clearTimeout(tid);
       return r.json().then(function(j){ return { status: r.status, body: j }; });
     }).catch(function(e){
@@ -2853,14 +2871,13 @@ function pageAccount(opts) {
       return { status: 0, body: { ok: false, error: code } };
     });
   }
-  // Retry only on transient transport failures (status 0). Real HTTP responses
-  // (4xx/5xx) are returned to the caller unchanged so existing handlers keep
-  // their precise error semantics (e.g. challenge_invalid_or_expired retries).
+  // Retry only on transient transport / gateway failures. Real 4xx stay as-is.
   function _fetchRetry(path, opts, attempt) {
     attempt = attempt || 1;
     return _fetchOnce(path, opts).then(function(res){
-      if (res.status === 0 && attempt < API_MAX_ATTEMPTS) {
-        return _delay(600 * Math.pow(2, attempt - 1)).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
+      var transient = res.status === 0 || res.status === 502 || res.status === 503 || res.status === 504;
+      if (transient && attempt < API_MAX_ATTEMPTS) {
+        return _delay(200 * attempt).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
       }
       return res;
     });
@@ -2896,10 +2913,41 @@ function pageAccount(opts) {
       'missing_publicKey': 'Eroare intern\u0103 la generarea cheii \u2014 re\u00eencerc\u0103 / Internal key generation error \u2014 please retry',
       'invalid_publicKey_length': 'Eroare intern\u0103 la generarea cheii \u2014 re\u00eencerc\u0103 / Internal key generation error \u2014 please retry',
       'missing_fields': 'Date lips\u0103 \u2014 re\u00eencerc\u0103 / Missing data \u2014 please retry',
+      'timestamp_invalid_or_expired': 'Sesiunea a expirat \u2014 re\u00eencerc\u0103 / Session expired, retrying\u2026',
+      'nonce_replayed': 'Cerere deja folosit\u0103 \u2014 re\u00eencerc\u0103 / Request already used, retry',
+      'nonce_invalid': 'Eroare intern\u0103 \u2014 re\u00eencerc\u0103 / Internal error, please retry',
       'auth_endpoint_retired': 'Aceast\u0103 metod\u0103 de autentificare nu mai este activ\u0103 / This auth method has been retired',
       'internal': 'Eroare intern\u0103 de server / Internal server error'
     };
     return map[code] || code;
+  }
+
+  function randomNonce() {
+    var b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    return b64encode(b);
+  }
+  function oneshotPayload(kind, privKey, publicKeyB64) {
+    var ts = Date.now();
+    var nonce = randomNonce();
+    var msg = 'zeus-' + kind + '-v1\n' + publicKeyB64 + '\n' + ts + '\n' + nonce;
+    return sign(privKey, utf8(msg)).then(function(sig){
+      return { publicKey: publicKeyB64, ts: ts, nonce: nonce, signature: b64encode(sig) };
+    });
+  }
+  function applySession(userId, token, user) {
+    try { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
+    if (user && user.userId) {
+      renderLoggedIn(user);
+      return Promise.resolve();
+    }
+    return refresh();
+  }
+  function setBtnBusy(btn, busy, busyLabel, idleLabel) {
+    if (!btn) return;
+    btn.disabled = !!busy;
+    if (busy) btn.textContent = busyLabel;
+    else btn.textContent = idleLabel;
   }
 
   // ── State & UI ──
@@ -3069,7 +3117,28 @@ function pageAccount(opts) {
         return api('/api/cryptoauth/register', { publicKey: publicKeyB64, name: name, email: email }).then(function(r){
           if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'register_failed');
           var userId = r.body.userId;
-          // Sign challenge to immediately log in; auto-retry once on expiry.
+          function finishAuth(lr) {
+            return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
+              return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
+                if (lr.body.user) return applySession(userId, lr.body.token, lr.body.user);
+                return refresh();
+              });
+            });
+          }
+          function doOneshotAfterRegister() {
+            statusOk('Signing in\u2026');
+            return oneshotPayload('login', kp.privateKey, publicKeyB64).then(function(payload){
+              payload.userId = userId;
+              return api('/api/cryptoauth/login', payload).then(function(lr){
+                if (lr.status === 400 && lr.body && (lr.body.error === 'missing_fields' || lr.body.error === 'timestamp_invalid_or_expired')) {
+                  return doLoginWithChallenge(r.body.challenge, 1);
+                }
+                if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_after_register_failed');
+                return finishAuth(lr);
+              });
+            });
+          }
+          // Challenge fallback for older servers / oneshot rejection.
           function doLoginWithChallenge(challenge, attempt) {
             return sign(kp.privateKey, utf8(challenge)).then(function(sig){
               return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
@@ -3081,15 +3150,11 @@ function pageAccount(opts) {
                   });
                 }
                 if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_after_register_failed');
-                return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
-                  return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
-                    return refresh();
-                  });
-                });
+                return finishAuth(lr);
               });
             });
           }
-          return doLoginWithChallenge(r.body.challenge, 1);
+          return doOneshotAfterRegister();
         });
       });
     }).catch(function(e){
@@ -3129,12 +3194,14 @@ function pageAccount(opts) {
   }
 
   function onSignin() {
-    statusOk('Reading local key\u2026');
+    var btn = document.getElementById('acaSignin');
+    setBtnBusy(btn, true, 'Signing in\u2026', 'Sign in with this device \u2192');
+    statusOk('Signing in\u2026');
     dbGet(KEY_ID).then(function(rec){
       if (!rec || !rec.priv || !rec.pub) {
+        setBtnBusy(btn, false, 'Signing in\u2026', 'Sign in with this device \u2192');
         return statusError('No local key on this device. Use \"Create new account\" or \"Import vault\".');
       }
-      // Auto-retry once when challenge expired (e.g. after server restart).
       function doChallengeThenLogin(attempt) {
         return api('/api/cryptoauth/challenge', { publicKey: rec.pub }).then(function(r){
           if (r.status === 404) return api('/api/cryptoauth/register', { publicKey: rec.pub });
@@ -3150,23 +3217,46 @@ function pageAccount(opts) {
                 return doChallengeThenLogin(attempt + 1);
               }
               if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_failed');
-              try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
-              return refresh();
+              return applySession(userId, lr.body.token, lr.body.user);
             });
           });
         });
       }
-      return doChallengeThenLogin(1);
-    }).catch(function(e){ statusError('Sign in failed: ' + friendlyError(e.message || e)); });
+      function doOneshotLogin(attempt) {
+        return oneshotPayload('login', rec.priv, rec.pub).then(function(payload){
+          return api('/api/cryptoauth/login', payload).then(function(lr){
+            if (lr.status === 404) {
+              return api('/api/cryptoauth/register', { publicKey: rec.pub }).then(function(rr){
+                if (rr.status !== 200 || !rr.body || !rr.body.ok) throw new Error((rr.body && rr.body.error) || 'login_failed');
+                if (attempt < 2) return doOneshotLogin(attempt + 1);
+                return doChallengeThenLogin(1);
+              });
+            }
+            if (lr.status === 400 && lr.body && (lr.body.error === 'missing_fields' || lr.body.error === 'timestamp_invalid_or_expired' || lr.body.error === 'nonce_replayed') && attempt < 2) {
+              return doChallengeThenLogin(1);
+            }
+            if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_failed');
+            return applySession(lr.body.userId, lr.body.token, lr.body.user);
+          });
+        });
+      }
+      return doOneshotLogin(1);
+    }).catch(function(e){
+      statusError('Sign in failed: ' + friendlyError(e.message || e));
+      setBtnBusy(btn, false, 'Signing in\u2026', 'Sign in with this device \u2192');
+    });
   }
 
   function onImport() {
     var f = (document.getElementById('acaVaultFile') || {}).files;
     if (!f || !f[0]) return statusError('Choose a .zeus-vault file first.');
     var file = f[0];
+    var btn = document.getElementById('acaImport');
     showDialog('Decrypt vault', '<p>Enter the password you set when you downloaded this vault.</p><label style=\"display:block;margin-top:10px;font-size:13px;color:#cdd5e6\">Vault password</label><input id=\"acaImportPw\" type=\"password\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-top:6px\">', 'Decrypt').then(function(ok){
       if (!ok) return;
       var pw = (document.getElementById('acaImportPw') || {}).value || '';
+      setBtnBusy(btn, true, 'Importing\u2026', 'Import & sign in \u2192');
+      statusOk('Decrypting backup\u2026');
       var reader = new FileReader();
       reader.onload = function(){
         try {
@@ -3175,7 +3265,6 @@ function pageAccount(opts) {
             var pkcs8 = b64decode(unpacked.priv);
             var pubB64 = unpacked.pub;
             return importPrivate(pkcs8.buffer).then(function(privKey){
-              // Auto-retry once on challenge_invalid_or_expired (server restart race).
               function doRegisterRecover(attempt) {
                 statusOk(attempt > 1 ? 'Retrying recovery\u2026' : 'Recovering account\u2026');
                 return api('/api/cryptoauth/register', { publicKey: pubB64 }).then(function(r){
@@ -3188,24 +3277,47 @@ function pageAccount(opts) {
                         return doRegisterRecover(attempt + 1);
                       }
                       if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'recover_failed');
-                      return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(refresh);
+                      return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(function(){
+                        return applySession(userId, lr.body.token, lr.body.user);
+                      });
                     });
                   });
                 });
               }
-              return doRegisterRecover(1);
+              function doOneshotRecover() {
+                statusOk('Signing in\u2026');
+                return oneshotPayload('recover', privKey, pubB64).then(function(payload){
+                  return api('/api/cryptoauth/recover', payload).then(function(lr){
+                    if (lr.status === 400 && lr.body && (lr.body.error === 'missing_fields' || lr.body.error === 'timestamp_invalid_or_expired')) {
+                      return doRegisterRecover(1);
+                    }
+                    if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'recover_failed');
+                    return persistKeyAndAuth(privKey, pubB64, lr.body.userId, lr.body.token).then(function(){
+                      return applySession(lr.body.userId, lr.body.token, lr.body.user);
+                    });
+                  });
+                });
+              }
+              return doOneshotRecover();
             });
           }).catch(function(e){
+            setBtnBusy(btn, false, 'Importing\u2026', 'Import & sign in \u2192');
             var code = e && e.message;
-            if (code === 'recover_register_failed' || code === 'recover_failed' || code === 'too_many_requests') {
+            if (code === 'recover_register_failed' || code === 'recover_failed' || code === 'too_many_requests' || code === 'nonce_replayed') {
               statusError(friendlyError(code));
             } else {
               statusError('Decryption failed. Wrong password or corrupted vault.');
             }
           });
-        } catch (e) { statusError('Could not parse vault file.'); }
+        } catch (e) {
+          setBtnBusy(btn, false, 'Importing\u2026', 'Import & sign in \u2192');
+          statusError('Could not parse vault file.');
+        }
       };
-      reader.onerror = function(){ statusError('Could not read the vault file. Try selecting it again.'); };
+      reader.onerror = function(){
+        setBtnBusy(btn, false, 'Importing\u2026', 'Import & sign in \u2192');
+        statusError('Could not read the vault file. Try selecting it again.');
+      };
       reader.readAsText(file);
     });
   }

@@ -80,10 +80,13 @@ const SECRET = process.env.CRYPTOAUTH_SECRET
   || crypto.createHash('sha256').update('zeus-cryptoauth-' + (process.env.ZEUS_BUILD_SHA || 'dev')).digest('hex');
 const TOKEN_TTL_SECONDS = 30 * 24 * 3600; // 30 days
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;   // 5 minutes (restart-tolerant window)
+const ONESHOT_TTL_MS = 90 * 1000;         // signed ts+nonce login/recover window
+const ONESHOT_FUTURE_SKEW_MS = 30 * 1000;
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data', 'cryptoauth');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHALLENGES_FILE = path.join(DATA_DIR, 'challenges.json');
+const NONCES_FILE = path.join(DATA_DIR, 'nonces.json');
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { console.error('[cryptoauth] mkdir failed — writes will fail:', e.message); }
 
 // ──────────────────────── persistence ────────────────────────
@@ -109,7 +112,7 @@ function _loadUsers() {
 function _saveUsers(users) {
   try {
     const tmp = USERS_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(users, null, 2));
+    fs.writeFileSync(tmp, JSON.stringify(users));
     fs.renameSync(tmp, USERS_FILE);
     try {
       const st = fs.statSync(USERS_FILE);
@@ -143,6 +146,97 @@ function _userIdFromPublicKey(publicKeyB64) {
 
 function _newChallenge() {
   return crypto.randomBytes(32).toString('base64');
+}
+
+function _oneshotMessage(kind, identity, ts, nonce) {
+  return 'zeus-' + kind + '-v1\n' + String(identity) + '\n' + String(ts) + '\n' + String(nonce);
+}
+
+function _validOneshotTs(ts) {
+  const n = typeof ts === 'number' ? ts : Number(ts);
+  if (!Number.isFinite(n)) return false;
+  const now = Date.now();
+  if (n > now + ONESHOT_FUTURE_SKEW_MS) return false;
+  if ((now - n) > ONESHOT_TTL_MS) return false;
+  return true;
+}
+
+function _publicUser(user) {
+  if (!user) return null;
+  return {
+    userId: user.id,
+    name: user.name || '',
+    email: user.email || '',
+    createdAt: user.createdAt,
+    publicKey: user.publicKey
+  };
+}
+
+function _authOk(userId, extra) {
+  const token = _signToken(userId);
+  if (!token) return null;
+  const users = _loadUsers();
+  return Object.assign({
+    ok: true,
+    token,
+    expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000,
+    userId,
+    user: _publicUser(users[userId]),
+    mode: extra && extra.mode ? extra.mode : 'challenge'
+  }, extra || {});
+}
+
+// Used-nonce store for one-shot login/recover (replay-safe, cross-process).
+let _nonceCache = null;
+function _loadNonces() {
+  try {
+    if (!fs.existsSync(NONCES_FILE)) {
+      _nonceCache = { mtimeMs: 0, data: {} };
+      return _nonceCache.data;
+    }
+    const st = fs.statSync(NONCES_FILE);
+    if (_nonceCache && _nonceCache.mtimeMs === st.mtimeMs && _nonceCache.data) return _nonceCache.data;
+    const data = JSON.parse(fs.readFileSync(NONCES_FILE, 'utf8') || '{}');
+    _nonceCache = { mtimeMs: st.mtimeMs, data };
+    return data;
+  } catch (e) { console.error('[cryptoauth] _loadNonces parse error:', e.message); return (_nonceCache && _nonceCache.data) || {}; }
+}
+function _saveNonces(map) {
+  try {
+    const now = Date.now();
+    for (const k of Object.keys(map)) {
+      if (!map[k] || map[k] < now) delete map[k];
+    }
+    const tmp = NONCES_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(map));
+    fs.renameSync(tmp, NONCES_FILE);
+    try {
+      const st = fs.statSync(NONCES_FILE);
+      _nonceCache = { mtimeMs: st.mtimeMs, data: map };
+    } catch (_) { _nonceCache = { mtimeMs: Date.now(), data: map }; }
+    return true;
+  } catch (e) { console.error('[cryptoauth] _saveNonces failed:', e.message); return false; }
+}
+function _consumeNonce(nonce) {
+  if (typeof nonce !== 'string' || nonce.length < 16 || nonce.length > 128) return false;
+  const now = Date.now();
+  const map = _loadNonces();
+  if (map[nonce] && map[nonce] > now) return false;
+  map[nonce] = now + ONESHOT_TTL_MS;
+  _saveNonces(map);
+  return true;
+}
+
+function _parseOneshot(body) {
+  if (!body || typeof body.signature !== 'string') return { mode: 'challenge' };
+  const hasTs = typeof body.ts === 'number' || typeof body.ts === 'string';
+  const hasNonce = typeof body.nonce === 'string';
+  const hasChallenge = typeof body.challenge === 'string' && body.challenge.length > 0;
+  if (hasChallenge) return { mode: 'challenge' };
+  if (!hasTs || !hasNonce) return { mode: 'challenge' };
+  if (!_validOneshotTs(body.ts)) return { mode: 'oneshot', ok: false, status: 400, error: 'timestamp_invalid_or_expired' };
+  if (body.nonce.length < 16 || body.nonce.length > 128) return { mode: 'oneshot', ok: false, status: 400, error: 'nonce_invalid' };
+  return { mode: 'oneshot', ok: true, ts: body.ts, nonce: body.nonce };
 }
 
 // ── Cross-process durable challenge store ─────────────────────
@@ -338,19 +432,43 @@ async function _challenge(req, res) {
 async function _login(req, res) {
   if (!_rateCheck(req, 'login')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
   const body = await _readBody(req);
-  if (!body || typeof body.userId !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
+  if (!body) return _sendJson(res, 400, { ok: false, error: 'invalid_body' });
+  const users = _loadUsers();
+
+  // One-shot: client signs zeus-login-v1\n<publicKey>\n<ts>\n<nonce> — no challenge hop.
+  const oneshot = _parseOneshot(body);
+  if (oneshot.mode === 'oneshot') {
+    if (!oneshot.ok) return _sendJson(res, oneshot.status, { ok: false, error: oneshot.error });
+    let pub = typeof body.publicKey === 'string' ? body.publicKey : '';
+    let userId = typeof body.userId === 'string' ? body.userId : '';
+    if (!pub && userId && users[userId]) pub = users[userId].publicKey;
+    if (!userId && pub) userId = _userIdFromPublicKey(pub);
+    if (!userId || !users[userId]) return _sendJson(res, 404, { ok: false, error: 'user_not_found' });
+    const user = users[userId];
+    if (pub && user.publicKey !== pub) return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
+    const identity = pub || user.publicKey;
+    const msg = _oneshotMessage('login', identity, oneshot.ts, oneshot.nonce);
+    if (!_verifySignature(user.publicKey, msg, body.signature)) {
+      return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
+    }
+    if (!_consumeNonce(oneshot.nonce)) return _sendJson(res, 400, { ok: false, error: 'nonce_replayed' });
+    const payload = _authOk(userId, { mode: 'oneshot' });
+    if (!payload) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
+    return _sendJson(res, 200, payload);
+  }
+
+  if (typeof body.userId !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
     return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
   }
-  const users = _loadUsers();
   const user = users[body.userId];
   if (!user) return _sendJson(res, 404, { ok: false, error: 'user_not_found' });
   const ch = _takeChallenge(body.challenge);
   if (!ch || ch.userId !== body.userId) return _sendJson(res, 400, { ok: false, error: 'challenge_invalid_or_expired' });
   const ok = _verifySignature(user.publicKey, body.challenge, body.signature);
   if (!ok) return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
-  const token = _signToken(body.userId);
-  if (!token) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
-  return _sendJson(res, 200, { ok: true, token, expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000, userId: body.userId });
+  const payload = _authOk(body.userId, { mode: 'challenge' });
+  if (!payload) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
+  return _sendJson(res, 200, payload);
 }
 
 async function _logout(req, res) {
@@ -359,22 +477,7 @@ async function _logout(req, res) {
   return _sendJson(res, 200, { ok: true });
 }
 
-async function _recover(req, res) {
-  if (!_rateCheck(req, 'recover')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
-  // Recovery is conceptually identical to register: the imported vault
-  // yields the original keypair, the client signs a fresh challenge.
-  // Server checks that the publicKey matches an existing user and that
-  // the signature verifies. If user does not exist (lost server), we
-  // re-create the entry (same userId, since it's content-derived).
-  const body = await _readBody(req);
-  if (!body || typeof body.publicKey !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
-    return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
-  }
-  const userId = _userIdFromPublicKey(body.publicKey);
-  const ch = _takeChallenge(body.challenge);
-  if (!ch || ch.userId !== userId) return _sendJson(res, 400, { ok: false, error: 'challenge_invalid_or_expired' });
-  const ok = _verifySignature(body.publicKey, body.challenge, body.signature);
-  if (!ok) return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
+function _ensureRecoveredUser(body, userId) {
   const users = _loadUsers();
   if (!users[userId]) {
     users[userId] = {
@@ -387,9 +490,47 @@ async function _recover(req, res) {
     };
     _saveUsers(users);
   }
-  const token = _signToken(userId);
-  if (!token) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
-  return _sendJson(res, 200, { ok: true, userId, token, expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000 });
+}
+
+async function _recover(req, res) {
+  if (!_rateCheck(req, 'recover')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
+  // Recovery proves possession of the restored private key. One-shot path
+  // signs zeus-recover-v1\n<publicKey>\n<ts>\n<nonce> — no register+challenge hop.
+  // Challenge path kept for older clients. Missing user is recreated
+  // (userId is content-derived from the public key).
+  const body = await _readBody(req);
+  if (!body) return _sendJson(res, 400, { ok: false, error: 'invalid_body' });
+
+  const oneshot = _parseOneshot(body);
+  if (oneshot.mode === 'oneshot') {
+    if (!oneshot.ok) return _sendJson(res, oneshot.status, { ok: false, error: oneshot.error });
+    if (typeof body.publicKey !== 'string' || typeof body.signature !== 'string') {
+      return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
+    }
+    const userId = _userIdFromPublicKey(body.publicKey);
+    const msg = _oneshotMessage('recover', body.publicKey, oneshot.ts, oneshot.nonce);
+    if (!_verifySignature(body.publicKey, msg, body.signature)) {
+      return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
+    }
+    if (!_consumeNonce(oneshot.nonce)) return _sendJson(res, 400, { ok: false, error: 'nonce_replayed' });
+    _ensureRecoveredUser(body, userId);
+    const payload = _authOk(userId, { mode: 'oneshot' });
+    if (!payload) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
+    return _sendJson(res, 200, payload);
+  }
+
+  if (typeof body.publicKey !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
+    return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
+  }
+  const userId = _userIdFromPublicKey(body.publicKey);
+  const ch = _takeChallenge(body.challenge);
+  if (!ch || ch.userId !== userId) return _sendJson(res, 400, { ok: false, error: 'challenge_invalid_or_expired' });
+  const ok = _verifySignature(body.publicKey, body.challenge, body.signature);
+  if (!ok) return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
+  _ensureRecoveredUser(body, userId);
+  const payload = _authOk(userId, { mode: 'challenge' });
+  if (!payload) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
+  return _sendJson(res, 200, payload);
 }
 
 function _me(req, res) {
@@ -417,6 +558,9 @@ function _manifest(_req, res) {
     tokenAlgorithm: 'HS256',
     tokenTtlSeconds: TOKEN_TTL_SECONDS,
     challengeTtlMs: CHALLENGE_TTL_MS,
+    oneShot: true,
+    oneShotTtlMs: ONESHOT_TTL_MS,
+    loginModes: ['oneshot-v1', 'challenge'],
     endpoints: {
       register:  'POST /api/cryptoauth/register',
       challenge: 'POST /api/cryptoauth/challenge',
@@ -466,10 +610,11 @@ async function handle(req, res) {
 module.exports = {
   handle,
   _internals: {
-    PACK_NAME, PACK_VERSION, CHALLENGE_TTL_MS,
+    PACK_NAME, PACK_VERSION, CHALLENGE_TTL_MS, ONESHOT_TTL_MS,
     _verifySignature, _userIdFromPublicKey, _signToken, _verifyToken,
     _newChallenge, _putChallenge, _takeChallenge,
-    _loadUsers, _saveUsers, USERS_FILE, CHALLENGES_FILE,
+    _oneshotMessage, _validOneshotTs, _consumeNonce, _parseOneshot,
+    _loadUsers, _saveUsers, USERS_FILE, CHALLENGES_FILE, NONCES_FILE,
     _rateCheck, _getIp, _RL_LIMITS, _RL_WINDOW_MS
   }
 };

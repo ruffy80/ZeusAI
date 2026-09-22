@@ -7,6 +7,7 @@ const m = require('../backend/modules/cryptoauth');
 // Ensure data dir exists & is clean for the test.
 const usersFile = m._internals.USERS_FILE;
 try { if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile); } catch (_) {}
+try { if (m._internals.NONCES_FILE && fs.existsSync(m._internals.NONCES_FILE)) fs.unlinkSync(m._internals.NONCES_FILE); } catch (_) {}
 
 // ── Static wiring assertions ──
 const repoRoot = path.join(__dirname, '..');
@@ -36,6 +37,14 @@ assert(shellJs.includes('doChallengeThenLogin'), 'shell.js onSignin auto-retries
 assert(shellJs.includes('doRegisterRecover'), 'shell.js onImport auto-retries on challenge expiry');
 assert(shellJs.includes('doLoginWithChallenge'), 'shell.js onCreate auto-retries on challenge expiry');
 assert(shellJs.includes('AbortController'), 'shell.js api() uses AbortController for timeout');
+assert(shellJs.includes('oneshotPayload'), 'shell.js uses one-shot signed login/recover');
+assert(shellJs.includes("zeus-' + kind + '-v1"), 'shell.js signs zeus-{login|recover}-v1 messages');
+assert(shellJs.includes('doOneshotLogin'), 'shell.js onSignin prefers one-shot login');
+assert(shellJs.includes('doOneshotRecover'), 'shell.js onImport prefers one-shot recover');
+assert(/API_TIMEOUT_MS\s*=\s*4000/.test(shellJs), 'shell.js API timeout is 4s (instant fail, not 8–15s hang)');
+assert(shellJs.includes('_cloneOpts'), 'shell.js clones fetch opts so AbortController is never reused');
+assert(typeof m._internals._oneshotMessage === 'function', 'cryptoauth exports _oneshotMessage');
+assert(m._internals.ONESHOT_TTL_MS >= 60 * 1000, 'one-shot TTL must be >= 60s');
 // nginx routing contract
 const nginx = fs.readFileSync(path.join(repoRoot, 'scripts', 'nginx-unicorn.conf'), 'utf8');
 assert(/location\s+\^~\s+\/api\/cryptoauth\//.test(nginx), 'nginx pins /api/cryptoauth/ to explicit upstream');
@@ -82,7 +91,7 @@ async function call(method, url, body, headers) {
 
   // 1. manifest (GET, no auth)
   let r = await call('GET', '/api/cryptoauth/manifest');
-  ok(r.handled && r.status === 200 && r.body && r.body.pack === 'zeus-cryptoauth' && r.body.algorithm === 'Ed25519', 'GET /manifest → 200 + pack/algo');
+  ok(r.handled && r.status === 200 && r.body && r.body.pack === 'zeus-cryptoauth' && r.body.algorithm === 'Ed25519' && r.body.oneShot === true, 'GET /manifest → 200 + pack/algo + oneShot');
 
   // 2. Generate Ed25519 keypair (Node side, mimicking browser).
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -139,6 +148,43 @@ async function call(method, url, body, headers) {
   // 10b. Recover challenge is single-use; replay must fail.
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
   ok(r.handled && r.status === 400 && !r.body.ok, 'POST /recover replay challenge → 400');
+
+  // 10c. One-shot login (ts + nonce + signature over publicKey) — no challenge hop.
+  {
+    const ts = Date.now();
+    const nonce = crypto.randomBytes(16).toString('base64');
+    const msg = m._internals._oneshotMessage('login', pubB64, ts, nonce);
+    const sigOs = crypto.sign(null, Buffer.from(msg, 'utf8'), privateKey);
+    r = await call('POST', '/api/cryptoauth/login', { publicKey: pubB64, ts, nonce, signature: sigOs.toString('base64') });
+    ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.token && r.body.user && r.body.user.userId === userId && r.body.mode === 'oneshot',
+      'POST /login oneshot → 200 + token + user profile');
+
+    // Replay same nonce must fail.
+    r = await call('POST', '/api/cryptoauth/login', { publicKey: pubB64, ts, nonce, signature: sigOs.toString('base64') });
+    ok(r.handled && r.status === 400 && r.body && r.body.error === 'nonce_replayed', 'POST /login oneshot replay nonce → 400');
+
+    // Stale timestamp must fail.
+    const staleTs = Date.now() - (m._internals.ONESHOT_TTL_MS + 5000);
+    const staleNonce = crypto.randomBytes(16).toString('base64');
+    const staleMsg = m._internals._oneshotMessage('login', pubB64, staleTs, staleNonce);
+    const staleSig = crypto.sign(null, Buffer.from(staleMsg, 'utf8'), privateKey);
+    r = await call('POST', '/api/cryptoauth/login', { publicKey: pubB64, ts: staleTs, nonce: staleNonce, signature: staleSig.toString('base64') });
+    ok(r.handled && r.status === 400 && r.body && r.body.error === 'timestamp_invalid_or_expired', 'POST /login oneshot stale ts → 400');
+  }
+
+  // 10d. One-shot recover (no register+challenge hop).
+  {
+    const ts = Date.now();
+    const nonce = crypto.randomBytes(16).toString('base64');
+    const msg = m._internals._oneshotMessage('recover', pubB64, ts, nonce);
+    const sigOs = crypto.sign(null, Buffer.from(msg, 'utf8'), privateKey);
+    r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, ts, nonce, signature: sigOs.toString('base64') });
+    ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.token && r.body.user && r.body.user.userId === userId && r.body.mode === 'oneshot',
+      'POST /recover oneshot → 200 + token + user profile');
+
+    r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, ts, nonce, signature: sigOs.toString('base64') });
+    ok(r.handled && r.status === 400 && r.body && r.body.error === 'nonce_replayed', 'POST /recover oneshot replay nonce → 400');
+  }
 
   // 11. Logout (stateless)
   r = await call('POST', '/api/cryptoauth/logout', { token });
@@ -226,5 +272,6 @@ async function call(method, url, body, headers) {
   // Cleanup test artifact
   try { if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile); } catch (_) {}
   try { if (fs.existsSync(m._internals.CHALLENGES_FILE)) fs.unlinkSync(m._internals.CHALLENGES_FILE); } catch (_) {}
+  try { if (m._internals.NONCES_FILE && fs.existsSync(m._internals.NONCES_FILE)) fs.unlinkSync(m._internals.NONCES_FILE); } catch (_) {}
   process.exit(fail === 0 && staticFail === 0 ? 0 : 1);
 })();
