@@ -39,7 +39,7 @@ check('SSR account paints Create/Sign-in (no Loading… shell)', () => {
 
 check('cryptoauth client uses continuum snapshot + fast timeouts', () => {
   assert.ok(shell.includes('zeus_iic_snapshot_v1'), 'local snapshot key');
-  assert.ok(shell.includes('API_TIMEOUT_MS = 8000') || /API_TIMEOUT_MS\s*=\s*8000/.test(shell), '8s timeout');
+  assert.ok(/API_TIMEOUT_MS\s*=\s*(4000|8000)/.test(shell), '4s or 8s timeout');
   assert.ok(shell.includes('API_MAX_ATTEMPTS = 2') || /API_MAX_ATTEMPTS\s*=\s*2/.test(shell), '2 attempts');
   assert.ok(shell.includes('__zeusCryptoAuthRefresh'), 'SPA re-entry refresh');
   assert.ok(shell.includes('wireLoggedOutOnce'), 'wire SSR controls');
@@ -49,10 +49,12 @@ check('SPA soft-revalidate skips /account', () => {
   assert.ok(/softRevalidateSpa[\s\S]{0,400}\/account/.test(client), 'account excluded from soft revalidate');
 });
 
-check('hydrateAccount is non-blocking + paints me snapshot', () => {
+check('hydrateAccount is non-blocking + never paints retired password UI on /account', () => {
   assert.ok(client.includes('zeus_iic_me_v1'), 'commerce me snapshot');
   assert.ok(/hydrateAccount\(\)\.catch/.test(client) || !/await hydrateAccount\(\)/.test(client), 'hydratePage does not await account');
-  assert.ok(client.includes('id="acSignupBtn"'), 'legacy signup panel restored');
+  assert.ok(client.includes('isIdentityRoute'), 'identity routes skip SPA');
+  assert.ok(client.includes('Password login has been retired'), 'retired password panel replaced');
+  assert.ok(!/function renderAccountAuth[\s\S]{0,800}id="acSignupBtn"/.test(client), 'live renderAccountAuth does not paint signup password form');
 });
 
 check('IIC module + me memo + status route', () => {

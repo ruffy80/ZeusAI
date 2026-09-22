@@ -2593,17 +2593,17 @@ function pageAccount(opts) {
           <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>
           <input id="acaName" placeholder="Display name (optional)" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px">
           <input id="acaEmail" type="email" placeholder="Email (optional, for hint only)" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px">
-          <button id="acaCreate" class="btn btn-primary" style="width:100%;padding:12px">Create account \u2192</button>
+          <button type="button" id="acaCreate" class="btn btn-primary" style="width:100%;padding:12px">Create account \u2192</button>
         </div>
         <div class="card" style="padding:22px">
           <h3 style="margin:0 0 6px">Sign in (this device)</h3>
           <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>
-          <button id="acaSignin" class="btn btn-primary" style="width:100%;padding:12px">Sign in with this device \u2192</button>
+          <button type="button" id="acaSignin" class="btn btn-primary" style="width:100%;padding:12px">Sign in with this device \u2192</button>
           <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0">
           <h3 style="margin:0 0 6px;font-size:15px">Recover account \u00b7 Import vault</h3>
           <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Restore access from the encrypted <code style="color:#7cffb8">.zeus-vault</code> backup file you downloaded at account creation.</p>
           <input id="acaVaultFile" type="file" accept=".zeus-vault,.json,application/json" style="width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px">
-          <button id="acaImport" class="btn btn-ghost" style="width:100%;padding:10px">Import &amp; sign in \u2192</button>
+          <button type="button" id="acaImport" class="btn btn-ghost" style="width:100%;padding:10px">Import &amp; sign in \u2192</button>
         </div>
       </div>
     </div>
@@ -2686,15 +2686,37 @@ function pageAccount(opts) {
   function loadNacl() {
     if (window.nacl) return Promise.resolve(window.nacl);
     if (naclReady) return naclReady;
+    var localSrc = '${assetPath('/assets/vendor/nacl-fast.min.js')}';
+    var cdnSrc = 'https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js';
+    function setScriptSrc(el, url) {
+      try {
+        var pol = (window.trustedTypes && (window.trustedTypes.defaultPolicy || ttPolicy)) || null;
+        el.src = (pol && typeof pol.createScriptURL === 'function') ? pol.createScriptURL(url) : url;
+      } catch (_) {
+        try { el.setAttribute('src', url); } catch (__) {}
+      }
+    }
     naclReady = new Promise(function(resolve, reject){
       var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js';
       s.async = true;
+      s.setAttribute('data-zeus-nacl', '1');
+      setScriptSrc(s, localSrc);
       s.onload = function(){
         if (window.nacl) resolve(window.nacl);
         else reject(new Error('nacl_unavailable'));
       };
-      s.onerror = function(){ reject(new Error('nacl_load_failed')); };
+      s.onerror = function(){
+        var f = document.createElement('script');
+        f.async = true;
+        f.setAttribute('data-cdn', '1');
+        setScriptSrc(f, cdnSrc);
+        f.onload = function(){
+          if (window.nacl) resolve(window.nacl);
+          else reject(new Error('nacl_unavailable'));
+        };
+        f.onerror = function(){ reject(new Error('nacl_load_failed')); };
+        document.head.appendChild(f);
+      };
       document.head.appendChild(s);
     });
     return naclReady;
@@ -2930,7 +2952,7 @@ function pageAccount(opts) {
   function oneshotPayload(kind, privKey, publicKeyB64) {
     var ts = Date.now();
     var nonce = randomNonce();
-    var msg = 'zeus-' + kind + '-v1\n' + publicKeyB64 + '\n' + ts + '\n' + nonce;
+    var msg = 'zeus-' + kind + '-v1\\n' + publicKeyB64 + '\\n' + ts + '\\n' + nonce;
     return sign(privKey, utf8(msg)).then(function(sig){
       return { publicKey: publicKeyB64, ts: ts, nonce: nonce, signature: b64encode(sig) };
     });
@@ -3038,17 +3060,17 @@ function pageAccount(opts) {
             '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>' +
             '<input id=\"acaName\" placeholder=\"Display name (optional)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px\">' +
             '<input id=\"acaEmail\" type=\"email\" placeholder=\"Email (optional, for hint only)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px\">' +
-            '<button id=\"acaCreate\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Create account \u2192</button>' +
+            '<button type=\"button\" id=\"acaCreate\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Create account \u2192</button>' +
           '</div>' +
           '<div class=\"card\" style=\"padding:22px\">' +
             '<h3 style=\"margin:0 0 6px\">Sign in (this device)</h3>' +
             '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>' +
-            '<button id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
+            '<button type=\"button\" id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
             '<hr style=\"border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0\">' +
             '<h3 style=\"margin:0 0 6px;font-size:15px\">Recover account · Import vault</h3>' +
             '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore access from the encrypted <code style=\"color:#7cffb8\">.zeus-vault</code> backup file you downloaded at account creation.</p>' +
             '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
-            '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
+            '<button type=\"button\" id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
           '</div>' +
         '</div>');
     } else if ($state && !$state.getAttribute('data-iic-wired')) {
@@ -3059,21 +3081,14 @@ function pageAccount(opts) {
   }
 
   function wireLoggedOutOnce() {
+    // Clicks are handled by the document delegate so SPA/DOM swaps stay live
+    // and we never double-fire create/login/recover.
     var createBtn = document.getElementById('acaCreate');
     var signinBtn = document.getElementById('acaSignin');
     var importBtn = document.getElementById('acaImport');
-    if (createBtn && createBtn.dataset.iicWired !== '1') {
-      createBtn.dataset.iicWired = '1';
-      createBtn.addEventListener('click', onCreate);
-    }
-    if (signinBtn && signinBtn.dataset.iicWired !== '1') {
-      signinBtn.dataset.iicWired = '1';
-      signinBtn.addEventListener('click', onSignin);
-    }
-    if (importBtn && importBtn.dataset.iicWired !== '1') {
-      importBtn.dataset.iicWired = '1';
-      importBtn.addEventListener('click', onImport);
-    }
+    if (createBtn) createBtn.dataset.iicWired = '1';
+    if (signinBtn) signinBtn.dataset.iicWired = '1';
+    if (importBtn) importBtn.dataset.iicWired = '1';
     if ($state) $state.setAttribute('data-iic-wired', '1');
   }
 
@@ -3096,12 +3111,27 @@ function pageAccount(opts) {
     try { localStorage.removeItem(IIC_SNAP_KEY); } catch (_) {}
   }
 
-  function persistKeyAndAuth(privateKey, publicKeyB64, userId, token) {
-    return Promise.all([
-      dbPut(KEY_ID, { priv: privateKey, pub: publicKeyB64 })
-    ]).then(function(){
+  function persistKeyAndAuth(privateKey, publicKeyB64, userId, token, privatePkcs8Opt) {
+    var rec = { pub: publicKeyB64, userId: userId || null };
+    if (privateKey && privateKey.__naclSk) {
+      rec.nacl = true;
+      rec.privB64 = b64encode(privateKey.__naclSk);
+    } else {
+      rec.nacl = false;
+      rec.priv = privateKey;
+      if (privatePkcs8Opt) rec.privPkcs8B64 = b64encode(privatePkcs8Opt);
+    }
+    return dbPut(KEY_ID, rec).then(function(){
       try { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USERID_KEY, userId); } catch(_) {}
     });
+  }
+  function resolvePriv(rec) {
+    if (!rec) return Promise.reject(new Error('no_local_key'));
+    if (rec.priv && rec.priv.__naclSk) return Promise.resolve(rec.priv);
+    if (rec.nacl && rec.privB64) return Promise.resolve({ __naclSk: b64decode(rec.privB64) });
+    if (rec.priv) return Promise.resolve(rec.priv);
+    if (rec.privPkcs8B64) return importPrivate(b64decode(rec.privPkcs8B64).buffer);
+    return Promise.reject(new Error('no_local_key'));
   }
 
   function onCreate() {
@@ -3118,7 +3148,7 @@ function pageAccount(opts) {
           if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'register_failed');
           var userId = r.body.userId;
           function finishAuth(lr) {
-            return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
+            return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token, privatePkcs8).then(function(){
               return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
                 if (lr.body.user) return applySession(userId, lr.body.token, lr.body.user);
                 return refresh();
@@ -3198,10 +3228,12 @@ function pageAccount(opts) {
     setBtnBusy(btn, true, 'Signing in\u2026', 'Sign in with this device \u2192');
     statusOk('Signing in\u2026');
     dbGet(KEY_ID).then(function(rec){
-      if (!rec || !rec.priv || !rec.pub) {
+      if (!rec || !rec.pub || (!rec.priv && !rec.privB64 && !rec.privPkcs8B64)) {
         setBtnBusy(btn, false, 'Signing in\u2026', 'Sign in with this device \u2192');
         return statusError('No local key on this device. Use \"Create new account\" or \"Import vault\".');
       }
+      return resolvePriv(rec).then(function(priv){
+        rec.priv = priv;
       function doChallengeThenLogin(attempt) {
         return api('/api/cryptoauth/challenge', { publicKey: rec.pub }).then(function(r){
           if (r.status === 404) return api('/api/cryptoauth/register', { publicKey: rec.pub });
@@ -3241,6 +3273,7 @@ function pageAccount(opts) {
         });
       }
       return doOneshotLogin(1);
+      });
     }).catch(function(e){
       statusError('Sign in failed: ' + friendlyError(e.message || e));
       setBtnBusy(btn, false, 'Signing in\u2026', 'Sign in with this device \u2192');
@@ -3277,7 +3310,7 @@ function pageAccount(opts) {
                         return doRegisterRecover(attempt + 1);
                       }
                       if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'recover_failed');
-                      return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(function(){
+                      return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token, pkcs8.buffer).then(function(){
                         return applySession(userId, lr.body.token, lr.body.user);
                       });
                     });
@@ -3292,7 +3325,7 @@ function pageAccount(opts) {
                       return doRegisterRecover(1);
                     }
                     if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'recover_failed');
-                    return persistKeyAndAuth(privKey, pubB64, lr.body.userId, lr.body.token).then(function(){
+                    return persistKeyAndAuth(privKey, pubB64, lr.body.userId, lr.body.token, pkcs8.buffer).then(function(){
                       return applySession(lr.body.userId, lr.body.token, lr.body.user);
                     });
                   });
@@ -3373,6 +3406,24 @@ function pageAccount(opts) {
   }
 
   window.__zeusCryptoAuthRefresh = refresh;
+  window.__zeusCryptoAuthOnCreate = onCreate;
+  window.__zeusCryptoAuthOnSignin = onSignin;
+  window.__zeusCryptoAuthOnImport = onImport;
+  if (!window.__zeusCryptoAuthDelegated) {
+    window.__zeusCryptoAuthDelegated = true;
+    document.addEventListener('click', function(ev){
+      var t = ev.target && ev.target.closest ? ev.target.closest('#acaCreate, #acaSignin, #acaImport') : null;
+      if (!t || t.disabled) return;
+      ev.preventDefault();
+      try {
+        if (t.id === 'acaCreate') onCreate();
+        else if (t.id === 'acaSignin') onSignin();
+        else if (t.id === 'acaImport') onImport();
+      } catch (err) {
+        try { statusError('Account action failed: ' + (err && err.message ? err.message : err)); } catch (_) {}
+      }
+    });
+  }
   // Wire SSR controls immediately (before network) so first paint is interactive.
   try { wireLoggedOutOnce(); } catch (_) {}
   refresh();

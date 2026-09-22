@@ -39,6 +39,7 @@ assert(shellJs.includes('doLoginWithChallenge'), 'shell.js onCreate auto-retries
 assert(shellJs.includes('AbortController'), 'shell.js api() uses AbortController for timeout');
 assert(shellJs.includes('oneshotPayload'), 'shell.js uses one-shot signed login/recover');
 assert(shellJs.includes("zeus-' + kind + '-v1"), 'shell.js signs zeus-{login|recover}-v1 messages');
+assert(/v1\\\\n'\s*\+\s*publicKeyB64/.test(shellJs), 'oneshot message uses escaped \\\\n so the IIFE stays valid JS inside the SSR template');
 assert(shellJs.includes('doOneshotLogin'), 'shell.js onSignin prefers one-shot login');
 assert(shellJs.includes('doOneshotRecover'), 'shell.js onImport prefers one-shot recover');
 assert(/API_TIMEOUT_MS\s*=\s*4000/.test(shellJs), 'shell.js API timeout is 4s (instant fail, not 8–15s hang)');

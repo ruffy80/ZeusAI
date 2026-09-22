@@ -11,6 +11,7 @@ const VERSIONED_FILE_ASSETS = {
   '/assets/app.js': path.join(__dirname, 'client.js'),
   '/assets/aeon.js': path.join(__dirname, 'aeon.js'),
   '/assets/vendor/three.min.js': path.join(__dirname, 'assets', 'vendor', 'three.min.js'),
+  '/assets/vendor/nacl-fast.min.js': path.join(__dirname, 'assets', 'vendor', 'nacl-fast.min.js'),
   '/assets/zeus/hero.jpg': path.join(__dirname, 'assets', 'hero.jpg'),
   '/assets/zeus/hero.avif': path.join(__dirname, 'assets', 'hero.avif'),
   '/assets/zeus/hero.webp': path.join(__dirname, 'assets', 'hero.webp'),

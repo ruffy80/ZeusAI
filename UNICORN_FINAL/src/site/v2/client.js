@@ -343,14 +343,26 @@ function runAppInlineScripts(root){
   const scripts = Array.from(root.querySelectorAll('script'));
   if (!scripts.length) return;
   const nonceSource = document.querySelector('script[nonce]');
-  const defaultNonce = nonceSource ? nonceSource.getAttribute('nonce') : '';
+  const liveNonce = nonceSource ? nonceSource.getAttribute('nonce') : '';
+  const tt = (window.trustedTypes && window.trustedTypes.defaultPolicy) || null;
   scripts.forEach((oldScript) => {
     const s = document.createElement('script');
     for (const attr of Array.from(oldScript.attributes || [])) {
+      // Never copy a nonce from fetched/cached HTML — it belongs to another
+      // response and Chrome blocks the script even under strict-dynamic.
+      if (String(attr.name).toLowerCase() === 'nonce') continue;
       s.setAttribute(attr.name, attr.value);
     }
-    if (!s.getAttribute('nonce') && defaultNonce) s.setAttribute('nonce', defaultNonce);
-    s.textContent = oldScript.textContent || '';
+    if (liveNonce) {
+      try { s.setAttribute('nonce', liveNonce); } catch (_) {}
+    }
+    const src = oldScript.textContent || '';
+    try {
+      if (tt && typeof tt.createScript === 'function') s.text = tt.createScript(src);
+      else s.textContent = src;
+    } catch (_) {
+      try { s.textContent = src; } catch (__) {}
+    }
     oldScript.parentNode && oldScript.parentNode.replaceChild(s, oldScript);
   });
 }
@@ -622,6 +634,15 @@ async function hydrateAutonomyScore(){
 function routePath(value){
   try { return new URL(String(value || '/'), location.origin).pathname.replace(/\/$/, '') || '/'; } catch (_) { return String(value || '/').split('?')[0].replace(/\/$/, '') || '/'; }
 }
+// Identity pages carry a per-response CSP nonce + inline cryptoauth boot.
+// SPA innerHTML swaps reuse the *previous* page nonce and leave Create /
+// Sign-in / Recover as dead painted buttons. Always take a full document
+// load so the boot script is parser-inserted with a matching nonce.
+function isIdentityRoute(value){
+  const p = routePath(value);
+  return p === '/account' || p === '/login' || p === '/signup' || p === '/auth'
+    || p === '/forgot-password' || p === '/reset-password';
+}
 function navigate(to, push=true){
   if (push) history.pushState({}, '', to);
   STATE.route = routePath(to);
@@ -839,6 +860,7 @@ function spaCacheKey(href){
 }
 
 function rememberSpaHtml(href, html){
+  if (isIdentityRoute(href)) return;
   if (!html || html.indexOf('id="app"') === -1) return;
   const key = spaCacheKey(href);
   __SPA_HTML_CACHE.set(key, { html, ts: Date.now() });
@@ -860,6 +882,7 @@ function readSpaHtml(href){
 }
 
 function prefetchSpa(href){
+  if (isIdentityRoute(href)) return;
   if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
   const key = spaCacheKey(href);
   if (readSpaHtml(href) || __SPA_INFLIGHT.has(key)) return;
@@ -987,6 +1010,10 @@ function softRevalidateSpa(href){
 }
 
 function navigateSpa(href, opts){
+  if (isIdentityRoute(href)) {
+    try { location.assign(href); } catch (_) { location.href = href; }
+    return;
+  }
   opts = opts || {};
   const push = opts.push !== false;
   const gen = ++__spaNavGen;
@@ -1084,6 +1111,20 @@ scheduleIdleHeavyWork(function(){
   } catch (_) {}
 });
 
+// Backup: if the inline cryptoauth IIFE did not attach its delegate (blocked
+// nonce / SPA), still route the three buttons through window handlers.
+document.addEventListener('click', function(ev){
+  if (window.__zeusCryptoAuthDelegated) return;
+  const t = ev.target && ev.target.closest && ev.target.closest('#acaCreate, #acaSignin, #acaImport');
+  if (!t || t.disabled) return;
+  const fn = t.id === 'acaCreate' ? window.__zeusCryptoAuthOnCreate
+    : t.id === 'acaSignin' ? window.__zeusCryptoAuthOnSignin
+    : window.__zeusCryptoAuthOnImport;
+  if (typeof fn !== 'function') return;
+  ev.preventDefault();
+  try { fn(); } catch (_) {}
+});
+
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
   if (!a) return;
@@ -1091,6 +1132,11 @@ document.addEventListener('click', e => {
   if (a.hasAttribute('data-sovereign-buy') || e.target.closest('[data-sovereign-buy]')) return;
   const href = a.getAttribute('href');
   if (!href || href.startsWith('http') || href.startsWith('mailto:')) return;
+  if (isIdentityRoute(href)) {
+    e.preventDefault();
+    try { location.assign(href); } catch (_) { location.href = href; }
+    return;
+  }
   if (href.startsWith('#')) {
     e.preventDefault();
     const target = document.getElementById(href.slice(1));
@@ -1795,7 +1841,12 @@ async function hydratePage(route){
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
   try { if (route === '/enterprise') await hydrateEnterprise(); } catch (e) { console.warn('hydratePage:enterprise', e && e.message); }
   try { if (route === '/store') await hydrateStore(); } catch (e) { console.warn('hydratePage:store', e && e.message); }
-  try { if (route === '/account') { hydrateAccount().catch(function(){}); } } catch (e) { console.warn('hydratePage:account', e && e.message); }
+  try {
+    if (route === '/account') {
+      try { if (typeof window.__zeusCryptoAuthRefresh === 'function') window.__zeusCryptoAuthRefresh(); } catch (_) {}
+      hydrateAccount().catch(function(){});
+    }
+  } catch (e) { console.warn('hydratePage:account', e && e.message); }
   try { if (route === '/admin/services') await hydrateAdminServices(); } catch (e) { console.warn('hydratePage:adminServices', e && e.message); }
   try { if (route === '/admin' || route === '/admin/login') await hydrateAdminLogin(); } catch (e) { console.warn('hydratePage:adminLogin', e && e.message); }
   try { initCinematicInteractions(); } catch (e) { console.warn('hydratePage:cinematic', e && e.message); }
@@ -5712,7 +5763,12 @@ function renderStoreInvoice(r){
 // ===== Account =====
 async function hydrateAccount(){
   const root = document.getElementById('accountRoot');
-  if (!root) return;
+  const cryptoChrome = !!(document.getElementById('acaCreate') || document.getElementById('acaSignin') || document.querySelector('[data-iic="1"]'));
+  if (!root) {
+    // Logged-out cryptoauth page: never inject retired password/passkey forms.
+    try { if (typeof window.__zeusCryptoAuthRefresh === 'function') window.__zeusCryptoAuthRefresh(); } catch (_) {}
+    return;
+  }
   const tok = getCustToken();
   const headers = { 'Content-Type': 'application/json' };
   if (tok) headers['x-customer-token'] = tok;
@@ -5741,18 +5797,23 @@ async function hydrateAccount(){
   }
   const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
   if (!resp) {
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
     if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
     return;
   }
-  if (resp.status === 401) {
+  if (resp.status === 401 || resp.status === 410) {
     setCustToken('');
     setCustProfile(null);
     try { localStorage.removeItem('zeus_iic_me_v1'); } catch (_) {}
+    // Cryptoauth is the sole login surface. Retired /api/customer/* must not
+    // paint password/passkey forms over Create / Sign-in / Recover.
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
     if (!authFormWired()) renderAccountAuth(root);
     return;
   }
   const me = resp.ok ? await resp.json().catch(()=>null) : null;
   if (!me) {
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
     if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
     return;
   }
@@ -5763,314 +5824,26 @@ async function hydrateAccount(){
 }
 
 function renderAccountAuth(root, topError){
+  // Sole auth is Ed25519 cryptoauth (Create / Sign in / Import vault).
+  // Legacy password + passkey panels called retired 410 endpoints and made
+  // every account action look dead. Point visitors at the live controls.
+  if (document.getElementById('acaCreate') || document.getElementById('acaSignin')) {
+    root.innerHTML = `
+      ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
+      <div class="card" style="padding:18px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">Orders and deliveries appear here after you sign in with the cryptographic account above and complete a checkout with the same email.</div>`;
+    root.dataset.accountWired = '1';
+    return;
+  }
   root.innerHTML = `
     ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
     <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
-      <div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
-        <div style="max-width:640px">
-          <span class="kicker" style="color:#7cffb8">Device Key · Passkey</span>
-          <h3 style="margin:6px 0 6px">Revolutionary sign in: your device creates the private key</h3>
-          <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0">WebAuthn/FIDO2: cheia privată rămâne în Secure Enclave/TPM/browser. ZeusAI păstrează doar cheia publică și creează sesiunea client după semnătura device-ului.</p>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:280px">
-          <input id="acPasskeyEmail" type="email" placeholder="email pentru device key" autocomplete="email" style="flex:1;min-width:220px;padding:10px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">
-          <button id="acPasskeyLoginBtn" class="btn btn-primary">Sign in with device</button>
-          <button id="acPasskeyCreateBtn" class="btn">Create device key</button>
-        </div>
-      </div>
-      <div id="acPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:28px">
-      <div class="card" style="padding:28px">
-        <h3 style="margin:0 0 6px">Log in / Conectare</h3>
-        <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Dacă ai deja un cont — intră aici. / If you already have an account — log in here.</div>
-        <input id="acLoginEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-        <input id="acLoginPass" type="password" placeholder="password / parolă" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
-        <button id="acLoginBtn" class="btn btn-primary" style="width:100%">Log in →</button>
-        <div id="acLoginErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
-        <div style="margin-top:10px;text-align:right">
-          <a id="acForgotLink" href="#" style="color:#8a5cff;font-size:12.5px;text-decoration:none">Forgot password? / Ai uitat parola?</a>
-        </div>
-        <div id="acForgotBox" hidden style="margin-top:14px;padding:14px;border:1px solid rgba(138,92,255,.3);border-radius:8px;background:rgba(10,8,30,.4)">
-          <div style="font-size:13px;color:var(--ink-dim);margin-bottom:10px">Introdu emailul; dacă există cont, primești un link de resetare valid 1h. / Enter your email; if an account exists, you'll receive a 1h reset link.</div>
-          <input id="acForgotEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-          <button id="acForgotBtn" class="btn btn-primary" style="width:100%">Send reset link →</button>
-          <div id="acForgotMsg" style="font-size:12.5px;margin-top:10px;line-height:1.5;color:var(--ink-dim)"></div>
-        </div>
-        <div style="margin-top:14px;font-size:12px;color:var(--ink-dim)">Folosești aceleași credențiale pe site &amp; API (zeusai.pro + api.zeusai.pro). / Same credentials work on both site &amp; API.</div>
-      </div>
-      <div class="card" style="padding:28px">
-        <h3 style="margin:0 0 6px">Create account / Cont nou</h3>
-        <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Primary auth is cryptographic (above). Password signup remains for legacy portal mirrors.</div>
-        <input id="acSignupName" type="text" placeholder="name / nume" autocomplete="name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-        <input id="acSignupEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-        <input id="acSignupPass" type="password" placeholder="password / parolă (min 8)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
-        <button id="acSignupBtn" class="btn btn-primary" style="width:100%">Sign up →</button>
-        <div id="acSignupErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
-      </div>
+      <span class="kicker" style="color:#7cffb8">Ed25519 · Instant Identity</span>
+      <h3 style="margin:6px 0 8px">Open your ZeusAI account</h3>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 16px">Password login has been retired. Create a device key, sign in on this browser, or import your <code>.zeus-vault</code> backup.</p>
+      <a class="btn btn-primary" href="/account">Go to Create / Sign in / Recover →</a>
     </div>`;
-
-  const passkeyMsg = root.querySelector('#acPasskeyMsg');
-  const passkeyEmail = root.querySelector('#acPasskeyEmail');
-  const passkeyLoginBtn = root.querySelector('#acPasskeyLoginBtn');
-  const passkeyCreateBtn = root.querySelector('#acPasskeyCreateBtn');
-  function syncPasskeyEmail(email){ if (passkeyEmail && email) passkeyEmail.value = email; }
-  function passkeySupported(){ return !!(window.__UNICORN_PASSKEY__ && window.__UNICORN_PASSKEY__.supported); }
-  function setPasskeyMsg(message, kind){
-    if (!passkeyMsg) return;
-    passkeyMsg.style.color = kind === 'err' ? '#ff9c9c' : (kind === 'ok' ? '#7cffb8' : 'var(--ink-dim)');
-    passkeyMsg.textContent = message || '';
-  }
-  async function enrollDeviceKey(email, password){
-    if (!passkeySupported()) { setPasskeyMsg('Acest browser/device nu suportă passkeys. Folosește email + parolă sau Safari/Chrome/Edge actualizat.', 'err'); return null; }
-    if (!email) { setPasskeyMsg('Completează emailul pentru device key.', 'err'); return null; }
-    if (!password) { setPasskeyMsg('Pentru prima creare a cheii pe device, introdu parola contului o singură dată.', 'err'); return null; }
-    setPasskeyMsg('Se creează cheia pe device… confirmă în browser/sistem.', 'info');
-    const result = await window.__UNICORN_PASSKEY__.register(email, password);
-    // The OS may have shown a "passkey saved" toast even when the server-side step failed
-    // (e.g. challenge expired, password mismatch, attestation rejected). Treat the response
-    // as authoritative: only mark success when the server confirms ok:true + credentialId,
-    // and double-check by listing credentials so a stale device-side passkey can't masquerade
-    // as a working enrollment.
-    if (result && result.ok && result.credentialId) {
-      if (result.token) setCustToken(result.token);
-      if (result.customer) setCustProfile(result.customer);
-      const verified = await verifyPasskeyEnrolled(email, result.credentialId, result.token);
-      if (verified) {
-        setPasskeyMsg('Device key creată și sincronizată cu serverul. De acum te poți loga fără parolă de pe acest device.', 'ok');
-        if (typeof toast === 'function') toast('Device key activated', 'ok');
-        hydrateAccount();
-        return result;
-      }
-      setPasskeyMsg('Device-ul a salvat cheia local, dar serverul nu o vede încă. Reîncearcă "Create device key" sau contactează suportul.', 'err');
-      return Object.assign({}, result, { ok: false, error: 'server_desync' });
-    }
-    const reason = (result && (result.message || result.error)) || 'Device key nu a putut fi creată.';
-    setPasskeyMsg('Eroare la creare: ' + reason + ' (Dacă device-ul a salvat deja o cheie, va fi înlocuită la următorul "Create device key".)', 'err');
-    return result;
-  }
-  // Confirm the credential the server claims to have just stored is actually returned by
-  // /api/auth/passkey/list. This catches silent SQL/disk persistence failures that the
-  // register endpoint couldn't detect (it only knows the INSERT statement was issued).
-  async function verifyPasskeyEnrolled(email, credentialId, token){
-    if (!credentialId) return false;
-    try {
-      const t = token || getCustToken();
-      const r = await fetch('/api/auth/passkey/list', {
-        credentials: 'same-origin',
-        headers: t ? { Authorization: 'Bearer ' + t } : {}
-      });
-      if (!r.ok) return false;
-      const j = await r.json();
-      const list = (j && j.credentials) || [];
-      return list.some(c => c && c.credentialId === credentialId);
-    } catch (_) { return false; }
-  }
-  async function loginWithDeviceKey(email){
-    if (!passkeySupported()) { setPasskeyMsg('Acest browser/device nu suportă passkeys.', 'err'); return null; }
-    if (!email) { setPasskeyMsg('Completează emailul pentru login cu device key.', 'err'); return null; }
-    setPasskeyMsg('Aștept semnătura device-ului…', 'info');
-    const result = await window.__UNICORN_PASSKEY__.login(email);
-    if (result && result.token && result.customer) {
-      setCustToken(result.token);
-      setCustProfile(result.customer);
-      setPasskeyMsg('Autentificat cu device key. Cheia privată nu a părăsit device-ul.', 'ok');
-      if (typeof toast === 'function') toast('Signed in with device key', 'ok');
-      hydrateAccount();
-      return result;
-    }
-    // Recovery path for the most common real-world failure: the device has a passkey saved
-    // locally (the OS confirmed it) but the server has no matching record — typically because
-    // a previous enrollment failed silently after the device step succeeded. Surface a one-tap
-    // re-enrollment panel instead of dead-ending on "no passkey".
-    if (result && result.error === 'no_passkey_for_account') {
-      renderPasskeyRecovery(email, result);
-      return result;
-    }
-    setPasskeyMsg((result && (result.message || result.error)) || 'Login cu device key eșuat.', 'err');
-    return result;
-  }
-  function renderPasskeyRecovery(email, info){
-    if (!passkeyMsg) return;
-    const userExists = !info || info.userExists !== false;
-    const safeEmail = (email || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-    if (!userExists) {
-      passkeyMsg.innerHTML =
-        '<span style="color:#ff9c9c">Nu există cont pentru ' + safeEmail + '.</span><br>' +
-        '<span style="color:var(--ink-dim)">Creează contul în panoul "Create account / Cont nou", apoi revino aici și apasă <b>Create device key</b>.</span>';
-      return;
-    }
-    passkeyMsg.innerHTML =
-      '<div style="color:#ffb7b7;margin-bottom:8px">Serverul nu are nicio cheie de device pentru <b>' + safeEmail + '</b>. ' +
-      'Probabil a fost salvată doar pe device la o încercare anterioară.</div>' +
-      '<div style="color:var(--ink-dim);margin-bottom:8px">Activează acest device acum: introdu parola contului o singură dată — o cheie nouă va fi generată și salvată pe server și pe device.</div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        '<input id="acPasskeyRecoverPass" type="password" placeholder="parola contului" autocomplete="current-password" style="flex:1;min-width:200px;padding:9px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">' +
-        '<button id="acPasskeyRecoverBtn" class="btn btn-primary">Activează device-ul</button>' +
-      '</div>';
-    const passInput = passkeyMsg.querySelector('#acPasskeyRecoverPass');
-    const btn = passkeyMsg.querySelector('#acPasskeyRecoverBtn');
-    if (!btn || !passInput) return;
-    btn.addEventListener('click', async () => {
-      const pwd = passInput.value;
-      if (!pwd) { passInput.focus(); return; }
-      btn.disabled = true;
-      btn.textContent = 'Activez…';
-      try { await enrollDeviceKey(email, pwd); }
-      catch (e) { setPasskeyMsg('Activarea a eșuat: ' + (e && e.message || 'unknown'), 'err'); }
-      finally { btn.disabled = false; btn.textContent = 'Activează device-ul'; }
-    });
-    passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
-  }
-  if (passkeyLoginBtn && !passkeySupported()) {
-    passkeyLoginBtn.disabled = true;
-    passkeyCreateBtn.disabled = true;
-    setPasskeyMsg('Device key indisponibil pe acest browser. Password login rămâne disponibil.', 'err');
-  }
-  passkeyLoginBtn?.addEventListener('click', async () => {
-    try { await loginWithDeviceKey((passkeyEmail.value || root.querySelector('#acLoginEmail').value || root.querySelector('#acSignupEmail').value || '').trim()); }
-    catch (e) { setPasskeyMsg('Operațiune anulată sau refuzată de device.', 'err'); }
-  });
-  passkeyCreateBtn?.addEventListener('click', async () => {
-    try {
-      const email = (passkeyEmail.value || root.querySelector('#acLoginEmail').value || root.querySelector('#acSignupEmail').value || '').trim();
-      const password = root.querySelector('#acLoginPass').value || root.querySelector('#acSignupPass').value;
-      await enrollDeviceKey(email, password);
-    } catch (e) { setPasskeyMsg('Crearea cheii a fost anulată sau refuzată de device.', 'err'); }
-  });
-
-  async function doLogin(){
-    const email = root.querySelector('#acLoginEmail').value.trim();
-    const password = root.querySelector('#acLoginPass').value;
-    const errEl = root.querySelector('#acLoginErr');
-    const btn = root.querySelector('#acLoginBtn');
-    errEl.textContent = '';
-    syncPasskeyEmail(email);
-    if (!email || !password) { errEl.textContent = 'Completează email și parolă. / Fill in email and password.'; return; }
-    btn.disabled = true; btn.textContent = 'Logging in…';
-    try {
-      const r = await fetch('/api/customer/login', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) }).then(x=>x.json());
-      if (r.token) {
-        setCustToken(r.token);
-        if (r.customer) setCustProfile(r.customer);
-        if (typeof toast === 'function') toast('Bine ai revenit! / Welcome back!', 'ok');
-        setPasskeyMsg('Login reușit. Poți apăsa “Create device key” ca să activezi login fără parolă pe acest device.', 'ok');
-        hydrateAccount();
-        return;
-      }
-      // Show clear error based on server code
-      if (r.error === 'email_not_found') {
-        errEl.innerHTML = (r.message || 'No account for this email.') + '<br><span style="color:var(--ink-dim)">→ Create one using the form on the right. / Creează unul în dreapta.</span>';
-        root.querySelector('#acSignupEmail').value = email;
-      } else if (r.error === 'wrong_password') {
-        errEl.textContent = r.message || 'Wrong password.';
-      } else {
-        errEl.textContent = r.message || r.error || 'Login failed.';
-      }
-    } catch (e) {
-      errEl.textContent = 'Network error. / Eroare de rețea.';
-    } finally {
-      btn.disabled = false; btn.textContent = 'Log in →';
-    }
-  }
-
-  async function doSignup(){
-    const name = root.querySelector('#acSignupName').value.trim();
-    const email = root.querySelector('#acSignupEmail').value.trim();
-    const password = root.querySelector('#acSignupPass').value;
-    const errEl = root.querySelector('#acSignupErr');
-    const btn = root.querySelector('#acSignupBtn');
-    errEl.textContent = '';
-    syncPasskeyEmail(email);
-    if (!email || !password) { errEl.textContent = 'Email și parolă obligatorii. / Email and password required.'; return; }
-    if (password.length < 8) { errEl.textContent = 'Parola trebuie să aibă minim 8 caractere. / Password must be at least 8 characters.'; return; }
-    btn.disabled = true; btn.textContent = 'Creating…';
-    try {
-      const r = await fetch('/api/customer/signup', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) }).then(x=>x.json());
-      if (r.token) {
-        setCustToken(r.token);
-        if (r.customer) setCustProfile(r.customer);
-        if (typeof toast === 'function') toast('Cont creat! Ești conectat. / Account created — you are logged in.', 'ok');
-        hydrateAccount();
-        return;
-      }
-      if (r.error === 'email_taken') {
-        errEl.innerHTML = (r.message || 'Email already in use.') + '<br><span style="color:var(--ink-dim)">→ Log in using the form on the left. / Conectează-te în stânga.</span>';
-        root.querySelector('#acLoginEmail').value = email;
-      } else {
-        errEl.textContent = r.message || r.error || 'Signup failed.';
-      }
-    } catch (e) {
-      errEl.textContent = 'Network error. / Eroare de rețea.';
-    } finally {
-      btn.disabled = false; btn.textContent = 'Sign up →';
-    }
-  }
-
-  root.querySelector('#acLoginBtn').addEventListener('click', doLogin);
-  root.querySelector('#acSignupBtn').addEventListener('click', doSignup);
-  root.querySelector('#acLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  root.querySelector('#acSignupPass').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
-  root.querySelector('#acLoginEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
-  root.querySelector('#acSignupEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
-
-  // Forgot password — toggle inline form, submit to /api/customer/forgot-password.
-  // Server always returns 200 (anti email enumeration); message tells the user
-  // to check their inbox if an account exists.
-  const forgotLink = root.querySelector('#acForgotLink');
-  const forgotBox = root.querySelector('#acForgotBox');
-  const forgotEmail = root.querySelector('#acForgotEmail');
-  const forgotBtn = root.querySelector('#acForgotBtn');
-  const forgotMsg = root.querySelector('#acForgotMsg');
-  if (forgotLink && forgotBox) {
-    forgotLink.addEventListener('click', function(ev){
-      ev.preventDefault();
-      forgotBox.hidden = !forgotBox.hidden;
-      if (!forgotBox.hidden) {
-        // Pre-fill with whatever's in the login email field.
-        try { forgotEmail.value = root.querySelector('#acLoginEmail').value || forgotEmail.value || ''; } catch(_){}
-        forgotEmail.focus();
-      }
-    });
-  }
-  async function doForgot(){
-    if (!forgotEmail) return;
-    const email = (forgotEmail.value || '').trim();
-    forgotMsg.style.color = 'var(--ink-dim)';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      forgotMsg.style.color = '#ff9c9c';
-      forgotMsg.textContent = 'Adresă email invalidă. / Invalid email address.';
-      return;
-    }
-    forgotBtn.disabled = true; forgotBtn.textContent = 'Sending…';
-    try {
-      const r = await fetch('/api/customer/forgot-password', {
-        method:'POST', credentials:'same-origin',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email })
-      }).then(x=>x.json()).catch(()=>({ ok:false }));
-      if (r && r.ok) {
-        forgotMsg.style.color = '#7cffb8';
-        forgotMsg.textContent = r.message || '✓ Dacă există un cont, am trimis un link de resetare valid 1h. Verifică inbox-ul. / If an account exists, a 1h reset link was sent. Check your inbox.';
-      } else if (r && r.error === 'rate_limited') {
-        forgotMsg.style.color = '#ff9c9c';
-        forgotMsg.textContent = r.message || 'Prea multe încercări, reia într-o oră. / Too many attempts, try again in an hour.';
-      } else {
-        forgotMsg.style.color = '#ff9c9c';
-        forgotMsg.textContent = (r && (r.message || r.error)) || 'Nu am putut trimite link-ul. / Could not send the link.';
-      }
-    } catch(e) {
-      forgotMsg.style.color = '#ff9c9c';
-      forgotMsg.textContent = 'Network error. / Eroare de rețea.';
-    } finally {
-      forgotBtn.disabled = false; forgotBtn.textContent = 'Send reset link →';
-    }
-  }
-  if (forgotBtn) forgotBtn.addEventListener('click', doForgot);
-  if (forgotEmail) forgotEmail.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doForgot(); } });
-
-  // Mark root as wired so wireExistingAccountAuth() won't double-render and wipe user input
   root.dataset.accountWired = '1';
+  return;
 }
 
 function wireExistingAccountAuth(){
