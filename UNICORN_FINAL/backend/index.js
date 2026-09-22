@@ -1826,6 +1826,13 @@ app.post('/api/innovations/roll-root', _swRateLimit, express.json({ limit: '64kb
 app.get(/^\/api\/order\/[a-zA-Z0-9_-]{6,64}\/receipt\.json$/, (req, res) =>
   proxyToSite(req, res, req.path)
 );
+// Money-gate + checkout poller hit GET /api/order/:id/status on :3000
+// (nginx /api → backend). Without this proxy the Express SPA catch-all
+// returns HTML, JSON.parse fails, and Unicorn Stable Deploy marks the
+// promote as canary_fail even though checkout create succeeded.
+app.get(/^\/api\/order\/[a-zA-Z0-9_-]{6,64}\/status$/, (req, res) =>
+  proxyToSite(req, res, req.path)
+);
 app.get('/api/ab/experiments', (req, res) => proxyToSite(req, res, '/api/ab/experiments'));
 app.get(/^\/api\/ab\/assign\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
 app.get(/^\/api\/ab\/report\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));

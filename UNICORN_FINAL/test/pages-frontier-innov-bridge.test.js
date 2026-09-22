@@ -123,6 +123,10 @@ check('backend proxies frontier/coverage to site (SPA catch-all defense)', () =>
   assert.ok(backendSrc.includes("proxyPostToSite(req, res, '/api/gift/mint')"));
   assert.ok(backendSrc.includes("proxyPostToSite(req, res, '/api/gift/redeem')"));
   assert.ok(backendSrc.includes("proxyToSite(req, res, '/api/bandit/transparency')"));
+  assert.ok(
+    /\/api\/order\/\[a-zA-Z0-9_-]\+\\\/status/.test(backendSrc) || backendSrc.includes('/status$'),
+    'backend must proxy GET /api/order/:id/status to site (money-gate)'
+  );
 });
 
 check('cryptoBridge module exports mount + destination/fee tools', () => {
