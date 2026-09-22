@@ -66,17 +66,33 @@ let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
 ')" || fail "checkout create did not return BIP-21 / sats invoice"
 echo "✅ checkout create $ORDER_ID"
 
-STATUS="$(curl -fsS --max-time 15 "$MONEY_GATE_BASE/api/order/${ORDER_ID}/status" || true)"
+STATUS="$(curl -sS --max-time 15 -H 'Accept: application/json' "$MONEY_GATE_BASE/api/order/${ORDER_ID}/status" || true)"
 [ -n "$STATUS" ] || fail "GET /api/order/$ORDER_ID/status empty"
 printf '%s' "$STATUS" | ORDER_ID="$ORDER_ID" node -e '
 let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
   const expect=String(process.env.ORDER_ID||"");
-  let d; try { d=JSON.parse(b); } catch(_) { process.exit(1); }
-  if (!d.orderId || (expect && String(d.orderId) !== expect)) process.exit(1);
-  const st=String(d.status||"");
-  if (!st || st === "paid") process.exit(1);
+  const trimmed=String(b||"").trim();
+  if (trimmed.charAt(0) === "<") {
+    console.error("got HTML (SPA catch-all) instead of JSON — backend must proxy /api/order/:id/status to site");
+    process.exit(1);
+  }
+  let d; try { d=JSON.parse(trimmed); } catch(e) {
+    console.error("status body is not JSON:", trimmed.slice(0,180));
+    process.exit(1);
+  }
+  const id=d.orderId || (d.order && d.order.orderId) || d.id;
+  if (!id || (expect && String(id) !== expect)) {
+    console.error("orderId mismatch", { expect, got: id, keys: Object.keys(d||{}) });
+    process.exit(1);
+  }
+  const st=String(d.status || (d.order && d.order.status) || "").toLowerCase();
+  const ok = st && st !== "paid" && st !== "settled" && st !== "fulfilled";
+  if (!ok) {
+    console.error("unexpected smoke status", st || "(empty)");
+    process.exit(1);
+  }
 });
-' || fail "order status missing or already paid (unexpected for smoke mint)"
+' || fail "order status missing, HTML, or already paid (unexpected for smoke mint)"
 echo "✅ order status pending"
 
 echo "✅ money-gate"
