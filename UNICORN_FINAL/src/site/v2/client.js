@@ -5830,17 +5830,21 @@ function renderAccountAuth(root, topError){
   if (document.getElementById('acaCreate') || document.getElementById('acaSignin')) {
     root.innerHTML = `
       ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
-      <div class="card" style="padding:18px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">Orders and deliveries appear here after you sign in with the cryptographic account above and complete a checkout with the same email.</div>`;
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px">
+        <div class="card" style="padding:18px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">Orders and deliveries appear here after you sign in with the cryptographic account above and complete a checkout with the same email.</div>
+      </div>`;
     root.dataset.accountWired = '1';
     return;
   }
   root.innerHTML = `
     ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
-    <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
-      <span class="kicker" style="color:#7cffb8">Ed25519 · Instant Identity</span>
-      <h3 style="margin:6px 0 8px">Open your ZeusAI account</h3>
-      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 16px">Password login has been retired. Create a device key, sign in on this browser, or import your <code>.zeus-vault</code> backup.</p>
-      <a class="btn btn-primary" href="/account">Go to Create / Sign in / Recover →</a>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px">
+      <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
+        <span class="kicker" style="color:#7cffb8">Ed25519 · Instant Identity</span>
+        <h3 style="margin:6px 0 8px">Open your ZeusAI account</h3>
+        <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 16px">Password login has been retired. Create a device key, sign in on this browser, or import your <code>.zeus-vault</code> backup.</p>
+        <a class="btn btn-primary" href="/account">Go to Create / Sign in / Recover →</a>
+      </div>
     </div>`;
   root.dataset.accountWired = '1';
   return;
