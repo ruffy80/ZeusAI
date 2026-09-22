@@ -104,14 +104,10 @@ server.listen(0, '127.0.0.1', async () => {
     assert.ok(/acaImport/.test(page.body), 'live page has Import');
     assert.ok(/__zeusCryptoAuthDelegated/.test(page.body), 'delegate present');
     const csp = String(page.headers['content-security-policy'] || '');
-    const nonce = (csp.match(/nonce-([A-Za-z0-9_-]+)/) || [])[1];
-    if (nonce) {
-      const tagged = (page.body.match(/<script[^>]*nonce="([^"]+)"/g) || []);
-      assert.ok(tagged.length > 0, 'script tags carry nonce');
-      tagged.forEach((tag) => {
-        assert.ok(tag.includes('nonce="' + nonce + '"'), 'script nonce matches CSP');
-      });
-    }
+    const nonce = (csp.match(/'nonce-([^']+)'/) || [])[1];
+    assert.ok(nonce, 'CSP has a script nonce');
+    assert.ok(page.body.includes('nonce="' + nonce + '"'), 'page scripts use the response CSP nonce');
+    assert.ok(page.body.includes('__zeusCryptoAuthDelegated'), 'boot script is in the document');
 
     const nacl = await doRequest(port, 'GET', '/assets/vendor/nacl-fast.min.js');
     assert.strictEqual(nacl.status, 200, 'local nacl 200');
