@@ -255,12 +255,31 @@ function _stableIdle() {
 }
 
 let _cycleTimer = null;
+let _idleTimer = null;
+function _idlePulse() {
+  state.lastCheck = new Date().toISOString();
+  state.idlePulses = (state.idlePulses || 0) + 1;
+  appendLedger({ type: 'idle_pulse', reason: 'stable_profile_healthy', inventsHeal: false });
+}
+function startIdlePulse() {
+  if (_idleTimer) return { ok: true, already: true, idle: true };
+  state.active = false;
+  state.idle = true;
+  state.idleReason = 'stable_profile_healthy';
+  state.lastCheck = new Date().toISOString();
+  if (process.env.NODE_ENV === 'test' && process.env.HEALER_IDLE_TEST !== '1') {
+    return { ok: true, idle: true, test: true };
+  }
+  try { _idlePulse(); } catch (_) { /* first pulse fail-soft */ }
+  _idleTimer = setInterval(() => { try { _idlePulse(); } catch (_) {} }, 5 * 60 * 1000);
+  if (_idleTimer && typeof _idleTimer.unref === 'function') _idleTimer.unref();
+  return { ok: true, idle: true };
+}
 function start() {
   if (_cycleTimer) return { ok: true, already: true };
   if (_stableIdle() && process.env.UNICORN_SELF_HEALER_FORCE !== '1') {
-    state.active = false;
     console.log('🛡️ [unicornSelfHealer] IDLE under stable/safe (Boot Immortal OS)');
-    return { ok: true, idle: true };
+    return startIdlePulse();
   }
   state.active = true;
   ensureLedger();
@@ -280,14 +299,17 @@ function stop() {
 if (!_stableIdle() || process.env.UNICORN_SELF_HEALER_FORCE === '1') {
   start();
 } else {
-  state.active = false;
   console.log('🛡️ [unicornSelfHealer] require-idle under stable/safe');
+  startIdlePulse();
 }
 
 // ---- API public ----
 function getStatus() {
   return {
     active: state.active,
+    idle: !!state.idle || (!state.active && _stableIdle()),
+    idleReason: state.idleReason || (state.active ? null : 'stable_profile_healthy'),
+    idlePulses: state.idlePulses || 0,
     startedAt: state.startedAt,
     cycles: state.cycles,
     healings: state.healings,

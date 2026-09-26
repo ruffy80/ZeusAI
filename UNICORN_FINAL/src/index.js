@@ -1273,6 +1273,7 @@ app.get('/api/clos/cycles', siteProxyToUnicorn('/api/clos/cycles'));
 app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
 app.get('/api/aacos/status', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
+app.get(['/api/autonomy/live-receipts', '/api/live-actions'], siteProxyToUnicorn('/api/autonomy/live-receipts'));
 app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/agde/status', siteProxyToUnicorn('/api/agde/status'));
 app.get('/api/agde/ledger', siteProxyToUnicorn('/api/agde/ledger'));
@@ -12723,6 +12724,7 @@ a{color:#8a5cff;text-decoration:none}
     '/seo',
     // Origin Gravity — signed zero-customer genesis + founding passport
     '/origin',
+    '/live-actions', '/autonomy', '/innovation-log',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.

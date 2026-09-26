@@ -552,6 +552,11 @@ function discovery() {
     tickMs: TICK_MS,
     modulesLinked: state.modulesLinked,
     readyToPublish: evidence.configuredOutbound.length > 0 || evidence.configuredSocial.length > 0,
+    whyYouSeeNothing: state.lastSkipReason === 'vuk_not_designated'
+      ? 'AACOS ticks every ' + Math.round(TICK_MS / 1000) + 's and writes skip receipts. VUK designated executor is socialMediaViralizer — AACOS does not double-post. Telegram/Discord/webhook are operator rails, not Facebook/X. Open /live-actions.'
+      : (state.lastSkipReason
+        ? ('Last skip: ' + state.lastSkipReason + '. Open /live-actions for the ledger.')
+        : 'Open /live-actions for the live tick/skip/publish ledger.'),
     configuredOutbound: evidence.configuredOutbound,
     configuredSocial: evidence.configuredSocial,
     preKeysSkip: evidence.preKeys || null,

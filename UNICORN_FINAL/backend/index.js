@@ -13224,6 +13224,16 @@ app.get('/api/aacos/actions', (req, res) => {
     return res.status(500).json({ ok: false, error: e.message, protocol: 'AACOS/1.0' });
   }
 });
+app.get(['/api/autonomy/live-receipts', '/api/live-actions'], (req, res) => {
+  try {
+    const lar = require('./modules/live-action-receipts');
+    const payload = lar.snapshot(parseInt(req.query.limit || '40', 10));
+    res.set('Cache-Control', 'public, max-age=8');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'LAR/1.0' });
+  }
+});
 app.post('/api/aacos/tick', adminTokenMiddleware, async (req, res) => {
   try {
     if (!autonomyActionContinuumOs) {
