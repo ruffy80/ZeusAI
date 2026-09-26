@@ -391,7 +391,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
 // container there to let the existing CSS rule
 // `body[data-route="/"] .zeus-page-bg{opacity:0}` apply.
 const _ZEUS_BG_HERO  = ['/services','/enterprise','/wizard','/frontier','/dashboard','/checkout','/security','/trust','/operator'];
-const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin','/contact','/faq','/blog','/affiliate','/partners','/roadmap','/careers','/press'];
+const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/live-actions','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin','/contact','/faq','/blog','/affiliate','/partners','/roadmap','/careers','/press'];
 function _pickZeusBgSSR(route) {
   if (!route || route === '/') return null;
   // Exact match first.
@@ -592,6 +592,7 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
     ${L('/status', 'Autonomy OS')}
+    ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
 </div>
@@ -4118,7 +4119,9 @@ function renderRoute(route, params = {}) {
     case '/crypto-bridge': return pageCryptoFiatBridge();
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
-    case '/innovation-log': return pageInnovations();
+    case '/innovation-log': return pageLiveActions(params);
+    case '/live-actions':
+    case '/autonomy': return pageLiveActions(params);
     case '/account': return pageAccount(params);
     case '/auth': return pageAccount(params);
     case '/login': return pageAccount(params);
@@ -5432,13 +5435,105 @@ function pageWizard() {
 </section>`;
 }
 
+function pageLiveActions(params = {}) {
+  const N = params.nonce ? ` nonce="${String(params.nonce).replace(/"/g, '')}"` : '';
+  return `<section style="padding-top:140px;max-width:1100px">
+  <span class="kicker">Autonomy Action Continuum · LAR/1.0</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live module actions · <span class="grad">receipts, not theater.</span></h1>
+  <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:820px">The Unicorn loops <b style="color:#fff">are running</b>. What you do not see on Facebook/X/Instagram is not a dead engine — it is an honest skip. This page reads <code class="inline">/api/autonomy/live-receipts</code> every 12s. It never invents GMV, visitors, or social posts.</p>
+
+  <div id="larWhy" class="card" style="margin-top:22px;padding:22px;border:1px solid rgba(255,211,106,.28)">
+    <span class="kicker">Why you see nothing on Facebook / X / TikTok</span>
+    <ul id="larWhyList" style="margin:12px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.7"><li>Loading live receipts…</li></ul>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn" href="/status" data-link>Autonomy OS scores</a>
+      <a class="btn btn-ghost" href="/visible" data-link>Visible social rails</a>
+      <button type="button" class="btn btn-ghost" data-live-inspect="/api/autonomy/live-receipts" data-live-title="Live receipts JSON">Raw JSON</button>
+    </div>
+  </div>
+
+  <div id="larKpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:12px;margin-top:18px"></div>
+
+  <div class="card" style="margin-top:18px;padding:22px">
+    <span class="kicker">AACOS ledger</span>
+    <h2 style="margin:8px 0 6px;font-size:22px">Ticks · publishes · skips</h2>
+    <p id="larAacosMeta" style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Waiting for <code class="inline">/api/aacos/actions</code>…</p>
+    <div style="overflow-x:auto">
+      <table id="larTable" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--ink-dim)">
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">When</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Type</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Via</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Reason</th>
+        </tr></thead>
+        <tbody id="larBody"><tr><td colspan="4" style="padding:12px 10px;color:var(--ink-dim)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <script${N}>
+  (function(){
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function kpi(label, value, note){
+      return '<div class="card" style="padding:18px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.1em">'+esc(label)+'</div><div style="font-size:28px;font-weight:700;margin-top:6px">'+esc(value)+'</div><p style="color:var(--ink-dim);font-size:13px;margin:8px 0 0">'+esc(note||'')+'</p></div>';
+    }
+    async function load(){
+      try {
+        var d = await (await fetch('/api/autonomy/live-receipts?limit=40',{cache:'no-store'})).json();
+        var why = Array.isArray(d.whyYouSeeNothing) ? d.whyYouSeeNothing : [];
+        var whyEl = document.getElementById('larWhyList');
+        if (whyEl) {
+          whyEl.innerHTML = why.length
+            ? why.map(function(t){ return '<li>'+esc(t)+'</li>'; }).join('')
+            : '<li>Receipts loaded. No extra hold reasons on this snapshot.</li>';
+        }
+        var a = d.aacos || {};
+        var spine = d.spine || {};
+        var healer = d.healer || {};
+        var ship = d.shipGate || {};
+        var vis = d.visibleSocial || {};
+        var kpis = document.getElementById('larKpis');
+        if (kpis) {
+          kpis.innerHTML = [
+            kpi('AACOS ticks', a.ticks!=null?a.ticks:'—', 'Last tick '+(a.lastTickAt||'—')),
+            kpi('Published', a.published!=null?a.published:'—', 'Skipped '+(a.skipped!=null?a.skipped:'—')+' · '+(a.lastSkipReason||'')),
+            kpi('Spine', spine.mode||'—', (spine.reasons&&spine.reasons[0])||'attest only'),
+            kpi('Healer', healer.idle?'IDLE':'active', healer.idleReason||('cycles '+(healer.cycles||0))),
+            kpi('Ship-gate', ship.autoRunning?'running':'off', ship.disableSelfMutation?'DISABLE_SELF_MUTATION=1':'mutation allowed'),
+            kpi('Gaze rails', (vis.railsArmed||[]).join(', ')||'none', (vis.gazeDark&&vis.gazeDark.length)?('dark: '+vis.gazeDark.join(', ')):'')
+          ].join('');
+        }
+        var meta = document.getElementById('larAacosMeta');
+        if (meta) meta.textContent = 'armed='+!!a.armed+' · last skip '+(a.lastSkipReason||'none')+' · social '+(a.configuredSocial||[]).join(',')+' · outbound '+(a.configuredOutbound||[]).join(',');
+        var actions = (a.actions && a.actions.length) ? a.actions : [];
+        var body = document.getElementById('larBody');
+        if (body) {
+          body.innerHTML = actions.length
+            ? actions.map(function(row){
+                var kind = String(row.type||'');
+                var color = kind==='published'?'#7cffb8':(kind==='skipped'?'#ffd36a':'#9ab4ff');
+                return '<tr><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);white-space:nowrap">'+esc((row.at||'').replace('T',' ').replace('Z',''))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);color:'+color+';font-weight:700">'+esc(kind)+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.via||'')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.reason||row.note||'')+'</td></tr>';
+              }).join('')
+            : '<tr><td colspan="4" style="padding:12px 10px;color:var(--ink-dim)">No actions in this process yet — wait one AACOS tick (~3 min) after boot.</td></tr>';
+        }
+      } catch (e) {
+        var whyEl2 = document.getElementById('larWhyList');
+        if (whyEl2) whyEl2.innerHTML = '<li>Live receipts unavailable. Retrying.</li>';
+      }
+    }
+    load();
+    setInterval(load, 12000);
+  })();
+  </script>
+</section>`;
+}
+
 function pageStatus(params = {}) {
   // CSP nonce required: script-src uses strict-dynamic; un-nonced inline scripts are dropped.
   const N = params.nonce ? ` nonce="${String(params.nonce).replace(/"/g, '')}"` : '';
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Neural Autonomy OS from <code class="inline">/api/autonomy/neural</code>. Site↔Unicorn Bond from <code class="inline">/api/autonomy/bond</code>. Triad Never-Down from <code class="inline">/api/autonomy/triad</code>. Refreshes every 15s.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Module tick/skip/heal receipts: <a href="/live-actions" data-link style="color:#7cffb8">/live-actions</a>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Neural Autonomy OS from <code class="inline">/api/autonomy/neural</code>. Site↔Unicorn Bond from <code class="inline">/api/autonomy/bond</code>. Triad Never-Down from <code class="inline">/api/autonomy/triad</code>. Refreshes every 15s.</p>
 
   <div class="card" id="taosPanel" style="margin-top:22px;padding:26px" aria-live="polite">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -6953,6 +7048,9 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
+    '/live-actions': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
+    '/autonomy': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
+    '/innovation-log': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
     '/social-network': 'ZeusAI Social — world-standard feed with Facebook, X, Instagram and TikTok surfaces, real cryptoauth accounts, and inventions Big Social still lacks. Share globally.',
     '/admin/social-network': 'Admin ZeusAI Social control panel with autonomous module state, decisions, Proof-of-Reach and commerce mirror.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',

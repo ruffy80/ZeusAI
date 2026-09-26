@@ -46,6 +46,7 @@ const CORE_PUBLIC_PATHS = [
   '/innovations',
   '/wizard',
   '/status',
+  '/live-actions',
   '/changelog',
   '/terms',
   '/privacy',
