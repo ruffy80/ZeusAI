@@ -114,10 +114,20 @@ async function run() {
       'artifact downloadUrl attached to files');
   });
 
-  await check('innovator generation idle under stable profile', () => {
-    assert.strictEqual(innovator.innovationGenerationEnabled(), false);
+  await check('innovator generation allowed on safe plane; auto-interval stays off in tests', () => {
+    // INNOVATION_GENERATE=0 is the growth/source-ship kill. SAFE_EVOLVE (default ON)
+    // still generates data/docs proposals under stable.
+    assert.strictEqual(innovator.innovationGenerationEnabled(), true);
     const st = innovator.getStatus();
     assert.strictEqual(st.active, false);
+  });
+
+  await check('SAFE_EVOLVE=0 kills generation', () => {
+    const prev = process.env.SAFE_EVOLVE;
+    process.env.SAFE_EVOLVE = '0';
+    assert.strictEqual(innovator.innovationGenerationEnabled(), false);
+    if (prev == null) delete process.env.SAFE_EVOLVE;
+    else process.env.SAFE_EVOLVE = prev;
   });
 
   await check('innovation auto-ship disabled under stable', () => {

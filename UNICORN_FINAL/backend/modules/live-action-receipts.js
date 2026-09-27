@@ -61,6 +61,7 @@ function snapshot(limit) {
   const growth = _status('./unicornGrowth');
   const guardian = _status('./unicornGuardian');
   const shipGateRaw = _status('./innovation-ship-gate');
+  const evolution = _status('./safe-evolution-os');
   const viralRaw = _safe('./viral-unification-os', (m) => (
     typeof m.discovery === 'function' ? m.discovery() : (typeof m.getStatus === 'function' ? m.getStatus() : null)
   ));
@@ -81,11 +82,11 @@ function snapshot(limit) {
   if (visible && Array.isArray(visible.gazeDark) && visible.gazeDark.length) {
     why.push('Facebook/X/Instagram/TikTok stay dark without those tokens. Armed rails are operator channels (telegram/discord/webhook), not the apps you open.');
   }
-  if (shipGateRaw && (shipGateRaw.disableSelfMutation || shipGateRaw.autoShipEnabled === false)) {
-    why.push('Innovation ship-gate is off: DISABLE_SELF_MUTATION=1 keeps the live tree from rewriting itself.');
+  if (shipGateRaw && shipGateRaw.disableSelfMutation) {
+    why.push('Source mutation stays off (DISABLE_SELF_MUTATION=1). SECOS ships catalog/docs/data artifacts only — not backend/src/scripts.');
   }
   if (healer && healer.idle) {
-    why.push('Self-healer is idle under UNICORN_RUNTIME_PROFILE=stable — Boot Immortal: do not restart a healthy stack.');
+    why.push('Healer does not PM2-restart a healthy stack (Boot Immortal). Observe-cycle still scans modules and ledgers repairs.');
   }
   if (spine && spine.mode === 'PROTECT') {
     why.push('Autonomy spine is PROTECT: ' + String((spine.reasons && spine.reasons[0]) || 'experiments held'));
@@ -105,13 +106,31 @@ function snapshot(limit) {
     supreme: {
       brain: brain && { cycles: Number(brain.cycles) || 0, ok: brain.ok !== false },
       healer,
-      innovator: innovator && { cycles: Number(innovator.cycles) || 0, active: !!innovator.active, ok: innovator.ok !== false },
+      innovator: innovator && {
+        cycles: Number(innovator.cycles) || 0,
+        generated: Number(innovator.generated) || 0,
+        pendingCount: Number(innovator.pendingCount) || 0,
+        active: !!innovator.active,
+        ok: innovator.ok !== false,
+      },
       growth: growth && { cycles: Number(growth.cycles) || 0, ok: growth.ok !== false },
       guardian: guardian && { cycles: Number(guardian.cycles) || 0, ok: guardian.ok !== false },
     },
     healer,
+    evolution: evolution && {
+      protocol: evolution.protocol || 'SECOS/1.0',
+      enabled: !!evolution.enabled,
+      armed: !!evolution.armed,
+      ticks: Number(evolution.ticks) || 0,
+      lastTickAt: evolution.lastTickAt || null,
+      last: evolution.last || null,
+      mutatesSource: false,
+      inventsGmv: false,
+      recent: Array.isArray(evolution.recent) ? evolution.recent.slice(0, 12) : [],
+    },
     shipGate: shipGateRaw && {
       autoShipEnabled: !!shipGateRaw.autoShipEnabled,
+      safeEvolve: !!shipGateRaw.safeEvolve,
       disableSelfMutation: !!shipGateRaw.disableSelfMutation,
       autoRunning: !!shipGateRaw.autoRunning,
       metrics: shipGateRaw.metrics || null,

@@ -4640,7 +4640,15 @@ if (_isPrimaryWorker) {
     try { innovationShipGate.startAutoCycle(unicornInnovator); }
     catch (e) { console.warn('[innovation-ship-gate] auto cycle failed:', e && e.message); }
   } else if (_stableRuntime) {
-    console.log('🛡️ Innovation auto-ship idle under stable');
+    console.log('🛡️ Innovation source-ship idle under stable — SECOS data-plane takes over');
+  }
+  if (process.env.NODE_ENV !== 'test' && String(process.env.SAFE_EVOLVE || '1') !== '0') {
+    try {
+      const secos = require('./modules/safe-evolution-os');
+      secos.start();
+    } catch (e) {
+      console.warn('[SECOS] start failed:', e && e.message);
+    }
   }
 
   // Pornire module cu cicluri autonome
@@ -4778,6 +4786,7 @@ for (const [meshName, modFile] of [
   ['unicornBrain',       'unicornBrain'],
   ['unicornSelfHealer',  'unicornSelfHealer'],
   ['unicornInnovator',   'unicornInnovator'],
+  ['safeEvolutionOs',    'safe-evolution-os'],
   ['unicornSovereigntyEngine', 'unicornSovereignty'],
 ]) {
   try {
@@ -14747,6 +14756,13 @@ try {
 }
 registerModuleRoutes('global-referral-loop',       globalReferralLoop);
 registerModuleRoutes('innovation-ship-gate',       innovationShipGate);
+try {
+  const safeEvolutionOs = require('./modules/safe-evolution-os');
+  registerModuleRoutes('safe-evolution-os', safeEvolutionOs);
+  registerModuleRoutes('secos', safeEvolutionOs);
+} catch (e) {
+  console.warn('[secos] registerModuleRoutes skipped:', e && e.message);
+}
 registerModuleRoutes('memory-pressure-guardian',   memoryPressureGuardian);
 registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);

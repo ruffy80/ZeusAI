@@ -118,8 +118,12 @@ function score(innovation) {
 function runtimeAllowsShip() {
   const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
   const explicitArm = String(process.env.INNOVATION_AUTO_SHIP || '0') === '1';
-  // Safe/stable blocks auto-ship unless the owner explicitly arms INNOVATION_AUTO_SHIP=1.
+  // Safe/stable: data/docs artifacts are allowed when SAFE_EVOLVE is on (default)
+  // and DISABLE_SELF_MUTATION=1. Source paths remain rejected by isSafeInnovation.
   if ((profile === 'safe' || profile === 'stable' || profile === '') && !explicitArm) {
+    if (String(process.env.SAFE_EVOLVE || '1') !== '0' && process.env.DISABLE_SELF_MUTATION === '1') {
+      return { ok: true, reason: 'safe_artifact_plane' };
+    }
     return { ok: false, reason: 'stable_profile' };
   }
   // QIS integrity — fail closed if shield reports critical.
@@ -298,6 +302,7 @@ function getStatus() {
   return {
     module: NAME,
     autoShipEnabled: autoShipEnabled(),
+    safeEvolve: String(process.env.SAFE_EVOLVE || '1') !== '0',
     disableSelfMutation: process.env.DISABLE_SELF_MUTATION === '1',
     shippedDir: shippedDir(),
     autoRunning: !!autoTimer,

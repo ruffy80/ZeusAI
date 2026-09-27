@@ -47,6 +47,17 @@ check('healer idle under stable still reports a pulse clock', () => {
   assert.ok(st.lastCheck, 'idle pulse stamps lastCheck so the module is not a silent zero');
 });
 
+check('LAR snapshot includes SECOS evolution block', () => {
+  const lar = require('../backend/modules/live-action-receipts');
+  const snap = lar.snapshot(8);
+  assert.ok(snap.evolution, 'evolution block');
+  assert.equal(snap.evolution.mutatesSource, false);
+  assert.equal(snap.evolution.inventsGmv, false);
+  assert.ok(Array.isArray(snap.evolution.recent));
+  assert.ok(snap.supreme && snap.supreme.innovator);
+  assert.ok(typeof snap.supreme.innovator.generated === 'number');
+});
+
 check('backend + site wire live-receipts', () => {
   const be = fs.readFileSync(path.join(ROOT, 'backend/index.js'), 'utf8');
   const site = fs.readFileSync(path.join(ROOT, 'src/index.js'), 'utf8');
@@ -58,6 +69,8 @@ check('backend + site wire live-receipts', () => {
   assert.ok(shell.includes("case '/live-actions'"));
   assert.ok(shell.includes("L('/live-actions', 'Live actions')"));
   assert.ok(shell.includes('minmax(min(320px,100%),1fr)'));
+  assert.ok(shell.includes('Safe Evolution Continuum'));
+  assert.ok(shell.includes('SECOS ticks'));
 });
 
 console.log('live-action-receipts.test.js passed ·', passed);

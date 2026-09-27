@@ -187,11 +187,13 @@ module.exports = {
         // Lead hunter + auto-marketing — skip internally when outbound unarmed
         LEAD_HUNTER_FORCE: process.env.LEAD_HUNTER_FORCE || '1',
         AUTO_MARKETING_FORCE: process.env.AUTO_MARKETING_FORCE || '1',
-        // Innovation generation + auto-ship OFF under safe/stable (Commercial Cycle).
-        // Arm only after money path is proven: INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1
-        // under UNICORN_RUNTIME_PROFILE=growth.
+        // Innovation SOURCE-ship stays OFF under safe/stable (Commercial Cycle).
+        // SAFE_EVOLVE (default ON) runs the data/docs artifact plane + healer observe.
+        // Kill-switch: SAFE_EVOLVE=0. Growth/source-ship still needs
+        // INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1 under profile=growth.
         INNOVATION_AUTO_SHIP: process.env.INNOVATION_AUTO_SHIP || '0',
         INNOVATION_GENERATE: process.env.INNOVATION_GENERATE || '0',
+        SAFE_EVOLVE: process.env.SAFE_EVOLVE || '1',
         // Fulfillment AI Eternal OS — default auto (armed when keys exist).
         // Optional allowlist: FULFILLMENT_AI_SKUS=instant-seo-content-pack,...
         ...FULFILLMENT_AI_ENV,

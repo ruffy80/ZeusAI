@@ -183,28 +183,31 @@ function mainCycle() {
 }
 
 function innovationGenerationEnabled() {
-  // Safe/stable default: do NOT accumulate endless pending proposals.
-  // Opt in with UNICORN_RUNTIME_PROFILE=growth|full AND INNOVATION_GENERATE=1
-  // (or legacy INNOVATION_AUTO_SHIP=1 under growth).
+  // SAFE_EVOLVE is the safe-plane switch (data/docs proposals). Independent of
+  // INNOVATION_GENERATE, which is the growth/source-ship arm.
+  if (String(process.env.SAFE_EVOLVE || '1') === '0') return false;
   const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
   if (profile === 'safe' || profile === 'stable' || profile === '') {
-    return String(process.env.INNOVATION_GENERATE || '0') === '1';
+    return true;
   }
-  if (profile !== 'growth' && profile !== 'full') return false;
   if (String(process.env.INNOVATION_GENERATE || '').trim() === '0') return false;
+  if (profile !== 'growth' && profile !== 'full') return false;
   if (String(process.env.INNOVATION_AUTO_SHIP || '').trim() === '0') return false;
   return true;
 }
 
 ensureStore();
-if (innovationGenerationEnabled()) {
+if (innovationGenerationEnabled() && (process.env.NODE_ENV !== 'test' || process.env.SAFE_EVOLVE_TEST === '1')) {
+  state.active = true;
   setInterval(mainCycle, MAIN_INTERVAL);
   setTimeout(() => { try { mainCycle(); } catch(_){} }, 2000);
-} else {
+} else if (!innovationGenerationEnabled()) {
   state.active = false;
   try {
-    console.log('[unicornInnovator] generation idle (safe/stable profile — set INNOVATION_GENERATE=1 under growth to enable)');
+    console.log('[unicornInnovator] generation idle (SAFE_EVOLVE=0)');
   } catch (_) { /* ignore */ }
+} else {
+  state.active = false;
 }
 
 // ---- API public ----

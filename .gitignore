@@ -70,6 +70,8 @@ UNICORN_FINAL/data/ledgers/
 UNICORN_FINAL/data/referrals/
 UNICORN_FINAL/data/wacp/
 UNICORN_FINAL/data/innovations/shipped/
+UNICORN_FINAL/data/evolution/
+UNICORN_FINAL/data/innovator/
 UNICORN_FINAL/data/notifications.jsonl
 UNICORN_FINAL/data/zacc-state.json
 UNICORN_FINAL/data/cblos/
