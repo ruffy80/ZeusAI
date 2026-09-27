@@ -71,6 +71,7 @@ check('backend + site wire live-receipts', () => {
   assert.ok(shell.includes('minmax(min(320px,100%),1fr)'));
   assert.ok(shell.includes('Safe Evolution Continuum'));
   assert.ok(shell.includes('SECOS ticks'));
+  assert.ok(shell.includes('What changed this hour'));
 });
 
 console.log('live-action-receipts.test.js passed ·', passed);

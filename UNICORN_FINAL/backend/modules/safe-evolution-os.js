@@ -70,6 +70,7 @@ async function tick(opts = {}) {
     innovator: null,
     ship: null,
     healer: null,
+    apply: null,
   };
 
   try {
@@ -103,11 +104,22 @@ async function tick(opts = {}) {
     out.healer = { ok: false, error: e && e.message };
   }
 
+  try {
+    const apply = require('./safe-apply-os');
+    if (apply && typeof apply.applyFromShip === 'function') {
+      out.apply = await apply.applyFromShip(out.ship);
+    }
+  } catch (e) {
+    out.apply = { ok: false, error: e && e.message };
+  }
+
   state.last = {
     at: out.at,
     innovatorCycles: out.innovator && out.innovator.cycles,
     generated: out.innovator && out.innovator.generated,
     shipped: out.ship && out.ship.evaluated,
+    applied: out.apply && out.apply.applied,
+    rolledBack: out.apply && out.apply.rolledBack,
     healerCycles: out.healer && out.healer.cycles,
     modulesScanned: out.healer && out.healer.modulesScanned,
   };
@@ -121,6 +133,8 @@ async function tick(opts = {}) {
     innovator: state.last.innovatorCycles,
     generated: state.last.generated,
     shipEvaluated: state.last.shipped,
+    applied: state.last.applied,
+    rolledBack: state.last.rolledBack,
     healerCycles: state.last.healerCycles,
     modulesScanned: state.last.modulesScanned,
   });
@@ -180,8 +194,9 @@ function getStatus() {
     pledge: [
       'Runs under stable — Unicorn keeps auto-evolving without rewriting source',
       'Innovations ship as data/docs artifacts only',
-      'Healer observes + ledgers; processGuardian stays off on this plane',
-      'Kill-switch SAFE_EVOLVE=0',
+      'Safe-apply writes those artifacts, canary-rolls back on the file',
+      'Healer observes + data-plane floor; processGuardian stays off',
+      'Kill-switch SAFE_EVOLVE=0 / SAFE_APPLY=0',
     ],
   };
 }

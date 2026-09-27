@@ -28,8 +28,11 @@ const fs = require('fs');
 const path = require('path');
 const EventEmitter = require('events');
 
+const crypto = require('crypto');
+
 const DATA_DIR = path.resolve(__dirname, '..', '..', 'data', 'innovator');
 const HISTORY_PATH = path.join(DATA_DIR, 'history.json');
+const SEEN_PATH = path.join(DATA_DIR, 'seen.json');
 const MAIN_INTERVAL = 60000; // 1min ciclu principal
 const MAX_INNOVATIONS_PENDING = 50;
 
@@ -45,7 +48,10 @@ const state = {
   history: [],
   active: true,
   circuitOpen: false,
-  consecutiveFailures: 0
+  consecutiveFailures: 0,
+  appliedEvolutions: 0,
+  lastDefectKind: null,
+  skippedDupes: 0,
 };
 
 function ensureStore() {
@@ -54,6 +60,31 @@ function ensureStore() {
     if (!fs.existsSync(HISTORY_PATH)) fs.writeFileSync(HISTORY_PATH, JSON.stringify({ items: [] }, null, 2));
   } catch (_) { /* fallback */ }
 }
+function sha256(text) {
+  return crypto.createHash('sha256').update(String(text || '')).digest('hex');
+}
+
+function loadSeen() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(SEEN_PATH, 'utf8'));
+    return Array.isArray(raw) ? raw : [];
+  } catch (_) { return []; }
+}
+
+function markSeen(hash) {
+  try {
+    ensureStore();
+    const seen = loadSeen();
+    if (seen.includes(hash)) return;
+    seen.push(hash);
+    fs.writeFileSync(SEEN_PATH, JSON.stringify(seen.slice(-400)));
+  } catch (_) { /* fail-soft */ }
+}
+
+function alreadySeen(hash) {
+  return loadSeen().includes(hash);
+}
+
 function persistHistory(item) {
   try {
     ensureStore();
@@ -96,20 +127,169 @@ function scoreIdea(idea) {
   return Math.max(0, Math.min(1, Math.round((base + tagBoost) * 1000) / 1000));
 }
 
-// innovationGenerator — generează idei noi (sursă: auto-innovation-loop.js)
+function dataRoot() {
+  return path.resolve(__dirname, '..', '..');
+}
+
+function missingSafeFile(rel, title, kind) {
+  const abs = path.join(dataRoot(), rel);
+  try {
+    if (fs.existsSync(abs) && fs.statSync(abs).size > 8) return null;
+  } catch (_) { /* treat as missing */ }
+  return {
+    ideaId: 'defect-' + kind,
+    title,
+    description: 'Fill missing safe-plane file ' + rel + ' so Unicorn can evolve without source mutation.',
+    tags: ['data', 'commerce', 'trust'],
+    score: 0.92,
+    defectKind: kind,
+    field: 'file',
+    targetPaths: [rel],
+    acceptanceTest: rel + ' exists, valid, inventsGmv=false',
+    safeScope: true,
+  };
+}
+
+function scanDefects() {
+  const defects = [];
+  const templates = [
+    missingSafeFile('data/catalog/next-offer.json', 'Honest next-offer brief for the live catalog', 'missing_next_offer'),
+    missingSafeFile('docs/seo/landing-brief.md', 'SEO landing brief with honest SKU pricing', 'missing_seo_brief'),
+    missingSafeFile('data/proofs/delivery-proof-template.json', 'Proof-of-delivery template for paid packs', 'missing_delivery_proof'),
+    missingSafeFile('data/catalog/sku-notes.json', 'Safe SKU notes overlay (no new SKUs, no prices)', 'missing_sku_notes'),
+  ];
+  for (const t of templates) if (t) defects.push(t);
+
+  try {
+    const healer = require('./unicornSelfHealer');
+    const mods = healer && typeof healer.getModules === 'function' ? healer.getModules() : {};
+    const broken = Object.entries(mods || {}).filter(([, info]) => info && info.ok === false).slice(0, 3);
+    for (const [name] of broken) {
+      defects.push({
+        ideaId: 'defect-module-' + name,
+        title: 'Document heal receipt for module ' + name,
+        description: 'Module ' + name + ' reported ok:false. Write a data-plane heal receipt, do not rewrite the module source.',
+        tags: ['reliability', 'docs'],
+        score: 0.78,
+        defectKind: 'module_unhealthy',
+        field: 'module.ok',
+        targetPaths: ['docs/innovation/heal-' + String(name).replace(/[^a-zA-Z0-9._-]+/g, '-') + '.md'],
+        acceptanceTest: 'heal receipt exists; source file untouched',
+        safeScope: true,
+      });
+    }
+  } catch (_) { /* healer optional at first require */ }
+
+  try {
+    const instant = require('../../src/commerce/instant-catalog');
+    const items = instant && typeof instant.all === 'function' ? instant.all() : [];
+    for (const item of (items || []).slice(0, 12)) {
+      const id = String((item && item.id) || '');
+      if (!id) continue;
+      const price = Number(item.priceUSD != null ? item.priceUSD : item.price);
+      if (!Number.isFinite(price) || price <= 0) {
+        defects.push({
+          ideaId: 'defect-price-' + id,
+          title: 'Document missing price honesty for ' + id,
+          description: 'SKU ' + id + ' has no honest price in the instant catalog seed. Record the gap in data/catalog notes — do not invent a price.',
+          tags: ['catalog', 'trust', 'commerce'],
+          score: 0.88,
+          defectKind: 'missing_price',
+          field: 'priceUSD',
+          targetPaths: ['data/catalog/sku-notes.json'],
+          acceptanceTest: 'sku-notes mentions ' + id + ' without inventing priceUSD',
+          safeScope: true,
+        });
+      }
+    }
+  } catch (_) { /* catalog optional */ }
+
+  return defects;
+}
+
+function genomeFitnessBoost() {
+  try {
+    const genome = require('./ai-genome-engine');
+    if (genome && typeof genome.getStatus === 'function') {
+      const st = genome.getStatus();
+      if (st && st.ok && !(st.disabled)) return 0.03;
+    }
+  } catch (_) { /* optional */ }
+  return 0;
+}
+
+function fitness(idea) {
+  let s = scoreIdea(idea);
+  if (idea && idea.defectKind) s += 0.12;
+  if (idea && Array.isArray(idea.targetPaths) && idea.targetPaths.length) s += 0.06;
+  if (idea && idea.acceptanceTest) s += 0.04;
+  if (idea && idea.inventsGmv) s -= 0.5;
+  s += genomeFitnessBoost();
+  return Math.max(0, Math.min(1, Math.round(s * 1000) / 1000));
+}
+
+function contentHashFor(idea) {
+  return sha256(JSON.stringify({
+    ideaId: idea && idea.ideaId,
+    title: idea && idea.title,
+    targetPaths: idea && idea.targetPaths,
+    defectKind: idea && idea.defectKind,
+  }));
+}
+
+function expiresAt() {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+// innovationGenerator — defect-first, then unused commerce pool. Dedup by content hash.
 function innovationGenerator() {
   if (state.circuitOpen) return null;
-  const idx = state.generated % COMMERCE_IDEAS.length;
-  const idea = COMMERCE_IDEAS[idx];
+  const defects = scanDefects();
+  let idea = defects.find((d) => !alreadySeen(contentHashFor(d)));
+  if (!idea) {
+    idea = COMMERCE_IDEAS.map((c, i) => ({
+      ideaId: 'pool-' + i + '-' + String(c.title).slice(0, 24).replace(/\s+/g, '-').toLowerCase(),
+      title: c.title,
+      description: 'Safe-scope commerce innovation for ZeusAI world standard (data/artifacts only).',
+      tags: c.tags.slice(),
+      score: c.score,
+      defectKind: null,
+      field: (c.tags && c.tags[0]) || 'commerce',
+      targetPaths: c.tags.includes('catalog')
+        ? ['data/catalog/next-offer.json']
+        : (c.tags.includes('seo')
+          ? ['docs/seo/landing-brief.md']
+          : (c.tags.includes('delivery') || c.tags.includes('trust')
+            ? ['data/proofs/delivery-proof-template.json']
+            : ['docs/innovation/' + String(c.title).slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase() + '.md'])),
+      acceptanceTest: 'artifact exists under data/ or docs/; inventsGmv=false',
+      safeScope: true,
+    })).find((c) => !alreadySeen(contentHashFor(c)));
+  }
+  if (!idea) {
+    state.skippedDupes += 1;
+    return null;
+  }
+  const hash = contentHashFor(idea);
+  markSeen(hash);
+  state.lastDefectKind = idea.defectKind || 'pool';
   return {
     id: `inv-${Date.now()}-${state.generated}`,
+    ideaId: idea.ideaId,
     title: idea.title,
-    description: 'Safe-scope commerce innovation for ZeusAI world standard (data/artifacts only).',
-    tags: idea.tags.slice(),
+    description: idea.description,
+    tags: (idea.tags || []).slice(),
     ts: new Date().toISOString(),
     status: 'pending',
-    score: scoreIdea(idea),
-    safeScope: true
+    score: fitness(idea),
+    safeScope: true,
+    defectKind: idea.defectKind || null,
+    field: idea.field || null,
+    targetPaths: idea.targetPaths || [],
+    acceptanceTest: idea.acceptanceTest,
+    contentHash: hash,
+    inventsGmv: false,
+    expiresAt: expiresAt(),
   };
 }
 
@@ -131,14 +311,23 @@ function codeOptimizer() {
   return { suggestedOptimizations: state.pending.filter(p => /optim/i.test(p.title)).length };
 }
 
-// selfEvolver — auto-evoluție pe baza approved (sursă: evolution-core.js)
+// selfEvolver — auto-evoluție pe baza artefactelor APLICATE, nu doar approved++
 function selfEvolver() {
-  return { evolutions: state.approved };
+  let applied = state.appliedEvolutions;
+  try {
+    const apply = require('./safe-apply-os');
+    if (apply && typeof apply.getStatus === 'function') {
+      applied = Number(apply.getStatus().applied) || applied;
+      state.appliedEvolutions = applied;
+    }
+  } catch (_) { /* optional */ }
+  return { evolutions: applied, approved: state.approved };
 }
 
-// genesisEngine — generează module noi (sursă: unicornAutoGenesis.js)
+// genesisEngine — generații din apply-uri reale (data/docs), nu module sursă
 function genesisEngine() {
-  return { genesisCount: Math.floor(state.approved / 5) };
+  const ev = selfEvolver();
+  return { genesisCount: Math.floor((ev.evolutions || 0) / 5), artifacts: ev.evolutions || 0 };
 }
 
 // shadowTester — testează în shadow înainte de approve (sursă: shadow-tester.js)
@@ -221,7 +410,10 @@ function getStatus() {
     rejected: state.rejected,
     pendingCount: state.pending.length,
     circuitOpen: state.circuitOpen,
-    generation: evolutionTracker().generation
+    generation: evolutionTracker().generation,
+    lastDefectKind: state.lastDefectKind,
+    skippedDupes: state.skippedDupes,
+    appliedEvolutions: selfEvolver().evolutions,
   };
 }
 function getHistory(limit = 50) { return state.history.slice(-limit); }
@@ -265,7 +457,9 @@ module.exports = {
   selfEvolver,
   genesisEngine,
   shadowTester,
-  innovationCircuitBreaker
+  innovationCircuitBreaker,
+  scanDefects,
+  fitness,
 };
 
 // EN: Supreme innovator, consolidates evolution/innovation/genesis modules

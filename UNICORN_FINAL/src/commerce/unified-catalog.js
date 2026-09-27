@@ -64,7 +64,11 @@ function _normalize(item, defaults) {
   } catch (_) { /* optional */ }
   try {
     const genome = _genome();
-    if (genome && typeof genome.enrichCatalogItem === 'function') return genome.enrichCatalogItem(base);
+    if (genome && typeof genome.enrichCatalogItem === 'function') base = genome.enrichCatalogItem(base);
+  } catch (_) { /* optional */ }
+  try {
+    const overlay = require('../../backend/modules/safe-catalog-overlay');
+    if (overlay && typeof overlay.enrichCatalogItem === 'function') return overlay.enrichCatalogItem(base);
   } catch (_) { /* optional */ }
   return base;
 }

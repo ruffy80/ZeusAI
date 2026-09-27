@@ -155,12 +155,20 @@ function buildSpec(innovation, computedScore, safety) {
   const paths = safety.paths;
   return {
     id: String(src.id || 'innovation-' + Date.now()),
+    ideaId: src.ideaId || null,
     title: String(src.title || 'Untitled innovation'),
     description: String(src.description || src.summary || ''),
     score: computedScore,
     approvedAt: new Date().toISOString(),
     safeScope: 'catalog/docs/data only',
     targetPaths: paths,
+    defectKind: src.defectKind || null,
+    field: src.field || null,
+    acceptanceTest: src.acceptanceTest || null,
+    contentHash: src.contentHash || null,
+    inventsGmv: false,
+    expiresAt: src.expiresAt || null,
+    document: src.document || null,
     tasks: [
       'Create or update catalog/data documents at the approved target paths.',
       'Document checkout, delivery, SEO, or trust behavior in a machine-readable artifact.',

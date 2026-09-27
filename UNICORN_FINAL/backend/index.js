@@ -4787,6 +4787,7 @@ for (const [meshName, modFile] of [
   ['unicornSelfHealer',  'unicornSelfHealer'],
   ['unicornInnovator',   'unicornInnovator'],
   ['safeEvolutionOs',    'safe-evolution-os'],
+  ['safeApplyOs',        'safe-apply-os'],
   ['unicornSovereigntyEngine', 'unicornSovereignty'],
 ]) {
   try {
@@ -14760,6 +14761,9 @@ try {
   const safeEvolutionOs = require('./modules/safe-evolution-os');
   registerModuleRoutes('safe-evolution-os', safeEvolutionOs);
   registerModuleRoutes('secos', safeEvolutionOs);
+  const safeApplyOs = require('./modules/safe-apply-os');
+  registerModuleRoutes('safe-apply-os', safeApplyOs);
+  registerModuleRoutes('saos', safeApplyOs);
 } catch (e) {
   console.warn('[secos] registerModuleRoutes skipped:', e && e.message);
 }
