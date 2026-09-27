@@ -194,6 +194,7 @@ module.exports = {
         INNOVATION_AUTO_SHIP: process.env.INNOVATION_AUTO_SHIP || '0',
         INNOVATION_GENERATE: process.env.INNOVATION_GENERATE || '0',
         SAFE_EVOLVE: process.env.SAFE_EVOLVE || '1',
+        SAFE_APPLY: process.env.SAFE_APPLY || '1',
         // Fulfillment AI Eternal OS — default auto (armed when keys exist).
         // Optional allowlist: FULFILLMENT_AI_SKUS=instant-seo-content-pack,...
         ...FULFILLMENT_AI_ENV,

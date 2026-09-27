@@ -64,6 +64,7 @@ async function run() {
     assert.ok(out.innovator);
     assert.ok(out.ship);
     assert.ok(out.healer);
+    assert.ok(out.apply);
     const afterInn = innovator.getStatus();
     const afterHeal = healer.getStatus();
     assert.ok(afterInn.cycles > beforeInn.cycles, 'innovator cycle advanced');

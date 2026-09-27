@@ -72,6 +72,12 @@ UNICORN_FINAL/data/wacp/
 UNICORN_FINAL/data/innovations/shipped/
 UNICORN_FINAL/data/evolution/
 UNICORN_FINAL/data/innovator/
+UNICORN_FINAL/data/patches/
+UNICORN_FINAL/data/catalog/next-offer.json
+UNICORN_FINAL/data/catalog/sku-notes.json
+UNICORN_FINAL/data/proofs/
+UNICORN_FINAL/docs/seo/
+UNICORN_FINAL/docs/innovation/
 UNICORN_FINAL/data/notifications.jsonl
 UNICORN_FINAL/data/zacc-state.json
 UNICORN_FINAL/data/cblos/

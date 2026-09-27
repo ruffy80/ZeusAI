@@ -5440,7 +5440,7 @@ function pageLiveActions(params = {}) {
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Autonomy Action Continuum · LAR/1.0 · SECOS/1.0</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live module actions · <span class="grad">receipts, not theater.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:820px">The Unicorn <b style="color:#fff">auto-evolves</b> on the safe plane: innovator proposes, ship-gate writes data/docs artifacts, healer scans and ledgers repairs — without rewriting source. Social skips stay honest. This page reads <code class="inline">/api/autonomy/live-receipts</code> every 12s. It never invents GMV, visitors, or social posts.</p>
+  <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:820px">The Unicorn <b style="color:#fff">auto-evolves</b> on the safe plane: defect-driven ideas, ship-gate, <b style="color:#fff">apply + canary</b>, healer data-plane floor — without rewriting source. If nothing applied this hour, the skip reason is a receipt. This page reads <code class="inline">/api/autonomy/live-receipts</code> every 12s. It never invents GMV, visitors, or social posts.</p>
 
   <div id="larWhy" class="card" style="margin-top:22px;padding:22px;border:1px solid rgba(255,211,106,.28)">
     <span class="kicker">Why you see nothing on Facebook / X / TikTok</span>
@@ -5488,6 +5488,24 @@ function pageLiveActions(params = {}) {
       </table>
     </div>
   </div>
+
+  <div class="card" style="margin-top:18px;padding:22px">
+    <span class="kicker">What changed this hour</span>
+    <h2 style="margin:8px 0 6px;font-size:22px">Apply · canary · rollback · patch proposals</h2>
+    <p id="larChangedMeta" style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Waiting for SAOS ledger…</p>
+    <div style="overflow-x:auto">
+      <table id="larChangedTable" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--ink-dim)">
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">When</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Type</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">File</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Hash</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Why</th>
+        </tr></thead>
+        <tbody id="larChangedBody"><tr><td colspan="5" style="padding:12px 10px;color:var(--ink-dim)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
   <script${N}>
   (function(){
     function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -5510,6 +5528,7 @@ function pageLiveActions(params = {}) {
         var ship = d.shipGate || {};
         var vis = d.visibleSocial || {};
         var evo = d.evolution || {};
+        var apply = d.apply || {};
         var inn = (d.supreme && d.supreme.innovator) || {};
         var shipM = ship.metrics || {};
         var kpis = document.getElementById('larKpis');
@@ -5521,6 +5540,7 @@ function pageLiveActions(params = {}) {
             kpi('SECOS ticks', evo.ticks!=null?evo.ticks:'—', 'Last '+(evo.lastTickAt||'—')+' · data/docs only'),
             kpi('Innovator cycles', inn.cycles!=null?inn.cycles:'—', 'Generated '+(inn.generated!=null?inn.generated:0)+' · pending '+(inn.pendingCount!=null?inn.pendingCount:0)),
             kpi('Ship artifacts', shipM.shippedArtifacts!=null?shipM.shippedArtifacts:'—', 'Evaluated '+(shipM.evaluated!=null?shipM.evaluated:0)+' · '+(ship.lastCycleAt||'no cycle yet')),
+            kpi('Applied', apply.applied!=null?apply.applied:'—', 'Rolled back '+(apply.rolledBack!=null?apply.rolledBack:0)+' · skipped '+(apply.skipped!=null?apply.skipped:0)),
             kpi('Healer scanned', healer.modulesScanned!=null?healer.modulesScanned:'—', healerNote),
             kpi('AACOS ticks', a.ticks!=null?a.ticks:'—', 'Last tick '+(a.lastTickAt||'—')),
             kpi('Published', a.published!=null?a.published:'—', 'Skipped '+(a.skipped!=null?a.skipped:'—')+' · '+(a.lastSkipReason||'')),
@@ -5551,6 +5571,21 @@ function pageLiveActions(params = {}) {
                 return '<tr><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);white-space:nowrap">'+esc((row.at||'').replace('T',' ').replace('Z',''))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);color:#7cffb8;font-weight:700">'+esc(row.tick!=null?row.tick:'—')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc((row.innovator!=null?row.innovator:'—')+' / gen '+(row.generated!=null?row.generated:'—'))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.shipEvaluated!=null?row.shipEvaluated:'—')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.modulesScanned!=null?row.modulesScanned:'—')+'</td></tr>';
               }).join('')
             : '<tr><td colspan="5" style="padding:12px 10px;color:var(--ink-dim)">No SECOS ticks in this process yet — first tick ~12s after backend boot, then every 5 min.</td></tr>';
+        }
+        var chMeta = document.getElementById('larChangedMeta');
+        if (chMeta) chMeta.textContent = 'applied='+(apply.applied||0)+' · rolledBack='+(apply.rolledBack||0)+' · patches='+(apply.proposedPatches||0)+' · mutatesSource=false';
+        var changed = (apply.changedThisHour && apply.changedThisHour.length) ? apply.changedThisHour : [];
+        var chBody = document.getElementById('larChangedBody');
+        if (chBody) {
+          chBody.innerHTML = changed.length
+            ? changed.map(function(row){
+                var kind = String(row.type||'');
+                var color = kind==='applied'?'#7cffb8':(kind==='rolled_back'?'#ff8a8a':(kind==='patch_proposed'?'#9ab4ff':'#ffd36a'));
+                var pathNote = (row.paths && row.paths[0] && row.paths[0].path) || row.path || '';
+                var hash = (row.paths && row.paths[0] && row.paths[0].afterHash) ? String(row.paths[0].afterHash).slice(0,12) : (row.contentHash?String(row.contentHash).slice(0,12):'');
+                return '<tr><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);white-space:nowrap">'+esc((row.at||'').replace('T',' ').replace('Z',''))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);color:'+color+';font-weight:700">'+esc(kind)+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(pathNote)+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(hash)+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.reason||row.defectKind||row.title||'')+'</td></tr>';
+              }).join('')
+            : '<tr><td colspan="5" style="padding:12px 10px;color:var(--ink-dim)">Nothing applied this hour — wait a SECOS tick, or the skip/dedup reason will appear here.</td></tr>';
         }
       } catch (e) {
         var whyEl2 = document.getElementById('larWhyList');

@@ -256,21 +256,81 @@ function _stableIdle() {
 
 let _cycleTimer = null;
 let _idleTimer = null;
+function dataPlaneHeal() {
+  // Repair selling-plane files only. Never rewrite backend/src/scripts.
+  const root = path.resolve(__dirname, '..', '..');
+  const templates = [
+    {
+      rel: 'data/catalog/next-offer.json',
+      body: {
+        protocol: 'SAOS/1.0',
+        id: 'next-offer',
+        title: 'Honest next offer (not a SKU)',
+        inventsSku: false,
+        inventsGmv: false,
+        notBuyable: true,
+        note: 'Healer floor — SECOS may enrich this brief.',
+      },
+    },
+    {
+      rel: 'data/proofs/delivery-proof-template.json',
+      body: {
+        protocol: 'SAOS/1.0',
+        kind: 'delivery-proof-template',
+        inventsGmv: false,
+        fields: ['orderId', 'artifactHash', 'deliveredAt'],
+      },
+    },
+    {
+      rel: 'docs/seo/landing-brief.md',
+      body: '# Honest SEO landing brief\n\ninventsGmv: false\nUse live catalog prices only.\n',
+    },
+    {
+      rel: 'data/catalog/sku-notes.json',
+      body: { protocol: 'SCO/1.0', inventsSku: false, inventsPrice: false, inventsGmv: false, notes: {} },
+    },
+  ];
+  let repaired = 0;
+  for (const t of templates) {
+    const abs = path.join(root, t.rel);
+    try {
+      if (fs.existsSync(abs) && fs.statSync(abs).size > 8) {
+        if (t.rel.endsWith('.json')) {
+          JSON.parse(fs.readFileSync(abs, 'utf8'));
+        }
+        continue;
+      }
+    } catch (_) {
+      /* invalid json → rewrite floor */
+    }
+    try {
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      const text = typeof t.body === 'string' ? t.body : JSON.stringify(t.body, null, 2) + '\n';
+      fs.writeFileSync(abs, text);
+      repaired += 1;
+      appendLedger({ type: 'data-plane-heal', path: t.rel, inventsHeal: false });
+    } catch (_) { /* fail-soft */ }
+  }
+  return repaired;
+}
+
 function observeCycle() {
-  // Safe-plane heal: scan + ledger. No processGuardian (that thrashed healthy PM2).
+  // Safe-plane heal: scan + ledger + data-plane floor. No processGuardian.
   try {
     state.cycles += 1;
     state.lastCheck = new Date().toISOString();
     const scanned = moduleScanner();
     healerCore();
     const repairs = repairDaemon();
+    const dataRepairs = dataPlaneHeal();
     const wd = watchdogDaemon();
     const pred = predictiveHealer();
-    state.history.push({ type: 'observe', cycle: state.cycles, scanned, repairs, wd, pred, ts: state.lastCheck });
+    const totalRepairs = (Number(repairs) || 0) + (Number(dataRepairs) || 0);
+    state.history.push({ type: 'observe', cycle: state.cycles, scanned, repairs: totalRepairs, dataRepairs, wd, pred, ts: state.lastCheck });
     if (state.history.length > 200) state.history = state.history.slice(-200);
-    if (repairs > 0) state.healings += repairs;
-    appendLedger({ type: 'observe', scanned, repairs, inventsHeal: false });
-    healerBus.emit('healer:observe', { cycle: state.cycles, scanned, repairs });
+    if (totalRepairs > 0) state.healings += totalRepairs;
+    appendLedger({ type: 'observe', scanned, repairs: totalRepairs, dataRepairs, inventsHeal: false });
+    healerBus.emit('healer:observe', { cycle: state.cycles, scanned, repairs: totalRepairs, dataRepairs });
     return getStatus();
   } catch (e) {
     state.errors += 1;
@@ -385,6 +445,7 @@ module.exports = {
   getLedger,
   observeCycle,
   startIdlePulse,
+  dataPlaneHeal,
   // Sub-componente expuse pentru testare
   moduleScanner,
   healerCore,

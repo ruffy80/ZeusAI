@@ -62,6 +62,7 @@ function snapshot(limit) {
   const guardian = _status('./unicornGuardian');
   const shipGateRaw = _status('./innovation-ship-gate');
   const evolution = _status('./safe-evolution-os');
+  const applyRaw = _status('./safe-apply-os');
   const viralRaw = _safe('./viral-unification-os', (m) => (
     typeof m.discovery === 'function' ? m.discovery() : (typeof m.getStatus === 'function' ? m.getStatus() : null)
   ));
@@ -127,6 +128,19 @@ function snapshot(limit) {
       mutatesSource: false,
       inventsGmv: false,
       recent: Array.isArray(evolution.recent) ? evolution.recent.slice(0, 12) : [],
+    },
+    apply: applyRaw && {
+      protocol: applyRaw.protocol || 'SAOS/1.0',
+      enabled: !!applyRaw.enabled,
+      applied: Number(applyRaw.applied) || 0,
+      rolledBack: Number(applyRaw.rolledBack) || 0,
+      skipped: Number(applyRaw.skipped) || 0,
+      proposedPatches: Number(applyRaw.proposedPatches) || 0,
+      lastCanary: applyRaw.lastCanary || null,
+      mutatesSource: false,
+      inventsGmv: false,
+      changedThisHour: Array.isArray(applyRaw.changedThisHour) ? applyRaw.changedThisHour.slice(0, 20) : [],
+      recent: Array.isArray(applyRaw.recent) ? applyRaw.recent.slice(0, 12) : [],
     },
     shipGate: shipGateRaw && {
       autoShipEnabled: !!shipGateRaw.autoShipEnabled,
