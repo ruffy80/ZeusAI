@@ -256,6 +256,29 @@ function _stableIdle() {
 
 let _cycleTimer = null;
 let _idleTimer = null;
+function observeCycle() {
+  // Safe-plane heal: scan + ledger. No processGuardian (that thrashed healthy PM2).
+  try {
+    state.cycles += 1;
+    state.lastCheck = new Date().toISOString();
+    const scanned = moduleScanner();
+    healerCore();
+    const repairs = repairDaemon();
+    const wd = watchdogDaemon();
+    const pred = predictiveHealer();
+    state.history.push({ type: 'observe', cycle: state.cycles, scanned, repairs, wd, pred, ts: state.lastCheck });
+    if (state.history.length > 200) state.history = state.history.slice(-200);
+    if (repairs > 0) state.healings += repairs;
+    appendLedger({ type: 'observe', scanned, repairs, inventsHeal: false });
+    healerBus.emit('healer:observe', { cycle: state.cycles, scanned, repairs });
+    return getStatus();
+  } catch (e) {
+    state.errors += 1;
+    appendLedger({ type: 'observe-error', message: e && e.message });
+    return { ok: false, error: e && e.message };
+  }
+}
+
 function _idlePulse() {
   state.lastCheck = new Date().toISOString();
   state.idlePulses = (state.idlePulses || 0) + 1;
@@ -270,8 +293,8 @@ function startIdlePulse() {
   if (process.env.NODE_ENV === 'test' && process.env.HEALER_IDLE_TEST !== '1') {
     return { ok: true, idle: true, test: true };
   }
-  try { _idlePulse(); } catch (_) { /* first pulse fail-soft */ }
-  _idleTimer = setInterval(() => { try { _idlePulse(); } catch (_) {} }, 5 * 60 * 1000);
+  try { observeCycle(); } catch (_) { try { _idlePulse(); } catch (__) {} }
+  _idleTimer = setInterval(() => { try { observeCycle(); } catch (_) { try { _idlePulse(); } catch (__) {} } }, 5 * 60 * 1000);
   if (_idleTimer && typeof _idleTimer.unref === 'function') _idleTimer.unref();
   return { ok: true, idle: true };
 }
@@ -360,6 +383,8 @@ module.exports = {
   emit,
   handlePredictiveWarning,
   getLedger,
+  observeCycle,
+  startIdlePulse,
   // Sub-componente expuse pentru testare
   moduleScanner,
   healerCore,

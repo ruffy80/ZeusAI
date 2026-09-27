@@ -5438,9 +5438,9 @@ function pageWizard() {
 function pageLiveActions(params = {}) {
   const N = params.nonce ? ` nonce="${String(params.nonce).replace(/"/g, '')}"` : '';
   return `<section style="padding-top:140px;max-width:1100px">
-  <span class="kicker">Autonomy Action Continuum · LAR/1.0</span>
+  <span class="kicker">Autonomy Action Continuum · LAR/1.0 · SECOS/1.0</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live module actions · <span class="grad">receipts, not theater.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:820px">The Unicorn loops <b style="color:#fff">are running</b>. What you do not see on Facebook/X/Instagram is not a dead engine — it is an honest skip. This page reads <code class="inline">/api/autonomy/live-receipts</code> every 12s. It never invents GMV, visitors, or social posts.</p>
+  <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:820px">The Unicorn <b style="color:#fff">auto-evolves</b> on the safe plane: innovator proposes, ship-gate writes data/docs artifacts, healer scans and ledgers repairs — without rewriting source. Social skips stay honest. This page reads <code class="inline">/api/autonomy/live-receipts</code> every 12s. It never invents GMV, visitors, or social posts.</p>
 
   <div id="larWhy" class="card" style="margin-top:22px;padding:22px;border:1px solid rgba(255,211,106,.28)">
     <span class="kicker">Why you see nothing on Facebook / X / TikTok</span>
@@ -5470,6 +5470,24 @@ function pageLiveActions(params = {}) {
       </table>
     </div>
   </div>
+
+  <div class="card" style="margin-top:18px;padding:22px">
+    <span class="kicker">Safe Evolution Continuum</span>
+    <h2 style="margin:8px 0 6px;font-size:22px">Innovate · ship artifacts · observe-heal</h2>
+    <p id="larEvoMeta" style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Waiting for SECOS ledger…</p>
+    <div style="overflow-x:auto">
+      <table id="larEvoTable" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--ink-dim)">
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">When</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Tick</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Innovator</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Shipped eval</th>
+          <th style="padding:8px 10px;border-bottom:1px solid var(--stroke,rgba(160,200,255,.14))">Healer scan</th>
+        </tr></thead>
+        <tbody id="larEvoBody"><tr><td colspan="5" style="padding:12px 10px;color:var(--ink-dim)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
   <script${N}>
   (function(){
     function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -5491,14 +5509,22 @@ function pageLiveActions(params = {}) {
         var healer = d.healer || {};
         var ship = d.shipGate || {};
         var vis = d.visibleSocial || {};
+        var evo = d.evolution || {};
+        var inn = (d.supreme && d.supreme.innovator) || {};
+        var shipM = ship.metrics || {};
         var kpis = document.getElementById('larKpis');
         if (kpis) {
+          var healerNote = healer.idle
+            ? ('observe · scanned '+(healer.modulesScanned||0)+' · no PM2 restart')
+            : ('cycles '+(healer.cycles||0));
           kpis.innerHTML = [
+            kpi('SECOS ticks', evo.ticks!=null?evo.ticks:'—', 'Last '+(evo.lastTickAt||'—')+' · data/docs only'),
+            kpi('Innovator cycles', inn.cycles!=null?inn.cycles:'—', 'Generated '+(inn.generated!=null?inn.generated:0)+' · pending '+(inn.pendingCount!=null?inn.pendingCount:0)),
+            kpi('Ship artifacts', shipM.shippedArtifacts!=null?shipM.shippedArtifacts:'—', 'Evaluated '+(shipM.evaluated!=null?shipM.evaluated:0)+' · '+(ship.lastCycleAt||'no cycle yet')),
+            kpi('Healer scanned', healer.modulesScanned!=null?healer.modulesScanned:'—', healerNote),
             kpi('AACOS ticks', a.ticks!=null?a.ticks:'—', 'Last tick '+(a.lastTickAt||'—')),
             kpi('Published', a.published!=null?a.published:'—', 'Skipped '+(a.skipped!=null?a.skipped:'—')+' · '+(a.lastSkipReason||'')),
             kpi('Spine', spine.mode||'—', (spine.reasons&&spine.reasons[0])||'attest only'),
-            kpi('Healer', healer.idle?'IDLE':'active', healer.idleReason||('cycles '+(healer.cycles||0))),
-            kpi('Ship-gate', ship.autoRunning?'running':'off', ship.disableSelfMutation?'DISABLE_SELF_MUTATION=1':'mutation allowed'),
             kpi('Gaze rails', (vis.railsArmed||[]).join(', ')||'none', (vis.gazeDark&&vis.gazeDark.length)?('dark: '+vis.gazeDark.join(', ')):'')
           ].join('');
         }
@@ -5514,6 +5540,17 @@ function pageLiveActions(params = {}) {
                 return '<tr><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);white-space:nowrap">'+esc((row.at||'').replace('T',' ').replace('Z',''))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);color:'+color+';font-weight:700">'+esc(kind)+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.via||'')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.reason||row.note||'')+'</td></tr>';
               }).join('')
             : '<tr><td colspan="4" style="padding:12px 10px;color:var(--ink-dim)">No actions in this process yet — wait one AACOS tick (~3 min) after boot.</td></tr>';
+        }
+        var evoMeta = document.getElementById('larEvoMeta');
+        if (evoMeta) evoMeta.textContent = 'armed='+!!evo.armed+' · mutatesSource=false · last '+(evo.lastTickAt||'none');
+        var evoRows = (evo.recent && evo.recent.length) ? evo.recent : [];
+        var evoBody = document.getElementById('larEvoBody');
+        if (evoBody) {
+          evoBody.innerHTML = evoRows.length
+            ? evoRows.map(function(row){
+                return '<tr><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);white-space:nowrap">'+esc((row.at||'').replace('T',' ').replace('Z',''))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08);color:#7cffb8;font-weight:700">'+esc(row.tick!=null?row.tick:'—')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc((row.innovator!=null?row.innovator:'—')+' / gen '+(row.generated!=null?row.generated:'—'))+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.shipEvaluated!=null?row.shipEvaluated:'—')+'</td><td style="padding:8px 10px;border-bottom:1px solid rgba(160,200,255,.08)">'+esc(row.modulesScanned!=null?row.modulesScanned:'—')+'</td></tr>';
+              }).join('')
+            : '<tr><td colspan="5" style="padding:12px 10px;color:var(--ink-dim)">No SECOS ticks in this process yet — first tick ~12s after backend boot, then every 5 min.</td></tr>';
         }
       } catch (e) {
         var whyEl2 = document.getElementById('larWhyList');
@@ -7048,9 +7085,9 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
-    '/live-actions': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
-    '/autonomy': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
-    '/innovation-log': 'Honest Unicorn autonomy receipts: real ticks, skips, heals and publishes. Never invents GMV or social posts.',
+    '/live-actions': 'Honest Unicorn autonomy receipts: real ticks, skips, heals, innovation artifacts and publishes. Never invents GMV or social posts.',
+    '/autonomy': 'Honest Unicorn autonomy receipts: real ticks, skips, heals, innovation artifacts and publishes. Never invents GMV or social posts.',
+    '/innovation-log': 'Honest Unicorn autonomy receipts: real ticks, skips, heals, innovation artifacts and publishes. Never invents GMV or social posts.',
     '/social-network': 'ZeusAI Social — world-standard feed with Facebook, X, Instagram and TikTok surfaces, real cryptoauth accounts, and inventions Big Social still lacks. Share globally.',
     '/admin/social-network': 'Admin ZeusAI Social control panel with autonomous module state, decisions, Proof-of-Reach and commerce mirror.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',

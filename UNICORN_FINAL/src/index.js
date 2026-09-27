@@ -1274,6 +1274,7 @@ app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
 app.get('/api/aacos/status', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
 app.get(['/api/autonomy/live-receipts', '/api/live-actions'], siteProxyToUnicorn('/api/autonomy/live-receipts'));
+app.get(['/api/safe-evolution-os/status', '/api/secos/status'], siteProxyToUnicorn('/api/safe-evolution-os/status'));
 app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/agde/status', siteProxyToUnicorn('/api/agde/status'));
 app.get('/api/agde/ledger', siteProxyToUnicorn('/api/agde/ledger'));
