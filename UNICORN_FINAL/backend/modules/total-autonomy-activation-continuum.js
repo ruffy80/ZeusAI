@@ -12,7 +12,7 @@
  *   - Safe to run under UNICORN_RUNTIME_PROFILE=stable
  *
  * Arms (idempotent, fail-soft):
- *   TCC → TAOS.armSafe → BALOS → traffic → growth-brain → AACOS →
+ *   TCC → TAOS.armSafe → SECOS → BALOS → traffic → growth-brain → AACOS →
  *   AGDE → RIVOS → AMOS/MDSP → lead-hunter (when TG/email) →
  *   auto-marketing (when forced/keys) → social viralizer ensure
  */
@@ -130,7 +130,7 @@ async function armAll(opts) {
 
   if (dryRun) {
     results.plan = [
-      'tcc', 'taos_armSafe', 'balos', 'traffic', 'growth_brain', 'aacos',
+      'tcc', 'taos_armSafe', 'secos', 'balos', 'traffic', 'growth_brain', 'aacos',
       'agde', 'rivos', 'amos_mdsp', 'lead_hunter', 'auto_marketing', 'social_viralizer',
     ];
     results.ok = true;
@@ -171,6 +171,18 @@ async function armAll(opts) {
       return { ok: true, started: true };
     }
     return { ok: false, reason: 'no_armSafe' };
+  });
+
+  // 2b) SECOS — safe-plane auto-innovate / auto-repair / auto-apply (data/docs only)
+  results.secos = await _try('secos', () => {
+    if (String(process.env.SAFE_EVOLVE || '1') === '0') {
+      _counts.skips += 1;
+      return { ok: false, reason: 'SAFE_EVOLVE=0', skipped: true };
+    }
+    const secos = _safeRequire('./safe-evolution-os');
+    if (!secos || typeof secos.start !== 'function') return { ok: false, reason: 'unavailable' };
+    const out = secos.start({ source: 'taac' });
+    return Object.assign({ ok: !!(out && out.ok !== false) }, out || {});
   });
 
   // 3) BALOS — IndexNow money flywheel

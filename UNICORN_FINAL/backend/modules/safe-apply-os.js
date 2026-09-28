@@ -162,10 +162,14 @@ function buildDocument(spec, rel) {
   };
 }
 
-function canary() {
+function canary(opts = {}) {
   const reasons = [];
   let publicCount = null;
   let buyable = null;
+  const paths = [].concat(opts.paths || []).map(String);
+  const catalogSensitive = !paths.length || paths.some((p) =>
+    /(^|\/)(data\/)?catalog\//i.test(p) || /sku-notes|next-offer/i.test(p)
+  );
   try {
     const unified = require('../../src/commerce/unified-catalog');
     const filter = require('../../src/commerce/public-catalog-filter');
@@ -174,7 +178,7 @@ function canary() {
       ? filter.filterPublicCatalogItems(all)
       : all;
     publicCount = Array.isArray(pub) ? pub.length : 0;
-    if (publicCount < 1) reasons.push('public_catalog_empty');
+    if (publicCount < 1 && catalogSensitive) reasons.push('public_catalog_empty');
   } catch (_) {
     publicCount = null;
   }
@@ -301,7 +305,7 @@ function applySpec(spec, opts = {}) {
         bytes: wrote.bytes,
       });
     }
-    const gate = canary();
+    const gate = canary({ paths });
     if (!gate.ok) {
       snaps.forEach(restoreSnap);
       state.rolledBack += 1;
@@ -319,6 +323,10 @@ function applySpec(spec, opts = {}) {
     _appliedHashes.add(contentHash);
     persistSeen();
     state.applied += 1;
+    try {
+      const inn = require('./unicornInnovator');
+      if (inn && typeof inn.markApplied === 'function') inn.markApplied(contentHash);
+    } catch (_) { /* optional */ }
     const at = new Date().toISOString();
     const receipt = {
       protocol: PROTOCOL,

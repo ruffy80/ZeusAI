@@ -294,6 +294,38 @@ function senseTriadBond() {
   );
 }
 
+function senseSafeEvolution() {
+  const secos = safeRequire('./safe-evolution-os');
+  if (!secos || typeof secos.getStatus !== 'function') {
+    return organ('secos', 'safe_evolve', 8, 'unarmed', 40, 'SECOS unavailable');
+  }
+  let st = {};
+  try { st = secos.getStatus() || {}; } catch (_) { st = {}; }
+  const enabled = st.enabled !== false;
+  const armed = !!st.armed;
+  const ticks = Number(st.ticks) || 0;
+  const applied = Number(st.last && st.last.applied) || 0;
+  let score = 50;
+  let posture = 'idle_stable';
+  if (!enabled) {
+    score = 35;
+    posture = 'unarmed';
+  } else if (armed || ticks > 0) {
+    score = applied > 0 ? 95 : (ticks > 0 ? 85 : 75);
+    posture = 'live';
+  }
+  return organ(
+    'secos',
+    'safe_evolve',
+    8,
+    posture,
+    score,
+    enabled
+      ? (`SECOS ${armed ? 'armed' : 'present'} · ticks=${ticks} · applied=${applied}`)
+      : 'SAFE_EVOLVE=0'
+  );
+}
+
 function composeOrgans() {
   return [
     senseMutatorSafety(),
@@ -306,6 +338,7 @@ function composeOrgans() {
     senseSpine(),
     senseSiteBond(),
     senseTriadBond(),
+    senseSafeEvolution(),
     senseCvr(),
   ];
 }

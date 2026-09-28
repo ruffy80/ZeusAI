@@ -135,6 +135,13 @@ const STABLE_START_ALLOW = new Set([
   'viralUnificationOs',
   'visible-social-os',
   'visibleSocialOs',
+  'safe-evolution-os',
+  'safeEvolutionOs',
+  'safe-apply-os',
+  'safeApplyOs',
+  'unicornInnovator',
+  'innovation-ship-gate',
+  'innovationShipGate',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

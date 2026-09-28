@@ -25,6 +25,7 @@ process.env.SAFE_PATCH_DIR = path.join(tmp, 'data', 'patches');
 process.env.SAFE_CHANGED_PATH = path.join(tmp, 'data', 'evolution', 'changed.jsonl');
 process.env.SAFE_APPLY_SEEN = path.join(tmp, 'data', 'evolution', 'applied-hashes.json');
 process.env.SAFE_EVOLVE_DATA_DIR = path.join(tmp, 'data', 'evolution');
+process.env.INNOVATOR_DATA_DIR = path.join(tmp, 'data', 'innovator');
 
 const apply = require('../backend/modules/safe-apply-os');
 
@@ -100,6 +101,22 @@ async function run() {
     assert.equal(st.mutatesSource, false);
     assert.equal(st.inventsGmv, false);
     assert.ok(Array.isArray(st.changedThisHour));
+  });
+
+  await check('docs-only apply is not rolled back solely for public_catalog_empty', () => {
+    const r = apply.applySpec({
+      id: 'docs-heal-1',
+      title: 'Heal receipt',
+      description: 'Data-plane heal receipt',
+      targetPaths: ['docs/innovation/heal-example.md'],
+      contentHash: 'hash-docs-heal-1',
+      inventsGmv: false,
+    }, { force: true });
+    assert.equal(r.ok, true);
+    assert.equal(r.applied, true);
+    assert.ok(!r.rolledBack);
+    const abs = path.join(tmp, 'docs/innovation/heal-example.md');
+    assert.ok(fs.existsSync(abs));
   });
 
   await check('LAR + UI wire apply receipts', () => {

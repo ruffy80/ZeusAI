@@ -5538,7 +5538,7 @@ function pageLiveActions(params = {}) {
             : ('cycles '+(healer.cycles||0));
           kpis.innerHTML = [
             kpi('SECOS ticks', evo.ticks!=null?evo.ticks:'—', 'Last '+(evo.lastTickAt||'—')+' · data/docs only'),
-            kpi('Innovator cycles', inn.cycles!=null?inn.cycles:'—', 'Generated '+(inn.generated!=null?inn.generated:0)+' · pending '+(inn.pendingCount!=null?inn.pendingCount:0)),
+            kpi('Innovator cycles', inn.cycles!=null?inn.cycles:'—', 'Generated '+(inn.generated!=null?inn.generated:0)+' · pending '+(inn.pendingCount!=null?inn.pendingCount:0)+' · skipped '+(inn.skippedDupes!=null?inn.skippedDupes:0)+(inn.lastDefectKind?(' · '+inn.lastDefectKind):'')),
             kpi('Ship artifacts', shipM.shippedArtifacts!=null?shipM.shippedArtifacts:'—', 'Evaluated '+(shipM.evaluated!=null?shipM.evaluated:0)+' · '+(ship.lastCycleAt||'no cycle yet')),
             kpi('Applied', apply.applied!=null?apply.applied:'—', 'Rolled back '+(apply.rolledBack!=null?apply.rolledBack:0)+' · skipped '+(apply.skipped!=null?apply.skipped:0)),
             kpi('Healer scanned', healer.modulesScanned!=null?healer.modulesScanned:'—', healerNote),
