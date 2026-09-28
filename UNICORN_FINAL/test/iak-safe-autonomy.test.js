@@ -56,6 +56,8 @@ async function main() {
     assert.ok('balos' in st.organs);
     assert.ok('rivos' in st.organs);
     assert.ok('traffic' in st.organs);
+    assert.ok('secos' in st.organs);
+    assert.ok('saos' in st.organs);
     assert.ok(st.innovations.includes('safe_autonomy_plane'));
     assert.ok(st.innovations.includes('taac_master_activation'));
   });

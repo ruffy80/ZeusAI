@@ -915,6 +915,10 @@ class IntegratedAutonomyKernel extends EventEmitter {
     soft('tcc', './telegram-credential-continuum');
     soft('traffic', './traffic-engine');
     soft('growthBrain', './growth-brain');
+    soft('secos', './safe-evolution-os');
+    soft('saos', './safe-apply-os');
+    soft('shipGate', './innovation-ship-gate');
+    soft('innovator', './unicornInnovator');
     try {
       const rivos = require('../../src/commerce/revenue-invention-continuum-os');
       if (rivos && typeof rivos.status === 'function') organs.rivos = rivos.status();

@@ -22,6 +22,9 @@ const SAFE_ORGANS = Object.freeze([
   'module-reality-os',
   'forward-only-safety',
   'mutation-boundary-enforcer',
+  'safe-evolution-os',
+  'safe-apply-os',
+  'unicornInnovator',
 ]);
 
 const GROWTH_ORGANS = Object.freeze([

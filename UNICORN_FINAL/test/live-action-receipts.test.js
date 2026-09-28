@@ -56,6 +56,7 @@ check('LAR snapshot includes SECOS evolution block', () => {
   assert.ok(Array.isArray(snap.evolution.recent));
   assert.ok(snap.supreme && snap.supreme.innovator);
   assert.ok(typeof snap.supreme.innovator.generated === 'number');
+  assert.ok(typeof snap.supreme.innovator.skippedDupes === 'number');
 });
 
 check('backend + site wire live-receipts', () => {

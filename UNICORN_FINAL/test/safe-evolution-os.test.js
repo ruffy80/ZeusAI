@@ -22,6 +22,8 @@ delete process.env.SAFE_EVOLVE_TEST;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'secos-'));
 process.env.SAFE_EVOLVE_DATA_DIR = path.join(tmp, 'evolution');
 process.env.INNOVATION_SHIPPED_DIR = path.join(tmp, 'shipped');
+process.env.INNOVATOR_DATA_DIR = path.join(tmp, 'innovator');
+process.env.SAFE_APPLY_SEEN = path.join(tmp, 'applied-hashes.json');
 
 const secos = require('../backend/modules/safe-evolution-os');
 const innovator = require('../backend/modules/unicornInnovator');
@@ -126,6 +128,8 @@ async function run() {
     assert.ok(snap.evolution);
     assert.equal(snap.evolution.protocol, 'SECOS/1.0');
     assert.equal(snap.evolution.mutatesSource, false);
+    assert.ok(snap.supreme && snap.supreme.innovator);
+    assert.ok('skippedDupes' in snap.supreme.innovator);
     const be = fs.readFileSync(path.join(__dirname, '../backend/index.js'), 'utf8');
     const site = fs.readFileSync(path.join(__dirname, '../src/index.js'), 'utf8');
     const shell = fs.readFileSync(path.join(__dirname, '../src/site/v2/shell.js'), 'utf8');
@@ -134,6 +138,45 @@ async function run() {
     assert.ok(site.includes('/api/safe-evolution-os/status'));
     assert.ok(shell.includes('SECOS ticks'));
     assert.ok(shell.includes('Safe Evolution Continuum'));
+    assert.ok(shell.includes('skippedDupes'));
+  });
+
+  await check('pending persists and survives empty in-memory queue without generate-time seen stall', () => {
+    const dir = process.env.INNOVATOR_DATA_DIR;
+    const pendingFile = path.join(dir, 'pending.json');
+    const inv = innovator.autonomousInnovator();
+    assert.ok(inv, 'fresh idea after empty pending');
+    assert.ok(fs.existsSync(pendingFile), 'pending.json written');
+    const disk = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
+    assert.ok((disk.items || []).length >= 1);
+    const again = innovator.autonomousInnovator();
+    if (again) {
+      assert.notEqual(again.contentHash, inv.contentHash, 'does not re-queue same hash');
+    }
+    const src = fs.readFileSync(path.join(__dirname, '../backend/modules/unicornInnovator.js'), 'utf8');
+    assert.ok(src.includes('alreadyQueuedOrApplied'));
+    assert.ok(src.includes('markApplied'));
+    assert.ok(!/markSeen\(hash\);\s*\n\s*state\.lastDefectKind/.test(src), 'must not markSeen at generate time');
+  });
+
+  await check('TAAC/TAOS/IAK/DPAK/NAOS re-arm and surface SECOS', () => {
+    const taac = fs.readFileSync(path.join(__dirname, '../backend/modules/total-autonomy-activation-continuum.js'), 'utf8');
+    const taos = fs.readFileSync(path.join(__dirname, '../backend/modules/totalAutonomyOs.js'), 'utf8');
+    const iak = fs.readFileSync(path.join(__dirname, '../backend/modules/integrated-autonomy-kernel.js'), 'utf8');
+    const dpak = require('../backend/modules/world-standard/dual-plane-autonomy-kernel');
+    const disco = require('../backend/modules/iak/module-discovery');
+    const naos = require('../backend/modules/neural-autonomy-os');
+    assert.ok(taac.includes("_try('secos'"));
+    assert.ok(taac.includes('secos.start'));
+    assert.ok(taos.includes("tryStart('safe-evolution-os'"));
+    assert.ok(iak.includes("soft('secos'"));
+    assert.ok(iak.includes("soft('saos'"));
+    assert.ok(dpak.SAFE_ORGANS.includes('safe-evolution-os'));
+    assert.ok(dpak.SAFE_ORGANS.includes('safe-apply-os'));
+    assert.ok(disco.STABLE_START_ALLOW.has('safe-evolution-os'));
+    assert.ok(disco.STABLE_START_ALLOW.has('unicornInnovator'));
+    const organs = naos.composeOrgans().map((o) => o.id);
+    assert.ok(organs.includes('secos'));
   });
 
   console.log('safe-evolution-os.test.js passed ·', passed);

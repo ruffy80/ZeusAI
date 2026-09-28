@@ -30,11 +30,16 @@ const EventEmitter = require('events');
 
 const crypto = require('crypto');
 
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data', 'innovator');
-const HISTORY_PATH = path.join(DATA_DIR, 'history.json');
-const SEEN_PATH = path.join(DATA_DIR, 'seen.json');
+function dataDir() {
+  return process.env.INNOVATOR_DATA_DIR
+    || path.resolve(__dirname, '..', '..', 'data', 'innovator');
+}
+function historyPath() { return path.join(dataDir(), 'history.json'); }
+function pendingPath() { return path.join(dataDir(), 'pending.json'); }
+function appliedPath() { return path.join(dataDir(), 'applied.json'); }
 const MAIN_INTERVAL = 60000; // 1min ciclu principal
 const MAX_INNOVATIONS_PENDING = 50;
+let _pendingLoaded = false;
 
 const innovatorBus = new EventEmitter();
 
@@ -56,42 +61,94 @@ const state = {
 
 function ensureStore() {
   try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    if (!fs.existsSync(HISTORY_PATH)) fs.writeFileSync(HISTORY_PATH, JSON.stringify({ items: [] }, null, 2));
+    const dir = dataDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(historyPath())) fs.writeFileSync(historyPath(), JSON.stringify({ items: [] }, null, 2));
   } catch (_) { /* fallback */ }
 }
 function sha256(text) {
   return crypto.createHash('sha256').update(String(text || '')).digest('hex');
 }
 
-function loadSeen() {
+function loadApplied() {
   try {
-    const raw = JSON.parse(fs.readFileSync(SEEN_PATH, 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(appliedPath(), 'utf8'));
     return Array.isArray(raw) ? raw : [];
   } catch (_) { return []; }
 }
 
-function markSeen(hash) {
+function saosAppliedHas(hash) {
+  try {
+    const p = process.env.SAFE_APPLY_SEEN
+      || path.resolve(__dirname, '..', '..', 'data', 'evolution', 'applied-hashes.json');
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return Array.isArray(raw) && raw.includes(hash);
+  } catch (_) { return false; }
+}
+
+function markApplied(hash) {
+  const h = String(hash || '');
+  if (!h) return;
   try {
     ensureStore();
-    const seen = loadSeen();
-    if (seen.includes(hash)) return;
-    seen.push(hash);
-    fs.writeFileSync(SEEN_PATH, JSON.stringify(seen.slice(-400)));
+    const applied = loadApplied();
+    if (!applied.includes(h)) {
+      applied.push(h);
+      fs.writeFileSync(appliedPath(), JSON.stringify(applied.slice(-400)));
+    }
   } catch (_) { /* fail-soft */ }
 }
 
-function alreadySeen(hash) {
-  return loadSeen().includes(hash);
+// Legacy alias: generate-time seen.json used to stall the loop after PM2 restart.
+// markSeen now means "applied" only.
+function markSeen(hash) { markApplied(hash); }
+
+function alreadyApplied(hash) {
+  const h = String(hash || '');
+  if (!h) return false;
+  return loadApplied().includes(h) || saosAppliedHas(h);
+}
+
+function loadPending() {
+  if (_pendingLoaded) return;
+  _pendingLoaded = true;
+  try {
+    const raw = JSON.parse(fs.readFileSync(pendingPath(), 'utf8'));
+    const items = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.items) ? raw.items : []);
+    if (items.length && !state.pending.length) {
+      state.pending = items.filter((x) => x && x.status !== 'approved' && x.status !== 'rejected');
+    }
+  } catch (_) { /* first run */ }
+}
+
+function persistPending() {
+  try {
+    ensureStore();
+    fs.writeFileSync(pendingPath(), JSON.stringify({
+      items: state.pending.slice(-MAX_INNOVATIONS_PENDING),
+      updatedAt: new Date().toISOString(),
+    }, null, 2));
+  } catch (_) { /* fail-soft */ }
+}
+
+function pendingHashes() {
+  loadPending();
+  return new Set(state.pending.map((p) => p && p.contentHash).filter(Boolean));
+}
+
+function alreadyQueuedOrApplied(hash) {
+  if (pendingHashes().has(hash)) return true;
+  return alreadyApplied(hash);
 }
 
 function persistHistory(item) {
   try {
     ensureStore();
-    const data = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(historyPath(), 'utf8'));
+    if (!Array.isArray(data.items)) data.items = [];
     data.items.push(item);
     if (data.items.length > 500) data.items = data.items.slice(-500);
-    fs.writeFileSync(HISTORY_PATH, JSON.stringify(data, null, 2));
+    fs.writeFileSync(historyPath(), JSON.stringify(data, null, 2));
   } catch (_) { /* fallback */ }
 }
 
@@ -241,11 +298,30 @@ function expiresAt() {
   return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 }
 
-// innovationGenerator — defect-first, then unused commerce pool. Dedup by content hash.
+function continuumReviewIdea() {
+  const hourKey = new Date().toISOString().slice(0, 13);
+  return {
+    ideaId: 'continuum-review-' + hourKey,
+    title: 'Hourly safe-plane continuum review',
+    description: 'Attest that auto-innovate / auto-repair / auto-apply still run without source mutation.',
+    tags: ['reliability', 'ops', 'continuum'],
+    score: 0.74,
+    defectKind: 'continuum_review',
+    field: 'continuum',
+    targetPaths: ['data/evolution/continuum-review.json'],
+    acceptanceTest: 'continuum-review.json exists, inventsGmv=false, mutatesSource=false',
+    safeScope: true,
+  };
+}
+
+// innovationGenerator — defect-first, then unused commerce pool.
+// Dedup by applied hashes + in-memory/persisted pending — NEVER by generate-time seen.json
+// (that file stalled live after PM2 restart: pending wiped, hashes remained).
 function innovationGenerator() {
   if (state.circuitOpen) return null;
+  loadPending();
   const defects = scanDefects();
-  let idea = defects.find((d) => !alreadySeen(contentHashFor(d)));
+  let idea = defects.find((d) => !alreadyQueuedOrApplied(contentHashFor(d)));
   if (!idea) {
     idea = COMMERCE_IDEAS.map((c, i) => ({
       ideaId: 'pool-' + i + '-' + String(c.title).slice(0, 24).replace(/\s+/g, '-').toLowerCase(),
@@ -264,14 +340,17 @@ function innovationGenerator() {
             : ['docs/innovation/' + String(c.title).slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase() + '.md'])),
       acceptanceTest: 'artifact exists under data/ or docs/; inventsGmv=false',
       safeScope: true,
-    })).find((c) => !alreadySeen(contentHashFor(c)));
+    })).find((c) => !alreadyQueuedOrApplied(contentHashFor(c)));
+  }
+  if (!idea) {
+    const review = continuumReviewIdea();
+    if (!alreadyQueuedOrApplied(contentHashFor(review))) idea = review;
   }
   if (!idea) {
     state.skippedDupes += 1;
     return null;
   }
   const hash = contentHashFor(idea);
-  markSeen(hash);
   state.lastDefectKind = idea.defectKind || 'pool';
   return {
     id: `inv-${Date.now()}-${state.generated}`,
@@ -302,6 +381,7 @@ function autonomousInnovator() {
   if (state.pending.length > MAX_INNOVATIONS_PENDING) {
     state.pending = state.pending.slice(-MAX_INNOVATIONS_PENDING);
   }
+  persistPending();
   innovatorBus.emit('innovator:new', inv);
   return inv;
 }
@@ -386,6 +466,7 @@ function innovationGenerationEnabled() {
 }
 
 ensureStore();
+loadPending();
 if (innovationGenerationEnabled() && (process.env.NODE_ENV !== 'test' || process.env.SAFE_EVOLVE_TEST === '1')) {
   state.active = true;
   setInterval(mainCycle, MAIN_INTERVAL);
@@ -401,6 +482,7 @@ if (innovationGenerationEnabled() && (process.env.NODE_ENV !== 'test' || process
 
 // ---- API public ----
 function getStatus() {
+  loadPending();
   return {
     active: state.active,
     startedAt: state.startedAt,
@@ -417,24 +499,31 @@ function getStatus() {
   };
 }
 function getHistory(limit = 50) { return state.history.slice(-limit); }
-function getPending() { return [...state.pending]; }
+function getPending() {
+  loadPending();
+  return [...state.pending];
+}
 function approve(id) {
+  loadPending();
   const idx = state.pending.findIndex(p => p.id === id);
   if (idx < 0) return { ok: false, reason: 'not-found' };
   const inv = state.pending.splice(idx, 1)[0];
   inv.status = 'approved';
   inv.approvedAt = new Date().toISOString();
   state.approved++;
+  persistPending();
   persistHistory(inv);
   innovatorBus.emit('innovator:approved', inv);
   return { ok: true, innovation: inv };
 }
 function reject(id) {
+  loadPending();
   const idx = state.pending.findIndex(p => p.id === id);
   if (idx < 0) return { ok: false, reason: 'not-found' };
   const inv = state.pending.splice(idx, 1)[0];
   inv.status = 'rejected';
   state.rejected++;
+  persistPending();
   persistHistory(inv);
   return { ok: true, innovation: inv };
 }
@@ -460,6 +549,11 @@ module.exports = {
   innovationCircuitBreaker,
   scanDefects,
   fitness,
+  markApplied,
+  markSeen,
+  alreadyApplied,
+  persistPending,
+  loadPending,
 };
 
 // EN: Supreme innovator, consolidates evolution/innovation/genesis modules

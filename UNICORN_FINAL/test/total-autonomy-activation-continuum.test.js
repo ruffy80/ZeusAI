@@ -59,6 +59,7 @@ async function main() {
     assert.ok(r.plan.includes('balos'));
     assert.ok(r.plan.includes('aacos'));
     assert.ok(r.plan.includes('rivos'));
+    assert.ok(r.plan.includes('secos'));
   });
 
   await check('armAll live refuses mutators and records organs', async () => {
@@ -68,6 +69,7 @@ async function main() {
     assert.equal(r.refused.uee_eternal, 'parked_by_policy');
     assert.ok(r.tcc);
     assert.ok(r.balos);
+    assert.ok(r.secos);
   });
 
   await check('ecosystem defaults arm BALOS + TAAC + SAFE_ARM', () => {

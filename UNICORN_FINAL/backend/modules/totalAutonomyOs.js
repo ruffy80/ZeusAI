@@ -291,21 +291,23 @@ class TotalAutonomyOs {
     } catch (e) { tpgDetail = e && e.message; }
     pillars.push(this._pillar('tpg', 8, tpgOk, tpgDetail, tpgScore));
 
-    // 7) Innovation ship gate (data-only)
+    // 7) Safe Evolution Continuum (data/docs only — never source-ship)
     let innOk = false;
     let innDetail = 'idle';
     let innScore = 50;
     try {
-      const gate = safeRequire('./innovation-ship-gate');
-      const st = gate && typeof gate.getStatus === 'function' ? gate.getStatus() : null;
+      const secos = safeRequire('./safe-evolution-os');
+      const st = secos && typeof secos.getStatus === 'function' ? secos.getStatus() : null;
       if (st) {
-        innOk = st.enabled !== false && st.codeApply !== true;
-        innScore = innOk ? 90 : 40;
-        innDetail = `enabled=${st.enabled !== false};codeApply=${!!st.codeApply}`;
+        innOk = st.enabled !== false && st.mutatesSource !== true;
+        const ticks = Number(st.ticks) || 0;
+        const applied = Number(st.last && st.last.applied) || 0;
+        innScore = !st.enabled ? 20 : (st.armed ? (applied > 0 ? 100 : (ticks > 0 ? 85 : 75)) : 60);
+        innDetail = `armed=${!!st.armed};ticks=${ticks};applied=${applied}`;
       } else {
-        innOk = String(process.env.INNOVATION_AUTO_SHIP || '1') !== '0';
-        innScore = innOk ? 75 : 30;
-        innDetail = innOk ? 'auto_ship_default_on' : 'auto_ship_off';
+        innOk = String(process.env.SAFE_EVOLVE || '1') !== '0';
+        innScore = innOk ? 70 : 30;
+        innDetail = innOk ? 'SAFE_EVOLVE default on' : 'SAFE_EVOLVE=0';
       }
     } catch (e) { innDetail = e && e.message; }
     pillars.push(this._pillar('innovation_ship', 6, innOk, innDetail, innScore));
@@ -627,6 +629,12 @@ class TotalAutonomyOs {
     tryStart('autonomousGlobalDominanceEngine', () => {
       const agde = safeRequire('./autonomousGlobalDominanceEngine');
       if (agde && typeof agde.start === 'function') agde.start();
+    });
+
+    tryStart('safe-evolution-os', () => {
+      if (String(process.env.SAFE_EVOLVE || '1') === '0') return;
+      const secos = safeRequire('./safe-evolution-os');
+      if (secos && typeof secos.start === 'function') secos.start();
     });
 
     tryStart('ai-self-healing', () => {

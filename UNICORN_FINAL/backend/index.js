@@ -4434,8 +4434,11 @@ try {
       bus.on('innovator:approved', (inv) => {
         try { growthEngine.onInnovationApproved(inv); } catch (e) { console.warn('[growth-engine] attest failed:', e.message); }
         try {
-          if (process.env.INNOVATION_AUTO_SHIP !== '0' && innovationShipGate && typeof innovationShipGate.evaluateAndShip === 'function') {
-            // Best-effort ship of safe (data/) artifacts after manual/auto approve.
+          const safeEvolve = String(process.env.SAFE_EVOLVE || '1') !== '0';
+          const autoShip = process.env.INNOVATION_AUTO_SHIP !== '0';
+          if ((safeEvolve || autoShip) && innovationShipGate && typeof innovationShipGate.evaluateAndShip === 'function') {
+            // Best-effort ship of safe (data/) artifacts after approve. SAFE_EVOLVE
+            // is the stable-plane switch; INNOVATION_AUTO_SHIP remains the growth/source arm.
             innovationShipGate.evaluateAndShip(unicornInnovator);
           }
         } catch (e) { console.warn('[innovation-ship-gate] post-approve failed:', e.message); }
@@ -12279,7 +12282,7 @@ function _innovationStatusAndMetrics() {
     status.totalInnovationsGenerated ?? status.generated ?? status.innovationsGenerated ?? 0
   );
   const deployed = Number(
-    status.totalFeaturesDeployed ?? status.approved ?? status.innovationsApproved ?? 0
+    status.appliedEvolutions ?? status.applied ?? status.totalFeaturesDeployed ?? status.approved ?? status.innovationsApproved ?? 0
   );
   const rejected = Number(
     status.rejected ?? status.innovationsRejected ?? 0
@@ -12298,7 +12301,10 @@ function _innovationStatusAndMetrics() {
       circuitOpen: !!status.circuitOpen,
       cycles,
       generated,
-      approved: deployed,
+      approved: Number(status.approved ?? 0),
+      applied: Number(status.appliedEvolutions ?? status.applied ?? deployed),
+      skippedDupes: Number(status.skippedDupes ?? 0),
+      lastDefectKind: status.lastDefectKind || null,
       rejected,
       pendingCount: Number(status.pendingCount ?? 0),
       startedAt: status.startedAt || null,
