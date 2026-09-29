@@ -3675,9 +3675,17 @@ function buildSnapshot() {
     modules: liveHonestyOs && typeof liveHonestyOs.filterPublicModules === 'function'
       ? liveHonestyOs.filterPublicModules(backendSnapshot.modules || modules)
       : modules,
-    marketplace: liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
-      ? liveHonestyOs.filterPublicMarketplace(sources.marketplace)
-      : sources.marketplace,
+    marketplace: (function publicMarketplaceShelf() {
+      // Public buyable shelf only. The backend /api/marketplace/services dump
+      // (module clones, dropship, zacc, synth) must not ship on /snapshot.
+      if (liveHonestyOs && typeof liveHonestyOs.publicBuyableCatalog === 'function') {
+        const shelf = liveHonestyOs.publicBuyableCatalog();
+        if (Array.isArray(shelf) && shelf.length) return shelf;
+      }
+      return liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
+        ? liveHonestyOs.filterPublicMarketplace(sources.marketplace)
+        : sources.marketplace;
+    })(),
     services: liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
       ? liveHonestyOs.filterPublicMarketplace(sources.services)
       : sources.services,
@@ -5047,7 +5055,7 @@ async function unicornHandler(req, res) {
     '/api/secrets/status',
     '/api/build', '/api/version',
     '/api/status',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/visible-social/arm'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payments/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/visible-social/arm'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -5298,7 +5306,7 @@ async function unicornHandler(req, res) {
       return res.end(JSON.stringify({ ok: false, error: 'payment_innovation_unavailable', detail: String(e && e.message || e).slice(0, 120) }));
     }
   }
-  if (urlPath === '/api/payment/methods') {
+  if (urlPath === '/api/payment/methods' || urlPath === '/api/payments/methods') {
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(getPublicPaymentMethods()));
   }

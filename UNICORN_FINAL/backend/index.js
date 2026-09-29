@@ -10831,7 +10831,7 @@ app.get('/api/payment/nowpayments/security', (req, res) => {
   res.json(nowPayments.getSecurityStatus());
 });
 
-app.get('/api/payment/methods', (req, res) => {
+app.get(['/api/payment/methods', '/api/payments/methods'], (req, res) => {
   // Derive public methods from the same honesty rails as /api/payments/config/status
   // so the storefront never advertises ETH/Bank/Stripe when they cannot settle.
   let emailConfigured = false;

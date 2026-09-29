@@ -56,6 +56,56 @@ async function run() {
     assert.equal(pub[0].id, 'instant-seo-content-pack');
   });
 
+  await check('public buyable catalog is the snapshot shelf, not the module dump', () => {
+    const items = lhos.publicBuyableCatalog();
+    assert.ok(Array.isArray(items) && items.length > 0, 'public shelf must not be empty');
+    assert.ok(items.length <= 25, 'unified catalog caps the public shelf at 25');
+    assert.equal(items.length, lhos.publicCatalogCount());
+    const ids = items.map((item) => item.id);
+    assert.ok(!ids.some((id) => /^zacc-/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)));
+    assert.ok(!ids.some((id) => /AdaptiveModule|demo-user|^Engine\d+$|FeatureFlagManager/i.test(id)));
+    assert.ok(items.every((item) => item.publicBuyable === true && item.synthetic === false && item.id));
+    const site = fs.readFileSync(path.join(ROOT, 'src', 'index.js'), 'utf8');
+    assert.ok(site.includes('publicBuyableCatalog'), 'site /snapshot must publish the public shelf');
+    assert.ok(site.includes("urlPath === '/api/payments/methods'"), 'plural payments methods must be JSON, not SPA HTML');
+  });
+
+  await check('btc rail detects owner wallet env names and published owner wallet', () => {
+    const names = lhos.BTC_ENV_NAMES.slice();
+    const saved = {};
+    for (const name of names) saved[name] = process.env[name];
+    const restore = () => {
+      for (const name of names) {
+        if (saved[name] == null) delete process.env[name];
+        else process.env[name] = saved[name];
+      }
+    };
+    try {
+      for (const name of names) delete process.env[name];
+      const bare = lhos.btcRailStatus();
+      assert.equal(bare.configured, true);
+      assert.equal(bare.status, 'operational');
+      assert.equal(bare.source, 'published-owner-wallet');
+      assert.equal(bare.latencyMs, null);
+
+      for (const name of ['BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'BTC_OWNER_WALLET', 'ADMIN_OWNER_BTC', 'BTC_WALLET']) {
+        for (const n of names) delete process.env[n];
+        process.env[name] = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+        const hit = lhos.btcRailStatus();
+        assert.equal(hit.configured, true, name);
+        assert.equal(hit.status, 'operational', name);
+        assert.equal(hit.source, name, name);
+      }
+
+      for (const n of names) delete process.env[n];
+      process.env.BTC_WALLET = 'changeme';
+      process.env.BTC_WALLET_ADDRESS = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+      assert.equal(lhos.configuredBtcSource(), 'BTC_WALLET_ADDRESS');
+    } finally {
+      restore();
+    }
+  });
+
   await check('statusSnapshot never invents 99.97 or latency', () => {
     const snap = lhos.statusSnapshot();
     assert.equal(snap.protocol, 'LHOS/1.0');

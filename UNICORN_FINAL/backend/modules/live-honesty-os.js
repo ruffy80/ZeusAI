@@ -66,18 +66,57 @@ function filterPublicModules(items) {
   return filterPublicMarketplace(items);
 }
 
+function loadPublicCatalogItems() {
+  const unified = require('../../src/commerce/unified-catalog');
+  const filter = require('../../src/commerce/public-catalog-filter');
+  const all = typeof unified.all === 'function' ? unified.all() : [];
+  const pub = filter && typeof filter.filterPublicCatalogItems === 'function'
+    ? filter.filterPublicCatalogItems(all, { includeSynthetic: false })
+    : all;
+  return Array.isArray(pub) ? pub : [];
+}
+
 function publicCatalogCount() {
   try {
-    const unified = require('../../src/commerce/unified-catalog');
-    const filter = require('../../src/commerce/public-catalog-filter');
-    const all = typeof unified.all === 'function' ? unified.all() : [];
-    const pub = filter && typeof filter.filterPublicCatalogItems === 'function'
-      ? filter.filterPublicCatalogItems(all, { includeSynthetic: false })
-      : all;
-    return Array.isArray(pub) ? pub.length : 0;
+    return loadPublicCatalogItems().length;
   } catch (_) {
     return 0;
   }
+}
+
+/**
+ * Buyable shelf for /snapshot.marketplace.
+ * Source is unified-catalog (capped public products), then public-catalog-filter.
+ * Never the raw marketplace/services dump (dropship, zacc, synth, module clones).
+ */
+function publicBuyableCatalog() {
+  let items = [];
+  try { items = loadPublicCatalogItems(); } catch (_) { items = []; }
+  return items
+    .filter((item) => item && !isTheaterItem(item))
+    .map((item) => {
+      const id = String(item.id || '').trim();
+      const title = item.title || item.name || id;
+      const price = Number(item.priceUSD != null ? item.priceUSD : (item.priceUsd != null ? item.priceUsd : item.price)) || 0;
+      return {
+        id,
+        name: title,
+        title,
+        description: item.description || '',
+        price,
+        priceUSD: price,
+        currency: item.currency || 'USD',
+        category: item.group || item.tier || 'service',
+        group: item.group || item.tier || 'service',
+        tier: item.tier || item.group || null,
+        segment: item.tier || item.group || 'service',
+        buyMode: item.buyMode || null,
+        requiresHumanFulfillment: item.requiresHumanFulfillment === true,
+        publicBuyable: true,
+        synthetic: false,
+      };
+    })
+    .filter((item) => item.id);
 }
 
 function paidHumansCount() {
@@ -123,14 +162,46 @@ function listPublicModules(limit) {
   }));
 }
 
+// Env names the commerce plane actually reads (backend/index.js + site BTC_WALLET).
+// Order is detection priority, not a new wallet.
+const BTC_ENV_NAMES = [
+  'BTC_WALLET',
+  'ADMIN_OWNER_BTC',
+  'OWNER_BTC_ADDRESS',
+  'BTC_WALLET_ADDRESS',
+  'BTC_OWNER_WALLET',
+  'LEGAL_OWNER_BTC',
+];
+
+// Published owner receive address already settled by backend/index.js,
+// paymentGateway, and integrity.json. Detected, not invented.
+const PUBLISHED_OWNER_BTC = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+
+function isConfiguredBtcValue(value) {
+  const v = String(value || '').trim();
+  if (!v || v.length < 26 || v.length > 90) return false;
+  if (/^(your_|changeme|placeholder|skip|xxx|todo|wallet)/i.test(v)) return false;
+  return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,}$/.test(v);
+}
+
+function configuredBtcSource() {
+  for (const name of BTC_ENV_NAMES) {
+    if (isConfiguredBtcValue(process.env[name])) return name;
+  }
+  if (isConfiguredBtcValue(PUBLISHED_OWNER_BTC)) return 'published-owner-wallet';
+  return null;
+}
+
 function btcRailStatus() {
-  const wallet = String(process.env.BTC_WALLET || process.env.ADMIN_OWNER_BTC || '').trim();
+  const source = configuredBtcSource();
+  const configured = !!source;
   return {
     id: 'btc',
     name: 'BTC Commerce',
-    status: wallet ? 'operational' : 'idle_unconfigured',
+    status: configured ? 'operational' : 'idle_unconfigured',
     latencyMs: null,
-    configured: !!wallet,
+    configured,
+    source,
   };
 }
 
@@ -350,6 +421,10 @@ module.exports = {
   filterPublicMarketplace,
   filterPublicModules,
   publicCatalogCount,
+  publicBuyableCatalog,
+  btcRailStatus,
+  configuredBtcSource,
+  BTC_ENV_NAMES,
   paidHumansCount,
   realModuleCount,
   listPublicModules,
