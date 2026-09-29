@@ -91,6 +91,16 @@ check('SSR checkout prefers resolveCanonicalUsd + short Promise.race (≤150ms)'
   assert.ok(block.includes("Location: '/services'"), 'unknown or unpriced plan 302s to /services');
 });
 
+check('BTC confirm looks up receipts by id, not the public getReceipts() filter', () => {
+  const idx = site.indexOf("if ((urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm') && req.method === 'POST')");
+  assert.ok(idx > 0, 'btc confirm POST handler');
+  const block = site.slice(idx, idx + 4000);
+  assert.ok(block.includes('findReceipt(receiptId)') || block.includes('getReceiptById('),
+    'confirm must lookup by id so smoke/test emails are not 404');
+  assert.ok(!/uaic\.getReceipts\(\)\.find/.test(block),
+    'getReceipts() hides smoke@ emails and would 404 CI confirm');
+});
+
 check('getBtcPrice uses __btcSpotCache and fast timeout; createOrder uses fast path', () => {
   assert.ok(commerce.includes('global.__btcSpotCache') || commerce.includes('__btcSpotCache'),
     'reads shared spot cache');

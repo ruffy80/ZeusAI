@@ -12134,7 +12134,9 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
         }
 
-        const receipt = uaic.getReceipts().find(r => r.id === receiptId);
+        // Lookup by id — getReceipts() hides smoke/test emails from public
+        // ledgers, which 404'd POST /api/payments/btc/confirm in CI smoke.
+        const receipt = findReceipt(receiptId);
         if (!receipt) {
           res.writeHead(404, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ error: 'receipt_not_found' }));
