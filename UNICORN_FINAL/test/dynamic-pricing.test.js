@@ -174,10 +174,20 @@ check('getAllPrices returns object with known services', () => {
 // ── Surge pricing ───────────────────────────────────────────────────────────
 console.log('\nDynamic Pricing — Surge');
 
-check('activateSurge sets surgeActive', () => {
-  pricing.activateSurge('30min');
+check('activateSurge stays off without a measured demand signal', () => {
+  assert.strictEqual(pricing.activateSurge('30min'), false);
   const conditions = pricing.getMarketConditions();
-  assert.strictEqual(conditions.surgeActive, true);
+  assert.strictEqual(conditions.surgeActive, false);
+});
+
+check('same base price is deterministic and uses the 10% BTC discount', () => {
+  pricing.setDiscount(true);
+  const a = pricing.getPrice('pro', { basePrice: 100, fresh: true });
+  const b = pricing.getPrice('pro', { basePrice: 100, fresh: true });
+  assert.strictEqual(a.finalPrice, b.finalPrice);
+  assert.strictEqual(a.finalPrice, 90);
+  assert.strictEqual(a.serviceFactor, 1);
+  assert.strictEqual(a.surgeActive, false);
 });
 
 // ── Discount toggle ─────────────────────────────────────────────────────────

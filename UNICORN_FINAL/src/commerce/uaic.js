@@ -24,11 +24,9 @@ const ENTITLEMENTS_FILE = path.join(DATA_DIR, 'uaic-entitlements.jsonl');
 
 // SMOKE ISOLATION (audit 2026-06-12): deploy smoke-tests used to append
 // thousands of loopback receipts into the canonical ledger (6.5MB of
-// smoke@zeusai.pro rows). CI artifacts now land in a separate file so the
-// canonical ledger stays pure revenue truth. In-memory index keeps them so
-// the smoke flow itself still verifies end-to-end during the run.
-// RO: chitanțele de smoke-test merg în fișier separat — ledger-ul canonic
-// rămâne doar adevăr de venit.
+// smoke@zeusai.pro rows). CI artifacts land in a separate file. Hydrate and
+// getReceipts() skip those rows so public ledgers do not count them as paid.
+// RO: chitanțele de smoke-test nu intră în indexul public.
 const SMOKE_EMAILS = new Set(['smoke@zeusai.pro', 'test@test.com']);
 function isSmokeReceipt(r) {
   try {
@@ -58,6 +56,7 @@ function _hydrateReceipts() {
       try {
         const r = JSON.parse(t);
         if (!r || !r.id) continue;
+        if (isSmokeReceipt(r)) continue;
         _receiptsById.set(r.id, r);
       } catch (_) {}
     }
@@ -80,7 +79,12 @@ function persistReceipt(receipt) {
   }
   return receipt;
 }
-function getReceipts() { return _receipts.slice(); }
+function getReceipts() { return _receipts.filter((r) => r && !isSmokeReceipt(r)); }
+function getReceiptById(id) {
+  const key = String(id || '').trim();
+  if (!key) return null;
+  return _receiptsById.get(key) || null;
+}
 
 // ── Entitlements ─────────────────────────────────────────────────────────
 const _entitlements = [];
@@ -465,7 +469,7 @@ if (typeof fetch === 'function') {
 module.exports = {
   matches, handle,
   convert, refreshBtcRate,
-  persistReceipt, getReceipts,
+  persistReceipt, getReceipts, getReceiptById,
   issueLicense,
   isSmokeReceipt,
   listEntitlementsByEmail, listEntitlementsByCustomer,

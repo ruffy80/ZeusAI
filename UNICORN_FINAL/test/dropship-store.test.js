@@ -96,7 +96,7 @@ assert.ok(
 // ---------- 3) storefront structure + checkout contracts ----------------
 assert.ok(
   (SRC.includes('Zeus Dropship OS') || SRC.includes('ZEUS DROPSHIP') || SRC.includes('Zeus <span>Dropship</span>')) &&
-  SRC.includes('sources the world') &&
+  (SRC.includes('sources the world') || SRC.includes('demo catalog until a supplier')) &&
   (SRC.includes('Shop the world store \\u2193') || SRC.includes('Shop the store \\u2193')) &&
   SRC.includes('Autonomy cockpit \\u2192'),
   'EXPECTED: /dropship must render the approved single-composition world-continuum hero.'

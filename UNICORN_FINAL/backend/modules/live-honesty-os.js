@@ -23,8 +23,8 @@ const crypto = require('crypto');
 
 const PROTOCOL = 'LHOS/1.0';
 const NAME = 'live-honesty-os';
-const THEATER_ID_RE = /^(AdaptiveModule\d+|Engine\d+|demo-user)$/i;
-const THEATER_NAME_RE = /adaptive\s*module\s*\d+|pool shim/i;
+const THEATER_ID_RE = /^(?:AdaptiveModule\d+|Engine\d+|demo-user|mod-adaptivepool\d+|mod-enginepool\d+|AdaptivePool#\d+|EnginePool#\d+)$/i;
+const THEATER_NAME_RE = /adaptive\s*module\s*\d+|pool\s*shim|adaptivepool\s*#\s*\d+|enginepool\s*#\s*\d+/i;
 
 const state = {
   armed: false,
@@ -41,19 +41,18 @@ function enabled() {
 function isTheaterId(value) {
   const id = String(value == null ? '' : value).trim();
   if (!id) return false;
-  if (THEATER_ID_RE.test(id)) return true;
-  if (/^AdaptiveModule\d+$/i.test(id) || /^Engine\d+$/i.test(id)) return true;
-  return false;
+  return THEATER_ID_RE.test(id);
 }
 
 function isTheaterItem(item) {
   if (item == null) return true;
   if (typeof item === 'string') return isTheaterId(item) || THEATER_NAME_RE.test(item);
-  const id = item.id || item.moduleId || item.slug || item.name || '';
+  const id = item.id || item.moduleId || item.slug || '';
   const title = String(item.title || item.name || '');
-  if (isTheaterId(id)) return true;
-  if (THEATER_NAME_RE.test(title)) return true;
-  if (item.kind === 'pool-shim' || item.poolShim === true) return true;
+  if (isTheaterId(id) || isTheaterId(title)) return true;
+  if (THEATER_NAME_RE.test(title) || THEATER_NAME_RE.test(String(id))) return true;
+  if (String(item.kind || '').toLowerCase() === 'pool-shim' || item.poolShim === true) return true;
+  if (String(item.category || '').toLowerCase() === 'dynamic') return true;
   return false;
 }
 
@@ -66,18 +65,57 @@ function filterPublicModules(items) {
   return filterPublicMarketplace(items);
 }
 
+function loadPublicCatalogItems() {
+  const unified = require('../../src/commerce/unified-catalog');
+  const filter = require('../../src/commerce/public-catalog-filter');
+  const all = typeof unified.all === 'function' ? unified.all() : [];
+  const pub = filter && typeof filter.filterPublicCatalogItems === 'function'
+    ? filter.filterPublicCatalogItems(all, { includeSynthetic: false })
+    : all;
+  return Array.isArray(pub) ? pub : [];
+}
+
 function publicCatalogCount() {
   try {
-    const unified = require('../../src/commerce/unified-catalog');
-    const filter = require('../../src/commerce/public-catalog-filter');
-    const all = typeof unified.all === 'function' ? unified.all() : [];
-    const pub = filter && typeof filter.filterPublicCatalogItems === 'function'
-      ? filter.filterPublicCatalogItems(all, { includeSynthetic: false })
-      : all;
-    return Array.isArray(pub) ? pub.length : 0;
+    return loadPublicCatalogItems().length;
   } catch (_) {
     return 0;
   }
+}
+
+/**
+ * Buyable shelf for /snapshot.marketplace.
+ * Source is unified-catalog (capped public products), then public-catalog-filter.
+ * Never the raw marketplace/services dump (dropship, zacc, synth, module clones).
+ */
+function publicBuyableCatalog() {
+  let items = [];
+  try { items = loadPublicCatalogItems(); } catch (_) { items = []; }
+  return items
+    .filter((item) => item && !isTheaterItem(item))
+    .map((item) => {
+      const id = String(item.id || '').trim();
+      const title = item.title || item.name || id;
+      const price = Number(item.priceUSD != null ? item.priceUSD : (item.priceUsd != null ? item.priceUsd : item.price)) || 0;
+      return {
+        id,
+        name: title,
+        title,
+        description: item.description || '',
+        price,
+        priceUSD: price,
+        currency: item.currency || 'USD',
+        category: item.group || item.tier || 'service',
+        group: item.group || item.tier || 'service',
+        tier: item.tier || item.group || null,
+        segment: item.tier || item.group || 'service',
+        buyMode: item.buyMode || null,
+        requiresHumanFulfillment: item.requiresHumanFulfillment === true,
+        publicBuyable: true,
+        synthetic: false,
+      };
+    })
+    .filter((item) => item.id);
 }
 
 function paidHumansCount() {
@@ -123,14 +161,46 @@ function listPublicModules(limit) {
   }));
 }
 
+// Env names the commerce plane actually reads (backend/index.js + site BTC_WALLET).
+// Order is detection priority, not a new wallet.
+const BTC_ENV_NAMES = [
+  'BTC_WALLET',
+  'ADMIN_OWNER_BTC',
+  'OWNER_BTC_ADDRESS',
+  'BTC_WALLET_ADDRESS',
+  'BTC_OWNER_WALLET',
+  'LEGAL_OWNER_BTC',
+];
+
+// Published owner receive address already settled by backend/index.js,
+// paymentGateway, and integrity.json. Detected, not invented.
+const PUBLISHED_OWNER_BTC = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+
+function isConfiguredBtcValue(value) {
+  const v = String(value || '').trim();
+  if (!v || v.length < 26 || v.length > 90) return false;
+  if (/^(your_|changeme|placeholder|skip|xxx|todo|wallet)/i.test(v)) return false;
+  return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,}$/.test(v);
+}
+
+function configuredBtcSource() {
+  for (const name of BTC_ENV_NAMES) {
+    if (isConfiguredBtcValue(process.env[name])) return name;
+  }
+  if (isConfiguredBtcValue(PUBLISHED_OWNER_BTC)) return 'published-owner-wallet';
+  return null;
+}
+
 function btcRailStatus() {
-  const wallet = String(process.env.BTC_WALLET || process.env.ADMIN_OWNER_BTC || '').trim();
+  const source = configuredBtcSource();
+  const configured = !!source;
   return {
     id: 'btc',
     name: 'BTC Commerce',
-    status: wallet ? 'operational' : 'idle_unconfigured',
+    status: configured ? 'operational' : 'idle_unconfigured',
     latencyMs: null,
-    configured: !!wallet,
+    configured,
+    source,
   };
 }
 
@@ -273,6 +343,63 @@ function drillSeed() {
   };
 }
 
+function paypalEnvConfigured() {
+  return !!String(process.env.PAYPAL_CLIENT_ID || '').trim()
+    && !!String(process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '').trim();
+}
+
+function passkeysModulePresent() {
+  try {
+    require.resolve('@simplewebauthn/server');
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function aiGatewayConfigured() {
+  return !!String(
+    process.env.OPENAI_API_KEY
+    || process.env.ANTHROPIC_API_KEY
+    || process.env.DEEPSEEK_API_KEY
+    || process.env.LLM_API_KEY
+    || ''
+  ).trim();
+}
+
+/**
+ * 30-year capsule. Booleans are env/module facts only.
+ * Unmeasured claims stay null. readinessScore is never a percentage.
+ * overrides may set a boolean the caller actually measured (for example
+ * backendAuthoritative on the backend process). They cannot invent a score.
+ */
+function futureStandardPayload(overrides) {
+  const capabilities = {
+    realtimeSSE: null,
+    aiRegistry: null,
+    aiGateway: aiGatewayConfigured(),
+    paymentsBTC: !!configuredBtcSource(),
+    paymentsPayPal: paypalEnvConfigured(),
+    pqPaymentConfirm: null,
+    integrityDoc: null,
+    passkeys: passkeysModulePresent(),
+    capabilityTokens: null,
+    sourceCompatibility: null,
+    backendAuthoritative: null,
+  };
+  if (overrides && typeof overrides === 'object') {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (!Object.prototype.hasOwnProperty.call(capabilities, key)) continue;
+      if (value === true || value === false || value == null) capabilities[key] = value;
+    }
+  }
+  return {
+    readinessScore: null,
+    capabilities,
+    percentPublished: false,
+  };
+}
+
 function tick() {
   state.ticks += 1;
   state.lastTickAt = new Date().toISOString();
@@ -345,11 +472,16 @@ module.exports = {
   honestTelemetry,
   honestTrustLedger,
   drillSeed,
+  futureStandardPayload,
   isTheaterId,
   isTheaterItem,
   filterPublicMarketplace,
   filterPublicModules,
   publicCatalogCount,
+  publicBuyableCatalog,
+  btcRailStatus,
+  configuredBtcSource,
+  BTC_ENV_NAMES,
   paidHumansCount,
   realModuleCount,
   listPublicModules,

@@ -578,28 +578,89 @@ function openPricingStream(){
     }, { heartbeatMs: 90000 });
   } catch(_) {}
 }
+function paintHeroCount(id, value){
+  const el = document.getElementById(id);
+  if (!el || value == null || value === '') return;
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 0) { el.textContent = String(n); return; }
+  if (typeof value === 'string' && value !== '—') el.textContent = value;
+}
+function mergeHeroLiveCounts(status, snap){
+  if (!document.getElementById('statModules')) return;
+  const tel = (snap && snap.telemetry) ? snap.telemetry : {};
+  let modules = null;
+  if (status && Number.isFinite(Number(status.realModuleCount))) modules = Number(status.realModuleCount);
+  else if (Number.isFinite(Number(tel.moduleCount))) modules = Number(tel.moduleCount);
+  else if (snap && Array.isArray(snap.modules) && snap.modules.length) modules = snap.modules.length;
+
+  let catalog = null;
+  if (status && Number.isFinite(Number(status.catalogCount))) catalog = Number(status.catalogCount);
+  else if (Number.isFinite(Number(tel.catalogCount))) catalog = Number(tel.catalogCount);
+  else if (Number.isFinite(Number(tel.marketplaceCount))) catalog = Number(tel.marketplaceCount);
+
+  let verticals = null;
+  if (tel.verticalCount != null && Number.isFinite(Number(tel.verticalCount))) verticals = Number(tel.verticalCount);
+  else if (snap && Array.isArray(snap.industries)) verticals = snap.industries.length;
+
+  paintHeroCount('statModules', modules);
+  paintHeroCount('statMarkets', catalog);
+  if (verticals != null) paintHeroCount('statVerticals', verticals);
+}
+async function hydrateHeroLiveCounts(){
+  if (!document.getElementById('statModules')) return;
+  const [status, snap] = await Promise.all([api('/api/status'), api('/snapshot')]);
+  mergeHeroLiveCounts(status, snap);
+}
+function formatProcessUptimeSec(sec){
+  const s = Math.floor(Number(sec) || 0);
+  if (!(s > 0)) return 'unmeasured';
+  if (s < 60) return s + 's this process';
+  if (s < 3600) return Math.floor(s / 60) + 'm this process';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return m ? (h + 'h ' + m + 'm this process') : (h + 'h this process');
+}
+function paintStatusFromApi(d){
+  if (!d || typeof d !== 'object') return;
+  const head = document.getElementById('stHeadline');
+  if (head) head.textContent = (d.overall || 'unknown') + '.';
+  const upEl = document.getElementById('stUptime');
+  if (upEl) {
+    if (d.uptime90d != null && d.uptime90d !== '') upEl.textContent = d.uptime90d + '%';
+    else if (d.uptimeSec != null) upEl.textContent = formatProcessUptimeSec(d.uptimeSec);
+    else upEl.textContent = 'unmeasured';
+  }
+  const grid = document.getElementById('stGrid');
+  if (!grid) return;
+  const comps = Array.isArray(d.components) ? d.components : [];
+  grid.innerHTML = comps.map(function(c){
+    const lat = (c.latencyMs == null || c.latencyMs === '') ? 'not sampled' : (c.latencyMs + 'ms');
+    const st = String(c.status || 'unknown');
+    const name = escapeHtml(String(c.name || c.id || 'component'));
+    return '<div class="card"><span class="tag" style="background:rgba(59,255,176,.15);color:#3bffb0">' + escapeHtml(st) + '</span><h3>' + name + '</h3><p style="color:var(--ink-dim)">Latency: <b>' + escapeHtml(lat) + '</b></p></div>';
+  }).join('') || '<div class="card"><p style="color:var(--ink-dim)">No components reported.</p></div>';
+}
+async function hydrateStatusPage(){
+  if (!document.getElementById('stGrid')) return;
+  try {
+    const d = await api('/api/status');
+    if (d) paintStatusFromApi(d);
+    else {
+      const g = document.getElementById('stGrid');
+      if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Status snapshot unavailable. Retrying every 15s.</p></div>';
+    }
+  } catch (_) {
+    const g = document.getElementById('stGrid');
+    if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Status snapshot unavailable. Retrying every 15s.</p></div>';
+  }
+}
 function applySnapshot(s){
   if (!s) return;
-  const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
-  if (s.telemetry) {
-    set('statModules', s.telemetry.moduleCount || s.modules?.length || '—');
-    // Live verticals + marketplaces — kill the hardcoded 18 / 41 SSR stubs
-    // on the homepage hero. Snapshot exposes these as direct counts when the
-    // backend's industryOS / globalMonetizationMesh modules are loaded; if
-    // not available, we fall back to the previously-rendered SSR value
-    // instead of overwriting it with "—".
-    const verticals = s.telemetry.verticalCount
-      ?? (Array.isArray(s.industries) ? s.industries.length : (s.industryOS && s.industryOS.length))
-      ?? (Array.isArray(s.verticals) ? s.verticals.length : null);
-    if (verticals != null) set('statVerticals', verticals);
-    const markets = s.telemetry.marketplaceCount
-      ?? (Array.isArray(s.marketplace) ? s.marketplace.length : null)
-      ?? (Array.isArray(s.marketplaces) ? s.marketplaces.length : null)
-      ?? (s.monetization && s.monetization.marketplaceCount)
-      ?? (s.globalMonetizationMesh && s.globalMonetizationMesh.length);
-    if (markets != null) set('statMarkets', markets);
+  mergeHeroLiveCounts(null, s);
+  if (s.autonomy && s.autonomy.chain) {
+    const el = document.getElementById('statChain');
+    if (el) el.textContent = s.autonomy.chain.length || '—';
   }
-  if (s.autonomy && s.autonomy.chain) set('statChain', s.autonomy.chain.length || '—');
 }
 
 // Autonomy hero-stat + nav hydrator. Prefers Neural Autonomy OS (NAOS/1.0)
@@ -1838,12 +1899,14 @@ async function hydratePage(route){
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
+  try { if (route === '/status') hydrateStatusPage(); } catch (e) { console.warn('hydratePage:status', e && e.message); }
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
   try { if (route === '/enterprise') await hydrateEnterprise(); } catch (e) { console.warn('hydratePage:enterprise', e && e.message); }
   try { if (route === '/store') await hydrateStore(); } catch (e) { console.warn('hydratePage:store', e && e.message); }
   try {
     if (route === '/account') {
       try { if (typeof window.__zeusCryptoAuthRefresh === 'function') window.__zeusCryptoAuthRefresh(); } catch (_) {}
+      bindAccountOrderLookup();
       hydrateAccount().catch(function(){});
     }
   } catch (e) { console.warn('hydratePage:account', e && e.message); }
@@ -2093,12 +2156,8 @@ async function hydrateHome(){
   // verticals
   const snap = await api('/snapshot');
   const vroot = $('#verticals');
-  if (vroot && snap) {
-    const verts = snap.industries && snap.industries.length ? snap.industries : [
-      { id:'fintech', title:'FinTech', outcomes:['risk scoring','fraud prevention'] },
-      { id:'ecommerce', title:'E-commerce', outcomes:['conversion uplift','ad spend efficiency'] },
-      { id:'manufacturing', title:'Manufacturing', outcomes:['downtime reduction','predictive maintenance'] }
-    ];
+  if (vroot && snap && Array.isArray(snap.industries) && snap.industries.length) {
+    const verts = snap.industries;
     vroot.innerHTML = verts.slice(0,12).map(v => `
       <a class="card" href="/services" data-link style="display:block;text-decoration:none;color:inherit">
         <span class="tag">${escapeHtml(v.id||'')}</span>
@@ -2106,8 +2165,10 @@ async function hydrateHome(){
         <p>Pre‑configured ${escapeHtml(v.title)} OS — compliance, pricing & marketplace lineage shipped by default.</p>
         <div class="row"><span>${(v.outcomes||[]).slice(0,2).map(escapeHtml).join(' · ')}</span><b>→</b></div>
       </a>`).join('');
+  } else if (vroot) {
+    vroot.innerHTML = '<div class="card"><p style="color:var(--ink-dim);margin:0">Industry verticals appear when the backend publishes a live <code class="inline">industries</code> list — never invented here.</p></div>';
   }
-  if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.telemetry.moduleCount || snap.modules?.length || '—'); }
+  hydrateHeroLiveCounts().catch(function(){});
   hydrateAutonomyScore().catch(function(){});
   hydrateCommerceProof();
   hydrateHomeProof().catch(function(){});
@@ -2298,11 +2359,16 @@ function initFinalLive(services){
   const perfOut = document.getElementById('fuPerfOut');
   if (!sEl || !eEl || !uEl || !sel || !out || !btn) return;
 
-  sEl.textContent = (services && services.length ? services.length : 0) + ' services synced';
-  sel.innerHTML = (services||[]).slice(0,20).map(function(x){
+  const quickBuySkus = (services || []).filter(function(x){ return x && isPublicQuickBuySku(x.id); });
+  sEl.textContent = (quickBuySkus.length ? quickBuySkus.length : 0) + ' services synced';
+  const defaultSku = quickBuySkus.some(function(x){ return x.id === 'instant-website-audit'; })
+    ? 'instant-website-audit'
+    : (quickBuySkus[0] && quickBuySkus[0].id) || 'instant-website-audit';
+  sel.innerHTML = quickBuySkus.slice(0, 20).map(function(x){
     const id = escapeHtml(x.id || 'service');
-    return '<option value="'+id+'">'+id+'</option>';
-  }).join('') || '<option value="adaptive-ai">adaptive-ai</option>';
+    const selected = x.id === defaultSku ? ' selected' : '';
+    return '<option value="'+id+'"'+selected+'>'+id+'</option>';
+  }).join('') || '<option value="instant-website-audit" selected>instant-website-audit</option>';
 
   fetch('/api/user/services').then(function(r){ return r.json(); }).then(function(j){
     uEl.textContent = (j && typeof j.count === 'number' ? j.count : 0) + ' services in account';
@@ -2402,8 +2468,8 @@ function initFinalLive(services){
   fetch('/api/future/standard').then(function(r){ return r.json(); }).then(function(j){
     futureManifest = j;
     if (futureScoreEl) {
-      const s = j && typeof j.readinessScore === 'number' ? j.readinessScore : 0;
-      futureScoreEl.textContent = s + '/100';
+      const s = j && j.readinessScore;
+      futureScoreEl.textContent = (typeof s === 'number' && Number.isFinite(s)) ? (s + '/100') : 'unmeasured';
     }
     if (futureOut) {
       const standards = j && Array.isArray(j.standards) ? j.standards.length : 0;
@@ -2471,10 +2537,10 @@ function initFinalLive(services){
     fetch('/api/revenue/proof').then(function(r){ return r.json(); }).catch(function(){ return null; })
   ]).then(function(parts){
     const trust = parts[0], rev = parts[1];
-    if (trustSigEl) trustSigEl.textContent = ((trust && trust.trustScores && trust.trustScores.integrityScore) || 'n/a') + '/100';
+    if (trustSigEl) trustSigEl.textContent = formatIntegrityScoreDisplay(trust);
     if (trustReceiptsEl) {
       const p = trust && trust.ledger && trust.ledger.paidReceipts;
-      trustReceiptsEl.textContent = (p != null ? p : 'n/a') + ' verified';
+      trustReceiptsEl.textContent = formatPaidReceiptsDisplay(p);
     }
     if (revTotalEl) {
       const t = rev && rev.revenue && rev.revenue.totalUsd;
@@ -2487,14 +2553,14 @@ function initFinalLive(services){
     if (trustOut) {
       const endpoint = trust && trust.ledger && trust.ledger.integrityEndpoint;
       const paid = rev && rev.revenue && rev.revenue.paidReceipts;
-      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + (paid != null ? paid : 'n/a') + ' · routing: direct BTC';
+      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + formatPaidReceiptsDisplay(paid) + ' · routing: direct BTC';
     }
   }).catch(function(){
     // Belt-and-suspenders: the inner catches already swap to null on fetch
     // failure, so this outer catch is rare — but ensure no SSR placeholder
     // ("Loading…") ever stays stuck on screen.
-    if (trustSigEl) trustSigEl.textContent = 'n/a/100';
-    if (trustReceiptsEl) trustReceiptsEl.textContent = 'n/a verified';
+    if (trustSigEl) trustSigEl.textContent = 'n/a';
+    if (trustReceiptsEl) trustReceiptsEl.textContent = 'none yet';
     if (revTotalEl) revTotalEl.textContent = 'n/a';
     if (revMethodsEl) revMethodsEl.textContent = 'n/a';
     if (trustOut) trustOut.textContent = 'Trust snapshot unavailable.';
@@ -2502,12 +2568,18 @@ function initFinalLive(services){
 
   function applyDrill(j){
     if (!j || !j.drill) {
-      if (drillScoreEl) drillScoreEl.textContent = 'n/a';
+      if (drillScoreEl) drillScoreEl.textContent = 'never run';
       if (drillRecoveryEl) drillRecoveryEl.textContent = 'n/a';
       if (drillRunsEl) drillRunsEl.textContent = 'n/a';
       return;
     }
-    if (drillScoreEl) drillScoreEl.textContent = (j.drill.readinessScore != null ? j.drill.readinessScore : 'n/a') + '/100';
+    const drillStatus = String(j.drill.status || '');
+    const drillScore = j.drill.readinessScore;
+    if (drillScoreEl) {
+      drillScoreEl.textContent = (drillStatus === 'never_run' || drillScore == null)
+        ? 'never run'
+        : (drillScore + '/100');
+    }
     if (drillRecoveryEl) drillRecoveryEl.textContent = (j.drill.averageRecoveryMs != null ? (j.drill.averageRecoveryMs + ' ms') : 'n/a');
     if (drillRunsEl) drillRunsEl.textContent = (j.drill.totalRuns != null ? j.drill.totalRuns : 'n/a') + '';
   }
@@ -2615,7 +2687,7 @@ function initFinalLive(services){
   }
 
   btn.onclick = async function(){
-    const serviceId = sel.value || 'adaptive-ai';
+    const serviceId = sel.value || 'instant-website-audit';
     const email = (document.getElementById('fuEmail')||{}).value || '';
     const live = await fetchLivePricing(serviceId);
     const amountUsd = Number(live && live.price_usd);
@@ -2771,7 +2843,7 @@ async function hydratePricingPage(){
     const cta = planCard.querySelector('a[href*="/checkout"][href*="plan="]');
     const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
     if (!live || !Number.isFinite(Number(live.price_usd))) continue;
-    priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
+    priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small style="display:block;font-size:11px;color:var(--ink-dim);font-weight:400;margin-top:4px">one-time access (not a metered subscription)</small>';
     if (cta) cta.setAttribute('href', '/checkout/?plan=' + encodeURIComponent(pair.serviceId));
   }
   const syncEl = document.getElementById('pricingLastSync');
@@ -5207,6 +5279,7 @@ function whalesPaneHtml(r) {
 }
 
 // ================= BOOT =================
+// Stale service-worker caches can pin old site-v2 JS — visit /sw-reset once before manual UI QA.
 window.addEventListener('DOMContentLoaded', () => {
   // Affiliate sticky
   try {
@@ -5241,6 +5314,44 @@ window.addEventListener('DOMContentLoaded', () => {
 // changes or a new module appears. Auto-reconnects with exponential backoff.
 window.AUTONOMOUS_MODULES = window.AUTONOMOUS_MODULES || { byId: {}, rev: 0, updatedAt: null };
 
+function isInternalPoolModule(m) {
+  if (!m || typeof m !== 'object') return true;
+  if (String(m.category || '').toLowerCase() === 'dynamic') return true;
+  if (m.kind === 'pool-shim' || m.poolShim === true) return true;
+  const id = String(m.id || '').trim();
+  const name = String(m.name || '').trim();
+  const blob = (id + ' ' + name).toLowerCase();
+  if (/adaptivepool|enginepool|mod-adaptivepool/.test(blob)) return true;
+  if (/^AdaptiveModule\d+$/i.test(id) || /^Engine\d+$/i.test(id)) return true;
+  if (/^AdaptiveModule\d+$/i.test(name) || /^Engine\d+$/i.test(name)) return true;
+  if (/pool\s*shim/i.test(name)) return true;
+  return false;
+}
+
+function filterPublicAutonomousModules(modules) {
+  const list = Array.isArray(modules) ? modules : Object.values(modules || {});
+  return list.filter((m) => m && m.isActive !== false && !isInternalPoolModule(m));
+}
+
+function formatIntegrityScoreDisplay(trust) {
+  const s = trust && trust.trustScores && trust.trustScores.integrityScore;
+  if (s == null || !Number.isFinite(Number(s))) return 'n/a';
+  return Number(s) + '/100';
+}
+
+function formatPaidReceiptsDisplay(p) {
+  if (p == null) return 'none yet';
+  const n = Number(p);
+  if (!Number.isFinite(n)) return 'none yet';
+  return n === 0 ? '0 verified' : (n + ' verified');
+}
+
+function isPublicQuickBuySku(id) {
+  const sid = String(id || '').trim();
+  if (!sid || sid === 'adaptive-ai') return false;
+  return !isInternalPoolModule({ id: sid });
+}
+
 function seedAutonomousModulesFromApi(){
   // Public nginx → backend exposes /api/modules/list (auth-free).
   // Site BFF /api/modules is often 401 at the edge because /api/* hits :3000.
@@ -5252,7 +5363,7 @@ function seedAutonomousModulesFromApi(){
     window.AUTONOMOUS_MODULES.byId = {};
     for (let i = 0; i < list.length; i++) {
       const m = list[i];
-      if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+      if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
     }
     window.AUTONOMOUS_MODULES.rev = d.rev || window.AUTONOMOUS_MODULES.rev || 0;
     window.AUTONOMOUS_MODULES.updatedAt = d.updatedAt || d.at || new Date().toISOString();
@@ -5287,7 +5398,9 @@ function subscribeAutonomousEvents(){
         const d = JSON.parse(ev.data);
         if (Array.isArray(d.modules)) {
           window.AUTONOMOUS_MODULES.byId = {};
-          for (const m of d.modules) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+          for (const m of d.modules) {
+            if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+          }
           window.AUTONOMOUS_MODULES.rev = d.rev || 0;
           window.AUTONOMOUS_MODULES.updatedAt = d.at || new Date().toISOString();
           applyAutonomousSnapshot();
@@ -5309,14 +5422,16 @@ function subscribeAutonomousEvents(){
     es.addEventListener('module.added', (ev) => {
       try {
         const evt = JSON.parse(ev.data);
-        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        const m = evt.data;
+        if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
         applyAutonomousSnapshot();
       } catch(_){}
     });
     es.addEventListener('module.update', (ev) => {
       try {
         const evt = JSON.parse(ev.data);
-        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        const m = evt.data;
+        if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
         if (m && m.defaultPrice != null) applyLivePriceToDom(m.id, m.defaultPrice);
       } catch(_){}
     });
@@ -5366,8 +5481,8 @@ function applyAutonomousSnapshot(){
   }
   const statusEl = document.getElementById('autonomousStatus');
   const hintEl = document.getElementById('autonomousModulesHint');
-  const count = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
-  const liveTxt = '● live · ' + count + ' modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
+  const count = filterPublicAutonomousModules(window.AUTONOMOUS_MODULES.byId || {}).length;
+  const liveTxt = '● live · ' + count + ' public modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
   if (statusEl) {
     statusEl.textContent = liveTxt;
     statusEl.style.color = '#a3ffce';
@@ -5379,11 +5494,14 @@ function applyAutonomousSnapshot(){
 }
 
 function renderAutonomousServicesGrid(target){
-  const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
-    .filter(m => m && m.isActive !== false)
+  const rawCount = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
+  const modules = filterPublicAutonomousModules(window.AUTONOMOUS_MODULES.byId || {})
     .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
   if (!modules.length) {
-    target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing from Unicorn… <button type="button" class="btn btn-ghost" id="retryModulesSeed" style="margin-left:8px">Retry</button></div>';
+    const emptyMsg = rawCount > 0
+      ? 'No public modules in this slice — pool workers are internal.'
+      : 'Module catalogue refreshing from Unicorn…';
+    target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">' + emptyMsg + (rawCount > 0 ? '' : ' <button type="button" class="btn btn-ghost" id="retryModulesSeed" style="margin-left:8px">Retry</button>') + '</div>';
     const btn = document.getElementById('retryModulesSeed');
     if (btn) btn.addEventListener('click', function(){ seedAutonomousModulesFromApi(); });
     return;
@@ -5761,7 +5879,60 @@ function renderStoreInvoice(r){
 }
 
 // ===== Account =====
+function paintAccountCommerceIdle(root, message){
+  if (!root) return;
+  const html = String(root.innerHTML || '');
+  if (!/Loading your orders/i.test(html)) return;
+  root.innerHTML = '<div class="card" style="padding:18px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">' + escStore(message || 'Orders and deliveries appear here after you sign in above and complete checkout with the same email.') + '</div>';
+}
+function bindAccountOrderLookup(){
+  const btn = document.getElementById('acctLookupBtn');
+  const orderInput = document.getElementById('acctLookupOrderId');
+  const emailInput = document.getElementById('acctLookupEmail');
+  const receiptsBtn = document.getElementById('acctLookupReceiptsBtn');
+  const receiptsOut = document.getElementById('acctLookupReceiptsOut');
+  if (btn && !btn.__zeusBound) {
+    btn.__zeusBound = true;
+    btn.addEventListener('click', function(ev){
+      ev.preventDefault();
+      const id = String((orderInput && orderInput.value) || '').trim();
+      if (!id) {
+        if (orderInput) orderInput.focus();
+        return;
+      }
+      const email = String((emailInput && emailInput.value) || '').trim();
+      if (email) {
+        try { localStorage.setItem('u_email', email); } catch (_) {}
+      }
+      if (typeof go === 'function') go('/order/' + encodeURIComponent(id));
+      else location.href = '/order/' + encodeURIComponent(id);
+    });
+  }
+  if (receiptsBtn && !receiptsBtn.__zeusBound) {
+    receiptsBtn.__zeusBound = true;
+    receiptsBtn.addEventListener('click', async function(){
+      const email = String((emailInput && emailInput.value) || '').trim();
+      if (!email) {
+        if (receiptsOut) receiptsOut.textContent = 'Enter the email you used at checkout.';
+        if (emailInput) emailInput.focus();
+        return;
+      }
+      if (receiptsOut) receiptsOut.textContent = 'Loading receipts…';
+      try {
+        const j = await fetch('/api/uaic/receipts?email=' + encodeURIComponent(email), { cache: 'no-store' }).then(function(r){ return r.json(); });
+        const n = j && (j.count != null ? j.count : (Array.isArray(j.receipts) ? j.receipts.length : null));
+        receiptsOut.textContent = (n != null)
+          ? (n + ' receipt(s) on file for this email — open an order passport with your order id.')
+          : 'Receipt lookup returned no rows for this email.';
+      } catch (_) {
+        if (receiptsOut) receiptsOut.textContent = 'Receipt lookup unavailable — try your order passport link.';
+      }
+    });
+  }
+}
+
 async function hydrateAccount(){
+  bindAccountOrderLookup();
   const root = document.getElementById('accountRoot');
   const cryptoChrome = !!(document.getElementById('acaCreate') || document.getElementById('acaSignin') || document.querySelector('[data-iic="1"]'));
   if (!root) {
@@ -5797,7 +5968,10 @@ async function hydrateAccount(){
   }
   const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
   if (!resp) {
-    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') {
+      paintAccountCommerceIdle(root);
+      return;
+    }
     if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
     return;
   }
@@ -5807,13 +5981,19 @@ async function hydrateAccount(){
     try { localStorage.removeItem('zeus_iic_me_v1'); } catch (_) {}
     // Cryptoauth is the sole login surface. Retired /api/customer/* must not
     // paint password/passkey forms over Create / Sign-in / Recover.
-    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') {
+      paintAccountCommerceIdle(root);
+      return;
+    }
     if (!authFormWired()) renderAccountAuth(root);
     return;
   }
   const me = resp.ok ? await resp.json().catch(()=>null) : null;
   if (!me) {
-    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') return;
+    if (cryptoChrome || root.getAttribute('data-commerce-mount') === '1') {
+      paintAccountCommerceIdle(root);
+      return;
+    }
     if (!authFormWired() && !root.querySelector('#acLogoutBtn')) renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
     return;
   }
@@ -6306,17 +6486,20 @@ function renderGiants(stats, list){
 }
 
 function renderMonetize(sum, mkts){
-  sum = sum || { products:0, marketplaces:41, totalReach:0, totalSales:0, totalNetUSD:0 };
+  sum = sum || { products:0, marketplaces:null, totalReach:0, totalSales:0, totalNetUSD:0 };
   const arr = Array.isArray(mkts) ? mkts : ((mkts && (mkts.marketplaces || mkts.list)) || []);
+  const mktCount = (sum.marketplaces != null && Number.isFinite(Number(sum.marketplaces)))
+    ? Number(sum.marketplaces)
+    : (arr.length ? arr.length : '\u2014');
   const opts = arr.slice(0,60).map(function(m){ return '<option value="'+escapeHtml(m.id||m.name||m)+'">'+escapeHtml(m.name||m.id||m)+(m.reach?' ('+Number(m.reach).toLocaleString()+' reach)':'')+'</option>'; }).join('');
   return '<div class="pl-stats">'
-    + plStat('Marketplaces', sum.marketplaces || arr.length || 41)
+    + plStat('Marketplaces', mktCount)
     + plStat('Total reach', (sum.totalReach||0).toLocaleString())
     + plStat('Listings', sum.products || 0)
     + plStat('Net revenue', plFmtUSD(sum.totalNetUSD))
     + '</div>'
     + '<label>Listing title</label><input id="plMTitle" placeholder="ZeusAI Pro Predictive Engine" />'
-    + '<div class="pl-row"><div><label>Price (USD)</label><input id="plMPrice" type="number" value="99" /></div><div><label>Target marketplace</label><select id="plMkt"><option value="">\u2014 all 41 \u2014</option>' + opts + '</select></div></div>'
+    + '<div class="pl-row"><div><label>Price (USD)</label><input id="plMPrice" type="number" value="99" /></div><div><label>Target marketplace</label><select id="plMkt"><option value="">\u2014 any configured \u2014</option>' + opts + '</select></div></div>'
     + '<label>Short description</label><textarea id="plMDesc" rows="2"></textarea>'
     + '<div class="pl-actions">' + plBtn('plPublish','Publish to mesh') + plBtn('plQuote','Get bandit quote', true) + '</div>'
     + '<div class="pl-output" id="plOut"></div>';

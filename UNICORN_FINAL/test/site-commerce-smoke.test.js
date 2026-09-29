@@ -104,10 +104,10 @@ async function run() {
       console.log(`[ok] /services SSR renders ${cardCount} product cards with schema.org + pricing hooks`);
 
       // Legacy deep-link compat: /services?buy=<id> → 302 /checkout/?plan=<id>
-      const buyRes = await fetch(base + '/services?buy=adaptive-ai', { redirect: 'manual' });
+      const buyRes = await fetch(base + '/services?buy=instant-website-audit', { redirect: 'manual' });
       assert.equal(buyRes.status, 302, '/services?buy= should redirect to checkout');
       const loc = String(buyRes.headers.get('location') || '');
-      assert.ok(loc.startsWith('/checkout/?plan=adaptive-ai'), `redirect target should be checkout (got ${loc})`);
+      assert.ok(loc.startsWith('/checkout/?plan=instant-website-audit'), `redirect target should be checkout (got ${loc})`);
       console.log('[ok] /services?buy=<id> redirects to /checkout/?plan=<id>');
     }
 
@@ -331,7 +331,7 @@ async function run() {
 
     const uiCheckout = await request('/api/uaic/order', {
       method: 'POST',
-      body: JSON.stringify({ method: 'BTC', plan: 'adaptive-ai', amount_usd: 499, email: smokeEmail })
+      body: JSON.stringify({ method: 'BTC', plan: 'instant-website-audit', amount_usd: 499, email: smokeEmail })
     });
     assert.equal(uiCheckout.status, 200);
     assert.equal(uiCheckout.body.ok, true);
@@ -365,11 +365,11 @@ async function run() {
     assert.ok(Array.isArray(delivery.body.delivery.items) && delivery.body.delivery.items.length >= 1, 'paid receipt must create delivery items');
     assert.ok(delivery.body.delivery.items[0].files.length >= 2, 'delivery must expose downloadable files');
 
-    const apiKeyDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=api-key&serviceId=adaptive-ai&access_token=' + encodeURIComponent(deliveryToken));
+    const apiKeyDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=api-key&serviceId=instant-website-audit&access_token=' + encodeURIComponent(deliveryToken));
     assert.equal(apiKeyDelivery.status, 200);
     assert.ok(apiKeyDelivery.body.delivery.apiKey && apiKeyDelivery.body.delivery.apiKey.startsWith('zai_'), 'delivery must expose a service API key');
 
-    const onboardingDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=onboarding&serviceId=adaptive-ai&access_token=' + encodeURIComponent(deliveryToken));
+    const onboardingDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=onboarding&serviceId=instant-website-audit&access_token=' + encodeURIComponent(deliveryToken));
     assert.equal(onboardingDelivery.status, 200);
     assert.ok(Array.isArray(onboardingDelivery.body.delivery.requiredInputs), 'delivery must expose onboarding inputs');
 
@@ -381,7 +381,7 @@ async function run() {
 
     const directCheckout = await request('/api/checkout/btc', {
       method: 'POST',
-      body: JSON.stringify({ plan: 'adaptive-ai', amountUSD: 499, customer: { email: smokeEmail } })
+      body: JSON.stringify({ plan: 'instant-website-audit', amountUSD: 499, customer: { email: smokeEmail } })
     });
     assert.equal(directCheckout.status, 200);
     assert.equal(directCheckout.body.ok, true);
@@ -389,7 +389,7 @@ async function run() {
 
     const buy = await request('/api/services/buy', {
       method: 'POST',
-      body: JSON.stringify({ serviceId: 'adaptive-ai', paymentMethod: 'BTC', amount: 499, email: smokeEmail })
+      body: JSON.stringify({ serviceId: 'instant-website-audit', paymentMethod: 'BTC', amount: 499, email: smokeEmail })
     });
     assert.equal(buy.status, 200);
     assert.equal(buy.body.ok, true);

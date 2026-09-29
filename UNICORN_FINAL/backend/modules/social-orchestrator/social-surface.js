@@ -112,112 +112,32 @@ function _hash(payload) {
   return crypto.createHash('sha256').update(typeof payload === 'string' ? payload : JSON.stringify(payload)).digest('hex');
 }
 
+const THEATER_SEED_IDS = new Set(['u_zeus', 'u_aria', 'u_nova', 'u_orbit', 'u_mira']);
+function _isTheaterPersonaSeed(state) {
+  if (!state || !Array.isArray(state.users) || !state.users.length) return false;
+  return state.users.every((u) => u && THEATER_SEED_IDS.has(u.id));
+}
+
 function _seed() {
-  const users = [
-    { id: 'u_zeus', handle: 'zeusai', displayName: 'ZeusAI', bio: 'Autonomous commerce social layer', verified: true, system: true, presence: 'active', passport: 98, intent: 'create', followers: 12840, following: 42 },
-    { id: 'u_aria', handle: 'aria.builds', displayName: 'Aria Builds', bio: 'Creator · short-form ops', verified: true, system: true, presence: 'recent', passport: 91, intent: 'create', followers: 6402, following: 210 },
-    { id: 'u_nova', handle: 'nova.lens', displayName: 'Nova Lens', bio: 'Photo essays · stories', verified: false, system: true, presence: 'active', passport: 77, intent: 'connect', followers: 2104, following: 390 },
-    { id: 'u_orbit', handle: 'orbit.trade', displayName: 'Orbit Trade', bio: 'BTC-native commerce signals', verified: true, system: true, presence: 'quiet', passport: 88, intent: 'trade', followers: 9330, following: 120 },
-    { id: 'u_mira', handle: 'mira.learn', displayName: 'Mira Learn', bio: 'Learning threads · anti-doomscroll', verified: false, system: true, presence: 'recent', passport: 84, intent: 'learn', followers: 1588, following: 640 },
-  ];
-
-  const posts = [
-    {
-      id: 'p_fyp1', authorId: 'u_aria', kind: 'short', platformCue: 'tiktok',
-      text: '30s autonomy clip — heal → decide → distribute without a human in the loop.',
-      media: { type: 'video', aspect: '9:16', poster: 'gradient-mint', durationSec: 28, sound: 'Signal Pulse · original' },
-      tags: ['#shorts', '#autonomy', '#fyp'], createdAt: _now(),
-      stats: { likes: 4200, comments: 188, shares: 920, saves: 610, views: 88000 },
-    },
-    {
-      id: 'p_ig1', authorId: 'u_nova', kind: 'image', platformCue: 'instagram',
-      text: 'Golden-hour ledger light. Proof-of-Authorship seals every frame.',
-      media: { type: 'image', aspect: '4:5', poster: 'gradient-amber' },
-      tags: ['#visual', '#proof'], createdAt: _now(),
-      stats: { likes: 1880, comments: 64, shares: 120, saves: 410, views: 12000 },
-    },
-    {
-      id: 'p_x1', authorId: 'u_orbit', kind: 'text', platformCue: 'x',
-      text: 'Hot take: vanity metrics are a tax on truth. Attention Receipts fix the asymmetry.',
-      media: null,
-      tags: ['#x', '#attention'], createdAt: _now(),
-      stats: { likes: 960, comments: 210, shares: 540, saves: 300, views: 24000 },
-    },
-    {
-      id: 'p_fb1', authorId: 'u_mira', kind: 'text', platformCue: 'facebook',
-      text: 'Community note: Intent-Match Feed let me switch to Learn mode — timeline calmed in one tap.',
-      media: null,
-      tags: ['#wellbeing', '#community'], createdAt: _now(),
-      stats: { likes: 540, comments: 92, shares: 70, saves: 88, views: 6100 },
-    },
-    {
-      id: 'p_reel2', authorId: 'u_zeus', kind: 'reel', platformCue: 'instagram',
-      text: 'World-standard social: FB + X + IG + TikTok surface, inventions they still lack.',
-      media: { type: 'video', aspect: '9:16', poster: 'gradient-cyan', durationSec: 18, sound: 'Ledger Hum' },
-      tags: ['#reels', '#worldstandard'], createdAt: _now(),
-      stats: { likes: 12000, comments: 430, shares: 2100, saves: 1800, views: 220000 },
-    },
-  ].map((p) => {
-    const authorship = _hash({ id: p.id, text: p.text, authorId: p.authorId });
-    return Object.assign({}, p, {
-      proofOfAuthorship: authorship,
-      truthAnchor: _hash({ claim: p.text.slice(0, 80), id: p.id }).slice(0, 16),
-      royaltyHintBtc: Number(((p.stats.likes + p.stats.shares * 2) * 1.2e-9).toFixed(8)),
-    });
-  });
-
-  const stories = users.slice(0, 4).map((u, i) => ({
-    id: `st_${i}`,
-    authorId: u.id,
-    items: [
-      { id: `sti_${i}a`, kind: 'image', poster: i % 2 ? 'gradient-mint' : 'gradient-amber', expiresInH: 20 - i },
-      { id: `sti_${i}b`, kind: 'text', text: `${u.displayName} · live signal`, expiresInH: 18 - i },
-    ],
-    unseen: i < 3,
-  }));
-
-  const threads = [
-    {
-      id: 'dm_1',
-      participants: ['u_zeus', 'u_aria'],
-      messages: [
-        { id: 'm1', from: 'u_aria', text: 'Shorts clip sealed — royalty mirror shows 0.000018 BTC hint.', at: _now() },
-        { id: 'm2', from: 'u_zeus', text: 'Receipt attached. Federation passport sync next.', at: _now() },
-      ],
-      encrypted: true,
-    },
-  ];
-
-  const groups = [
-    { id: 'g_builders', name: 'Autonomous Builders', members: 842, platformCue: 'facebook' },
-    { id: 'g_creators', name: 'Creator Royalty Lab', members: 1204, platformCue: 'facebook' },
-  ];
-
-  const follows = [
-    ['u_aria', 'u_zeus'], ['u_nova', 'u_zeus'], ['u_orbit', 'u_zeus'],
-    ['u_mira', 'u_aria'], ['u_zeus', 'u_orbit'],
-  ];
-
+  // First visitor sees an empty network. No seeded personas, followers, or likes.
   return {
     version: 1,
     seededAt: _now(),
+    honestSeed: true,
     session: { startedAt: Date.now(), views: 0, wellbeingScore: 100, intent: 'discover' },
-    users,
-    posts,
-    stories,
-    threads,
-    groups,
-    follows,
+    users: [],
+    posts: [],
+    stories: [],
+    threads: [],
+    groups: [],
+    follows: [],
     receipts: [],
     reactions: [],
     bookmarks: [],
     comments: [],
     notifications: [],
-    sounds: [
-      { id: 'snd_pulse', title: 'Signal Pulse · original', uses: 4200 },
-      { id: 'snd_hum', title: 'Ledger Hum', uses: 1880 },
-    ],
-    trending: ['#autonomy', '#proofofreach', '#shorts', '#wellbeing', '#btc'],
+    sounds: [],
+    trending: [],
   };
 }
 
@@ -233,7 +153,7 @@ class SocialSurface {
         this.state = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
       }
     } catch (_) { /* seed */ }
-    if (!this.state || !Array.isArray(this.state.posts) || !this.state.posts.length) {
+    if (!this.state || !Array.isArray(this.state.posts) || !Array.isArray(this.state.users) || _isTheaterPersonaSeed(this.state)) {
       this.state = _seed();
       this._save();
     }

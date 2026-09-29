@@ -84,7 +84,8 @@ async function run() {
       { id: 'fintech-os', group: 'vertical' }
     ];
     const out = filter.filterPublicCatalogItems(items);
-    assert.deepStrictEqual(out.map((x) => x.id), ['adaptive-ai', 'pro', 'fintech-os']);
+    assert.deepStrictEqual(out.map((x) => x.id), ['pro', 'fintech-os']);
+    assert.equal(filter.isLegacyUndeliverableItem({ id: 'adaptive-ai' }), true);
     const withSyn = filter.filterPublicCatalogItems(items, { includeSynthetic: true });
     assert.strictEqual(withSyn.length, 6);
   });
@@ -153,7 +154,7 @@ async function run() {
     await check('core plan remains buyable via BTC checkout create', async () => {
       const res = await request(base, '/api/checkout/create', {
         method: 'POST',
-        body: JSON.stringify({ serviceId: 'adaptive-ai', qty: 1, email: 'catalog-reality@example.com' })
+        body: JSON.stringify({ serviceId: 'instant-website-audit', qty: 1, email: 'catalog-reality@example.com' })
       });
       assert.ok(res.status === 200 || res.status === 201, 'checkout create status ' + res.status);
       assert.ok(res.body && (res.body.ok === true || res.body.checkout_url || res.body.orderId || res.body.order),

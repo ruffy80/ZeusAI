@@ -786,6 +786,13 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   pre.code,table.doc{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
   #heroQuickBuy{flex-direction:column;align-items:stretch}
   #heroQuickBuy select,#heroQuickBuy input,#heroQuickBuy button{min-width:0!important;width:100%;flex:1 1 auto}
+  #checkoutBuying{padding:16px!important}
+  #checkoutRailCtas{flex-direction:column!important;width:100%;gap:10px!important}
+  #checkoutRailCtas .btn,#coSovereignPrimary,#coBuyPaypalTop,#coBuyNowTop{width:100%!important;min-width:0!important;flex:1 1 auto!important}
+  .co-method{flex-direction:column;align-items:stretch}
+  .co-method .chip{width:100%;min-height:44px}
+  .account-crypto-grid{grid-template-columns:1fr!important}
+  section[data-iic="1"] .card input[type="email"],section[data-iic="1"] .card input[type="text"]{font-size:16px}
   .za-creators,.za-social-metrics,.za-social-ledger__head,.za-composer-extra-grid{
     grid-template-columns:1fr!important
   }

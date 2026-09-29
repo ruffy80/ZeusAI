@@ -229,8 +229,8 @@ const BASE_PRICES = {
   // ── Revenue-tier modules (SME, Mid-Market, Enterprise, Global Giants) ──
   // These IDs power /api/pricing/module/:moduleId so the site can show a
   // real-time, AI-negotiated price per segment. Base prices are the floor;
-  // the dynamic-pricing engine then applies demand, peak-hours, surge,
-  // discount, per-service variance and (optional) coupon/loyalty.
+  // the dynamic-pricing engine then applies the flat BTC discount and
+  // (optional) coupon/loyalty. It does not invent hourly demand.
   sme: 199,
   'mid-market': 1499,
   'enterprise-tier': 9999,
@@ -241,31 +241,28 @@ const DEMAND_FACTOR_HISTORY = [];
 let currentDemandFactor = 1.0;
 let peakHoursActive = false;
 let surgeActive = false;
-let discountActive = true; // 20% discount as per spec
+let discountActive = true; // 10% BTC discount — matches storefront copy
 const _warnedFallbackIds = new Set();
 
-// Per-service noise: stable per (serviceId, hour) so prices differ between
-// products but don't flicker on every request. Hash of serviceId + hour bucket
-// yields deterministic ±15% variance per service.
-const crypto = require('crypto');
-function perServiceFactor(serviceId) {
-  const hour = Math.floor(Date.now() / 3600000); // hourly bucket
-  const h = crypto.createHash('sha256').update(String(serviceId) + ':' + hour).digest();
-  // Normalize first 4 bytes to 0..1, then map to 0.85..1.15
-  const raw = h.readUInt32BE(0) / 0xffffffff;
-  return 0.85 + raw * 0.30;
+// Identity. Hourly sha256 variance used to move the same base price by ±15%.
+function perServiceFactor() {
+  return 1;
+}
+
+function hasMeasuredDemandSignal() {
+  // No paid-order or open-cart feed is wired into this module.
+  // Do not invent one from the clock or from Math.random.
+  return false;
 }
 
 function updateDemandFactor() {
-  const hour = new Date().getHours();
-  // Peak hours: 9-12 and 14-18 (European business hours)
-  peakHoursActive = (hour >= 9 && hour <= 12) || (hour >= 14 && hour <= 18);
-
-  const base = peakHoursActive ? 1.05 : 0.95;
-  const noise = (Math.random() - 0.5) * 0.1;
-  currentDemandFactor = Math.max(0.7, Math.min(1.5, base + noise));
-
-  DEMAND_FACTOR_HISTORY.push({ factor: currentDemandFactor, ts: new Date().toISOString() });
+  peakHoursActive = false;
+  currentDemandFactor = 1;
+  DEMAND_FACTOR_HISTORY.push({
+    factor: currentDemandFactor,
+    ts: new Date().toISOString(),
+    source: 'unmeasured',
+  });
   if (DEMAND_FACTOR_HISTORY.length > 100) DEMAND_FACTOR_HISTORY.shift();
 }
 
@@ -337,11 +334,11 @@ function _computePrice(serviceId, options = {}) {
   // Loyalty discount (returning user)
   if (userId) price *= 0.95;
 
-  // Surge pricing
-  if (surgeActive) price *= 1.2;
+  // Surge only when a real paid-order / cart signal exists. Default off.
+  if (surgeActive && hasMeasuredDemandSignal()) price *= 1.2;
 
-  // Global 20% discount
-  if (discountActive) price *= 0.80;
+  // Global 10% BTC discount (storefront copy)
+  if (discountActive) price *= 0.90;
 
   // Coupon codes
   if (coupon === 'UNICORN2026') price *= 0.7;
@@ -468,9 +465,14 @@ const ALLOWED_SURGE_DURATIONS_MS = Object.freeze({
 
 function activateSurge(durationKey = '1h') {
   const durationMs = ALLOWED_SURGE_DURATIONS_MS[durationKey] || ALLOWED_SURGE_DURATIONS_MS['1h'];
+  if (!hasMeasuredDemandSignal()) {
+    surgeActive = false;
+    return false;
+  }
   surgeActive = true;
   setTimeout(() => { surgeActive = false; }, durationMs);
   console.log('[DynamicPricing] Surge pricing activated for', durationMs / 60000, 'min');
+  return true;
 }
 
 function setDiscount(active) {

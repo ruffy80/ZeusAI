@@ -91,7 +91,7 @@ check('NOWPayments processWebhook creates EventBus and emits payment:confirmed',
   assert.equal(saw.orderId, 'ord_test_2');
 });
 
-check('dropship-ssr: world-feed is ZEUS-CURATED, CJ auto uses cj-global-dropship', () => {
+check('dropship-ssr: world-feed is DEMO, CJ auto uses cj-global-dropship', () => {
   const ssr = require('../src/site/dropship-ssr');
   const world = ssr.sourceMode({
     source: 'dummyjson-world',
@@ -99,7 +99,7 @@ check('dropship-ssr: world-feed is ZEUS-CURATED, CJ auto uses cj-global-dropship
     demoOnly: false,
   });
   assert.equal(world.live, false);
-  assert.equal(world.label, 'ZEUS-CURATED');
+  assert.equal(world.label, 'DEMO');
   const cj = ssr.sourceMode({ source: 'cj', supplier: 'cj-dropshipping', live: true });
   assert.equal(cj.live, true);
   const badge = ssr.fulfillBadge({
