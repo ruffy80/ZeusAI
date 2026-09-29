@@ -1821,7 +1821,7 @@ function pagePricing() {
     <div style="min-width:260px;flex:1">
       <span class="kicker">One-time deliverables</span>
       <h3 style="margin:6px 0 4px;font-size:20px">Prefer a one-shot BTC purchase?</h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Browse the one-time catalog — signed artefacts, no subscription, no card. 10% BTC discount already baked into every price.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Browse the one-time catalog — signed artefacts, no subscription, no card. Catalog lists the base USD; checkout applies a 10% BTC discount to that same base.</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <a class="btn btn-primary" href="/services" data-link>Open one-time catalog →</a>
