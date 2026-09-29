@@ -1273,7 +1273,7 @@ function pageHome() {
       <div class="hero-stats" style="margin-top:14px">
         <div class="hero-stat"><b id="statModules">—</b><span>Modules</span></div>
         <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">—</b><span>Marketplaces</span></div>
+        <div class="hero-stat"><b id="statMarkets">—</b><span>Catalog SKUs</span></div>
         <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
         <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
       </div>
@@ -2478,7 +2478,7 @@ function pageObservability() {
   return `<section style="padding-top:140px;max-width:1120px">
   <span class="kicker">Observability</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">SLOs, probes and <span class="grad">self-healing signals.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Public status page foundation for synthetic checkout probes, robots/sitemap/payment monitoring, SLO budgets and alert readiness.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Measured probes when armed: checkout path, robots/sitemap, payment rails, and alert readiness. Latency and 90-day SLO percentages stay unpublished until sampled — see <a href="/status" data-link>/status</a>.</p>
   <div class="grid" id="obsGrid" style="margin-top:22px"><div class="card"><p>Observability probes will appear here.</p></div></div>
   <pre class="code" id="obsRaw" style="margin-top:18px">Observability summary will appear here.</pre>
   <script>
@@ -2589,7 +2589,7 @@ function pageAccount(opts) {
     </div>
 
     <div id="acaPanels" style="margin-top:22px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px">
+      <div class="account-crypto-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px">
         <div class="card" style="padding:22px">
           <h3 style="margin:0 0 6px">Create new account</h3>
           <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>
@@ -5852,13 +5852,22 @@ function pageStatus(params = {}) {
       if(pillarsEl2) pillarsEl2.innerHTML='';
     }
   }
+  function formatProcessUptimeSec(sec){
+    var s = Math.floor(Number(sec) || 0);
+    if (!(s > 0)) return 'unmeasured';
+    if (s < 60) return s + 's this process';
+    if (s < 3600) return Math.floor(s / 60) + 'm this process';
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    return m ? (h + 'h ' + m + 'm this process') : (h + 'h this process');
+  }
   async function loadStatus(){
     try { const d = await (await fetch('/api/status')).json();
       document.getElementById('stHeadline').textContent = (d.overall || 'unknown') + '.';
       var upEl = document.getElementById('stUptime');
       if (upEl) {
         if (d.uptime90d != null && d.uptime90d !== '') upEl.textContent = d.uptime90d + '%';
-        else if (d.uptimeSec != null) upEl.textContent = Math.floor(Number(d.uptimeSec)/3600) + 'h this process';
+        else if (d.uptimeSec != null) upEl.textContent = formatProcessUptimeSec(d.uptimeSec);
         else upEl.textContent = 'unmeasured';
       }
       document.getElementById('stGrid').innerHTML = (d.components || []).map(function(c){
