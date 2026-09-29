@@ -43,7 +43,9 @@ assert.equal(reach.ok, true);
 
 const snap = surface.snapshot();
 assert.equal(snap.ok, true);
-assert.ok(snap.posts >= 4);
+assert.equal(snap.posts, 0, 'honest seed has no fake posts');
+assert.equal(snap.users, 0, 'honest seed has no fake personas');
+assert.equal(snap.stories, 0);
 assert.ok(snap.inventions >= 8);
 
 assert.equal(surface.compose({ text: 'no auth' }).error, 'auth_required');

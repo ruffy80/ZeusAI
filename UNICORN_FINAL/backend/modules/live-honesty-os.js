@@ -23,8 +23,8 @@ const crypto = require('crypto');
 
 const PROTOCOL = 'LHOS/1.0';
 const NAME = 'live-honesty-os';
-const THEATER_ID_RE = /^(AdaptiveModule\d+|Engine\d+|demo-user)$/i;
-const THEATER_NAME_RE = /adaptive\s*module\s*\d+|pool shim/i;
+const THEATER_ID_RE = /^(?:AdaptiveModule\d+|Engine\d+|demo-user|mod-adaptivepool\d+|mod-enginepool\d+|AdaptivePool#\d+|EnginePool#\d+)$/i;
+const THEATER_NAME_RE = /adaptive\s*module\s*\d+|pool\s*shim|adaptivepool\s*#\s*\d+|enginepool\s*#\s*\d+/i;
 
 const state = {
   armed: false,
@@ -41,19 +41,18 @@ function enabled() {
 function isTheaterId(value) {
   const id = String(value == null ? '' : value).trim();
   if (!id) return false;
-  if (THEATER_ID_RE.test(id)) return true;
-  if (/^AdaptiveModule\d+$/i.test(id) || /^Engine\d+$/i.test(id)) return true;
-  return false;
+  return THEATER_ID_RE.test(id);
 }
 
 function isTheaterItem(item) {
   if (item == null) return true;
   if (typeof item === 'string') return isTheaterId(item) || THEATER_NAME_RE.test(item);
-  const id = item.id || item.moduleId || item.slug || item.name || '';
+  const id = item.id || item.moduleId || item.slug || '';
   const title = String(item.title || item.name || '');
-  if (isTheaterId(id)) return true;
-  if (THEATER_NAME_RE.test(title)) return true;
-  if (item.kind === 'pool-shim' || item.poolShim === true) return true;
+  if (isTheaterId(id) || isTheaterId(title)) return true;
+  if (THEATER_NAME_RE.test(title) || THEATER_NAME_RE.test(String(id))) return true;
+  if (String(item.kind || '').toLowerCase() === 'pool-shim' || item.poolShim === true) return true;
+  if (String(item.category || '').toLowerCase() === 'dynamic') return true;
   return false;
 }
 
@@ -344,6 +343,63 @@ function drillSeed() {
   };
 }
 
+function paypalEnvConfigured() {
+  return !!String(process.env.PAYPAL_CLIENT_ID || '').trim()
+    && !!String(process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '').trim();
+}
+
+function passkeysModulePresent() {
+  try {
+    require.resolve('@simplewebauthn/server');
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function aiGatewayConfigured() {
+  return !!String(
+    process.env.OPENAI_API_KEY
+    || process.env.ANTHROPIC_API_KEY
+    || process.env.DEEPSEEK_API_KEY
+    || process.env.LLM_API_KEY
+    || ''
+  ).trim();
+}
+
+/**
+ * 30-year capsule. Booleans are env/module facts only.
+ * Unmeasured claims stay null. readinessScore is never a percentage.
+ * overrides may set a boolean the caller actually measured (for example
+ * backendAuthoritative on the backend process). They cannot invent a score.
+ */
+function futureStandardPayload(overrides) {
+  const capabilities = {
+    realtimeSSE: null,
+    aiRegistry: null,
+    aiGateway: aiGatewayConfigured(),
+    paymentsBTC: !!configuredBtcSource(),
+    paymentsPayPal: paypalEnvConfigured(),
+    pqPaymentConfirm: null,
+    integrityDoc: null,
+    passkeys: passkeysModulePresent(),
+    capabilityTokens: null,
+    sourceCompatibility: null,
+    backendAuthoritative: null,
+  };
+  if (overrides && typeof overrides === 'object') {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (!Object.prototype.hasOwnProperty.call(capabilities, key)) continue;
+      if (value === true || value === false || value == null) capabilities[key] = value;
+    }
+  }
+  return {
+    readinessScore: null,
+    capabilities,
+    percentPublished: false,
+  };
+}
+
 function tick() {
   state.ticks += 1;
   state.lastTickAt = new Date().toISOString();
@@ -416,6 +472,7 @@ module.exports = {
   honestTelemetry,
   honestTrustLedger,
   drillSeed,
+  futureStandardPayload,
   isTheaterId,
   isTheaterItem,
   filterPublicMarketplace,

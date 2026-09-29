@@ -212,6 +212,56 @@ async function run() {
     assert.ok(!frontier.includes('uptime90d: 99.97'));
   });
 
+  await check('adaptive pool theater ids, dynamic category, and pool-shim kind', () => {
+    assert.equal(lhos.isTheaterId('mod-adaptivepool3'), true);
+    assert.equal(lhos.isTheaterId('mod-enginepool12'), true);
+    assert.equal(lhos.isTheaterId('AdaptivePool#4'), true);
+    assert.equal(lhos.isTheaterId('EnginePool#9'), true);
+    assert.equal(lhos.isTheaterId('AdaptiveModule01'), true);
+    assert.equal(lhos.isTheaterId('Engine12'), true);
+    assert.equal(lhos.isTheaterItem({ id: 'real-mod', category: 'dynamic' }), true);
+    assert.equal(lhos.isTheaterItem({ id: 'real-mod', kind: 'pool-shim' }), true);
+    assert.equal(lhos.isTheaterItem({ id: 'origin-gravity-os', category: 'core', kind: 'module' }), false);
+    const pub = lhos.filterPublicModules([
+      { id: 'mod-adaptivepool1', name: 'AdaptivePool#1', category: 'dynamic' },
+      { id: 'mod-enginepool2', name: 'EnginePool#2' },
+      { id: 'origin-gravity-os', category: 'core' },
+    ]);
+    assert.equal(pub.length, 1);
+    assert.equal(pub[0].id, 'origin-gravity-os');
+  });
+
+  await check('marketplace, trust ledger, drill, and future capsule source pins', () => {
+    const be = fs.readFileSync(path.join(ROOT, 'backend', 'index.js'), 'utf8');
+    const site = fs.readFileSync(path.join(ROOT, 'src', 'index.js'), 'utf8');
+    assert.ok(be.includes('publicBuyableCatalog'), 'backend marketplace must use the public buyable catalog');
+    assert.ok(be.includes('_publicAutonomousModules'), 'module list and stream must filter theater modules');
+    assert.ok(!be.includes('score || (qHealth.score || 95)'));
+    assert.ok(!be.includes('score: 99.2'));
+    assert.ok(!be.includes('avgRecoveryMs: 420'));
+    assert.ok(be.includes('futureStandardPayload'));
+    assert.ok(site.includes('paidHumansCount'), 'trust ledger paidReceipts must use origin-gravity paidHumans');
+    assert.ok(site.includes('futureStandardPayload'));
+    assert.ok(site.includes('DEMO / PAUSED'));
+    const drill = lhos.drillSeed();
+    assert.equal(drill.status, 'never_run');
+    assert.equal(drill.score, null);
+    assert.equal(drill.runs, 0);
+    const future = lhos.futureStandardPayload({ backendAuthoritative: true });
+    assert.equal(future.readinessScore, null);
+    assert.equal(future.percentPublished, false);
+    assert.equal(typeof future.capabilities.paymentsBTC, 'boolean');
+    assert.equal(typeof future.capabilities.paymentsPayPal, 'boolean');
+    assert.equal(typeof future.capabilities.passkeys, 'boolean');
+    assert.equal(future.capabilities.pqPaymentConfirm, null);
+    assert.ok(!Object.values(future.capabilities).every((v) => v === true));
+    const trust = lhos.honestTrustLedger(1293, lhos.paidHumansCount());
+    assert.equal(trust.paidReceipts, lhos.paidHumansCount());
+    assert.equal(trust.integrityScore, null);
+    assert.equal(trust.paymentAuditScore, null);
+    assert.equal(trust.transparencyScore, null);
+  });
+
   await check('nginx + IAK/DPAK/NAOS/TAOS/SECOS wire LHOS', () => {
     const nginx = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-unicorn.conf'), 'utf8');
     assert.ok(nginx.includes('location = /api/status'));

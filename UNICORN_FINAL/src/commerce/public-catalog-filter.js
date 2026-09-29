@@ -79,10 +79,28 @@ const GHOST_METERED_IDS = new Set([
   'free',
 ]);
 
+// Legacy module SKUs with no honest self-serve delivery. Hidden on the
+// default public catalog the same way ghosts are. Group rules in
+// hasFulfillmentRecipe are unchanged — checkout may still accept the ids
+// as aliases. Opt-in ?includeSynthetic=1 can still see them.
+const LEGACY_UNDELIVERABLE_IDS = new Set([
+  'adaptive-ai',
+  'predictive-engine',
+  'quantum-nexus',
+  'viral-growth',
+  'automation-blocks',
+]);
+
 function isGhostMeteredItem(item) {
   if (!item) return false;
   const id = String(item.id || item.serviceId || '').trim();
   return GHOST_METERED_IDS.has(id);
+}
+
+function isLegacyUndeliverableItem(item) {
+  if (!item) return false;
+  const id = String(item.id || item.serviceId || '').trim();
+  return LEGACY_UNDELIVERABLE_IDS.has(id);
 }
 
 function hasExplicitFulfillmentRecipe(item) {
@@ -159,7 +177,7 @@ function filterPublicCatalogItems(items, options = {}) {
   if (options.includeSynthetic === true) {
     return list.slice();
   }
-  return list.filter((item) => !isSyntheticCatalogItem(item) && !isGhostMeteredItem(item));
+  return list.filter((item) => !isSyntheticCatalogItem(item) && !isGhostMeteredItem(item) && !isLegacyUndeliverableItem(item));
 }
 
 function applyPublicCatalogFilter(catalog, options = {}) {
@@ -205,6 +223,7 @@ module.exports = {
   isSyntheticCatalogItem,
   isAspirationalCatalogItem,
   isGhostMeteredItem,
+  isLegacyUndeliverableItem,
   hasFulfillmentRecipe,
   hasExplicitFulfillmentRecipe,
   isPhysicalOrDropshipItem,
@@ -216,4 +235,5 @@ module.exports = {
   ASPIRATIONAL_GROUPS,
   CANONICAL_CORE_PLAN_IDS,
   GHOST_METERED_IDS,
+  LEGACY_UNDELIVERABLE_IDS,
 };

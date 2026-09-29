@@ -131,8 +131,9 @@ async function run() {
   assert.equal(canonicalRows.length, 1, 'canonical ledger must hold ONLY the real receipt (got ' + canonicalRows.length + ')');
   assert.ok(canonicalRows[0].includes('r_real1'), 'canonical row must be the real one');
   assert.equal(smokeRows.length, 2, 'both smoke receipts must land in the isolated file');
-  assert.equal(uaic.getReceipts().length, 3, 'in-memory index keeps all 3 (smoke flow still verifies e2e)');
-  console.log('[ok] uaic: canonical ledger pure (1 real), smoke isolated (2), in-memory complete (3)');
+  assert.equal(uaic.getReceipts().length, 1, 'public getReceipts() hides smoke rows');
+  assert.equal(uaic.getReceipts()[0].id, 'r_real1');
+  console.log('[ok] uaic: canonical ledger pure (1 real), smoke isolated (2), public index hides smoke');
 
   // ── cleanup ──────────────────────────────────────────────────────────
   funnel._resetForTests();

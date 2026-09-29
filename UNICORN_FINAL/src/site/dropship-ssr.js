@@ -52,7 +52,7 @@ function sourceMode(p) {
     liveSources.indexOf(source) !== -1 ||
     (supplier && supplier !== 'manual' && supplier !== 'unknown' && supplier !== 'world-feed')
   );
-  return { label: live ? 'LIVE' : 'ZEUS-CURATED', live };
+  return { label: live ? 'LIVE' : 'DEMO', live };
 }
 
 function fulfillBadge(p) {

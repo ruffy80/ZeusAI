@@ -2456,6 +2456,31 @@ function canonicalBaseForService(serviceId) {
   if (core) return Number(core.priceUsd);
   return null;
 }
+function dropshipContinuumLive() {
+  // LIVE only when this process already has ZACC loaded, the loop is enabled,
+  // the last tick is recent, and a supplier rail is armed. Requiring the
+  // orchestrator here would start its tick loop, so an unloaded core is paused.
+  try {
+    const zaccResolved = require.resolve('../backend/modules/zacc');
+    const cached = require.cache[zaccResolved];
+    if (!cached || !cached.exports) return false;
+    const zacc = cached.exports;
+    const st = typeof zacc.getStatus === 'function'
+      ? zacc.getStatus()
+      : (typeof zacc.status === 'function' ? zacc.status() : null);
+    if (!st || st.enabled !== true) return false;
+    const last = Date.parse(st.lastTickAt || st.lastTick || '');
+    const tickMs = Number(process.env.ZACC_TICK_MS || 60 * 60 * 1000);
+    const windowMs = Math.min(Math.max((Number.isFinite(tickMs) ? tickMs : 3600000) * 2, 15 * 60 * 1000), 3 * 60 * 60 * 1000);
+    if (!Number.isFinite(last) || (Date.now() - last) > windowMs) return false;
+    const uscf = require('../backend/modules/zacc/suppliers');
+    const disc = uscf && typeof uscf.discovery === 'function' ? uscf.discovery() : null;
+    return !!(disc && Number(disc.armedCount) > 0);
+  } catch (_) {
+    return false;
+  }
+}
+
 // Returns the live USD price for a KNOWN product applying the same
 // dynamic-pricing the storefront displays; null for unknown/custom ids so the
 // caller can decide a safe fallback. Never throws.
@@ -2511,6 +2536,10 @@ function getAllReceipts() {
   return loadFallbackReceipts();
 }
 function findReceipt(id) {
+  if (uaic && typeof uaic.getReceiptById === 'function') {
+    const hit = uaic.getReceiptById(id);
+    if (hit) return hit;
+  }
   return getAllReceipts().find(r => r && r.id === id) || null;
 }
 function safeTokenEqual(a, b) {
@@ -3686,9 +3715,15 @@ function buildSnapshot() {
         ? liveHonestyOs.filterPublicMarketplace(sources.marketplace)
         : sources.marketplace;
     })(),
-    services: liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
-      ? liveHonestyOs.filterPublicMarketplace(sources.services)
-      : sources.services,
+    services: (function publicServicesShelf() {
+      if (liveHonestyOs && typeof liveHonestyOs.publicBuyableCatalog === 'function') {
+        const shelf = liveHonestyOs.publicBuyableCatalog();
+        if (Array.isArray(shelf) && shelf.length) return shelf;
+      }
+      return liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
+        ? liveHonestyOs.filterPublicMarketplace(sources.services)
+        : sources.services;
+    })(),
     codex: codexSections,
     industries: sources.industries,
     telemetry: {
@@ -6105,8 +6140,13 @@ async function unicornHandler(req, res) {
     // Everything is fetched live from /api/zacc/public (backend, port 3000 via
     // nginx). No fake numbers; the page renders exactly what the loop produced.
     if (urlPath === '/zacc') {
+      const zaccLive = dropshipContinuumLive();
+      const zaccBadge = zaccLive ? 'ZACC · LIVE' : 'DEMO / PAUSED';
+      const fulfilNote = zaccLive
+        ? '(on-chain settled, Printful + AI fulfilment)'
+        : '(DEMO / PAUSED — fulfilment waits until a supplier rail is armed)';
       const body =
-        '<h2 style="margin:0">Zeus Dropship OS <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
+        '<h2 style="margin:0">Zeus Dropship OS <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">' + zaccBadge + '</span></h2>' +
         '<p style="color:var(--muted);margin:8px 0 24px">The autonomy cockpit behind the Zeus Dropship OS. It works from a curated catalogue and connects approved marketplace feeds only when provider credentials are configured. The system qualifies margin, writes listings and sets BTC prices. Orders route to the configured fulfilment provider or enter the manual queue. Payments are verified on-chain, and every number below comes from the running loop.</p>' +
         '<div id="zc-summary" class="grid"></div>' +
         // Prominent CTA into the customer-facing auto-curated store.
@@ -6122,7 +6162,7 @@ async function unicornHandler(req, res) {
         '<div id="zc-dropship" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
         '<h3 style="margin:32px 0 8px">Winning products being researched right now <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
         '<div id="zc-ideas" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Live store · buy now in BTC <span class="sub" style="font-weight:400">(on-chain settled, Printful + AI fulfilment)</span></h3>' +
+        '<h3 style="margin:32px 0 8px">Live store · buy now in BTC <span class="sub" style="font-weight:400">' + fulfilNote + '</span></h3>' +
         '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"></div>' +
         '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
         '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
@@ -6441,8 +6481,8 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.class
         : '<option value="">All categories</option>';
       const body = dropshipUiCss + `
 <div class="ds-world">
-  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">WORLD CONTINUUM \u00b7 LIVE</span></div><h1 id="ds-hero-title">The store that <em>sources the world</em> and sells itself.</h1><p>Permanent worldwide product continuum. Margin-qualified listings, live delivery quotes, and on-chain BTC checkout\u2014fed forever by Zeus autonomy.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/world-dropship.json" data-live-title="WDOS continuum">WDOS continuum \u2192</button><a class="ds-cta ds-cta-secondary" href="#uscf">USCF rails \u2193</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/uscf.json" data-live-title="USCF suppliers">USCF matrix \u2192</button></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
-  <section class="ds-continuum" aria-label="World continuum feed"><div class="ds-wrap ds-continuum-inner"><div><span class="ds-kicker">Invention \u00b7 WDOS/1.0</span><h2 class="ds-continuum-title">World continuum feeding forever.</h2><p class="ds-continuum-meta" id="ds-continuum-meta">Pulling worldwide catalogs every few minutes \u00b7 shelf never starves</p></div><div class="ds-feed-ticker" id="ds-feed-ticker" aria-live="polite"><div class="ds-feed-row"><b>Bootstrapping worldwide intake\u2026</b><span>WDOS</span></div></div></div></section>
+  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">${dropshipContinuumLive() ? 'WORLD CONTINUUM · LIVE' : 'DEMO / PAUSED'}</span></div><h1 id="ds-hero-title">The store that lists a demo catalog until a supplier rail is armed.</h1><p>Demo catalog and paused intake until ZACC is enabled with an armed supplier. BTC checkout still mints a real invoice.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/world-dropship.json" data-live-title="WDOS continuum">WDOS continuum \u2192</button><a class="ds-cta ds-cta-secondary" href="#uscf">USCF rails \u2193</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/uscf.json" data-live-title="USCF suppliers">USCF matrix \u2192</button></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
+  <section class="ds-continuum" aria-label="World continuum feed"><div class="ds-wrap ds-continuum-inner"><div><span class="ds-kicker">Invention \u00b7 WDOS/1.0</span><h2 class="ds-continuum-title">World continuum (paused).</h2><p class="ds-continuum-meta" id="ds-continuum-meta">${dropshipContinuumLive() ? 'Pulling worldwide catalogs on the armed supplier loop' : 'DEMO / PAUSED — intake is not running and no supplier rail is armed'}</p></div><div class="ds-feed-ticker" id="ds-feed-ticker" aria-live="polite"><div class="ds-feed-row"><b>Bootstrapping worldwide intake\u2026</b><span>WDOS</span></div></div></div></section>
   <section class="ds-uscf" id="uscf" aria-label="Universal Supplier Connector Framework"><div class="ds-wrap ds-uscf-inner"><div class="ds-uscf-head"><div><span class="ds-kicker">Invention \u00b7 USCF/1.0</span><h2>Supplier rails that map the full commerce stack.</h2></div><p class="ds-uscf-meta" id="ds-uscf-meta">products \u2192 inventory \u2192 pricing \u2192 orders \u2192 fulfillment \u2192 tracking \u2192 returns. Armed rails AUTO-SHIP; missing keys pause only at owner authorization.</p></div><div class="ds-uscf-pipe" id="ds-uscf-pipe" aria-label="Commerce pipeline stages"></div><div class="ds-uscf-rails" id="ds-uscf-rails" aria-live="polite"><div class="ds-rail"><strong>CJ Dropshipping</strong><span class="ds-rail-status wait">CHECKING</span><p>Official API 2.0 \u00b7 physical goods</p></div><div class="ds-rail"><strong>Printful</strong><span class="ds-rail-status wait">CHECKING</span><p>Official POD REST \u00b7 Bearer token</p></div><div class="ds-rail"><strong>Printify</strong><span class="ds-rail-status wait">CHECKING</span><p>Official POD v1 \u00b7 shop + token</p></div><div class="ds-rail"><strong>Webhook / Desk</strong><span class="ds-rail-status live">ALWAYS ON</span><p>Catch-all + Zeus Fulfillment Desk</p></div></div></div></section><section class="ds-autonomy" aria-label="Autonomy pipeline"><div class="ds-wrap ds-strip"><div class="ds-metric"><span class="ds-metric-label">Sourced</span><strong class="ds-metric-value" id="ds-sourced">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Qualified</span><strong class="ds-metric-value" id="ds-qualified">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Listed</span><strong class="ds-metric-value" id="ds-listed">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">World pulse</span><strong class="ds-metric-value" id="ds-world-pulse">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Pending fulfil</span><strong class="ds-metric-value" id="ds-pending">\u2014</strong></div></div></section>
   <section class="ds-section" id="store"><div class="ds-wrap"><div class="ds-section-head"><div><span class="ds-kicker">Autonomous world catalog</span><h2>Qualified to sell worldwide.</h2></div><p class="ds-section-note">Each listing exposes source mode and proof-of-margin. Shipping is quoted for your destination. Continuum keeps new SKUs arriving from global feeds.</p></div><div class="ds-controls" role="search"><input class="ds-control" id="ds-search" type="search" placeholder="Search the world catalog\u2026" aria-label="Search products"><select class="ds-control" id="ds-sort" aria-label="Sort products"><option value="shelf">Shelf fitness (ASP)</option><option value="autoship">Profit Gravity (AUTO-SHIP first)</option><option value="profit">Highest margin signal</option><option value="newest">Newest listed</option><option value="sales">Best-selling</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option></select><select class="ds-control" id="ds-category" aria-label="Filter by category">` + catOpts + `</select></div><div class="ds-product-grid" id="ds-grid" aria-live="polite">` + gridHtml + `</div></div></section>
   <section class="ds-pulse" id="pulse" aria-label="Autonomous Shelf Protocol pulse"><div class="ds-wrap ds-pulse-inner"><div class="ds-pulse-head"><div><span class="ds-kicker">Invention \u00b7 ASP v1</span><h2>The store ranks itself in public.</h2></div><div class="ds-pulse-meta" id="ds-pulse-meta">Yield ledger \u00b7 waiting for pulse\u2026</div></div><div class="ds-pulse-feed" id="ds-pulse-feed" aria-live="polite"><div class="ds-pulse-row"><span class="ds-pulse-type">boot</span><span class="ds-pulse-body">Autonomous Shelf Protocol hydrating \u2014 SKUs compete for rank; decisions are hash-chained.</span><span class="ds-pulse-hash">zeus-asp-v1</span></div></div></div></section>
@@ -6456,9 +6496,10 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.class
   function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
   function coverFor(slug){var s=String(slug||"product").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"")||"product";return "/api/dropship/cover/"+encodeURIComponent(s)+".svg";}
   function safeImage(url,slug){url=String(url||"").trim();if(url.indexOf("http://")===0||url.indexOf("https://")===0||(url.charAt(0)==="/"&&url.indexOf("/api/dropship/")===0))return esc(url);return coverFor(slug);}
-  function sourceMode(p){var source=String(p.source||"").toLowerCase(),supplier=String(p.supplier||"").toLowerCase();var isWorldFeed=source.indexOf("world")!==-1||source.indexOf("dummyjson")!==-1||source.indexOf("fakestore")!==-1||source.indexOf("escuela")!==-1||supplier==="world-feed";var liveSources=["ebay","aliexpress","etsy","external","cj","cjdropshipping"];var live=p.demoOnly!==true&&!isWorldFeed&&(p.live===true||p.sourceMode==="live"||liveSources.indexOf(source)!==-1||(supplier&&supplier!=="manual"&&supplier!=="unknown"&&supplier!=="world-feed"));return{label:live?"LIVE":"ZEUS-CURATED",live:live};}
+  function sourceMode(p){var source=String(p.source||"").toLowerCase(),supplier=String(p.supplier||"").toLowerCase();var isWorldFeed=source.indexOf("world")!==-1||source.indexOf("dummyjson")!==-1||source.indexOf("fakestore")!==-1||source.indexOf("escuela")!==-1||supplier==="world-feed";var liveSources=["ebay","aliexpress","etsy","external","cj","cjdropshipping"];var live=p.demoOnly!==true&&!isWorldFeed&&(p.live===true||p.sourceMode==="live"||liveSources.indexOf(source)!==-1||(supplier&&supplier!=="manual"&&supplier!=="unknown"&&supplier!=="world-feed"));return{label:live?"LIVE":"DEMO",live:live};}
   function fulfillBadge(p){var mode=p.delivery&&p.delivery.mode||"",auto=p.delivery&&p.delivery.automated===true||p.dispatchable===true;var live=auto&&(mode==="cj-global-dropship"||mode==="global-dropship"||mode==="printful-pod"||mode==="printify-pod"||(p.fulfillmentRecipe&&p.fulfillmentRecipe.automated));return live?{label:"AUTO-FULFIL",cls:"ds-badge-live"}:{label:"DESK-FULFIL",cls:""};}
   function hasLiveSupplier(d){var suppliers=d.suppliers||{};if(suppliers.autoShipReady===true||suppliers.cjConfigured===true||suppliers.printfulConfigured===true||suppliers.printifyConfigured===true)return true;if(d.fulfillmentReadiness&&d.fulfillmentReadiness.autoShipReady===true)return true;var uscf=suppliers.uscf||d.uscf;if(uscf&&uscf.autoShipReady===true)return true;return false;}
+  function continuumIsLive(d){if(!d||d.enabled!==true)return false;var tick=d.lastTickAt||null;var t=tick?Date.parse(tick):NaN;if(!isFinite(t)||(Date.now()-t)>7200000)return false;return hasLiveSupplier(d);}
   function tick(id,value){var el=document.getElementById(id),next=Number(value||0).toLocaleString();if(el.textContent!==next){el.textContent=next;el.classList.remove("is-ticking");void el.offsetWidth;el.classList.add("is-ticking");}}
   function setCategories(next){next=Array.isArray(next)?next.filter(Boolean):[];if(next.join("|")===categories.join("|"))return;categories=next.slice();var sel=document.getElementById("ds-category"),current=sel.value;sel.innerHTML='<option value="">All categories</option>'+next.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join("");sel.value=current;}
   function productCard(p){productMap[String(p.id)]=p;var mode=sourceMode(p),ful=fulfillBadge(p),slug=p.slug||p.id||p.title,img=safeImage(p.image,slug),fb=coverFor(slug),margin=Math.max(0,Math.round(Number(p.marginPct)||0));var shelfBadge=p.shelf&&p.shelf.rank?'<span class="ds-badge ds-badge-shelf">SHELF #'+p.shelf.rank+(p.shelf.fitness!=null?' \u00b7 '+Math.round(p.shelf.fitness):'')+'</span>':'';return '<article class="ds-product"><a class="ds-media" href="/dropship/product/'+encodeURIComponent(p.id)+'"><span class="ds-media-fallback">'+esc(p.category||"product")+'</span>'+(img?'<img src="'+img+'" alt="'+esc(p.title||"")+'" loading="lazy" decoding="async" data-cover="'+esc(fb)+'" onerror="this.onerror=null;this.src=this.getAttribute(&quot;data-cover&quot;)||&quot;/api/dropship/cover/fallback.svg&quot;">':"")+'</a><div class="ds-product-body"><div class="ds-badges"><span class="ds-badge '+(mode.live?"ds-badge-live":"")+'">'+mode.label+'</span><span class="ds-badge '+ful.cls+'">'+ful.label+'</span>'+shelfBadge+'<span class="ds-badge ds-badge-margin">Proof-of-Margin \u00b7 '+margin+'% margin</span></div><a class="ds-product-title" href="/dropship/product/'+encodeURIComponent(p.id)+'">'+esc(p.title||"Untitled product")+'</a><div class="ds-product-price">'+money(p.priceUsd)+'</div><div class="ds-product-meta"><a class="ds-detail-link" href="/dropship/product/'+encodeURIComponent(p.id)+'">View details \u2192</a><button class="ds-buy" type="button" data-buy data-pid="'+esc(p.id)+'" data-title="'+esc(p.title||"")+'">Buy → choose payment</button></div></div></article>';}
@@ -6466,7 +6507,7 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.class
   function renderProducts(items){productMap={};var grid=document.getElementById("ds-grid");var clean=(items||[]).filter(function(p){return !looksJunk(p);});grid.innerHTML=clean.length?clean.map(productCard).join(""):'<div class="ds-empty">No products match this view yet. Try another filter or check back after the next autonomy cycle.</div>';}
   function seedSsrMap(){var grid=document.getElementById("ds-grid");if(!grid)return;grid.querySelectorAll("[data-buy][data-pid]").forEach(function(b){var id=b.getAttribute("data-pid");if(id&&!productMap[id])productMap[id]={id:id,title:b.getAttribute("data-title")||id};});}
   function refreshCatalog(){var sort=document.getElementById("ds-sort").value,cat=document.getElementById("ds-category").value,q=document.getElementById("ds-search").value.trim();var url="/api/dropship/products?sort="+encodeURIComponent(sort)+"&limit=48"+(cat?"&category="+encodeURIComponent(cat):"")+(q?"&q="+encodeURIComponent(q):"");var headers={};if(catalogEtag)headers["If-None-Match"]=catalogEtag;fetch(url,{cache:"default",headers:headers}).then(function(r){if(r.status===304)return null;if(!r.ok)throw new Error("catalog offline");var et=r.headers.get("ETag");if(et)catalogEtag=et;return r.json();}).then(function(d){if(!d)return;setCategories(d.categories||[]);renderProducts(d.items||d.products||[]);}).catch(function(){if(!document.querySelector("#ds-grid .ds-product"))document.getElementById("ds-grid").innerHTML='<div class="ds-empty">The catalog API is temporarily unavailable. The storefront will reconnect automatically.</div>';});}
-  function refreshStatus(){fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error("status offline");return r.json();}).then(function(d){if(!d||d.ok===false)return;var sc=d.scraper||{},pr=d.profit||{},pb=d.publisher||{},fl=d.fulfillment||{},wc=d.worldContinuum||{};document.getElementById("ds-mode").textContent=hasLiveSupplier(d)?"LIVE SUPPLIER \u00b7 AUTO":"WORLD CONTINUUM \u00b7 AUTO";tick("ds-sourced",sc.cached||d.sourced);tick("ds-qualified",pr.qualified||d.qualified);tick("ds-listed",pb.published||d.listed);tick("ds-pending",fl.pending||d.pendingFulfillment);var pulseEl=document.getElementById("ds-world-pulse");if(pulseEl){var last=wc.last||{};tick("ds-world-pulse",last.injected!=null?last.injected:(wc.intervalMin||12));}var cmeta=document.getElementById("ds-continuum-meta");if(cmeta){var mins=wc.intervalMin||12;var lastAt=wc.last&&wc.last.at?new Date(wc.last.at).toLocaleTimeString():"warming";cmeta.textContent="WDOS/1.0 \u00b7 every "+mins+" min \u00b7 last pulse "+lastAt+" \u00b7 listed "+(pb.published||wc.listed||0);}paintUscf(d.suppliers&&d.suppliers.uscf||d.uscf||null);}).catch(function(){});function paintUscf(snap){var rails=document.getElementById("ds-uscf-rails"),meta=document.getElementById("ds-uscf-meta"),pipe=document.getElementById("ds-uscf-pipe");if(!rails)return;if(!snap||!snap.suppliers){fetch("/api/dropship/suppliers",{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(s){if(s)paintUscf(s);}).catch(function(){});return;}var order=["cj-dropshipping","printful","printify","fulfill-webhook"];var by={};(snap.suppliers||[]).forEach(function(s){by[s.id]=s;});rails.innerHTML=order.map(function(id){var s=by[id]||{id:id,name:id,configured:false};var live=!!s.configured;var st=live?"LIVE":(id==="fulfill-webhook"?"DESK ON":"AWAITING KEY");var cls=(live||id==="fulfill-webhook")?"live":"wait";var hint=(s.ownerAuth&&s.ownerAuth.envVars&&s.ownerAuth.envVars.join(", "))||(s.envVars||[]).join(", ")||"desk always on";return '<div class="ds-rail"><strong>'+esc(s.name||id)+'</strong><span class="ds-rail-status '+cls+'">'+st+'</span><p>'+esc(hint)+'</p></div>';}).join("");if(meta){meta.textContent=(snap.autoShipReady?"AUTO-SHIP armed \u00b7 ":"Awaiting owner keys \u00b7 ")+(snap.armedCount||0)+" rail(s) live \u00b7 "+((snap.awaitingOwnerAuth||[]).length)+" need your API credential.";}if(pipe){var stages=snap.pipelineStages||["products","inventory","pricing","orders","fulfillment","tracking","returns"];var pl=snap.pipeline||{};pipe.innerHTML=stages.map(function(st){var rows=pl[st]||[];var on=rows.some(function(r){return r&&r.configured;});return '<span class="ds-pipe-stage'+(on?" on":"")+'">'+esc(st)+'</span>';}).join("");}}}
+  function refreshStatus(){fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error("status offline");return r.json();}).then(function(d){if(!d||d.ok===false)return;var sc=d.scraper||{},pr=d.profit||{},pb=d.publisher||{},fl=d.fulfillment||{},wc=d.worldContinuum||{};document.getElementById("ds-mode").textContent=continuumIsLive(d)?"LIVE SUPPLIER \u00b7 AUTO":"DEMO / PAUSED";tick("ds-sourced",sc.cached||d.sourced);tick("ds-qualified",pr.qualified||d.qualified);tick("ds-listed",pb.published||d.listed);tick("ds-pending",fl.pending||d.pendingFulfillment);var pulseEl=document.getElementById("ds-world-pulse");if(pulseEl){var last=wc.last||{};tick("ds-world-pulse",last.injected!=null?last.injected:(wc.intervalMin||12));}var cmeta=document.getElementById("ds-continuum-meta");if(cmeta){if(!continuumIsLive(d)){cmeta.textContent="DEMO / PAUSED \u2014 intake is not running and no supplier rail is armed";}else{var mins=wc.intervalMin||12;var lastAt=wc.last&&wc.last.at?new Date(wc.last.at).toLocaleTimeString():"warming";cmeta.textContent="WDOS/1.0 \u00b7 every "+mins+" min \u00b7 last pulse "+lastAt+" \u00b7 listed "+(pb.published||wc.listed||0);}}paintUscf(d.suppliers&&d.suppliers.uscf||d.uscf||null);}).catch(function(){});function paintUscf(snap){var rails=document.getElementById("ds-uscf-rails"),meta=document.getElementById("ds-uscf-meta"),pipe=document.getElementById("ds-uscf-pipe");if(!rails)return;if(!snap||!snap.suppliers){fetch("/api/dropship/suppliers",{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(s){if(s)paintUscf(s);}).catch(function(){});return;}var order=["cj-dropshipping","printful","printify","fulfill-webhook"];var by={};(snap.suppliers||[]).forEach(function(s){by[s.id]=s;});rails.innerHTML=order.map(function(id){var s=by[id]||{id:id,name:id,configured:false};var live=!!s.configured;var st=live?"LIVE":(id==="fulfill-webhook"?"DESK ON":"AWAITING KEY");var cls=(live||id==="fulfill-webhook")?"live":"wait";var hint=(s.ownerAuth&&s.ownerAuth.envVars&&s.ownerAuth.envVars.join(", "))||(s.envVars||[]).join(", ")||"desk always on";return '<div class="ds-rail"><strong>'+esc(s.name||id)+'</strong><span class="ds-rail-status '+cls+'">'+st+'</span><p>'+esc(hint)+'</p></div>';}).join("");if(meta){meta.textContent=(snap.autoShipReady?"AUTO-SHIP armed \u00b7 ":"Awaiting owner keys \u00b7 ")+(snap.armedCount||0)+" rail(s) live \u00b7 "+((snap.awaitingOwnerAuth||[]).length)+" need your API credential.";}if(pipe){var stages=snap.pipelineStages||["products","inventory","pricing","orders","fulfillment","tracking","returns"];var pl=snap.pipeline||{};pipe.innerHTML=stages.map(function(st){var rows=pl[st]||[];var on=rows.some(function(r){return r&&r.configured;});return '<span class="ds-pipe-stage'+(on?" on":"")+'">'+esc(st)+'</span>';}).join("");}}}
   function refreshContinuum(){fetch("/api/dropship/world-continuum",{cache:"no-store"}).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){var tick=document.getElementById("ds-feed-ticker");if(!tick||!d||!d.ok)return;var last=d.last||{};var rows=[];if(last.pulled!=null)rows.push('<div class="ds-feed-row"><b>Pulled '+esc(last.pulled)+' worldwide SKUs \u00b7 injected '+esc(last.injected||0)+'</b><span>'+esc(last.trigger||"pulse")+'</span></div>');if(last.published!=null)rows.push('<div class="ds-feed-row"><b>Published '+esc(last.published)+' \u00b7 shelf live '+esc(last.listed||d.listed||0)+'</b><span>SHELF</span></div>');rows.push('<div class="ds-feed-row"><b>Regions: Americas \u00b7 EMEA \u00b7 APAC \u00b7 Global CDN</b><span>WDOS</span></div>');tick.innerHTML=rows.join("");}).catch(function(){});}
   document.getElementById("ds-sort").addEventListener("change",refreshCatalog);document.getElementById("ds-category").addEventListener("change",refreshCatalog);var searchTimer;document.getElementById("ds-search").addEventListener("input",function(){clearTimeout(searchTimer);searchTimer=setTimeout(refreshCatalog,280);});document.getElementById("ds-grid").addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-buy]"):null;if(!b)return;var p=productMap[b.getAttribute("data-pid")];if(p&&window.ZeusDropshipCheckout)window.ZeusDropshipCheckout.open(p);});function refreshPulse(){fetch("/api/dropship/pulse?limit=8",{cache:"no-store"}).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){var meta=document.getElementById("ds-pulse-meta"),feed=document.getElementById("ds-pulse-feed");if(!meta||!feed||!d||!d.ok)return;var head=d.ledgerHead||{},t=d.lastTournament||{};meta.textContent="ASP \u00b7 tournaments "+(d.tournaments||0)+" \u00b7 seals "+(d.seals||0)+" \u00b7 head "+String(head.hash||"genesis").slice(0,12);var rows=(d.recent||[]).map(function(ev){var type=esc(ev.type||"event");var body="";if(ev.type==="shelf_tournament"){body="Tournament ranked "+(ev.visible||ev.listed||0)+" SKUs"+(ev.top&&ev.top[0]?" \u00b7 leader "+esc(ev.top[0].title)+" ("+esc(ev.top[0].fitness)+")":"");}else if(ev.type==="margin_seal"){body="Margin seal "+esc(String(ev.seal||"").slice(0,16))+"\u2026 on "+esc(ev.productId||"sku");}else{body=esc(ev.type||"decision");}return '<div class="ds-pulse-row"><span class="ds-pulse-type">'+type+'</span><span class="ds-pulse-body">'+body+'</span><span class="ds-pulse-hash">#'+esc(ev.seq||"")+" \u00b7 "+esc(String(ev.hash||"").slice(0,14))+'</span></div>';}).join("");if(rows)feed.innerHTML=rows;}).catch(function(){});}
 seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds-sort").dataset.userTouched){document.getElementById("ds-sort").value="shelf";}refreshCatalog();refreshStatus();refreshContinuum();refreshPulse();setInterval(refreshCatalog,45000);setInterval(refreshStatus,8000);setInterval(refreshContinuum,12000);setInterval(refreshPulse,15000);
@@ -6537,7 +6578,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   var PID=${JSON.stringify(safePid)};
   var BOOT=${JSON.stringify(bootProduct)};
   function bindBuy(p){var bb=document.getElementById("dp-buy");if(bb)bb.addEventListener("click",function(){if(window.ZeusDropshipCheckout)window.ZeusDropshipCheckout.open(p);});document.querySelectorAll("#dp-root [data-buy][data-pid]").forEach(function(b){if(b.id==="dp-buy")return;b.addEventListener("click",function(){var id=b.getAttribute("data-pid");if(id&&window.ZeusDropshipCheckout)window.ZeusDropshipCheckout.open({id:id,title:b.getAttribute("data-title")||id,priceUsd:Number(b.getAttribute("data-price")||0)});});});}
-  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}function moneyMaybe(n){return Number.isFinite(Number(n))?money(n):"\u2014";}function coverFor(slug){var s=String(slug||"product").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"")||"product";return "/api/dropship/cover/"+encodeURIComponent(s)+".svg";}function safeImage(url,slug){url=String(url||"").trim();if(url.indexOf("http://")===0||url.indexOf("https://")===0||(url.charAt(0)==="/"&&url.indexOf("/api/dropship/")===0))return esc(url);return coverFor(slug);}function sourceMode(p){var source=String(p.source||"").toLowerCase(),supplier=String(p.supplier||"").toLowerCase();var isWorldFeed=source.indexOf("world")!==-1||source.indexOf("dummyjson")!==-1||source.indexOf("fakestore")!==-1||source.indexOf("escuela")!==-1||supplier==="world-feed";var liveSources=["ebay","aliexpress","etsy","external","cj","cjdropshipping"];var live=p.demoOnly!==true&&!isWorldFeed&&(p.live===true||p.sourceMode==="live"||liveSources.indexOf(source)!==-1||(supplier&&supplier!=="manual"&&supplier!=="unknown"&&supplier!=="world-feed"));return{label:live?"LIVE":"ZEUS-CURATED",live:live};}
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}function moneyMaybe(n){return Number.isFinite(Number(n))?money(n):"\u2014";}function coverFor(slug){var s=String(slug||"product").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"")||"product";return "/api/dropship/cover/"+encodeURIComponent(s)+".svg";}function safeImage(url,slug){url=String(url||"").trim();if(url.indexOf("http://")===0||url.indexOf("https://")===0||(url.charAt(0)==="/"&&url.indexOf("/api/dropship/")===0))return esc(url);return coverFor(slug);}function sourceMode(p){var source=String(p.source||"").toLowerCase(),supplier=String(p.supplier||"").toLowerCase();var isWorldFeed=source.indexOf("world")!==-1||source.indexOf("dummyjson")!==-1||source.indexOf("fakestore")!==-1||source.indexOf("escuela")!==-1||supplier==="world-feed";var liveSources=["ebay","aliexpress","etsy","external","cj","cjdropshipping"];var live=p.demoOnly!==true&&!isWorldFeed&&(p.live===true||p.sourceMode==="live"||liveSources.indexOf(source)!==-1||(supplier&&supplier!=="manual"&&supplier!=="unknown"&&supplier!=="world-feed"));return{label:live?"LIVE":"DEMO",live:live};}
   function fulfillBadge(p){var mode=p.delivery&&p.delivery.mode||"",auto=p.delivery&&p.delivery.automated===true||p.dispatchable===true;var live=auto&&(mode==="cj-global-dropship"||mode==="global-dropship"||mode==="printful-pod"||mode==="printify-pod"||(p.fulfillmentRecipe&&p.fulfillmentRecipe.automated));return live?{label:"AUTO-FULFIL",cls:"ds-badge-live"}:{label:"DESK-FULFIL",cls:""};}
   function render(p,compare,related){var mode=sourceMode(p),ful=fulfillBadge(p),slug=p.slug||p.id||p.title,img=safeImage(p.image,slug),fb=coverFor(slug),price=Number(p.priceUsd)||0,proof=p.proofOfMargin||{},cost=Number(p.costUsd!=null?p.costUsd:proof.costUsd),shipping=Number(p.shippingUsd!=null?p.shippingUsd:proof.shippingUsd),profit=Number(p.netProfitUsd!=null?p.netProfitUsd:proof.netProfitUsd),overhead=Number.isFinite(Number(proof.feeUsd))?Number(proof.feeUsd):(Number.isFinite(cost)&&Number.isFinite(shipping)&&Number.isFinite(profit)?Math.max(0,price-cost-shipping-profit):NaN),margin=Math.max(0,Math.round(Number(p.marginPct!=null?p.marginPct:proof.marginPct)||0)),eta=p.delivery&&p.delivery.etaDays?p.delivery.etaDays:"7-21";var compareBlock="";if(compare&&compare.ok){compareBlock='<div class="ds-compare"><div class="ds-proof-head"><strong>Margin OS \u00b7 vs platform tax</strong><span>KEEP +$'+Number(compare.platformTaxAvoidedUsd||0).toFixed(2)+'</span></div><div class="ds-proof-row"><span>Zeus net margin (BTC direct)</span><strong>'+moneyMaybe(compare.zeusNetMarginUsd)+'</strong></div><div class="ds-proof-row"><span>Shopify-class after card fees*</span><strong>'+moneyMaybe(compare.shopifyApproxNetUsd)+'</strong></div><p class="ds-delivery-note">*Illustrative card take-rate on the same retail; Zeus has $0 SaaS cut on the sale.</p></div>';}var relatedBlock="";if(related&&related.length){relatedBlock='<section class="ds-related" aria-label="Also margin-qualified"><div class="ds-section-head" style="margin-bottom:18px"><div><span class="ds-kicker">AOV lift</span><h2 style="font-size:28px">Also margin-qualified.</h2></div></div><div class="ds-product-grid">'+related.map(function(rp){var rm=sourceMode(rp),rimg=safeImage(rp.image,rp.slug||rp.id),rfb=coverFor(rp.slug||rp.id);return '<article class="ds-product"><a class="ds-media" href="/dropship/product/'+encodeURIComponent(rp.id)+'"><span class="ds-media-fallback">'+esc(rp.category||"product")+'</span>'+(rimg?'<img src="'+rimg+'" alt="'+esc(rp.title||"")+'" loading="lazy" data-cover="'+esc(rfb)+'" onerror="this.onerror=null;this.src=this.getAttribute(&quot;data-cover&quot;)||&quot;/api/dropship/cover/fallback.svg&quot;">':"")+'</a><div class="ds-product-body"><div class="ds-badges"><span class="ds-badge '+(rm.live?"ds-badge-live":"")+'">'+rm.label+'</span><span class="ds-badge ds-badge-margin">'+Math.max(0,Math.round(Number(rp.marginPct)||0))+'% margin</span></div><a class="ds-product-title" href="/dropship/product/'+encodeURIComponent(rp.id)+'">'+esc(rp.title||"")+'</a><div class="ds-product-price">'+money(rp.priceUsd)+'</div><div class="ds-product-meta"><a class="ds-detail-link" href="/dropship/product/'+encodeURIComponent(rp.id)+'">View \u2192</a><button class="ds-buy" type="button" data-buy data-pid="'+esc(rp.id)+'" data-title="'+esc(rp.title||"")+'">Buy → choose payment</button></div></div></article>';}).join("")+'</div></section>';}var media='<div class="ds-pdp-media"><span class="ds-media-fallback">'+esc(p.category||"product")+'</span>'+(img?'<img src="'+img+'" alt="'+esc(p.title||"")+'" loading="eager" decoding="async" data-cover="'+esc(fb)+'" onerror="this.onerror=null;this.src=this.getAttribute(&quot;data-cover&quot;)||&quot;/api/dropship/cover/fallback.svg&quot;">':"")+'</div>';document.getElementById("dp-root").innerHTML='<div class="ds-pdp-grid">'+media+'<div class="ds-pdp-copy"><div class="ds-badges"><span class="ds-badge '+(mode.live?"ds-badge-live":"")+'">'+mode.label+'</span><span class="ds-badge '+ful.cls+'">'+ful.label+'</span><span class="ds-badge">'+esc(p.category||"general")+'</span></div><h1 style="margin-top:20px">'+esc(p.title||"Product")+'</h1><div class="ds-pdp-price">'+money(price)+'</div><p class="ds-pdp-desc">'+esc(p.description||"Product details are being prepared by the autonomy stack.")+'</p><div class="ds-proof"><div class="ds-proof-head"><strong>Proof-of-Margin</strong><span>'+margin+'% MARGIN</span></div><div class="ds-proof-row"><span>Retail price</span><strong>'+moneyMaybe(price)+'</strong></div><div class="ds-proof-row"><span>Source cost</span><strong>'+moneyMaybe(cost)+'</strong></div><div class="ds-proof-row"><span>Catalog shipping estimate</span><strong>'+moneyMaybe(shipping)+'</strong></div><div class="ds-proof-row"><span>Processing + platform</span><strong>'+moneyMaybe(overhead)+'</strong></div><div class="ds-proof-row ds-proof-net"><span>Net margin</span><strong>'+moneyMaybe(profit)+'</strong></div></div>'+compareBlock+'<button class="ds-pdp-buy" type="button" id="dp-buy">Buy with BTC \u2192</button><p class="ds-delivery-note">Live destination quote required before invoice creation \u00b7 estimated delivery '+esc(eta)+' \u00b7 no account required.</p></div></div>'+relatedBlock;bindBuy(p);}
   if(BOOT&&document.querySelector("[data-ssr-pdp]")){bindBuy(BOOT);return;}
@@ -6971,8 +7012,15 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
       return res.end('Redirecting to /services');
     }
+    let shelf = [];
+    try {
+      if (liveHonestyOs && typeof liveHonestyOs.publicBuyableCatalog === 'function') {
+        const pub = liveHonestyOs.publicBuyableCatalog();
+        if (Array.isArray(pub)) shelf = pub;
+      }
+    } catch (_) { shelf = []; }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: getRuntimeDataSources().marketplace }));
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: shelf, services: shelf }));
   }
 
   // Alias redirects — these used to fall through to a homepage clone (200),
@@ -7305,25 +7353,17 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 
   // 30-year standard capsule: long-horizon architecture and portability manifest
   if (urlPath === '/api/future/standard') {
-    const featureFlags = {
-      realtimeSSE: true,
-      aiRegistry: true,
-      aiGateway: true,
-      paymentsBTC: true,
-      paymentsPayPal: true,
-      pqPaymentConfirm: true,
-      integrityDoc: true,
-      passkeys: true,
-      capabilityTokens: true,
-      sourceCompatibility: true
-    };
-    const score = Math.round((Object.values(featureFlags).filter(Boolean).length / Object.keys(featureFlags).length) * 100);
+    const future = (liveHonestyOs && typeof liveHonestyOs.futureStandardPayload === 'function')
+      ? liveHonestyOs.futureStandardPayload({ backendAuthoritative: false })
+      : { readinessScore: null, capabilities: {}, percentPublished: false };
+    const featureFlags = future.capabilities;
     const manifest = {
       ok: true,
       brand: 'ZeusAI',
       generatedAt: new Date().toISOString(),
       horizonYears: 30,
-      readinessScore: score,
+      readinessScore: null,
+      percentPublished: false,
       standards: [
         'REST/JSON',
         'SSE event streams',
@@ -7395,7 +7435,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     const snap = buildSnapshot();
     const receipts = getAllReceipts();
     const signedReceipts = receipts.filter(r => !!(r && r.id)).length;
-    const paidReceipts = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid').length;
+    const paidReceipts = (liveHonestyOs && typeof liveHonestyOs.paidHumansCount === 'function')
+      ? liveHonestyOs.paidHumansCount()
+      : 0;
     const chainLength = snap && snap.autonomy && snap.autonomy.chain && snap.autonomy.chain.length ? snap.autonomy.chain.length : 0;
     const payload = {
       ok: true,
@@ -7426,30 +7468,23 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   if (urlPath === '/api/revenue/proof') {
-    const receipts = getAllReceipts();
-    const paid = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid');
-    const byMethod = {};
-    let totalUsd = 0;
-    for (const r of paid) {
-      const method = String(r && r.method || 'UNKNOWN').toUpperCase();
-      const amt = Number(r && (r.amountUSD != null ? r.amountUSD : r.amount) || 0);
-      totalUsd += Number.isFinite(amt) ? amt : 0;
-      byMethod[method] = (byMethod[method] || 0) + 1;
-    }
+    const paidHumans = (liveHonestyOs && typeof liveHonestyOs.paidHumansCount === 'function')
+      ? liveHonestyOs.paidHumansCount()
+      : 0;
     const payload = {
       ok: true,
       brand: 'ZeusAI',
       generatedAt: new Date().toISOString(),
       revenue: {
-        paidReceipts: paid.length,
-        totalUsd: Number(totalUsd.toFixed(2)),
-        methods: byMethod,
+        paidReceipts: paidHumans,
+        totalUsd: 0,
+        methods: {},
         payoutTargets: {
           btc: BTC_WALLET,
           paypal: process.env.PAYPAL_ME || process.env.PAYPAL_EMAIL || OWNER_EMAIL
         }
       },
-      note: 'Real-time proof derived from paid receipts in active commerce engines.'
+      note: 'Public proof matches Origin Gravity paidHumans. Smoke and unsigned UAIC rows are not revenue.'
     };
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(payload));
@@ -7457,7 +7492,11 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 
   if (urlPath === '/api/uaic/receipts') {
     const email = String(new URL(req.url, 'http://local').searchParams.get('email') || '').toLowerCase();
-    const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
+    if (!email) {
+      res.writeHead(400, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({ ok:false, error: 'email_required' }));
+    }
+    const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify({ ok:true, receipts }));
   }
@@ -12847,46 +12886,36 @@ a{color:#8a5cff;text-decoration:none}
     })();
     const autoLang = geoLang || acceptLang || 'en';
     const lang = cookieLang || autoLang;
-    // CONVERSION SSR (2026-06): deep links like /checkout/?plan=adaptive-ai
-    // render the plan AND its canonical live price directly into the HTML —
-    // zero flicker, zero "computing…", price identical to the card the buyer
-    // clicked. (RO: prețul corect e în pagină înainte să ruleze orice JS.)
+    // Known plans render their canonical USD in the HTML. Unknown plans and
+    // $0 flows that are not a real free pledge/cancel do not render a payment
+    // page with a blank amount. POST /api/checkout/create is unchanged.
     const ssrParams = { lang, autoLang, country, nonce };
     if (route === '/checkout') {
       const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 160);
       if (planQ) {
-        ssrParams.plan = planQ;
+        const freeTo = planQ === 'frontier-pledge-pack' ? '/pledge'
+          : (planQ === 'frontier-universal-cancel' ? '/cancel' : '');
+        if (freeTo) {
+          res.writeHead(302, { Location: freeTo, 'Cache-Control': 'no-store' });
+          return res.end('Redirecting to ' + freeTo);
+        }
         const amountQ = Number(requestUrl.searchParams.get('amount'));
         const isVirtualSku = /^(dropship:|ds:|social-tip:|tip:)/i.test(planQ);
-        // Explicit ?amount= wins for virtual SKUs (tips / quoted dropship totals).
         if (isVirtualSku && Number.isFinite(amountQ) && amountQ > 0) {
+          ssrParams.plan = planQ;
           ssrParams.planUsd = amountQ;
+        } else if (!isVirtualSku) {
+          let canon = null;
+          try { canon = resolveCanonicalUsd(planQ); } catch (_) { canon = null; }
+          if (!(Number(canon) > 0)) {
+            res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
+            return res.end('Redirecting to /services');
+          }
+          ssrParams.plan = planQ;
+          ssrParams.planUsd = Number(canon);
         } else {
-          // Buy-click instant: prefer sync canonical USD on the HTML critical path.
-          // Never await the full SITE_PROXY_TIMEOUT (~6s) quotePublicPricing here —
-          // client hydrate refreshes the live price. Race a short quote only when
-          // the sync floor is missing.
-          try {
-            const usd = resolveCanonicalUsd(planQ);
-            if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
-          } catch (_) { /* ignore */ }
-          if (ssrParams.planUsd == null) {
-            try {
-              const shortMs = Math.max(50, Math.min(150, Number(process.env.CHECKOUT_SSR_QUOTE_MS || 150)));
-              const quoted = await Promise.race([
-                quotePublicPricing(planQ, {}).then(function (r) {
-                  const payload = r && r.payload;
-                  const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
-                  return (Number.isFinite(usd) && usd > 0) ? usd : null;
-                }).catch(function () { return null; }),
-                new Promise(function (resolve) { setTimeout(function () { resolve(null); }, shortMs); }),
-              ]);
-              if (quoted != null) ssrParams.planUsd = quoted;
-            } catch (_) { /* price stays client-resolved */ }
-          }
-          if (ssrParams.planUsd == null && Number.isFinite(amountQ) && amountQ > 0) {
-            ssrParams.planUsd = amountQ;
-          }
+          res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
+          return res.end('Redirecting to /services');
         }
       }
     }
@@ -13223,7 +13252,7 @@ if (require.main === module) {
       const routes = ['/', '/services', '/pricing', '/store', '/account'];
       // Buy-click instant: also prewarm a few top checkout chooser shells
       // using sync resolveCanonicalUsd only (no quotePublicPricing await).
-      const checkoutPlans = ['starter', 'pro', 'adaptive-ai', 'ent-engagement-kickoff'];
+      const checkoutPlans = ['starter', 'pro', 'ent-engagement-kickoff'];
       setTimeout(function () {
         try {
           if (!v2 || typeof v2.getHtml !== 'function') return;
@@ -13250,6 +13279,7 @@ if (require.main === module) {
                 const u = resolveCanonicalUsd(plan);
                 if (Number.isFinite(Number(u)) && Number(u) > 0) planUsd = Number(u);
               } catch (_) { /* ignore */ }
+              if (!(planUsd > 0)) continue;
               const html = v2.getHtml('/checkout', { lang: 'en', nonce: 'prewarm', plan: plan, planUsd: planUsd });
               if (html && html.indexOf('id="app"') !== -1) {
                 const key = 'co\0en\0' + plan + '\0' + String(Math.round(Number(planUsd) || 0));

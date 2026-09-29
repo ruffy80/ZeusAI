@@ -7385,28 +7385,16 @@ function _controlTowerBasePayload() {
 
 app.get('/api/future/standard', routeCache.cacheMiddleware(), (req, res) => {
   const base = _controlTowerBasePayload();
-  const capabilities = {
-    realtimeSSE: true,
-    aiRegistry: true,
-    aiGateway: true,
-    paymentsBTC: true,
-    paymentsPayPal: true,
-    pqPaymentConfirm: true,
-    integrityDoc: true,
-    passkeys: true,
-    capabilityTokens: true,
-    sourceCompatibility: true,
-    backendAuthoritative: true,
-  };
-  const enabled = Object.values(capabilities).filter(Boolean).length;
-  const total = Object.keys(capabilities).length;
-  const readinessScore = Math.round((enabled / total) * 100);
+  const future = (_liveHonestyOs && typeof _liveHonestyOs.futureStandardPayload === 'function')
+    ? _liveHonestyOs.futureStandardPayload({ backendAuthoritative: true })
+    : { readinessScore: null, capabilities: {}, percentPublished: false };
   res.json({
     ok: true,
     ...base,
     horizonYears: 30,
-    readinessScore,
-    capabilities,
+    readinessScore: null,
+    percentPublished: false,
+    capabilities: future.capabilities,
     standards: ['REST/JSON', 'SSE', 'HMAC verification', 'SHA3 signatures', 'WebAuthn passkeys']
   });
 });
@@ -7488,17 +7476,27 @@ app.get('/api/revenue/proof', routeCache.cacheMiddleware(), (req, res) => {
 
 function _buildResilienceStatusPayload() {
   const base = _controlTowerBasePayload();
-  const qHealth = qrc && typeof qrc.healthCheck === 'function' ? qrc.healthCheck() : { healthy: false, score: 0 };
-  const runState = global.__ZEUSAI_DRILL__ || { runs: 0, lastRunAt: null, avgRecoveryMs: 0, score: 95, status: 'ready' };
+  const qHealth = qrc && typeof qrc.healthCheck === 'function' ? qrc.healthCheck() : { healthy: false, score: null };
+  const seed = (_liveHonestyOs && typeof _liveHonestyOs.drillSeed === 'function')
+    ? _liveHonestyOs.drillSeed()
+    : { runs: 0, lastRunAt: null, avgRecoveryMs: null, score: null, status: 'never_run' };
+  const runState = global.__ZEUSAI_DRILL__ || seed;
+  const runs = Number(runState.runs || 0);
+  const neverRun = runs === 0;
+  const src = neverRun ? seed : runState;
+  const avgRaw = src.avgRecoveryMs;
+  const scoreRaw = src.score;
+  const avg = avgRaw == null || avgRaw === '' ? null : Number(avgRaw);
+  const score = scoreRaw == null || scoreRaw === '' ? null : Number(scoreRaw);
   return {
     ok: true,
     ...base,
     drill: {
-      status: qHealth.healthy ? 'ready' : 'degraded',
-      totalRuns: Number(runState.runs || 0),
-      lastRunAt: runState.lastRunAt || null,
-      averageRecoveryMs: Number(runState.avgRecoveryMs || 0),
-      readinessScore: Number(runState.score || (qHealth.score || 95)),
+      status: neverRun ? seed.status : (src.status || 'simulated'),
+      totalRuns: runs,
+      lastRunAt: neverRun ? null : (src.lastRunAt || null),
+      averageRecoveryMs: neverRun ? null : (Number.isFinite(avg) ? avg : null),
+      readinessScore: neverRun ? null : (Number.isFinite(score) ? score : null),
       health: qHealth,
       policy: 'safe-simulated-failover'
     }
@@ -7513,19 +7511,29 @@ app.get('/api/resilience/status', routeCache.cacheMiddleware(), (req, res) => {
 });
 
 function _runResilienceDrill() {
-  if (!global.__ZEUSAI_DRILL__) {
-    global.__ZEUSAI_DRILL__ = { runs: 0, lastRunAt: null, avgRecoveryMs: 420, score: 99.2, status: 'ready' };
-  }
+  const seed = (_liveHonestyOs && typeof _liveHonestyOs.drillSeed === 'function')
+    ? _liveHonestyOs.drillSeed()
+    : { runs: 0, lastRunAt: null, avgRecoveryMs: null, score: null, status: 'never_run' };
+  if (!global.__ZEUSAI_DRILL__) global.__ZEUSAI_DRILL__ = Object.assign({}, seed);
   const d = global.__ZEUSAI_DRILL__;
+  if (!Number(d.runs)) {
+    d.avgRecoveryMs = null;
+    d.score = null;
+    d.status = seed.status;
+  }
   const perf = routeCache.getStats();
   const slowest = perf.profiler.top5Slowest && perf.profiler.top5Slowest.length ? perf.profiler.top5Slowest[0] : null;
-  const baseRecovery = slowest ? Math.max(180, Number(slowest.avgMs || 200) * 2) : 320;
-  const simulatedRecoveryMs = Math.round(baseRecovery);
-  d.runs += 1;
+  const measuredMs = slowest ? Number(slowest.avgMs) : null;
+  const simulatedRecoveryMs = Number.isFinite(measuredMs) && measuredMs >= 0 ? Math.round(measuredMs) : 0;
+  d.runs = Number(d.runs || 0) + 1;
   d.lastRunAt = new Date().toISOString();
-  d.avgRecoveryMs = Math.round(((d.avgRecoveryMs * Math.max(0, d.runs - 1)) + simulatedRecoveryMs) / d.runs);
-  d.score = Number(Math.max(95, 100 - (d.avgRecoveryMs / 180)).toFixed(1));
-  d.status = 'ready';
+  const prevAvg = Number(d.avgRecoveryMs);
+  const prevN = d.runs - 1;
+  d.avgRecoveryMs = Number.isFinite(prevAvg)
+    ? Math.round(((prevAvg * prevN) + simulatedRecoveryMs) / d.runs)
+    : simulatedRecoveryMs;
+  d.score = null;
+  d.status = 'simulated';
   return {
     ok: true,
     brand: 'ZeusAI',
@@ -7535,7 +7543,7 @@ function _runResilienceDrill() {
       totalRuns: d.runs,
       lastRunAt: d.lastRunAt,
       averageRecoveryMs: d.avgRecoveryMs,
-      readinessScore: d.score,
+      readinessScore: null,
     }
   };
 }
@@ -10105,22 +10113,34 @@ app.get('/api/sustainability', (req, res) => {
 
 // ==================== MARKETPLACE ROUTES ====================
 app.get('/api/marketplace/services', routeCache.cacheMiddleware(), (req, res) => {
-  const services = marketplace.getAllServices().map(s => {
-    // Enrich with dynamic-pricing data where the module has a matching service ID
-    const dp = dynamicPricing.getPrice(s.id);
-    if (dp) {
-      return { ...s, price: dp.finalPrice, dynamicFactor: dp.demandFactor, surgeActive: dp.surgeActive };
+  // Public shelf is the buyable catalog. The raw marketplace.getAllServices()
+  // dump is module clones and is not a storefront.
+  let services = [];
+  try {
+    if (_liveHonestyOs && typeof _liveHonestyOs.publicBuyableCatalog === 'function') {
+      const shelf = _liveHonestyOs.publicBuyableCatalog();
+      if (Array.isArray(shelf)) services = shelf;
     }
-    return s;
-  });
+  } catch (e) {
+    console.warn('[marketplace/services] public catalog unavailable:', e.message);
+    services = [];
+  }
   res.json({ services });
 });
 
 app.get('/api/marketplace/categories', routeCache.cacheMiddleware(), (req, res) => {
   const categories = {};
-  for (const service of marketplace.getAllServices()) {
-    if (!categories[service.category]) categories[service.category] = [];
-    categories[service.category].push(service);
+  let services = [];
+  try {
+    if (_liveHonestyOs && typeof _liveHonestyOs.publicBuyableCatalog === 'function') {
+      const shelf = _liveHonestyOs.publicBuyableCatalog();
+      if (Array.isArray(shelf)) services = shelf;
+    }
+  } catch (_) { services = []; }
+  for (const service of services) {
+    const cat = service.category || service.group || service.tier || 'service';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(service);
   }
   res.json({ categories });
 });
@@ -10296,9 +10316,19 @@ const _autonomousPriceInterval = setInterval(() => {
 }, 5000);
 if (typeof _autonomousPriceInterval.unref === 'function') _autonomousPriceInterval.unref();
 
+function _publicAutonomousModules() {
+  const arr = Array.from(_autonomousRegistry.modules.values());
+  try {
+    if (_liveHonestyOs && typeof _liveHonestyOs.filterPublicModules === 'function') {
+      return _liveHonestyOs.filterPublicModules(arr);
+    }
+  } catch (_) { /* fall through to raw list */ }
+  return arr;
+}
+
 // GET /api/modules/list — public catalog snapshot
 app.get('/api/modules/list', (req, res) => {
-  const arr = Array.from(_autonomousRegistry.modules.values());
+  const arr = _publicAutonomousModules();
   res.json({
     ok: true,
     count: arr.length,
@@ -10321,11 +10351,13 @@ app.get('/api/modules/stream', (req, res) => {
     ...(allowOrigin ? { 'Access-Control-Allow-Origin': allowOrigin } : {}),
     'X-Accel-Buffering': 'no',
   });
+  const publicModules = _publicAutonomousModules();
   const snapshot = {
     type: 'snapshot',
     rev: _autonomousRegistry.rev,
     at: new Date().toISOString(),
-    modules: Array.from(_autonomousRegistry.modules.values()),
+    count: publicModules.length,
+    modules: publicModules,
   };
   res.write('event: snapshot\ndata: ' + JSON.stringify(snapshot) + '\n\n');
   _autonomousRegistry.listeners.add(res);
