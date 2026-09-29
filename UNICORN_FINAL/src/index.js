@@ -12905,14 +12905,31 @@ a{color:#8a5cff;text-decoration:none}
           ssrParams.plan = planQ;
           ssrParams.planUsd = amountQ;
         } else if (!isVirtualSku) {
-          let canon = null;
-          try { canon = resolveCanonicalUsd(planQ); } catch (_) { canon = null; }
-          if (!(Number(canon) > 0)) {
+          // Buy-click instant: prefer sync resolveCanonicalUsd, then race a
+          // ≤150ms quotePublicPricing. Never bare-await the 6s proxy timeout.
+          try {
+            const usd = resolveCanonicalUsd(planQ);
+            if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
+          } catch (_) { /* ignore */ }
+          if (ssrParams.planUsd == null) {
+            try {
+              const shortMs = Math.max(50, Math.min(150, Number(process.env.CHECKOUT_SSR_QUOTE_MS || 150)));
+              const quoted = await Promise.race([
+                quotePublicPricing(planQ, {}).then(function (r) {
+                  const payload = r && r.payload;
+                  const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+                  return (Number.isFinite(usd) && usd > 0) ? usd : null;
+                }).catch(function () { return null; }),
+                new Promise(function (resolve) { setTimeout(function () { resolve(null); }, shortMs); }),
+              ]);
+              if (quoted != null) ssrParams.planUsd = quoted;
+            } catch (_) { /* stay unresolved */ }
+          }
+          if (!(Number(ssrParams.planUsd) > 0)) {
             res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
             return res.end('Redirecting to /services');
           }
           ssrParams.plan = planQ;
-          ssrParams.planUsd = Number(canon);
         } else {
           res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
           return res.end('Redirecting to /services');
