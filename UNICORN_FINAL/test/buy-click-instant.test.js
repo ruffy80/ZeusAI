@@ -75,10 +75,12 @@ check('sovereignBuy + store/hero paths prefer navigateSpa for /checkout', () => 
 });
 
 check('SSR checkout prefers resolveCanonicalUsd + short Promise.race (≤150ms)', () => {
-  // Locate checkout planQ block
+  // Locate checkout planQ block. Keep one window large enough for BOTH the
+  // ≤150ms quote race and the unpriced-plan 302 — a 1800-char slice missed
+  // Promise.race after honesty redirects landed, which failed Stable Deploy.
   const idx = site.indexOf("if (route === '/checkout')");
   assert.ok(idx > 0, 'checkout SSR branch');
-  const block = site.slice(idx, idx + 1800);
+  const block = site.slice(idx, idx + 4000);
   assert.ok(block.includes('resolveCanonicalUsd(planQ)'), 'sync canonical first');
   assert.ok(block.includes('Promise.race'), 'races quote with timeout');
   assert.ok(/CHECKOUT_SSR_QUOTE_MS|150/.test(block), 'short timeout ≤150ms');
@@ -86,6 +88,17 @@ check('SSR checkout prefers resolveCanonicalUsd + short Promise.race (≤150ms)'
   const bareAwait = /await quotePublicPricing\(planQ/.test(block)
     && !/Promise\.race/.test(block);
   assert.ok(!bareAwait, 'must not bare-await quotePublicPricing on critical path');
+  assert.ok(block.includes("Location: '/services'"), 'unknown or unpriced plan 302s to /services');
+});
+
+check('BTC confirm looks up receipts by id, not the public getReceipts() filter', () => {
+  const idx = site.indexOf("if ((urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm') && req.method === 'POST')");
+  assert.ok(idx > 0, 'btc confirm POST handler');
+  const block = site.slice(idx, idx + 4000);
+  assert.ok(block.includes('findReceipt(receiptId)') || block.includes('getReceiptById('),
+    'confirm must lookup by id so smoke/test emails are not 404');
+  assert.ok(!/uaic\.getReceipts\(\)\.find/.test(block),
+    'getReceipts() hides smoke@ emails and would 404 CI confirm');
 });
 
 check('getBtcPrice uses __btcSpotCache and fast timeout; createOrder uses fast path', () => {
