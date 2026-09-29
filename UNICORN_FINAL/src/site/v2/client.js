@@ -1906,6 +1906,7 @@ async function hydratePage(route){
   try {
     if (route === '/account') {
       try { if (typeof window.__zeusCryptoAuthRefresh === 'function') window.__zeusCryptoAuthRefresh(); } catch (_) {}
+      bindAccountOrderLookup();
       hydrateAccount().catch(function(){});
     }
   } catch (e) { console.warn('hydratePage:account', e && e.message); }
@@ -2358,11 +2359,16 @@ function initFinalLive(services){
   const perfOut = document.getElementById('fuPerfOut');
   if (!sEl || !eEl || !uEl || !sel || !out || !btn) return;
 
-  sEl.textContent = (services && services.length ? services.length : 0) + ' services synced';
-  sel.innerHTML = (services||[]).slice(0,20).map(function(x){
+  const quickBuySkus = (services || []).filter(function(x){ return x && isPublicQuickBuySku(x.id); });
+  sEl.textContent = (quickBuySkus.length ? quickBuySkus.length : 0) + ' services synced';
+  const defaultSku = quickBuySkus.some(function(x){ return x.id === 'instant-website-audit'; })
+    ? 'instant-website-audit'
+    : (quickBuySkus[0] && quickBuySkus[0].id) || 'instant-website-audit';
+  sel.innerHTML = quickBuySkus.slice(0, 20).map(function(x){
     const id = escapeHtml(x.id || 'service');
-    return '<option value="'+id+'">'+id+'</option>';
-  }).join('') || '<option value="adaptive-ai">adaptive-ai</option>';
+    const selected = x.id === defaultSku ? ' selected' : '';
+    return '<option value="'+id+'"'+selected+'>'+id+'</option>';
+  }).join('') || '<option value="instant-website-audit" selected>instant-website-audit</option>';
 
   fetch('/api/user/services').then(function(r){ return r.json(); }).then(function(j){
     uEl.textContent = (j && typeof j.count === 'number' ? j.count : 0) + ' services in account';
@@ -2462,8 +2468,8 @@ function initFinalLive(services){
   fetch('/api/future/standard').then(function(r){ return r.json(); }).then(function(j){
     futureManifest = j;
     if (futureScoreEl) {
-      const s = j && typeof j.readinessScore === 'number' ? j.readinessScore : 0;
-      futureScoreEl.textContent = s + '/100';
+      const s = j && j.readinessScore;
+      futureScoreEl.textContent = (typeof s === 'number' && Number.isFinite(s)) ? (s + '/100') : 'unmeasured';
     }
     if (futureOut) {
       const standards = j && Array.isArray(j.standards) ? j.standards.length : 0;
@@ -2531,10 +2537,10 @@ function initFinalLive(services){
     fetch('/api/revenue/proof').then(function(r){ return r.json(); }).catch(function(){ return null; })
   ]).then(function(parts){
     const trust = parts[0], rev = parts[1];
-    if (trustSigEl) trustSigEl.textContent = ((trust && trust.trustScores && trust.trustScores.integrityScore) || 'n/a') + '/100';
+    if (trustSigEl) trustSigEl.textContent = formatIntegrityScoreDisplay(trust);
     if (trustReceiptsEl) {
       const p = trust && trust.ledger && trust.ledger.paidReceipts;
-      trustReceiptsEl.textContent = (p != null ? p : 'n/a') + ' verified';
+      trustReceiptsEl.textContent = formatPaidReceiptsDisplay(p);
     }
     if (revTotalEl) {
       const t = rev && rev.revenue && rev.revenue.totalUsd;
@@ -2547,14 +2553,14 @@ function initFinalLive(services){
     if (trustOut) {
       const endpoint = trust && trust.ledger && trust.ledger.integrityEndpoint;
       const paid = rev && rev.revenue && rev.revenue.paidReceipts;
-      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + (paid != null ? paid : 'n/a') + ' · routing: direct BTC';
+      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + formatPaidReceiptsDisplay(paid) + ' · routing: direct BTC';
     }
   }).catch(function(){
     // Belt-and-suspenders: the inner catches already swap to null on fetch
     // failure, so this outer catch is rare — but ensure no SSR placeholder
     // ("Loading…") ever stays stuck on screen.
-    if (trustSigEl) trustSigEl.textContent = 'n/a/100';
-    if (trustReceiptsEl) trustReceiptsEl.textContent = 'n/a verified';
+    if (trustSigEl) trustSigEl.textContent = 'n/a';
+    if (trustReceiptsEl) trustReceiptsEl.textContent = 'none yet';
     if (revTotalEl) revTotalEl.textContent = 'n/a';
     if (revMethodsEl) revMethodsEl.textContent = 'n/a';
     if (trustOut) trustOut.textContent = 'Trust snapshot unavailable.';
@@ -2562,12 +2568,18 @@ function initFinalLive(services){
 
   function applyDrill(j){
     if (!j || !j.drill) {
-      if (drillScoreEl) drillScoreEl.textContent = 'n/a';
+      if (drillScoreEl) drillScoreEl.textContent = 'never run';
       if (drillRecoveryEl) drillRecoveryEl.textContent = 'n/a';
       if (drillRunsEl) drillRunsEl.textContent = 'n/a';
       return;
     }
-    if (drillScoreEl) drillScoreEl.textContent = (j.drill.readinessScore != null ? j.drill.readinessScore : 'n/a') + '/100';
+    const drillStatus = String(j.drill.status || '');
+    const drillScore = j.drill.readinessScore;
+    if (drillScoreEl) {
+      drillScoreEl.textContent = (drillStatus === 'never_run' || drillScore == null)
+        ? 'never run'
+        : (drillScore + '/100');
+    }
     if (drillRecoveryEl) drillRecoveryEl.textContent = (j.drill.averageRecoveryMs != null ? (j.drill.averageRecoveryMs + ' ms') : 'n/a');
     if (drillRunsEl) drillRunsEl.textContent = (j.drill.totalRuns != null ? j.drill.totalRuns : 'n/a') + '';
   }
@@ -2675,7 +2687,7 @@ function initFinalLive(services){
   }
 
   btn.onclick = async function(){
-    const serviceId = sel.value || 'adaptive-ai';
+    const serviceId = sel.value || 'instant-website-audit';
     const email = (document.getElementById('fuEmail')||{}).value || '';
     const live = await fetchLivePricing(serviceId);
     const amountUsd = Number(live && live.price_usd);
@@ -2831,7 +2843,7 @@ async function hydratePricingPage(){
     const cta = planCard.querySelector('a[href*="/checkout"][href*="plan="]');
     const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
     if (!live || !Number.isFinite(Number(live.price_usd))) continue;
-    priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
+    priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small style="display:block;font-size:11px;color:var(--ink-dim);font-weight:400;margin-top:4px">one-time access (not a metered subscription)</small>';
     if (cta) cta.setAttribute('href', '/checkout/?plan=' + encodeURIComponent(pair.serviceId));
   }
   const syncEl = document.getElementById('pricingLastSync');
@@ -5302,6 +5314,44 @@ window.addEventListener('DOMContentLoaded', () => {
 // changes or a new module appears. Auto-reconnects with exponential backoff.
 window.AUTONOMOUS_MODULES = window.AUTONOMOUS_MODULES || { byId: {}, rev: 0, updatedAt: null };
 
+function isInternalPoolModule(m) {
+  if (!m || typeof m !== 'object') return true;
+  if (String(m.category || '').toLowerCase() === 'dynamic') return true;
+  if (m.kind === 'pool-shim' || m.poolShim === true) return true;
+  const id = String(m.id || '').trim();
+  const name = String(m.name || '').trim();
+  const blob = (id + ' ' + name).toLowerCase();
+  if (/adaptivepool|enginepool|mod-adaptivepool/.test(blob)) return true;
+  if (/^AdaptiveModule\d+$/i.test(id) || /^Engine\d+$/i.test(id)) return true;
+  if (/^AdaptiveModule\d+$/i.test(name) || /^Engine\d+$/i.test(name)) return true;
+  if (/pool\s*shim/i.test(name)) return true;
+  return false;
+}
+
+function filterPublicAutonomousModules(modules) {
+  const list = Array.isArray(modules) ? modules : Object.values(modules || {});
+  return list.filter((m) => m && m.isActive !== false && !isInternalPoolModule(m));
+}
+
+function formatIntegrityScoreDisplay(trust) {
+  const s = trust && trust.trustScores && trust.trustScores.integrityScore;
+  if (s == null || !Number.isFinite(Number(s))) return 'n/a';
+  return Number(s) + '/100';
+}
+
+function formatPaidReceiptsDisplay(p) {
+  if (p == null) return 'none yet';
+  const n = Number(p);
+  if (!Number.isFinite(n)) return 'none yet';
+  return n === 0 ? '0 verified' : (n + ' verified');
+}
+
+function isPublicQuickBuySku(id) {
+  const sid = String(id || '').trim();
+  if (!sid || sid === 'adaptive-ai') return false;
+  return !isInternalPoolModule({ id: sid });
+}
+
 function seedAutonomousModulesFromApi(){
   // Public nginx → backend exposes /api/modules/list (auth-free).
   // Site BFF /api/modules is often 401 at the edge because /api/* hits :3000.
@@ -5313,7 +5363,7 @@ function seedAutonomousModulesFromApi(){
     window.AUTONOMOUS_MODULES.byId = {};
     for (let i = 0; i < list.length; i++) {
       const m = list[i];
-      if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+      if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
     }
     window.AUTONOMOUS_MODULES.rev = d.rev || window.AUTONOMOUS_MODULES.rev || 0;
     window.AUTONOMOUS_MODULES.updatedAt = d.updatedAt || d.at || new Date().toISOString();
@@ -5348,7 +5398,9 @@ function subscribeAutonomousEvents(){
         const d = JSON.parse(ev.data);
         if (Array.isArray(d.modules)) {
           window.AUTONOMOUS_MODULES.byId = {};
-          for (const m of d.modules) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+          for (const m of d.modules) {
+            if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+          }
           window.AUTONOMOUS_MODULES.rev = d.rev || 0;
           window.AUTONOMOUS_MODULES.updatedAt = d.at || new Date().toISOString();
           applyAutonomousSnapshot();
@@ -5370,14 +5422,16 @@ function subscribeAutonomousEvents(){
     es.addEventListener('module.added', (ev) => {
       try {
         const evt = JSON.parse(ev.data);
-        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        const m = evt.data;
+        if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
         applyAutonomousSnapshot();
       } catch(_){}
     });
     es.addEventListener('module.update', (ev) => {
       try {
         const evt = JSON.parse(ev.data);
-        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        const m = evt.data;
+        if (m && m.id && !isInternalPoolModule(m)) window.AUTONOMOUS_MODULES.byId[m.id] = m;
         if (m && m.defaultPrice != null) applyLivePriceToDom(m.id, m.defaultPrice);
       } catch(_){}
     });
@@ -5427,8 +5481,8 @@ function applyAutonomousSnapshot(){
   }
   const statusEl = document.getElementById('autonomousStatus');
   const hintEl = document.getElementById('autonomousModulesHint');
-  const count = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
-  const liveTxt = '● live · ' + count + ' modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
+  const count = filterPublicAutonomousModules(window.AUTONOMOUS_MODULES.byId || {}).length;
+  const liveTxt = '● live · ' + count + ' public modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
   if (statusEl) {
     statusEl.textContent = liveTxt;
     statusEl.style.color = '#a3ffce';
@@ -5440,11 +5494,14 @@ function applyAutonomousSnapshot(){
 }
 
 function renderAutonomousServicesGrid(target){
-  const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
-    .filter(m => m && m.isActive !== false)
+  const rawCount = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
+  const modules = filterPublicAutonomousModules(window.AUTONOMOUS_MODULES.byId || {})
     .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
   if (!modules.length) {
-    target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing from Unicorn… <button type="button" class="btn btn-ghost" id="retryModulesSeed" style="margin-left:8px">Retry</button></div>';
+    const emptyMsg = rawCount > 0
+      ? 'No public modules in this slice — pool workers are internal.'
+      : 'Module catalogue refreshing from Unicorn…';
+    target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">' + emptyMsg + (rawCount > 0 ? '' : ' <button type="button" class="btn btn-ghost" id="retryModulesSeed" style="margin-left:8px">Retry</button>') + '</div>';
     const btn = document.getElementById('retryModulesSeed');
     if (btn) btn.addEventListener('click', function(){ seedAutonomousModulesFromApi(); });
     return;
@@ -5828,7 +5885,54 @@ function paintAccountCommerceIdle(root, message){
   if (!/Loading your orders/i.test(html)) return;
   root.innerHTML = '<div class="card" style="padding:18px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">' + escStore(message || 'Orders and deliveries appear here after you sign in above and complete checkout with the same email.') + '</div>';
 }
+function bindAccountOrderLookup(){
+  const btn = document.getElementById('acctLookupBtn');
+  const orderInput = document.getElementById('acctLookupOrderId');
+  const emailInput = document.getElementById('acctLookupEmail');
+  const receiptsBtn = document.getElementById('acctLookupReceiptsBtn');
+  const receiptsOut = document.getElementById('acctLookupReceiptsOut');
+  if (btn && !btn.__zeusBound) {
+    btn.__zeusBound = true;
+    btn.addEventListener('click', function(ev){
+      ev.preventDefault();
+      const id = String((orderInput && orderInput.value) || '').trim();
+      if (!id) {
+        if (orderInput) orderInput.focus();
+        return;
+      }
+      const email = String((emailInput && emailInput.value) || '').trim();
+      if (email) {
+        try { localStorage.setItem('u_email', email); } catch (_) {}
+      }
+      if (typeof go === 'function') go('/order/' + encodeURIComponent(id));
+      else location.href = '/order/' + encodeURIComponent(id);
+    });
+  }
+  if (receiptsBtn && !receiptsBtn.__zeusBound) {
+    receiptsBtn.__zeusBound = true;
+    receiptsBtn.addEventListener('click', async function(){
+      const email = String((emailInput && emailInput.value) || '').trim();
+      if (!email) {
+        if (receiptsOut) receiptsOut.textContent = 'Enter the email you used at checkout.';
+        if (emailInput) emailInput.focus();
+        return;
+      }
+      if (receiptsOut) receiptsOut.textContent = 'Loading receipts…';
+      try {
+        const j = await fetch('/api/uaic/receipts?email=' + encodeURIComponent(email), { cache: 'no-store' }).then(function(r){ return r.json(); });
+        const n = j && (j.count != null ? j.count : (Array.isArray(j.receipts) ? j.receipts.length : null));
+        receiptsOut.textContent = (n != null)
+          ? (n + ' receipt(s) on file for this email — open an order passport with your order id.')
+          : 'Receipt lookup returned no rows for this email.';
+      } catch (_) {
+        if (receiptsOut) receiptsOut.textContent = 'Receipt lookup unavailable — try your order passport link.';
+      }
+    });
+  }
+}
+
 async function hydrateAccount(){
+  bindAccountOrderLookup();
   const root = document.getElementById('accountRoot');
   const cryptoChrome = !!(document.getElementById('acaCreate') || document.getElementById('acaSignin') || document.querySelector('[data-iic="1"]'));
   if (!root) {

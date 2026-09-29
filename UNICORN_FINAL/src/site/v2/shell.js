@@ -579,7 +579,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">PAUSED</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -1216,17 +1216,14 @@ function pageHome() {
     <div>
       <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
       <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
-      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Sources products from a seed catalogue plus live marketplace APIs when provider keys are configured. Synthesises ideas, prices them, sells via BTC (on-chain) plus PayPal/card when armed, and heals itself. Orders route to CJ Dropshipping automatically when configured; otherwise queued for manual fulfilment.</p>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Dropship cockpit — engine paused; suppliers arm when keys exist. Inspect <code class="inline">/api/zacc/status</code> for the measured tick — we do not claim live Printful/CJ feeds until the status says enabled.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open Autonomous Commerce \u2192</a>
-        <button type="button" class="btn" data-live-inspect="/api/zacc/public" data-live-title="Inspect live snapshot" style="margin-top:8px">Inspect live snapshot</button>
+        <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open dropship cockpit \u2192</a>
+        <button type="button" class="btn" data-live-inspect="/api/zacc/status" data-live-title="Inspect ZACC status" style="margin-top:8px">Inspect ZACC status</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">9 components</div><div style="font-size:18px;font-weight:700;margin-top:4px">All autonomous</div></div>
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">21 sources</div><div style="font-size:18px;font-weight:700;margin-top:4px">Market scanner</div></div>
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Multi-rail settle</div><div style="font-size:18px;font-weight:700;margin-top:4px">BTC \u00b7 PayPal \u00b7 card</div></div>
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Persistent</div><div style="font-size:18px;font-weight:700;margin-top:4px">Self-learning</div></div>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Status</div><div style="font-size:18px;font-weight:700;margin-top:4px;color:#ffb020">Engine paused</div><p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-dim);line-height:1.5">Supplier connectors and marketplace scanners activate only after credentials are configured. No invented source counts on this banner.</p></div>
     </div>
   </div>
 </section>`;
@@ -1356,15 +1353,15 @@ ${_zaccBanner}
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
     <div class="card" style="border-color:rgba(255,211,106,.42)">
       <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Master Catalog</span>
-      <h3 id="commerceProofCatalog">${_all.length} live products</h3>
-      <p>Strategic services + Frontier + Vertical OS + AI modules. Deterministic fallback keeps CI/live smoke above 25.</p>
+      <h3 id="commerceProofCatalog">See live count on /services</h3>
+      <p>Buyable SKUs are measured from the public catalog API — open <a href="/services" data-link>/services</a> for the current shelf (hero stats hydrate from <code class="inline">/api/status</code>).</p>
       <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
     </div>
     <div class="card" style="border-color:rgba(247,147,26,.45)">
       <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">Multi-rail pay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
       <p id="commerceProofPaymentCopy">BTC direct is primary. PayPal and NOWPayments appear only when credentials + settle webhooks are armed live.</p>
-      <a class="btn btn-primary" href="/checkout/?plan=adaptive-ai" data-link>Test checkout →</a>
+      <a class="btn btn-primary" href="/checkout/?plan=instant-website-audit" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
       <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
@@ -1386,8 +1383,8 @@ ${_zaccBanner}
     </div>
     <div class="card" style="border-color:rgba(62,160,255,.42)">
       <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
-      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=25</h3>
-      <p>Post-deploy smoke validates catalog, checkout, confirmation, license, delivery, refund protection and cleanup.</p>
+      <h3 id="commerceProofSmoke">CI smoke on deploy</h3>
+      <p>Post-deploy smoke validates catalog reachability, checkout, confirmation, license, delivery, refund protection and cleanup — thresholds come from CI env, not this headline.</p>
       <button type="button" class="btn" data-live-inspect="/health" data-live-title="Inspect health" style="margin-top:8px">Inspect health</button>
     </div>
   </div>
@@ -1410,7 +1407,7 @@ ${_zaccBanner}
     <h3 style="margin:0 0 8px">Quick buy test (live)</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Creates a real order through <code class="inline">/api/services/buy</code>.</p>
     <div class="pl-row">
-      <select id="fuService" aria-label="Select service to test-buy"><option value="adaptive-ai">adaptive-ai</option></select>
+      <select id="fuService" aria-label="Select service to test-buy"><option value="instant-website-audit" selected>instant-website-audit</option></select>
       <input id="fuEmail" type="email" placeholder="you@company.com" aria-label="Email address for test order" />
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuBuyBtn">Create live order</button></div>
@@ -1764,68 +1761,60 @@ function pageService(id) {
 }
 
 function pagePricing() {
-  // Subscription tiers — render the AI-negotiated live price if the
-  // dynamic-pricing engine is loadable in this process (single-process
-  // dev/CI mode). In split-process production (site:3001 + backend:3000),
-  // the engine is on the backend so we fall back to the documented base
-  // values here ($29/$99/$499) and let hydratePricingPage() in client.js
-  // refresh them from /api/pricing/:id which proxies to the backend.
+  // Plan tiers use checkout plan ids starter / pro / enterprise. BTC checkout is
+  // one-shot — prices revalidate at pay time via hydratePricingPage() in client.js.
   const starter    = _liveTierPrice('starter', 29);
   const pro        = _liveTierPrice('pro', 99);
   const enterprise = _liveTierPrice('enterprise', 499);
-  const liveTag = (info) => info.source !== 'static-fallback'
-    ? `<span class="tag" title="Live AI-negotiated · demand=${Number(info.demandFactor||1).toFixed(2)}${info.surge ? ' · surge active' : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${info.surge ? ' · surge' : ''}</span>`
-    : '';
   const fmt = (info) => {
     const n = Number(info.price);
     if (!Number.isFinite(n)) return '—';
     const hasFrac = Math.abs(n - Math.round(n)) > 0.0049;
     return '$' + n.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 });
   };
+  const oneTimeNote = '<small style="display:block;font-size:11px;color:var(--ink-dim);font-weight:400;margin-top:4px">one-time access (not a metered subscription)</small>';
+  const deliverables = '<li>Ed25519-signed entitlement receipt</li><li>API key for the purchased plan scope</li><li>Onboarding packet (FAQ + activation steps)</li>';
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h1></div>
-    <p>Simple plans for teams. Prices below are computed live by the ZeusAI dynamic-pricing engine (demand × peak × per-tier variance × surge). For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
+    <div><span class="kicker">Pricing · one-time plan access</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Fair. Sovereign. <span class="grad">What you actually get.</span></h1></div>
+    <p>Each plan is a single BTC / PayPal / card checkout — not a recurring metered subscription. You receive a signed entitlement, API key, and onboarding packet (see FAQ on checkout). Amount is revalidated before payment.</p>
   </div>
   <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
-    Prices are refreshed from live APIs and revalidated at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
+    Prices refresh from live catalog pricing and revalidate at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
   </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
       <h3>Starter</h3>
-      <div class="price" data-pricing-value="starter">${fmt(starter)}<small>/mo</small>${liveTag(starter)}</div>
-      <p style="color:var(--ink-dim);margin:0">For founders & indie teams.</p>
+      <div class="price" data-pricing-value="starter">${fmt(starter)}${oneTimeNote}</div>
+      <p style="color:var(--ink-dim);margin:0">For founders validating ZeusAI on real workloads.</p>
       <ul>
-        <li>10,000 API calls / month</li>
-        <li>3 seats · all AI modules</li>
-        <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
-        <li>14-day trial · community support</li>
+        ${deliverables}
+        <li id="pricingPaymentRail">Direct BTC checkout · PayPal / card when configured</li>
       </ul>
       <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-sovereign-buy="starter" data-buy-mode="checkout">Buy → choose payment</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
-      <div class="price" data-pricing-value="pro">${fmt(pro)}<small>/mo</small>${liveTag(pro)}</div>
-      <p style="color:var(--ink-dim);margin:0">For scaling companies.</p>
+      <div class="price" data-pricing-value="pro">${fmt(pro)}${oneTimeNote}</div>
+      <p style="color:var(--ink-dim);margin:0">For teams shipping multiple automations.</p>
       <ul>
-        <li>120,000 API calls / month</li>
-        <li>15 seats · all AI modules</li>
-        <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
-        <li>SSO, priority support · signed outcome reports</li>
+        ${deliverables}
+        <li>Higher plan scope on the same entitlement rails as Starter</li>
+        <li>Priority handling when support channels are armed</li>
       </ul>
       <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-sovereign-buy="pro" data-buy-mode="checkout">Buy → choose payment</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
-      <div class="price" data-pricing-value="enterprise">${fmt(enterprise)}<small>/mo</small>${liveTag(enterprise)}</div>
-      <p style="color:var(--ink-dim);margin:0">Outcome‑priced. Global.</p>
+      <div class="price" data-pricing-value="enterprise">${fmt(enterprise)}${oneTimeNote}</div>
+      <p style="color:var(--ink-dim);margin:0">Custom scope · proposal-led.</p>
       <ul>
-        <li>1.5M API calls / month · 100 seats</li>
-        <li>Live catalog + measured module counts · never invented traction</li>
+        ${deliverables}
+        <li>Live catalog counts only — never invented traction</li>
         <li>SLA unpublished until an incident ledger exists</li>
-        <li>Value‑Proof Ledger (bps share)</li>
+        <li>Outcome pricing only after measured value — contact for proposal</li>
       </ul>
-      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Start autonomous deal →</a>
+      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Contact / request proposal →</a>
     </div>
   </div>
   <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.06));border:1px solid rgba(247,147,26,.35)">
@@ -2586,6 +2575,20 @@ function pageAccount(opts) {
 
     <div id="acaState" class="card" style="padding:26px;background:linear-gradient(135deg,rgba(124,255,184,.07),rgba(138,92,255,.07));border:1px solid rgba(124,255,184,.25);min-height:72px">
       <div style="font-size:15px;color:var(--ink-dim);line-height:1.55">You are not signed in. Create a new account in seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>
+    </div>
+
+    <div class="card" id="accountOrderLookup" style="margin-top:22px;padding:20px;border:1px solid rgba(247,147,26,.35);background:rgba(247,147,26,.06)">
+      <h3 style="margin:0 0 6px;font-size:18px">Already bought? Look up your order</h3>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 14px">Use the email you paid with plus your order id. Status is served from <code style="color:#ffd36a">/api/order/:id/status</code>; receipts by email use <code style="color:#ffd36a">/api/uaic/receipts</code>.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
+        <input id="acctLookupOrderId" placeholder="Order id" aria-label="Order id" style="flex:2;min-width:160px;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:14px;min-height:44px">
+        <input id="acctLookupEmail" type="email" placeholder="Email used at checkout" aria-label="Email used at checkout" autocomplete="email" style="flex:2;min-width:160px;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:14px;min-height:44px">
+        <button type="button" id="acctLookupBtn" class="btn btn-primary" style="flex:1;min-width:160px;min-height:44px">Open order passport →</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px">
+        <button type="button" id="acctLookupReceiptsBtn" class="btn btn-ghost" style="min-height:44px">Check receipts for email</button>
+        <span id="acctLookupReceiptsOut" style="font-size:12.5px;color:var(--ink-dim);flex:1;min-width:200px"></span>
+      </div>
     </div>
 
     <div id="acaPanels" style="margin-top:22px">
