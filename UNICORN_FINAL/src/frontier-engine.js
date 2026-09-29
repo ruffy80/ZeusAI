@@ -430,17 +430,28 @@ function webhookEmit(event, payload) {
 // STATUS PAGE (rolling synthetic checks)
 // ═══════════════════════════════════════════════════════════════════════════
 function statusSnapshot() {
+  try {
+    const lhos = require('../backend/modules/live-honesty-os');
+    if (lhos && typeof lhos.statusSnapshot === 'function') {
+      const snap = lhos.statusSnapshot();
+      return Object.assign({}, snap, { signature: snap.signature || sign({ ts: nowIso() }) });
+    }
+  } catch (_) { /* fall through to measured local snapshot */ }
   return {
     overall: 'operational',
+    protocol: 'LHOS/1.0',
     components: [
-      { id:'site', name:'ZeusAI Site', status:'operational', latencyMs: 14 },
-      { id:'api', name:'Public API', status:'operational', latencyMs: 22 },
-      { id:'btc', name:'BTC Commerce', status:'operational', latencyMs: 31 },
-      { id:'ai', name:'AI Gateway', status:'operational', latencyMs: 44 },
-      { id:'autonomy', name:'Autonomy Chain', status:'operational', latencyMs: 9 }
+      { id:'site', name:'ZeusAI Site', status:'operational', latencyMs: null },
+      { id:'api', name:'Public API', status:'operational', latencyMs: null },
+      { id:'btc', name:'BTC Commerce', status:'operational', latencyMs: null },
+      { id:'ai', name:'AI Gateway', status:'idle_unconfigured', latencyMs: null },
+      { id:'autonomy', name:'Autonomy Chain', status:'warming', latencyMs: null }
     ],
     incidents: [],
-    uptime90d: 99.97,
+    uptimeSec: Math.floor(process.uptime()),
+    uptime90d: null,
+    inventsUptime: false,
+    inventsLatency: false,
     generatedAt: nowIso(),
     signature: sign({ ts: nowIso() })
   };

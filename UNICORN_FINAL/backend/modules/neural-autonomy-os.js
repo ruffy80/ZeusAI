@@ -326,6 +326,37 @@ function senseSafeEvolution() {
   );
 }
 
+function senseLiveHonesty() {
+  const lhos = safeRequire('./live-honesty-os');
+  if (!lhos || typeof lhos.getStatus !== 'function') {
+    return organ('lhos', 'live_honesty', 8, 'unarmed', 40, 'LHOS unavailable');
+  }
+  let st = {};
+  try { st = lhos.getStatus() || {}; } catch (_) { st = {}; }
+  const enabled = st.enabled !== false;
+  const catalog = Number(st.catalogCount);
+  const modules = Number(st.realModuleCount);
+  let score = 70;
+  let posture = 'idle_stable';
+  if (!enabled) {
+    score = 35;
+    posture = 'unarmed';
+  } else if (st.inventsUptime === false && st.inventsHumans === false) {
+    score = (Number.isFinite(catalog) && catalog >= 0 && Number.isFinite(modules)) ? 96 : 80;
+    posture = 'live';
+  }
+  return organ(
+    'lhos',
+    'live_honesty',
+    8,
+    posture,
+    score,
+    enabled
+      ? (`LHOS measured · catalog=${Number.isFinite(catalog) ? catalog : '—'} · modules=${Number.isFinite(modules) ? modules : '—'} · no 99.97 theater`)
+      : 'LIVE_HONESTY=0'
+  );
+}
+
 function composeOrgans() {
   return [
     senseMutatorSafety(),
@@ -339,6 +370,7 @@ function composeOrgans() {
     senseSiteBond(),
     senseTriadBond(),
     senseSafeEvolution(),
+    senseLiveHonesty(),
     senseCvr(),
   ];
 }
@@ -397,6 +429,7 @@ function getStatus() {
       'stable_as_feature_attestation',
       'site_unicorn_bond_organ',
       'triad_never_down_organ',
+      'live_honesty_os',
     ],
     doctrine: {
       line: 'Compose immortal organs · site↔unicorn↔server triad · stable idle is a feature · never invent payment rails',

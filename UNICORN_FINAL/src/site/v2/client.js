@@ -54,7 +54,7 @@ function installResilientFetch(){
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const response = await nativeFetch(input, init);
-        if (response.ok) { remember(method, url, response); return response; }
+        if (response.ok) { remember(method, url, response); try { document.documentElement.removeAttribute('data-zeus-api-fallback'); } catch (_) {} return response; }
         lastResponse = response;
         if (response.status < 500) return response;
       } catch (err) {
@@ -582,7 +582,7 @@ function applySnapshot(s){
   if (!s) return;
   const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
   if (s.telemetry) {
-    set('statModules', s.telemetry.moduleCount || s.modules?.length || 169);
+    set('statModules', s.telemetry.moduleCount || s.modules?.length || '—');
     // Live verticals + marketplaces — kill the hardcoded 18 / 41 SSR stubs
     // on the homepage hero. Snapshot exposes these as direct counts when the
     // backend's industryOS / globalMonetizationMesh modules are loaded; if
@@ -2107,7 +2107,7 @@ async function hydrateHome(){
         <div class="row"><span>${(v.outcomes||[]).slice(0,2).map(escapeHtml).join(' · ')}</span><b>→</b></div>
       </a>`).join('');
   }
-  if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
+  if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.telemetry.moduleCount || snap.modules?.length || '—'); }
   hydrateAutonomyScore().catch(function(){});
   hydrateCommerceProof();
   hydrateHomeProof().catch(function(){});
@@ -4124,8 +4124,8 @@ async function hydrateDashboard(){
   const snap = await api('/snapshot') || STATE.snapshot || {};
   const kpiRoot = $('#dashKpis');
   const kpis = [
-    ['Modules', snap.modules ? snap.modules.length : 169],
-    ['Verticals', (snap.industries||[]).length || 18],
+    ['Modules', (snap.telemetry && snap.telemetry.moduleCount) || (snap.modules ? snap.modules.length : '—')],
+    ['Verticals', (snap.industries && snap.industries.length) ? snap.industries.length : '—'],
     ['Chain length', (snap.autonomy && snap.autonomy.chain && snap.autonomy.chain.length) || '—'],
     ['Uptime (s)', (snap.telemetry && snap.telemetry.requests) || '—']
   ];

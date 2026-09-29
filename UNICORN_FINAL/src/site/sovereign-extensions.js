@@ -269,7 +269,7 @@ async function handle(req, res, ctx) {
     const manifest = {
       name: 'ZeusAI — Sovereign AI OS',
       short_name: 'ZeusAI',
-      description: 'Autonomous AI operating system. 169 modules, 18 verticals, 41 marketplaces.',
+      description: 'Autonomous AI operating system. Live catalog and module counts from /api/status — never invented.',
       start_url: '/',
       display: 'standalone',
       orientation: 'any',
@@ -613,7 +613,7 @@ async function handle(req, res, ctx) {
       schema_version: 'v1',
       name_for_human: 'ZeusAI',
       name_for_model: 'zeusai',
-      description_for_human: 'Browse and buy 169+ Unicorn services autonomously.',
+      description_for_human: 'Browse and buy live Unicorn services. Counts come from the public catalog, never invented.',
       description_for_model: 'Lets an AI agent discover, quote and purchase Unicorn services. Supports BTC, Lightning, USDC, SEPA. Returns Ed25519-signed Verifiable Credential receipts.',
       auth: { type: 'none' },
       api: { type: 'openapi', url: `${OWNER.domain}/openapi.json` },

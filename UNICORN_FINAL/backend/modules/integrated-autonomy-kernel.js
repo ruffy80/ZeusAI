@@ -919,6 +919,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
     soft('saos', './safe-apply-os');
     soft('shipGate', './innovation-ship-gate');
     soft('innovator', './unicornInnovator');
+    soft('lhos', './live-honesty-os');
     try {
       const rivos = require('../../src/commerce/revenue-invention-continuum-os');
       if (rivos && typeof rivos.status === 'function') organs.rivos = rivos.status();

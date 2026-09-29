@@ -1436,21 +1436,21 @@ app.get('/api/aura', (req, res) => {
     if (_auraCache.data && now - _auraCache.ts < 30_000) return res.json(_auraCache.data);
     const snap = (() => { try { return centralOrchestrator && typeof centralOrchestrator.getStatus === 'function' ? centralOrchestrator.getStatus() : {}; } catch(_) { return {}; } })();
     const uptime = snap.uptime || process.uptime();
-    const uptimePct = uptime > 86400 ? '99.9%' : '100%';
+    const uptimeSec = Math.floor(Number(uptime) || process.uptime());
     const payload = {
       ok: true,
       ts: new Date().toISOString(),
       kpis: {
         signedReceipts: snap.totalInvoices || snap.invoices || 0,
         refundsHonored: snap.refunds || 0,
-        uptime: uptimePct,
+        uptime: Math.floor(uptimeSec / 3600) + 'h this process',
         activeCarts: snap.activeCarts || snap.activeOrders || 0
       }
     };
     _auraCache.data = payload; _auraCache.ts = now;
     res.json(payload);
   } catch (e) {
-    res.json({ ok: true, ts: new Date().toISOString(), kpis: { uptime: '99.9%', signedReceipts: 0, refundsHonored: 0, activeCarts: 0 } });
+    res.json({ ok: true, ts: new Date().toISOString(), kpis: { uptime: 'unmeasured', signedReceipts: 0, refundsHonored: 0, activeCarts: 0 } });
   }
 });
 
@@ -2378,36 +2378,33 @@ const aiFutureModules = {
   digitalPhysicalConvergence: require('./modules/ai_future_innovations/digitalPhysicalConvergence'),
 };
 
-// API: status for all future modules
+// API: status for all future modules — research sketches, not live commerce.
 app.get('/api/future-innovation/status', (req, res) => {
   res.json({
-    selfGovernanceProtocol: aiFutureModules.selfGovernanceProtocol.status || 'active',
-    quantumIdentityMesh: aiFutureModules.quantumIdentityMesh.status || 'active',
-    universalValueLedger: aiFutureModules.universalValueLedger.status || 'active',
-    selfEvolvingUX: aiFutureModules.selfEvolvingUX.status || 'active',
-    societalResilienceEngine: aiFutureModules.societalResilienceEngine.status || 'active',
-    globalCollabFabric: aiFutureModules.globalCollabFabric.status || 'active',
-    digitalPhysicalConvergence: aiFutureModules.digitalPhysicalConvergence.status || 'active',
+    selfGovernanceProtocol: 'speculative',
+    quantumIdentityMesh: 'speculative',
+    universalValueLedger: 'speculative',
+    selfEvolvingUX: 'speculative',
+    societalResilienceEngine: 'speculative',
+    globalCollabFabric: 'speculative',
+    digitalPhysicalConvergence: 'speculative',
+    executable: false,
+    note: '50y research sketches. Not live Unicorn commerce actions.',
     ts: new Date().toISOString()
   });
 });
 
-// API: real process for each future module
-Object.entries(aiFutureModules).forEach(([key, mod]) => {
+// API: process is retired — simulating "global-crisis" on a public GET is theater.
+Object.entries(aiFutureModules).forEach(([key]) => {
   app.get(`/api/future-innovation/${key}/process`, (req, res) => {
-    try {
-      let result = (typeof mod.audit === 'function') ? mod.audit({}) :
-                   (typeof mod.issueIdentity === 'function') ? mod.issueIdentity({}) :
-                   (typeof mod.transfer === 'function') ? mod.transfer('A','B','asset',1) :
-                   (typeof mod.adapt === 'function') ? mod.adapt({}) :
-                   (typeof mod.simulate === 'function') ? mod.simulate('global-crisis') :
-                   (typeof mod.collaborate === 'function') ? mod.collaborate(['A','B'],'goal') :
-                   (typeof mod.converge === 'function') ? mod.converge(['sys1','sys2']) :
-                   { status: 'ok', ts: new Date().toISOString() };
-      res.json({ module: key, result, ts: new Date().toISOString() });
-    } catch (e) {
-      res.status(500).json({ error: 'Module process error', module: key, detail: e.message });
-    }
+    res.status(410).json({
+      ok: false,
+      error: 'speculative_not_executable',
+      module: key,
+      status: 'speculative',
+      note: 'Future-innovation process is a research sketch, not a live commerce action. Use /api/future-innovation/status.',
+      ts: new Date().toISOString(),
+    });
   });
 });
 
@@ -4791,6 +4788,7 @@ for (const [meshName, modFile] of [
   ['unicornInnovator',   'unicornInnovator'],
   ['safeEvolutionOs',    'safe-evolution-os'],
   ['safeApplyOs',        'safe-apply-os'],
+  ['liveHonestyOs',      'live-honesty-os'],
   ['unicornSovereigntyEngine', 'unicornSovereignty'],
 ]) {
   try {
@@ -5663,6 +5661,22 @@ function _livenessHealthHandler(req, res) {
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
 app.get('/api/health/live', _livenessHealthHandler);
+
+// LHOS/1.0 — public measured status JSON (nginx /api/* hits this process).
+// Without this handler Express SPA catch-all returned HTML for /api/status.
+let _liveHonestyOs = null;
+try { _liveHonestyOs = require('./modules/live-honesty-os'); }
+catch (e) { console.warn('[live-honesty-os] module unavailable:', e.message); }
+function _liveHonestyHandler(req, res) {
+  res.set('Cache-Control', 'no-store, no-cache');
+  if (!_liveHonestyOs || typeof _liveHonestyOs.statusSnapshot !== 'function') {
+    return res.status(503).json({ ok: false, error: 'live_honesty_unavailable' });
+  }
+  return res.json(_liveHonestyOs.statusSnapshot());
+}
+app.get('/api/status', _liveHonestyHandler);
+app.get('/api/live-honesty/status', _liveHonestyHandler);
+app.get('/.well-known/live-honesty.json', _liveHonestyHandler);
 
 // Full, unredacted health — admin-only diagnostic surface.
 app.get('/api/health/full', adminTokenMiddleware, (req, res) => {
@@ -8610,7 +8624,7 @@ const BILLING_PLANS = [
     stripePriceIdYearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
     currency: 'USD',
     limits: { apiCalls: 1500000, seats: 100, modules: 'all' },
-    features: ['1.5M API calls/month', 'All AI modules', 'White-label option', 'Custom integrations', '100 seats', 'SLA 99.9%', 'Dedicated support'],
+    features: ['1.5M API calls/month', 'All AI modules', 'White-label option', 'Custom integrations', '100 seats', 'SLA unpublished until incident ledger', 'Dedicated support'],
     cta: 'Contact sales',
   },
 ];
@@ -12268,11 +12282,13 @@ function _safeCall(target, methodName, args = [], fallback = null) {
 }
 
 function _selectInnovationEngine() {
-  const primary = autonomousInnovation;
+  // SECOS/SAOS consume unicornInnovator. Prefer it even when the legacy
+  // autonomousInnovation adapter still returns a non-empty getStatus().
+  const primary = unicornInnovator;
   const probe = _safeCall(primary, 'getStatus', [], null);
   if (probe && Object.keys(probe).length > 0) return primary;
   if (_safeCall(primary, 'autonomousInnovator', [], null)) return primary;
-  return unicornInnovator;
+  return autonomousInnovation;
 }
 
 function _innovationStatusAndMetrics() {
@@ -14770,6 +14786,9 @@ try {
   const safeApplyOs = require('./modules/safe-apply-os');
   registerModuleRoutes('safe-apply-os', safeApplyOs);
   registerModuleRoutes('saos', safeApplyOs);
+  const liveHonestyOs = require('./modules/live-honesty-os');
+  registerModuleRoutes('live-honesty-os', liveHonestyOs);
+  registerModuleRoutes('lhos', liveHonestyOs);
 } catch (e) {
   console.warn('[secos] registerModuleRoutes skipped:', e && e.message);
 }
