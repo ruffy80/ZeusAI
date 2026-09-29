@@ -188,6 +188,28 @@ function dataRoot() {
   return path.resolve(__dirname, '..', '..');
 }
 
+const SAFE_PATH_PREFIXES = [/^data\//i, /^docs\//i, /^catalog\//i, /^content\//i];
+const UNSAFE_PATH_PREFIXES = [/^backend\//i, /^src\//i, /^scripts\//i, /^\.github\//i, /^UNICORN_FINAL\/backend\//i];
+
+function clampSafePaths(paths, ideaId) {
+  const list = Array.isArray(paths) ? paths : [];
+  const held = 'data/patches/held-' + String(ideaId || 'idea').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 80) + '.json';
+  const out = [];
+  for (const raw of list) {
+    const target = String(raw || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!target || target.includes('..') || UNSAFE_PATH_PREFIXES.some((re) => re.test(target))) {
+      out.push(held);
+      continue;
+    }
+    if (!SAFE_PATH_PREFIXES.some((re) => re.test(target))) {
+      out.push(held);
+      continue;
+    }
+    out.push(target);
+  }
+  return out.length ? [...new Set(out)] : ['docs/innovation/proposal.md'];
+}
+
 function missingSafeFile(rel, title, kind) {
   const abs = path.join(dataRoot(), rel);
   try {
@@ -364,7 +386,7 @@ function innovationGenerator() {
     safeScope: true,
     defectKind: idea.defectKind || null,
     field: idea.field || null,
-    targetPaths: idea.targetPaths || [],
+    targetPaths: clampSafePaths(idea.targetPaths || [], idea.ideaId),
     acceptanceTest: idea.acceptanceTest,
     contentHash: hash,
     inventsGmv: false,
@@ -554,6 +576,7 @@ module.exports = {
   alreadyApplied,
   persistPending,
   loadPending,
+  clampSafePaths,
 };
 
 // EN: Supreme innovator, consolidates evolution/innovation/genesis modules

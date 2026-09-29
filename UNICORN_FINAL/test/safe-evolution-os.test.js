@@ -173,10 +173,13 @@ async function run() {
     assert.ok(iak.includes("soft('saos'"));
     assert.ok(dpak.SAFE_ORGANS.includes('safe-evolution-os'));
     assert.ok(dpak.SAFE_ORGANS.includes('safe-apply-os'));
+    assert.ok(dpak.SAFE_ORGANS.includes('live-honesty-os'));
     assert.ok(disco.STABLE_START_ALLOW.has('safe-evolution-os'));
     assert.ok(disco.STABLE_START_ALLOW.has('unicornInnovator'));
+    assert.ok(disco.STABLE_START_ALLOW.has('live-honesty-os'));
     const organs = naos.composeOrgans().map((o) => o.id);
     assert.ok(organs.includes('secos'));
+    assert.ok(organs.includes('lhos'));
   });
 
   console.log('safe-evolution-os.test.js passed ·', passed);

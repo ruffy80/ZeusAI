@@ -637,6 +637,11 @@ class TotalAutonomyOs {
       if (secos && typeof secos.start === 'function') secos.start();
     });
 
+    tryStart('live-honesty-os', () => {
+      const lhos = safeRequire('./live-honesty-os');
+      if (lhos && typeof lhos.start === 'function') lhos.start();
+    });
+
     tryStart('ai-self-healing', () => {
       const ai = safeRequire('./ai-self-healing');
       if (ai && typeof ai.init === 'function') ai.init();

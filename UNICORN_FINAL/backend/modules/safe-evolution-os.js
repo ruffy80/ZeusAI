@@ -113,6 +113,15 @@ async function tick(opts = {}) {
     out.apply = { ok: false, error: e && e.message };
   }
 
+  try {
+    const lhos = require('./live-honesty-os');
+    if (lhos && typeof lhos.tick === 'function') {
+      out.honesty = lhos.tick();
+    }
+  } catch (e) {
+    out.honesty = { ok: false, error: e && e.message };
+  }
+
   state.last = {
     at: out.at,
     innovatorCycles: out.innovator && out.innovator.cycles,

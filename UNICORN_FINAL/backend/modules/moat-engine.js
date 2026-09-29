@@ -45,7 +45,7 @@ const MOAT_CATALOG = [
   {
     id: 'unicorn-module-mesh',
     category: 'proprietary',
-    name: 'Unicorn Module Mesh (169+ modules)',
+    name: 'Unicorn Module Mesh (measured live modules)',
     description: 'Integrated multi-domain module system covering 50+ business verticals simultaneously',
     defensibilityScore: 88,
     maturity: 'active',

@@ -142,6 +142,8 @@ const STABLE_START_ALLOW = new Set([
   'unicornInnovator',
   'innovation-ship-gate',
   'innovationShipGate',
+  'live-honesty-os',
+  'liveHonestyOs',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

@@ -97,6 +97,7 @@ check('IAK stable allowlist includes ROCS + MPCT + live-pricing + CBLOS', () => 
   assert.ok(allow.has('safe-evolution-os'));
   assert.ok(allow.has('safe-apply-os'));
   assert.ok(allow.has('unicornInnovator'));
+  assert.ok(allow.has('live-honesty-os'));
 });
 
 check('MPCT advances only on attested sense — never invents GMV', () => {

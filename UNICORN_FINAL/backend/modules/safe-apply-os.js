@@ -361,13 +361,17 @@ function specsFromShip(ship) {
       try {
         out.push(JSON.parse(fs.readFileSync(dec.artifactPath, 'utf8')));
       } catch (_) { /* skip unreadable */ }
-    } else if (dec.decision === 'rejected' && /source|mutation|backend/i.test(String(dec.safety || ''))) {
+    } else if (dec.decision === 'rejected' && /source|mutation|backend|unsafe/i.test(String(dec.safety || ''))) {
+      const id = String(dec.id || ('held-' + Date.now())).replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 80);
       out.push({
-        id: dec.id || ('reject-' + Date.now()),
-        title: 'Source mutation held',
-        description: String(dec.safety || ''),
-        targetPaths: ['backend/modules/_held.js'],
+        id,
+        title: 'Source mutation held as data-plane proposal',
+        description: String(dec.safety || 'held source mutation'),
+        targetPaths: ['data/patches/held-' + id + '.json'],
         safety: dec.safety,
+        inventsGmv: false,
+        mutatesSource: false,
+        contentHash: 'held-' + id,
       });
     }
   }
@@ -476,4 +480,5 @@ module.exports = {
   getStatus,
   process: processInput,
   isSafeRel,
+  specsFromShip,
 };

@@ -105,6 +105,7 @@ check('TAOS armSafe starts CPA + AACOS + workflow', () => {
   assert.ok(src.includes("tryStart('autonomy-action-continuum'"), 'AACOS arm');
   assert.ok(src.includes("tryStart('workflowEngine'"), 'workflow arm');
   assert.ok(src.includes("tryStart('safe-evolution-os'"), 'SECOS arm');
+  assert.ok(src.includes("tryStart('live-honesty-os'"), 'LHOS arm');
   assert.ok(src.includes("this._pillar('aacos'"), 'AACOS pillar');
 });
 

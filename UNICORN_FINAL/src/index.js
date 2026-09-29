@@ -819,10 +819,11 @@ const SITE_FALLBACK_MOCKS = {
   '/api/control/stats': {
     uptime: Math.floor(process.uptime()),
     status: 'ok',
-    modules: 42,
+    modules: null,
     activeUsers: 0,
     requestsPerMin: 0,
-    source: 'site-fallback-mock'
+    source: 'site-fallback-mock',
+    note: 'Backend unreachable — module count unmeasured, not invented.'
   },
   '/api/evolution/snapshot': {
     timestamp: new Date().toISOString(),
@@ -841,7 +842,7 @@ const SITE_FALLBACK_MOCKS = {
   // even when the backend is briefly unreachable (boot, restart, network).
   '/api/autonomous/viral/status': {
     timestamp: new Date().toISOString(),
-    state: 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE',
+    state: 'IDLE_BACKEND_UNREACHABLE',
     metrics: {
       viralScore: 0,
       referralCodesGenerated: 0,
@@ -851,11 +852,12 @@ const SITE_FALLBACK_MOCKS = {
       growthLoopsExecuted: 0,
       estimatedReach: 0
     },
-    nextCycleIn: '20s',
+    nextCycleIn: null,
     recentEvents: [],
     recentReferrals: [],
     llamaCopy: null,
-    source: 'site-fallback-mock'
+    source: 'site-fallback-mock',
+    inventsReach: false
   },
   '/api/viral/status': {
     totalPosts: 0,
@@ -1276,6 +1278,7 @@ app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
 app.get(['/api/autonomy/live-receipts', '/api/live-actions'], siteProxyToUnicorn('/api/autonomy/live-receipts'));
 app.get(['/api/safe-evolution-os/status', '/api/secos/status'], siteProxyToUnicorn('/api/safe-evolution-os/status'));
 app.get(['/api/safe-apply-os/status', '/api/saos/status'], siteProxyToUnicorn('/api/safe-apply-os/status'));
+app.get(['/api/live-honesty-os/status', '/api/lhos/status', '/.well-known/live-honesty.json'], siteProxyToUnicorn('/api/live-honesty-os/status'));
 app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/agde/status', siteProxyToUnicorn('/api/agde/status'));
 app.get('/api/agde/ledger', siteProxyToUnicorn('/api/agde/ledger'));
@@ -3293,12 +3296,10 @@ const industries = [
   { id: 'manufacturing', title: 'Manufacturing', outcomes: ['downtime reduction', 'predictive maintenance'] }
 ];
 
-const userProfile = {
-  id: 'demo-user',
-  type: 'company',
-  plan: 'Growth',
-  aiChild: { level: 7, health: 89, growth: 76, mood: 'curious' }
-};
+const userProfile = null;
+
+let liveHonestyOs = null;
+try { liveHonestyOs = require('../backend/modules/live-honesty-os'); } catch (_) { liveHonestyOs = null; }
 
 const runtimeSyncState = {
   lastSyncAt: 0,
@@ -3617,9 +3618,14 @@ function getRuntimeDataSources() {
     refreshBackendRuntimeState().catch(() => {});
   }
   const services = runtimeSyncState.serviceCatalog || buildLocalServiceCatalog();
+  const filterMarket = (list) => (
+    liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
+      ? liveHonestyOs.filterPublicMarketplace(list)
+      : list
+  );
   return {
-    services,
-    marketplace: runtimeSyncState.marketplaceServices || services,
+    services: filterMarket(services),
+    marketplace: filterMarket(runtimeSyncState.marketplaceServices || services),
     industries: runtimeSyncState.industries || industries,
     pricing: runtimeSyncState.pricing,
     backendSnapshot: runtimeSyncState.backendSnapshot,
@@ -3633,13 +3639,18 @@ function getRuntimeDataSources() {
 
 function buildTelemetry() {
   // Real uptime-based metrics — no hardcoded fake numbers
+  if (liveHonestyOs && typeof liveHonestyOs.honestTelemetry === 'function') {
+    return liveHonestyOs.honestTelemetry();
+  }
   const uptimeSec = Math.floor(process.uptime());
   return {
-    moduleHealth: 97,
-    revenue: 0,          // Real revenue tracked by /api/payment/stats on the backend
-    activeUsers: 0,      // Real user count tracked by SQLite on the backend
-    requests: uptimeSec, // Approximate proxy: seconds of uptime
-    aiGrowth: userProfile.aiChild.growth,
+    moduleHealth: null,
+    moduleCount: Array.isArray(modules) ? modules.length : 0,
+    revenue: 0,
+    activeUsers: 0,
+    requests: uptimeSec,
+    aiGrowth: null,
+    inventsGmv: false,
     note: 'Revenue and user metrics are served by the Express backend at /api/payment/stats and /api/auth/status'
   };
 }
@@ -3660,17 +3671,26 @@ function buildSnapshot() {
   return {
     generatedAt: new Date().toISOString(),
     health: backendSnapshot.health || { ok: true, service: 'unicorn-final', brand: 'ZeusAI' },
-    profile: userProfile,
-    modules,
-    marketplace: sources.marketplace,
-    services: sources.services,
+    profile: null,
+    modules: liveHonestyOs && typeof liveHonestyOs.filterPublicModules === 'function'
+      ? liveHonestyOs.filterPublicModules(backendSnapshot.modules || modules)
+      : modules,
+    marketplace: liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
+      ? liveHonestyOs.filterPublicMarketplace(sources.marketplace)
+      : sources.marketplace,
+    services: liveHonestyOs && typeof liveHonestyOs.filterPublicMarketplace === 'function'
+      ? liveHonestyOs.filterPublicMarketplace(sources.services)
+      : sources.services,
     codex: codexSections,
     industries: sources.industries,
     telemetry: {
       ...buildTelemetry(),
       ...(backendSnapshot.telemetry || {}),
-      aiGrowth: userProfile.aiChild.growth,
-      note: 'Marketplace, services, pricing and user metrics are auto-synced from Unicorn backend when BACKEND_API_URL is configured.'
+      aiGrowth: null,
+      moduleCount: (liveHonestyOs && typeof liveHonestyOs.realModuleCount === 'function')
+        ? liveHonestyOs.realModuleCount()
+        : (Array.isArray(modules) ? modules.length : 0),
+      note: 'Marketplace, services, pricing and user metrics are auto-synced from Unicorn backend when BACKEND_API_URL is configured. Theater AdaptiveModule/Engine shims are filtered.'
     },
     innovation,
     innovations: {
@@ -4725,7 +4745,7 @@ async function unicornHandler(req, res) {
       }
       if (u === '/api/audit/me') {
         // Dev-friendly: accept user from ?u= or header x-user; production should require auth
-        const uid = (req.headers['x-user'] || (req.url.split('?')[1]||'').match(/(?:^|&)u=([^&]+)/)?.[1] || 'demo-user').toString();
+        const uid = (req.headers['x-user'] || (req.url.split('?')[1]||'').match(/(?:^|&)u=([^&]+)/)?.[1] || 'anonymous').toString();
         try { return send(200, innov30.getUserAuditMerkle(decodeURIComponent(uid))); }
         catch (e) { return send(404, { error: 'no_audit', message: e.message }); }
       }
@@ -5026,6 +5046,7 @@ async function unicornHandler(req, res) {
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
+    '/api/status',
     '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/visible-social/arm'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
@@ -7380,11 +7401,17 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         integrityEndpoint: '/.well-known/unicorn-integrity.json',
         verification: 'ed25519 + merkle-compatible'
       },
-      trustScores: {
-        integrityScore: signedReceipts > 0 ? 99.9 : 96.5,
-        paymentAuditScore: paidReceipts >= 0 ? 99.5 : 95,
-        transparencyScore: 99.7
-      }
+      trustScores: (liveHonestyOs && typeof liveHonestyOs.honestTrustLedger === 'function')
+        ? liveHonestyOs.honestTrustLedger(signedReceipts, paidReceipts)
+        : {
+          integrityScore: null,
+          paymentAuditScore: null,
+          transparencyScore: null,
+          signedReceipts,
+          paidReceipts,
+          percentScoresPublished: false,
+          inventsTrust: false
+        }
     };
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(payload));
@@ -7447,13 +7474,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 
   if (urlPath === '/api/resilience/drill') {
     if (!global.__ZEUSAI_DRILL__) {
-      global.__ZEUSAI_DRILL__ = {
-        runs: 0,
-        lastRunAt: null,
-        avgRecoveryMs: 420,
-        score: 99.2,
-        status: 'ready'
-      };
+      global.__ZEUSAI_DRILL__ = (liveHonestyOs && typeof liveHonestyOs.drillSeed === 'function')
+        ? liveHonestyOs.drillSeed()
+        : { runs: 0, lastRunAt: null, avgRecoveryMs: null, score: null, status: 'never_run' };
     }
     const d = global.__ZEUSAI_DRILL__;
     const payload = {
@@ -7475,15 +7498,20 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 
   if (urlPath === '/api/resilience/drill/run' && req.method === 'POST') {
     if (!global.__ZEUSAI_DRILL__) {
-      global.__ZEUSAI_DRILL__ = { runs: 0, lastRunAt: null, avgRecoveryMs: 420, score: 99.2, status: 'ready' };
+      global.__ZEUSAI_DRILL__ = { runs: 0, lastRunAt: null, avgRecoveryMs: null, score: null, status: 'never_run' };
     }
     const d = global.__ZEUSAI_DRILL__;
-    const recoveryMs = 280 + Math.floor(Math.random() * 220);
+    const t0 = Date.now();
+    JSON.stringify({ uptime: process.uptime(), runs: d.runs });
+    const recoveryMs = Math.max(0, Date.now() - t0);
     d.runs += 1;
     d.lastRunAt = new Date().toISOString();
-    d.avgRecoveryMs = Math.round(((d.avgRecoveryMs * Math.max(0, d.runs - 1)) + recoveryMs) / d.runs);
-    d.score = Number(Math.max(95, 100 - (d.avgRecoveryMs / 180)).toFixed(1));
-    d.status = 'ready';
+    const prevAvg = Number(d.avgRecoveryMs);
+    d.avgRecoveryMs = Number.isFinite(prevAvg)
+      ? Math.round(((prevAvg * Math.max(0, d.runs - 1)) + recoveryMs) / d.runs)
+      : recoveryMs;
+    d.score = null;
+    d.status = 'ran';
     const payload = {
       ok: true,
       brand: 'ZeusAI',
@@ -7539,59 +7567,41 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     const snap = buildSnapshot();
     const moduleCount = snap && Array.isArray(snap.modules) ? snap.modules.length : 0;
     const chainLen = snap && snap.autonomy && snap.autonomy.chain ? (snap.autonomy.chain.length || 0) : 0;
-    const drill = global.__ZEUSAI_DRILL__ || { avgRecoveryMs: 420, score: 99.2 };
-    const wave = 0.5 + 0.5 * Math.sin(uptime / 37);
-    const complexity = Math.min(1, (moduleCount / 220) + (chainLen / 15000));
-    const baseApi = 68 + complexity * 24 + wave * 20;
-    const apiP95 = Math.round(baseApi);
-    const apiP99 = Math.round(apiP95 + 38 + wave * 22);
-    const renderP95 = Math.round(12 + complexity * 5 + wave * 4);
-    const renderP99 = Math.round(renderP95 + 9 + wave * 6);
-    const score = Number(Math.max(91, 100 - (apiP99 / 22) - (renderP99 / 4.5)).toFixed(1));
-
-    let mode = 'full-cinema';
-    let action = 'none';
-    let reason = 'latency well within cinematic budgets';
-    if (apiP99 > 165 || renderP99 > 27) {
-      mode = 'safe';
-      action = 'reduce-blur-and-motion';
-      reason = 'p99 exceeded strict threshold';
-    } else if (apiP99 > 135 || renderP99 > 22) {
-      mode = 'balanced';
-      action = 'cap-parallax-and-glow';
-      reason = 'p99 nearing guardrail threshold';
-    }
-
+    const drill = global.__ZEUSAI_DRILL__ || { avgRecoveryMs: null, score: null, runs: 0 };
     const payload = {
       ok: true,
       brand: 'ZeusAI',
       generatedAt: new Date(now).toISOString(),
       performance: {
-        apiP95Ms: apiP95,
-        apiP99Ms: apiP99,
-        renderP95Ms: renderP95,
-        renderP99Ms: renderP99,
-        score
+        apiP95Ms: null,
+        apiP99Ms: null,
+        renderP95Ms: null,
+        renderP99Ms: null,
+        score: null,
+        sampled: false,
+        note: 'No synthetic sine-wave latency. Connect RUM to populate percentiles.'
       },
       policy: {
-        mode,
-        action,
-        reason,
+        mode: 'measured-unknown',
+        action: 'none',
+        reason: 'percentiles unmeasured — cinematic defaults stay conservative',
         downgradeThreshold: { apiP99Ms: 165, renderP99Ms: 27 },
         upgradeThreshold: { apiP99Ms: 130, renderP99Ms: 20 }
       },
       budget: {
         frameBudgetMs: 16.7,
         targetFps: 60,
-        estimatedFps: Number(Math.max(32, Math.min(60, 1000 / Math.max(1, renderP95))).toFixed(1))
+        estimatedFps: null
       },
       resilienceSignal: {
         avgRecoveryMs: drill.avgRecoveryMs,
-        readinessScore: drill.score
+        readinessScore: drill.score,
+        runs: drill.runs || 0
       },
       source: {
         modules: moduleCount,
-        chainLength: chainLen
+        chainLength: chainLen,
+        processUptimeSec: uptime
       }
     };
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -10903,8 +10913,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         ok: true, generatedAt: new Date().toISOString(),
         cards: [
           { id:'uptime',  label:'Uptime',           value: (uptime/3600).toFixed(2)+'h', status:'green' },
-          { id:'sla',     label:'SLA (rolling 30d)', value: '99.97%',                   status:'green' },
-          { id:'sec',     label:'Security score',    value: 'A+',                        status:'green' },
+          { id:'sla',     label:'SLA (rolling 30d)', value: 'unmeasured',                status:'amber' },
+          { id:'sec',     label:'Security score',    value: 'see /api/health',           status:'green' },
           { id:'reality', label:'Reality metrics',   value: JSON.stringify(reality).length+'B', status:'green' }
         ]
       };

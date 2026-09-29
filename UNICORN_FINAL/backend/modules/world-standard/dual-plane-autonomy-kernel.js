@@ -25,6 +25,7 @@ const SAFE_ORGANS = Object.freeze([
   'safe-evolution-os',
   'safe-apply-os',
   'unicornInnovator',
+  'live-honesty-os',
 ]);
 
 const GROWTH_ORGANS = Object.freeze([

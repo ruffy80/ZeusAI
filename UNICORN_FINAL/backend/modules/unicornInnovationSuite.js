@@ -219,10 +219,11 @@ class UnicornInnovationSuite {
     this.cache = new Map(); this.cacheTTL = 60000; 
     this.trust = {
       status: 'operational',
-      uptime: 99.97,
-      sla: '99.9%',
+      uptime: null,
+      sla: 'unmeasured',
       incidents: [],
-      audits: []
+      audits: [],
+      inventsUptime: false,
     };
 
     this.billing = {

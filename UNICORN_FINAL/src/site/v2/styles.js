@@ -1082,4 +1082,14 @@ section,.section,footer,.foot-grid{content-visibility:auto;contain-intrinsic-siz
   .zeus-hero-image,.zeus-halo-b,.zeus-stars,.fx-orb,.fx-scan,.hero-eyebrow .dot{animation:none !important;transform:none !important}
 }
 
+/* LHOS/1.0 — visible when API responses are cached fallbacks, never silent theater */
+.lhos-fallback-banner{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:85;
+  padding:8px 16px;text-align:center;font-size:13px;letter-spacing:.02em;
+  background:linear-gradient(90deg,rgba(255,61,110,.92),rgba(255,159,28,.92));
+  color:#05040a;font-weight:650;box-shadow:0 8px 24px rgba(0,0,0,.35)
+}
+html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block}
+html[data-zeus-api-fallback="1"] .nav{top:34px}
+
 `;

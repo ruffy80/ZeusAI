@@ -185,6 +185,14 @@ async function armAll(opts) {
     return Object.assign({ ok: !!(out && out.ok !== false) }, out || {});
   });
 
+  // 2c) LHOS — measured public status / theater filter
+  results.lhos = await _try('lhos', () => {
+    const lhos = _safeRequire('./live-honesty-os');
+    if (!lhos || typeof lhos.start !== 'function') return { ok: false, reason: 'unavailable' };
+    const out = lhos.start({ source: 'taac' });
+    return Object.assign({ ok: !!(out && out.ok !== false) }, out || {});
+  });
+
   // 3) BALOS — IndexNow money flywheel
   results.balos = await _try('balos', () => {
     if (process.env.DISABLE_BILLION_AUTONOMY_LOOP === '1' && !_envOn('BILLION_AUTONOMY_LOOP_FORCE')) {

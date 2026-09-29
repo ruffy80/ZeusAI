@@ -550,6 +550,7 @@ ${gtPrimer}
 ${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
+<div id="zeusHonestyBanner" class="lhos-fallback-banner" role="status">Serving a cached API response while Unicorn reconnects. Live numbers resume automatically.</div>
 <main id="app">`;
 }
 
@@ -999,7 +1000,7 @@ function globalChrome(N) {
         for (var attempt = 1; attempt <= 3; attempt++) {
           try {
             var response = await nativeFetch(input, init);
-            if (response.ok) { remember(method, url, response); return response; }
+            if (response.ok) { remember(method, url, response); try { document.documentElement.removeAttribute('data-zeus-api-fallback'); } catch(_) {} return response; }
             if (response.status===429) {
               try { document.documentElement.setAttribute('data-zeus-rate-limited', '1'); window.dispatchEvent(new CustomEvent('zeus:rate-limit', { detail: { message: rateLimitMessage(response), url: url } })); } catch(_) {}
               return response;
@@ -1270,9 +1271,9 @@ function pageHome() {
         <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
       </div>
       <div class="hero-stats" style="margin-top:14px">
-        <div class="hero-stat"><b id="statModules">169</b><span>Modules</span></div>
-        <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
+        <div class="hero-stat"><b id="statModules">—</b><span>Modules</span></div>
+        <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
+        <div class="hero-stat"><b id="statMarkets">—</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
         <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
       </div>
@@ -1510,7 +1511,7 @@ ${_zaccBanner}
     <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h3 class="pillar-title">Self‑Sovereign DIDs</h3><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
     <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h3 class="pillar-title">Outcome Economics</h3><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
     <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscaler / enterprise adapters (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…). In-memory orchestration — live dispatch requires provider API keys.</p><span class="pillar-cta">Open local orchestrator →</span></div>
-    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>41 marketplace adapters, multi‑armed bandit pricing. In-memory listing planner — live publish requires marketplace API keys.</p><span class="pillar-cta">Open listing planner →</span></div></div>
+    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>Marketplace adapters with live catalog counts. In-memory listing planner — live publish requires marketplace API keys.</p><span class="pillar-cta">Open listing planner →</span></div></div>
   <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
 </section>
 
@@ -1820,8 +1821,8 @@ function pagePricing() {
       <p style="color:var(--ink-dim);margin:0">Outcome‑priced. Global.</p>
       <ul>
         <li>1.5M API calls / month · 100 seats</li>
-        <li>All 18 verticals · 42 giants · 41 marketplaces</li>
-        <li>Dedicated Zeus cluster · SLA 99.9%</li>
+        <li>Live catalog + measured module counts · never invented traction</li>
+        <li>SLA unpublished until an incident ledger exists</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
       <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Start autonomous deal →</a>
@@ -2044,11 +2045,11 @@ function pageHow() {
   <div class="panels">
     <div class="panel"><div class="ic">1</div><h3 class="pillar-title">Zeus Core</h3><p>Deterministic decision engine. Schedules every action through capability tokens (CBAT).</p></div>
     <div class="panel"><div class="ic">2</div><h3 class="pillar-title">Autonomy Chain</h3><p>PCMC — Merkle chain of every decision. Tamper‑evident, verifiable at <code class="inline">/api/autonomy/verify</code>.</p></div>
-    <div class="panel"><div class="ic">3</div><h3 class="pillar-title">Module Mesh</h3><p>169 living modules. 144 legacy stubs were retired; adaptive/engine pools materialize workers on demand.</p></div>
+    <div class="panel"><div class="ic">3</div><h3 class="pillar-title">Module Mesh</h3><p>Live module count is measured at <code class="inline">/api/status</code>. AdaptiveModule/Engine pool shims are workers, not marketplace SKUs.</p></div>
     <div class="panel"><div class="ic">4</div><h3 class="pillar-title">Quarantine Shield</h3><p>Isolates suspect behavior. No auto‑restart loops. Safe‑code‑writer gates every change.</p></div>
     <div class="panel"><div class="ic">5</div><h3 class="pillar-title">Revenue Router</h3><p>Every $ is Ed25519‑signed and routed to the owner's BTC. Zero custodians.</p></div>
     <div class="panel"><div class="ic">6</div><h3 class="pillar-title">Value‑Proof Ledger</h3><p>Every outcome is measured in $. Auto‑invoice (bps share) on proven value.</p></div>
-    <div class="panel"><div class="ic">7</div><h3 class="pillar-title">Monetization Mesh</h3><p>41 marketplace adapters, multi‑armed bandit pricing. In-memory listing planner — live publish requires marketplace API keys.</p></div>
+    <div class="panel"><div class="ic">7</div><h3 class="pillar-title">Monetization Mesh</h3><p>Marketplace adapters with live catalog counts from Origin Gravity + public catalog filter. In-memory listing planner — live publish requires marketplace API keys.</p></div>
   </div>
 </section>
 
@@ -5768,7 +5769,7 @@ function pageStatus(params = {}) {
     <div class="card"><span class="tag">Commerce</span><h3>Catalog + BTC</h3><p style="color:var(--ink-dim)">Checkout path remains monitored.</p></div>
   </div>
   <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>—</p></div></div>
-  <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p>
+  <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">Process uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Measured from this Node process. 90-day SLA is unpublished until an incident ledger exists — never invented as 99.97%.</p>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
       <button type="button" class="btn" data-live-inspect="/api/incidents" data-live-title="Public incident log">Public incident log</button>
       <button type="button" class="btn btn-ghost" data-live-inspect="/api/autonomy/os" data-live-title="Autonomy OS">Inspect Autonomy OS live</button>
@@ -5853,9 +5854,17 @@ function pageStatus(params = {}) {
   }
   async function loadStatus(){
     try { const d = await (await fetch('/api/status')).json();
-      document.getElementById('stHeadline').textContent = d.overall + '.';
-      document.getElementById('stUptime').textContent = d.uptime90d + '%';
-      document.getElementById('stGrid').innerHTML = d.components.map(c => '<div class="card"><span class="tag" style="background:rgba(59,255,176,.15);color:#3bffb0">'+c.status+'</span><h3>'+c.name+'</h3><p style="color:var(--ink-dim)">Latency: <b>'+c.latencyMs+'ms</b></p></div>').join('');
+      document.getElementById('stHeadline').textContent = (d.overall || 'unknown') + '.';
+      var upEl = document.getElementById('stUptime');
+      if (upEl) {
+        if (d.uptime90d != null && d.uptime90d !== '') upEl.textContent = d.uptime90d + '%';
+        else if (d.uptimeSec != null) upEl.textContent = Math.floor(Number(d.uptimeSec)/3600) + 'h this process';
+        else upEl.textContent = 'unmeasured';
+      }
+      document.getElementById('stGrid').innerHTML = (d.components || []).map(function(c){
+        var lat = (c.latencyMs == null || c.latencyMs === '') ? 'not sampled' : (c.latencyMs + 'ms');
+        return '<div class="card"><span class="tag" style="background:rgba(59,255,176,.15);color:#3bffb0">'+c.status+'</span><h3>'+c.name+'</h3><p style="color:var(--ink-dim)">Latency: <b>'+lat+'</b></p></div>';
+      }).join('') || '<div class="card"><p style="color:var(--ink-dim)">No components reported.</p></div>';
     } catch(e) {
       // Never leave the SSR "Loading…" placeholder on screen — same regression
       // class as the /services BTC spot rate bug.
@@ -6342,7 +6351,7 @@ function pageAura() {
         ['Uptime', k.uptime],
         ['Active carts', k.activeCarts]
       ].filter(function(row){ return row[1] != null && row[1] !== ''; });
-      document.getElementById('auraGrid').innerHTML = (rows.length ? rows : [['Status','online']]).map(function(pair){
+      document.getElementById('auraGrid').innerHTML = (rows.length ? rows : [['Status','unmeasured']]).map(function(pair){
         return '<div class="card"><span class="tag">'+pair[0]+'</span><h2 style="margin:8px 0">'+(pair[1]==null?'—':pair[1])+'</h2></div>';
       }).join('');
     } catch(e) {
@@ -6747,7 +6756,7 @@ function pageRoadmap() {
     <div class="card" style="padding:22px;border-color:rgba(127,255,212,.35)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">✓ Shipped &amp; live</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
         <li><a href="/services" data-link>25+ services marketplace</a> with BTC checkout</li>
-        <li><a href="/verticals">18 vertical AI operating systems</a></li>
+        <li><a href="/verticals">Vertical AI operating systems</a></li>
         <li><a href="/frontier" data-link>Frontier F1–F12 inventions</a></li>
         <li>Ed25519-signed receipts + <a href="/trust" data-link>Trust Center</a></li>
         <li><a href="/transparency" data-link>Public pricing-bandit transparency</a></li>
@@ -6791,7 +6800,7 @@ function pagePress() {
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">ZeusAI — <span class="grad">facts &amp; assets.</span></h1>
   <p style="color:var(--ink-dim);max-width:640px">Everything below is independently verifiable on this domain — link to the proofs, not to us.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
-    <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">A sovereign autonomous AI operating system: 25+ live AI services, 18 vertical OSes, BTC-native checkout, Ed25519-signed receipts, self-healing operations. Owner-operated by ${OWNER.name}, no external custodians.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">A sovereign autonomous AI operating system: live catalog at /services, vertical OSes at /verticals, BTC-native checkout, Ed25519-signed receipts, self-healing operations. Owner-operated by ${OWNER.name}, no external custodians. Counts are measured, never invented.</p></div>
     <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Live status: <a href="/status" data-link>/status</a> · Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Pricing experiments: <a href="/transparency" data-link>/transparency</a> · Signed catalog: <a href="/agents.json">/agents.json</a></p></div>
     <div class="card" style="padding:20px"><span class="tag">Brand</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Name: <b>ZeusAI</b> (one word, capital Z + AI) · Logo: <a href="/assets/icons/icon-512.png">icon-512.png</a> · Domain: ${OWNER.domain.replace(/^https?:\/\//,'')} · Palette: violet #8a5cff / gold #ffd36a on deep space.</p></div>
     <div class="card" style="padding:20px"><span class="tag">Media contact</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">${OWNER.name} — <a href="mailto:${OWNER.email}">${OWNER.email}</a> (or the <a href="/contact" data-link>contact form</a>, topic "Press"). Interviews, technical deep-dives and architecture walkthroughs welcome.</p></div>

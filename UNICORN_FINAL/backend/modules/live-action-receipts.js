@@ -63,6 +63,7 @@ function snapshot(limit) {
   const shipGateRaw = _status('./innovation-ship-gate');
   const evolution = _status('./safe-evolution-os');
   const applyRaw = _status('./safe-apply-os');
+  const honesty = _status('./live-honesty-os');
   const viralRaw = _safe('./viral-unification-os', (m) => (
     typeof m.discovery === 'function' ? m.discovery() : (typeof m.getStatus === 'function' ? m.getStatus() : null)
   ));
@@ -172,6 +173,15 @@ function snapshot(limit) {
       recentEvents: Array.isArray(platformTruth.recentEvents)
         ? platformTruth.recentEvents.slice(0, 8)
         : [],
+    },
+    honesty: honesty && {
+      protocol: honesty.protocol || 'LHOS/1.0',
+      overall: honesty.overall || null,
+      catalogCount: Number(honesty.catalogCount) || 0,
+      paidHumans: Number(honesty.paidHumans) || 0,
+      realModuleCount: Number(honesty.realModuleCount) || 0,
+      inventsUptime: false,
+      inventsGmv: false,
     },
   };
 }

@@ -212,7 +212,21 @@ function selfBuilder() {
 
 // authGuardian — verifică integritatea auth (sursă: auth-guardian.js)
 function authGuardian() {
-  return { authOk: true, ts: new Date().toISOString() };
+  const jwt = !!(process.env.JWT_SECRET || process.env.AUTH_JWT_SECRET || process.env.CRYPTOAUTH_JWT_SECRET);
+  const admin = !!(process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET);
+  let cryptoauth = false;
+  try {
+    const mod = require('./cryptoauth');
+    cryptoauth = !!(mod && (typeof mod.getStatus === 'function' || typeof mod.verify === 'function'));
+  } catch (_) { cryptoauth = false; }
+  return {
+    authOk: jwt || admin || cryptoauth,
+    jwtConfigured: jwt,
+    adminConfigured: admin,
+    cryptoauthPresent: cryptoauth,
+    alwaysTrue: false,
+    ts: new Date().toISOString(),
+  };
 }
 
 // errorDetector — detectează pattern-uri de eroare (sursă: error-pattern-detector.js)
