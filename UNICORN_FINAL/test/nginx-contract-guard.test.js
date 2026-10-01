@@ -90,6 +90,9 @@ const SITE_PINNED = [
   '/.well-known/world-index.json',
   '/.well-known/share-surface.json',
   '/.well-known/relay-graft.json',
+  '/api/world-index',
+  '/api/share/targets',
+  '/api/relay-graft',
 ];
 for (const p of SITE_PINNED) {
   check('site-pinned: ' + p + ' → unicorn_site', () => assertSitePinned(p));

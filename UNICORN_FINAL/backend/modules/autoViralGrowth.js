@@ -402,9 +402,11 @@ class AutoViralGrowth {
       continuum,
       honesty: {
         simulationsRemoved: ['Math.random viral score', 'Math.random referral signups', 'Math.random social mentions', 'Math.random reach'],
-        nextStep: !ready
-          ? 'Arm TELEGRAM_BOT_TOKEN+CHAT_ID / DISCORD_WEBHOOK_URL / X tokens — AACOS will publish live intents permanently.'
-          : 'Continuum publishing armed — watch /.well-known/aacos.json for live actions.',
+        nextStep: (continuum && continuum.lastSkipReason === 'vuk_not_designated')
+          ? 'VUK designated executor is socialMediaViralizer. AACOS skips on purpose so it does not double-post. Gaze networks still need FACEBOOK_PAGE_TOKEN / X / INSTAGRAM. Tokenless hop: /relay and /share.'
+          : (!ready
+            ? 'Arm TELEGRAM_BOT_TOKEN+CHAT_ID / DISCORD_WEBHOOK_URL / X tokens — AACOS will publish live intents permanently.'
+            : 'Continuum publishing armed — watch /.well-known/aacos.json for live actions.'),
       },
     };
   }
