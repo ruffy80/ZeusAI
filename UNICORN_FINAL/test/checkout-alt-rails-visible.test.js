@@ -38,6 +38,8 @@ check('checkout shell exposes PayPal + NOW top CTAs and visible chips', () => {
   assert.ok(shell.includes('data-method="paypal"'));
   assert.ok(shell.includes('data-method="nowpayments"'));
   assert.ok(!/data-method="paypal" style="display:none"/.test(shell));
+  assert.ok(shell.includes('isPaypalArmed'));
+  assert.ok(client.includes("q.get('rail')"));
 });
 
 check('sovereign invoice page shows alt-rail buttons by default', () => {

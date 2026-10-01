@@ -126,6 +126,28 @@ check('firstDollarHtml is honest about zero revenue', () => {
   assert.ok(!/trusted by thousands|millions of users|billions in revenue/i.test(html));
 });
 
+check('first-dollar copy matches whether PayPal and card are actually armed', () => {
+  const alt = require('../src/commerce/alt-rails-os');
+  const html = gravity.firstDollarHtml();
+  const d = gravity.discovery();
+  const paypal = alt.isPaypalArmed();
+  const card = alt.isNowPaymentsArmed();
+  assert.strictEqual(d.firstDollar.humanRails.paypal, paypal);
+  assert.strictEqual(d.firstDollar.humanRails.nowpayments, card);
+  assert.strictEqual(d.firstDollar.humanRails.btc, true);
+  assert.ok(d.firstDollar.paypalUrl.includes('rail=paypal'));
+  assert.ok(d.firstDollar.cardUrl.includes('rail=nowpayments'));
+  if (paypal || card) {
+    assert.ok(!/PayPal \/ card \/ NOWPayments stay dark/i.test(html));
+    assert.ok(html.includes('rail=paypal') || html.includes('rail=nowpayments'));
+  } else {
+    assert.ok(/stay dark until those secrets/i.test(html));
+    assert.ok(html.includes('rail=btc'));
+    assert.ok(!html.includes('with PayPal</a>'));
+  }
+  assert.strictEqual(d.whyZero.code, d.paidHumans === 0 ? 'no_confirmed_settlement' : 'settlements_exist');
+});
+
 async function runHttp() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fdgp-'));
   process.env.UNICORN_DATA_DIR = path.join(tmp, 'data');

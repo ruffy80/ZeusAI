@@ -1849,12 +1849,33 @@ function pageCheckout(params) {
   const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
   const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
-  // Buy Immortal OS: every checkout landing exposes one-click sovereign mint
-  // as the primary CTA. The manual form remains as a secondary path.
+  // Human rails lead when PayPal or NOWPayments secrets are actually on this
+  // process. BTC stays one click away (10% discount). Without those secrets
+  // the page stays Bitcoin-first and does not pretend the other rails are live.
+  let paypalLive = false;
+  let nowLive = false;
+  try {
+    const altRails = require('../../commerce/alt-rails-os');
+    paypalLive = !!(altRails.isPaypalArmed && altRails.isPaypalArmed());
+    nowLive = !!(altRails.isNowPaymentsArmed && altRails.isNowPaymentsArmed());
+  } catch (_) { /* btc-only */ }
+  const humanFirst = paypalLive || nowLive;
+  const defaultRail = paypalLive ? 'paypal' : (nowLive ? 'nowpayments' : 'btc');
+  const btcBtn = `<button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1;background:#f7931a;border-color:#f7931a;color:#1a1004">⚡ Pay with Bitcoin</button>`;
+  const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
+  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
+  const railBtns = humanFirst ? (ppBtn + npBtn + btcBtn) : (btcBtn + ppBtn + npBtn);
+  const railHint = humanFirst
+    ? 'PayPal and card/crypto are live on this server. Bitcoin stays available and quotes a 10% discount. Your last choice is remembered on this device.'
+    : 'Bitcoin is ready now (10% discount when quoted). PayPal and card/crypto appear after PAYPAL_* and NOWPAYMENTS_* secrets are on the server.';
+  const show = (id) => (defaultRail === id ? '' : ' style="display:none"');
+  const chipOn = (id) => (defaultRail === id ? ' on' : '');
+  // Buy Immortal OS: every checkout landing exposes one-click sovereign mint.
+  // The manual form remains as a secondary path.
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Checkout promise</span><h2>Pay with Bitcoin, PayPal, or card/crypto. <span class="grad">Activation is automatic.</span></h2></div>
-    <p>Every payment generates an Ed25519‑signed receipt. Pick one rail — ZeusAI watches settlement and unlocks delivery automatically. Bitcoin is primary (10% discount when quoted).</p>
+    <p>Every payment generates an Ed25519‑signed receipt. Pick one rail — ZeusAI watches settlement and unlocks delivery automatically. ${humanFirst ? 'PayPal and card/crypto are live. Bitcoin quotes a 10% discount.' : 'Bitcoin is ready now (10% discount when quoted).'}</p>
   </div>
   <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(34,197,94,.08));border:1px solid rgba(247,147,26,.35)">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1865,11 +1886,9 @@ function pageCheckout(params) {
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
-      <button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1">⚡ Pay with Bitcoin</button>
-      <button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>
-      <button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>
+      ${railBtns}
     </div>
-    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount when available). PayPal and card/crypto open when armed — your last choice is remembered on this device.</p>
+    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
@@ -1879,11 +1898,11 @@ function pageCheckout(params) {
   <div class="checkout">
     <div class="co-box">
       <div class="co-method" aria-label="Payment method">
-        <button type="button" class="chip on" data-method="btc">₿ Bitcoin</button>
-        <button type="button" class="chip" data-method="paypal">PayPal</button>
-        <button type="button" class="chip" data-method="nowpayments">Card / crypto</button>
+        <button type="button" class="chip${chipOn('btc')}" data-method="btc">₿ Bitcoin</button>
+        <button type="button" class="chip${chipOn('paypal')}" data-method="paypal">PayPal</button>
+        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments">Card / crypto</button>
       </div>
-      <div id="coPanelBtc">
+      <div id="coPanelBtc"${show('btc')}>
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
           <div>
             <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
@@ -1900,14 +1919,14 @@ function pageCheckout(params) {
         <div id="coStatus"></div>
         <div id="coUpsell" class="card" style="margin-top:14px;padding:14px 16px;display:none"></div>
       </div>
-      <div id="coPanelPaypal" style="display:none">
+      <div id="coPanelPaypal"${show('paypal')}>
         <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
         <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="${ssrPlan}"/></div>
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
         <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal Orders API — same product delivery as BTC after capture.</p>
       </div>
-      <div id="coPanelNow" style="display:none">
+      <div id="coPanelNow"${show('nowpayments')}>
         <div class="field"><label for="coAmountNP">Amount (USD)</label><input id="coAmountNP" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
         <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="${ssrPlan}"/></div>
         <div class="field"><label for="coEmailNP">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailNP" type="email" placeholder="you@company.com"/></div>
