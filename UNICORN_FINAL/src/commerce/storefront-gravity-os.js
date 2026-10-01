@@ -176,7 +176,20 @@ function cheapestSelfServe(items) {
   return picks[0] || null;
 }
 
-function whyZeroRevenue(paidHumans) {
+function armedHumanRails() {
+  try {
+    const alt = require('./alt-rails-os');
+    return {
+      btc: true,
+      paypal: !!(alt.isPaypalArmed && alt.isPaypalArmed()),
+      nowpayments: !!(alt.isNowPaymentsArmed && alt.isNowPaymentsArmed()),
+    };
+  } catch (_) {
+    return { btc: true, paypal: false, nowpayments: false };
+  }
+}
+
+function whyZeroRevenue(paidHumans, rails) {
   const n = Number(paidHumans);
   if (Number.isFinite(n) && n > 0) {
     return {
@@ -184,9 +197,12 @@ function whyZeroRevenue(paidHumans) {
       message: n + ' confirmed paid human' + (n === 1 ? '' : 's') + '. GMV is only what those settlements paid.',
     };
   }
+  const human = rails && (rails.paypal || rails.nowpayments);
   return {
     code: 'no_confirmed_settlement',
-    message: 'Zero revenue because no human has completed a confirmed payment. Catalog, BTC checkout, and delivery exist. Modules do not invent buyers or GMV.',
+    message: human
+      ? 'Zero revenue because no human has completed a confirmed payment. PayPal and card/crypto are armed, and BTC checkout is live. Modules do not invent buyers or GMV.'
+      : 'Zero revenue because no human has completed a confirmed payment. Catalog, BTC checkout, and delivery exist. Modules do not invent buyers or GMV.',
   };
 }
 
@@ -209,7 +225,11 @@ function discovery(opts = {}) {
 
   const sku = cheapest && itemId(cheapest) ? itemId(cheapest) : DEFAULT_HERO_SKU;
   const usd = cheapest ? itemPrice(cheapest) : 39;
-  const why = whyZeroRevenue(paidHumans);
+  const rails = armedHumanRails();
+  const why = whyZeroRevenue(paidHumans, rails);
+  const origin = PUBLIC_URL.replace(/\/$/, '');
+  const planQs = '/checkout/?plan=' + encodeURIComponent(sku);
+  const humanPay = !!(rails.paypal || rails.nowpayments);
 
   return {
     protocol: PROTOCOL,
@@ -224,14 +244,19 @@ function discovery(opts = {}) {
       serviceId: sku,
       title: (cheapest && (cheapest.title || cheapest.name)) || 'Instant Resume + LinkedIn Makeover',
       priceUsd: usd,
-      buyUrl: PUBLIC_URL.replace(/\/$/, '') + '/checkout/?plan=' + encodeURIComponent(sku),
+      buyUrl: origin + planQs,
       page: '/first-dollar',
       rail: 'btc',
+      humanRails: rails,
+      paypalUrl: origin + planQs + '&rail=paypal',
+      cardUrl: origin + planQs + '&rail=nowpayments',
     },
     whyZero: why,
     nextHumanAction: paidHumans > 0
-      ? 'Keep the same BTC checkout path. Additional rails need PayPal/NOWPayments/Stripe secrets in GitHub → PM2.'
-      : 'Open /buy, pick the $' + usd + ' SKU, pay BTC to the owner wallet. Origin #1 mints only after on-chain confirmation.',
+      ? 'Keep checkout open. BTC stays live. PayPal and card stay available only while their secrets are on the server.'
+      : (humanPay
+        ? 'Open ' + planQs + '&rail=paypal (PayPal) or &rail=nowpayments (card/crypto). BTC checkout stays live with a 10% discount. Origin #1 mints only after a confirmed settlement — a module cannot pay itself.'
+        : 'Open /buy, pick the $' + usd + ' SKU, pay BTC to the owner wallet. Origin #1 mints only after on-chain confirmation.'),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -267,11 +292,13 @@ ${head}
     <p style="color:#9aa6bd">${why}</p>
     <p style="font-family:ui-monospace,monospace;font-size:13px;color:#cdd6e4">paidHumans = <b style="color:#00ffa3">${d.paidHumans}</b> · cheapest self-serve = <b>$${usd}</b> · ${sku}</p>
     <p style="margin:28px 0">
-      <a href="/checkout/?plan=${encodeURIComponent(sku)}" style="display:inline-block;background:linear-gradient(135deg,#00e8a0,#2de2e6);color:#05060e;font-weight:800;padding:14px 22px;border-radius:12px;text-decoration:none">Buy ${sku} · $${usd} BTC</a>
+      ${(d.firstDollar.humanRails && d.firstDollar.humanRails.paypal) ? `<a href="/checkout/?plan=${encodeURIComponent(sku)}&amp;rail=paypal" style="display:inline-block;background:#0070ba;color:#fff;font-weight:800;padding:14px 22px;border-radius:12px;text-decoration:none;margin:0 8px 8px 0">Pay $${usd} with PayPal</a>` : ''}
+      ${(d.firstDollar.humanRails && d.firstDollar.humanRails.nowpayments) ? `<a href="/checkout/?plan=${encodeURIComponent(sku)}&amp;rail=nowpayments" style="display:inline-block;background:#14132a;color:#e8eef8;font-weight:800;padding:14px 22px;border-radius:12px;text-decoration:none;border:1px solid #334;margin:0 8px 8px 0">Pay $${usd} with card</a>` : ''}
+      <a href="/checkout/?plan=${encodeURIComponent(sku)}&amp;rail=btc" style="display:inline-block;background:linear-gradient(135deg,#00e8a0,#2de2e6);color:#05060e;font-weight:800;padding:14px 22px;border-radius:12px;text-decoration:none;margin:0 8px 8px 0">Pay $${usd} with Bitcoin</a>
       <a href="/buy" style="display:inline-block;margin-left:10px;color:#2de2e6">All buyable SKUs →</a>
     </p>
     <ul style="color:#9aa6bd;padding-left:18px">
-      <li>BTC to the owner wallet is live. PayPal / card / NOWPayments stay dark until those secrets are in GitHub → PM2.</li>
+      <li>${(d.firstDollar.humanRails && (d.firstDollar.humanRails.paypal || d.firstDollar.humanRails.nowpayments)) ? 'PayPal and card/crypto are armed on this server. Bitcoin to the owner wallet stays live (10% discount when quoted).' : 'BTC to the owner wallet is live. PayPal / card / NOWPayments stay dark until those secrets are in GitHub → PM2.'}</li>
       <li>Facebook / X / TikTok ads and posts stay dark until gaze tokens exist. Telegram is an operator rail, not a public post.</li>
       <li>Unicorn modules do not mint GMV. Origin #1 is the first confirmed settlement.</li>
     </ul>
@@ -298,6 +325,7 @@ module.exports = {
   applyStorefrontGravity,
   pickHeroQuickPicks,
   cheapestSelfServe,
+  armedHumanRails,
   whyZeroRevenue,
   discovery,
   firstDollarHtml,

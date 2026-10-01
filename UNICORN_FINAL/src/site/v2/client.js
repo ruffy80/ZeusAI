@@ -3715,7 +3715,11 @@ function hydrateCheckout(){
     selectCheckoutRail(c.dataset.method);
   }));
   try {
-    const pref = String(localStorage.getItem('u_preferred_rail') || '').toLowerCase();
+    const railQ = String(q.get('rail') || '').toLowerCase();
+    const railAlias = (railQ === 'card' || railQ === 'now') ? 'nowpayments' : (railQ === 'bitcoin' ? 'btc' : railQ);
+    const pref = (railAlias === 'paypal' || railAlias === 'nowpayments' || railAlias === 'btc')
+      ? railAlias
+      : String(localStorage.getItem('u_preferred_rail') || '').toLowerCase();
     if (pref === 'paypal' || pref === 'nowpayments' || pref === 'btc') {
       const chip = document.querySelector('.co-method .chip[data-method="' + pref + '"]');
       if (chip && chip.offsetParent !== null) selectCheckoutRail(pref);
