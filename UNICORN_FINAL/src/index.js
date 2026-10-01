@@ -1190,6 +1190,28 @@ app.get(['/.well-known/share-surface.json', '/api/share/targets'], (req, res) =>
     return res.status(503).json({ ok: false, error: e.message, protocol: 'HSDP/1.0', inventsVisitors: false });
   }
 });
+// RGP/1.0 — one-hop relay. Tokenless forward. Never counts a visitor.
+app.get(['/relay'], (req, res) => {
+  try {
+    const rgp = require('./commerce/relay-graft-os');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'RGP/1.0');
+    return res.send(rgp.graftHtml());
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>relay</title><p>RGP unavailable</p>');
+  }
+});
+app.get(['/.well-known/relay-graft.json', '/api/relay-graft'], (req, res) => {
+  try {
+    const rgp = require('./commerce/relay-graft-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'RGP/1.0');
+    return res.json(rgp.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'RGP/1.0', inventsVisitors: false });
+  }
+});
 app.get('/api/world-index/activation', (req, res) => {
   try {
     const wivp = require('./commerce/world-index-os');
@@ -5090,7 +5112,7 @@ async function unicornHandler(req, res) {
     '/api/secrets/status',
     '/api/build', '/api/version',
     '/api/status',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payments/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/visible-social/arm'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payments/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/relay-graft', '/api/visible-social/arm'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -8079,6 +8101,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         share_surface:     '/.well-known/share-surface.json',
         hsdp:              '/api/share/targets',
         share_page:        '/share',
+        relay_graft:       '/.well-known/relay-graft.json',
+        rgp:               '/api/relay-graft',
+        relay_page:        '/relay',
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
@@ -8802,6 +8827,36 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'HSDP/1.0', inventsVisitors: false }));
+    }
+  }
+
+  if (urlPath === '/relay') {
+    try {
+      const rgp = require('./commerce/relay-graft-os');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'RGP/1.0',
+      });
+      return res.end(rgp.graftHtml());
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>relay</title><p>RGP unavailable</p>');
+    }
+  }
+
+  if (urlPath === '/.well-known/relay-graft.json' || urlPath === '/api/relay-graft') {
+    try {
+      const rgp = require('./commerce/relay-graft-os');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'RGP/1.0',
+      });
+      return res.end(JSON.stringify(rgp.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'RGP/1.0', inventsVisitors: false }));
     }
   }
 

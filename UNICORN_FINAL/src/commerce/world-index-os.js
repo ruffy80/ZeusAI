@@ -21,6 +21,7 @@ const PRIORITY_PATHS = [
   '/visible-world',
   '/visible',
   '/share',
+  '/relay',
   '/origin',
   '/from/x',
   '/from/facebook',
@@ -33,6 +34,7 @@ const PRIORITY_PATHS = [
   '/.well-known/social-gravity.json',
   '/.well-known/visible-social.json',
   '/.well-known/share-surface.json',
+  '/.well-known/relay-graft.json',
 ];
 
 function _esc(s) {
@@ -241,6 +243,11 @@ function operatorChecklist(opts) {
   const bridge = _bridge();
   return [
     {
+      id: 'relay-graft',
+      ready: true,
+      action: 'Open /relay and send the $39 offer to one person on WhatsApp or SMS. The send is not a visitor and not a user.',
+    },
+    {
       id: 'indexnow-key',
       ready: true,
       action: 'Keep serving /{indexnow-key}.txt at the site root. Already live when traffic-engine is armed.',
@@ -399,14 +406,16 @@ function discovery(opts) {
       origin: '/origin',
       visible: '/visible',
       share: '/share',
+      relay: '/relay',
       llms: '/llms.txt',
       sitemap: '/sitemap.xml',
       robots: '/robots.txt',
       wellKnown: '/.well-known/world-index.json',
       shareWellKnown: '/.well-known/share-surface.json',
+      relayWellKnown: '/.well-known/relay-graft.json',
     },
     priorityPaths: PRIORITY_PATHS.slice(),
-    nextHumanAction: 'Add BING_WEBMASTER_API_KEY and GOOGLE_SERVICE_ACCOUNT_JSON so ownership + sitemap submission run themselves, then open /share and tap once. Code makes URLs discoverable; it does not mint users.',
+    nextHumanAction: 'Add BING_WEBMASTER_API_KEY and GOOGLE_SERVICE_ACCOUNT_JSON so ownership + sitemap submission run themselves, then open /relay and send the offer to one person. Code makes URLs discoverable; it does not mint users.',
     generatedAt: new Date().toISOString(),
     ...(opts && typeof opts === 'object' ? opts : {}),
   };
