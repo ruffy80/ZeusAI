@@ -110,7 +110,7 @@ function _verticalIds() {
 
 /** Canonical list of every URL worth indexing. Deterministic, capped. */
 function urlsToSubmit() {
-  const core = ['/', '/buy', '/first-dollar', '/visible-world', '/visible', '/share', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
+  const core = ['/', '/buy', '/first-dollar', '/visible-world', '/visible', '/share', '/relay', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
     '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
     '/enterprise', '/wizard', '/dropship', '/zacc', '/marketplace', '/tg', '/llms.txt'];
   const urls = new Set(core.map((p) => APP_URL + p));
@@ -121,6 +121,7 @@ function urlsToSubmit() {
   urls.add(APP_URL + '/.well-known/world-index.json');
   urls.add(APP_URL + '/.well-known/visible-social.json');
   urls.add(APP_URL + '/.well-known/share-surface.json');
+  urls.add(APP_URL + '/.well-known/relay-graft.json');
   try {
     const wivp = require('../../src/commerce/world-index-os');
     for (const u of wivp.indexNowPriorityUrls(APP_URL)) urls.add(u);

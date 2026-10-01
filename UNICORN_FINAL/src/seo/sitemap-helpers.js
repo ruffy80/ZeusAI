@@ -15,6 +15,7 @@ const CORE_PUBLIC_PATHS = [
   '/visible-world',
   '/visible',
   '/share',
+  '/relay',
   '/origin',
   '/from/x',
   '/from/facebook',

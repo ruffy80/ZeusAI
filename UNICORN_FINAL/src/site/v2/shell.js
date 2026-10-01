@@ -1252,6 +1252,7 @@ function pageHome() {
         <a class="btn btn-primary" href="/buy" data-link>Buy what we deliver →</a>
         <a class="btn btn-ghost" href="/services" data-link>Full marketplace</a>
       </div>
+      ${(() => { try { return require('../../commerce/relay-graft-os').homeStripHtml(); } catch (_) { return ''; } })()}
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
         <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
       </div>
@@ -7113,7 +7114,7 @@ function _legalSub(title, body) {
 }
 
 function routeTitle(route) {
-  if (route === '/') return 'Sovereign AI OS';
+  if (route === '/') return 'Instant Resume Makeover $39';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
   if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
   if (route.startsWith('/services/')) return 'Service';
@@ -7125,7 +7126,7 @@ function routeTitle(route) {
 
 function routeDescription(route) {
   const map = {
-    '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
+    '/': 'Pay $39 for an Instant Resume + LinkedIn Makeover with PayPal, card, or Bitcoin. Pass the offer once from /relay. ZeusAI does not invent visitors or customers.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',
     '/buy': 'Buy only ZeusAI products with real fulfillment recipes — BTC self-serve, professional reserves, honest enterprise contact.',

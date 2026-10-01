@@ -133,7 +133,7 @@ async function run() {
       const r = await request(path);
       assert.equal(r.status, 200, `${path} should return 200`);
       assert.ok(r.text.includes(`<title>${title}</title>`), `${path} should render its own title`);
-      assert.ok(!r.text.includes('<title>Sovereign AI OS — ZEUSAI</title>'), `${path} must not fall back to homepage title`);
+      assert.ok(!r.text.includes('<title>Instant Resume Makeover $39 — ZEUSAI</title>'), `${path} must not fall back to homepage title`);
     }
 
     const robots = await request('/robots.txt');
