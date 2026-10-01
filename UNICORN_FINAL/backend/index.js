@@ -1800,6 +1800,13 @@ app.get('/api/commerce/recent-sales', (req, res) => proxyToSite(req, res, '/api/
 app.get('/api/commerce/integrity', (req, res) => proxyToSite(req, res, '/api/commerce/integrity'));
 app.get('/api/commerce/metrics', (req, res) => proxyToSite(req, res, '/api/commerce/metrics'));
 app.get('/api/commerce/funnel', (req, res) => proxyToSite(req, res, '/api/commerce/funnel'));
+// Discovery APIs live on the site. Generic nginx /api/ → backend was serving
+// the stale React SPA (zeusai.app) for these paths. Proxy keeps JSON honest.
+app.get('/api/world-index', (req, res) => proxyToSite(req, res, '/api/world-index'));
+app.get('/api/world-index/status', (req, res) => proxyToSite(req, res, '/api/world-index/status'));
+app.get('/api/world-index/activation', (req, res) => proxyToSite(req, res, '/api/world-index/activation'));
+app.get('/api/share/targets', (req, res) => proxyToSite(req, res, '/api/share/targets'));
+app.get('/api/relay-graft', (req, res) => proxyToSite(req, res, '/api/relay-graft'));
 app.get('/.well-known/keys.json', (_req, res) => res.redirect(302, '/api/v50/keys.json'));
 
 app.get('/api/constitution', (req, res) => proxyToSite(req, res, '/api/constitution'));
@@ -12514,6 +12521,22 @@ app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, r
 app.get('/api/traffic/status', (req, res) => {
   if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
   res.json(trafficEngine.getStatus());
+});
+
+app.get('/api/seo/status', (req, res) => {
+  try {
+    const desk = require('./modules/seo-viral-desk').desk();
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'SVD/1.0');
+    return res.json(desk);
+  } catch (e) {
+    return res.status(503).json({
+      ok: false,
+      protocol: 'SVD/1.0',
+      inventsVisitors: false,
+      error: e && e.message,
+    });
+  }
 });
 
 app.post('/api/traffic/ping', adminTokenMiddleware, asyncHandler(async (req, res) => {
