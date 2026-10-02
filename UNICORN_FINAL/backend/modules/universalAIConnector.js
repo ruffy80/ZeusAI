@@ -250,7 +250,7 @@ const PROVIDER_CONFIGS = [
     name: 'openrouter',
     type: 'openai-compat',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    model: process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct',
+    model: process.env.OPENROUTER_MODEL || 'openrouter/auto',
     apiKeyEnv: 'OPENROUTER_API_KEY',
     capabilities: ['general', 'coding'],
     cost: 0.005,
@@ -399,12 +399,22 @@ class UniversalAIConnector {
   }
 
   getStatus() {
+    let modelLease = null;
+    try { modelLease = require('./model-lease-os').discovery(); } catch (_) { /* lease optional */ }
     return {
       active: this.models.length > 0,
       modelsCount: this.models.length,
       models: this.getModels(),
       stats: this.stats,
+      modelLease,
     };
+  }
+
+  async discoverNewModels() {
+    const lease = require('./model-lease-os');
+    const found = await lease.refresh();
+    this._loadActiveModels();
+    return found;
   }
 
   getStats() {
@@ -532,8 +542,15 @@ class UniversalAIConnector {
     // ── OpenAI-compatible (DeepSeek, Mistral, Groq, OpenRouter, Perplexity,
     //    Together, Fireworks, SambaNova, NVIDIA NIM, xAI Grok, OpenAI) ──────
     if (model.type === 'openai-compat') {
+      let modelId = model.model;
+      if (model.name === 'openrouter') {
+        try {
+          const leased = require('./model-lease-os').currentModelId();
+          if (leased) modelId = leased;
+        } catch (_) { /* keep configured id */ }
+      }
       const res = await axios.post(model.endpoint, {
-        model: model.model,
+        model: modelId,
         messages,
         max_tokens: maxTokens,
         temperature: 0.7,

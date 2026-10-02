@@ -258,6 +258,9 @@ function getStatus() {
     providersTotal: snap.total,
     skuPolicy: allow == null ? 'all' : 'allowlist',
     skuAllowlist: allow == null ? ['*'] : [...allow],
+    modelLease: (function () {
+      try { return require('./model-lease-os').discovery(); } catch (_) { return null; }
+    })(),
     envFlag: process.env.FULFILLMENT_AI_ENABLED == null
       ? null
       : String(process.env.FULFILLMENT_AI_ENABLED),

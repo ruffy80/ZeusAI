@@ -122,6 +122,7 @@ const BACKEND_PINNED = [
   '/.well-known/platform.json',
   '/.well-known/commerce-bond.json',
   '/api/health/live',
+  '/.well-known/model-lease.json',
 ];
 for (const p of BACKEND_PINNED) {
   check('backend-pinned: ' + p + ' → unicorn_backend', () => assertBackendPinned(p));

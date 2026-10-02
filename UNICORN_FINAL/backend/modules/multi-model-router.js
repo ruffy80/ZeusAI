@@ -266,13 +266,20 @@ async function callProvider(provider, message, history, systemPrompt, maxTokens)
       'Content-Type': 'application/json',
       ...(provider.extraHeaders || {}),
     };
+    let modelId = provider.model;
+    if (provider.name === 'openrouter') {
+      try {
+        const leased = require('./model-lease-os').currentModelId();
+        if (leased) modelId = leased;
+      } catch (_) { /* keep catalog default */ }
+    }
     const resp = await axios.post(
       provider.endpoint,
-      { model: provider.model, messages: msgs, max_tokens: tokens, temperature: 0.7 },
+      { model: modelId, messages: msgs, max_tokens: tokens, temperature: 0.7 },
       { headers, timeout: provider.timeout }
     );
     const text = resp.data.choices?.[0]?.message?.content || '';
-    return { reply: text, model: provider.name + ':' + provider.model };
+    return { reply: text, model: provider.name + ':' + modelId };
   }
 
   // ── Anthropic Claude ──

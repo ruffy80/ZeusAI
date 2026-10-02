@@ -4580,6 +4580,15 @@ if (_isPrimaryWorker) {
   // First-Dollar Discovery Pulse: traffic-engine (IndexNow) is ALWAYS armed
   // unless TRAFFIC_ENGINE_DISABLED=1 — parking it was the root cause of
   // perpetual IndexNow silence / zero organic visitors.
+  if (process.env.NODE_ENV !== 'test' && process.env.MODEL_LEASE_DISABLED !== '1') {
+    try {
+      const lease = require('./modules/model-lease-os');
+      const started = lease.start();
+      if (started && started.started) {
+        console.log('[model-lease] catalog refresh armed. Calls stay dark until OPENROUTER_API_KEY is real.');
+      }
+    } catch (e) { console.warn('[model-lease] start failed:', e && e.message); }
+  }
   if (process.env.NODE_ENV !== 'test' && process.env.TRAFFIC_ENGINE_DISABLED !== '1') {
     try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
   } else if (process.env.NODE_ENV !== 'test' && process.env.TRAFFIC_ENGINE_DISABLED === '1') {
@@ -12523,6 +12532,17 @@ app.get('/api/traffic/status', (req, res) => {
   res.json(trafficEngine.getStatus());
 });
 
+app.get(['/api/model-lease', '/.well-known/model-lease.json'], (req, res) => {
+  try {
+    const lease = require('./modules/model-lease-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'MLO/1.0');
+    return res.json(lease.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, protocol: 'MLO/1.0', inventsModels: false, error: e && e.message });
+  }
+});
+
 app.get('/api/seo/status', (req, res) => {
   try {
     const desk = require('./modules/seo-viral-desk').desk();
@@ -13809,7 +13829,12 @@ app.post('/api/admin/uaic/ask', adminCrudRateLimit, adminTokenMiddleware, async 
     return res.status(400).json({ error: 'prompt or messages required' });
   }
   try {
-    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    const result = await _uaic.ask(String(prompt || ''), {
+      taskType: type,
+      systemPrompt: system,
+      maxTokens,
+      history: Array.isArray(messages) ? messages : [],
+    });
     res.json(result);
   } catch (err) {
     res.status(503).json({ error: err.message });
