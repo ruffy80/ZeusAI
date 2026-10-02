@@ -274,7 +274,7 @@ const PROVIDER_FNS = {
     if (!key || key === 'your_openrouter_api_key_here') return null;
     const resp = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
-      { model: process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free', messages: buildMessages(message, history), max_tokens: 800, temperature: 0.7 },
+      { model: process.env.OPENROUTER_MODEL || (function () { try { return require('./model-lease-os').currentModelId(); } catch (_) { return null; } })() || 'mistralai/mistral-7b-instruct:free', messages: buildMessages(message, history), max_tokens: 800, temperature: 0.7 },
       { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': process.env.SITE_URL || 'https://zeus-ai.app', 'X-Title': 'Zeus AI Unicorn' }, timeout: 30000 }
     );
     return { reply: resp.data.choices[0].message.content, model: `openrouter-${resp.data.model || 'default'}` };

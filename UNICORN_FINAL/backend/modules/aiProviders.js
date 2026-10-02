@@ -300,7 +300,9 @@ async function tryOpenRouter(message, history) {
   const resp = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free',
+      model: process.env.OPENROUTER_MODEL || (function () {
+        try { return require('./model-lease-os').currentModelId(); } catch (_) { return null; }
+      })() || 'mistralai/mistral-7b-instruct:free',
       messages: buildMessages(message, history),
       max_tokens: 500,
       temperature: 0.7,
