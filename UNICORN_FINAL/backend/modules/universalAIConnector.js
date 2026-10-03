@@ -250,7 +250,7 @@ const PROVIDER_CONFIGS = [
     name: 'openrouter',
     type: 'openai-compat',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    model: process.env.OPENROUTER_MODEL || 'openrouter/auto',
+    model: 'mistralai/mistral-7b-instruct:free',
     apiKeyEnv: 'OPENROUTER_API_KEY',
     capabilities: ['general', 'coding'],
     cost: 0.005,
@@ -545,7 +545,7 @@ class UniversalAIConnector {
       let modelId = model.model;
       if (model.name === 'openrouter') {
         try {
-          const leased = require('./model-lease-os').currentModelId();
+          const leased = require('./model-lease-os').resolveOpenRouterModel();
           if (leased) modelId = leased;
         } catch (_) { /* keep configured id */ }
       }

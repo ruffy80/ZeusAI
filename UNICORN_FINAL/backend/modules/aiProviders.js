@@ -300,9 +300,9 @@ async function tryOpenRouter(message, history) {
   const resp = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL || (function () {
-        try { return require('./model-lease-os').currentModelId(); } catch (_) { return null; }
-      })() || 'mistralai/mistral-7b-instruct:free',
+      model: (function () {
+        try { return require('./model-lease-os').resolveOpenRouterModel(); } catch (_) { return 'mistralai/mistral-7b-instruct:free'; }
+      })(),
       messages: buildMessages(message, history),
       max_tokens: 500,
       temperature: 0.7,
@@ -581,11 +581,28 @@ async function chat(message, history = [], opts = {}) {
     throw err;
   }
 
+  let openRouterModel = 'mistralai/mistral-7b-instruct:free';
+  let openRouterPrice = null;
+  try {
+    const lease = require('./model-lease-os');
+    const view = lease.discovery();
+    openRouterModel = lease.resolveOpenRouterModel();
+    openRouterPrice = view.lease ? view.lease.promptPerM : null;
+  } catch (_) { /* free fallback stays */ }
+  const earnGate = require('./earn-then-lease');
+
   const candidates = premiumOnly
     ? PROVIDERS.filter(p => p.tier === 'premium')
     : PROVIDERS;
 
   for (const provider of candidates) {
+    const callGate = earnGate.providerCallable(
+      provider.name,
+      provider.costTier,
+      provider.name === 'openrouter' ? openRouterModel : null,
+      provider.name === 'openrouter' ? openRouterPrice : null,
+    );
+    if (!callGate.ok) continue;
     const val = process.env[provider.envKey];
     if (!val || val === provider.placeholder) continue; // not configured
 

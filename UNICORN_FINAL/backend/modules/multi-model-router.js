@@ -269,7 +269,7 @@ async function callProvider(provider, message, history, systemPrompt, maxTokens)
     let modelId = provider.model;
     if (provider.name === 'openrouter') {
       try {
-        const leased = require('./model-lease-os').currentModelId();
+        const leased = require('./model-lease-os').resolveOpenRouterModel();
         if (leased) modelId = leased;
       } catch (_) { /* keep catalog default */ }
     }
