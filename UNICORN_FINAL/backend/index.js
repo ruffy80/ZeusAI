@@ -4585,7 +4585,7 @@ if (_isPrimaryWorker) {
       const lease = require('./modules/model-lease-os');
       const started = lease.start();
       if (started && started.started) {
-        console.log('[model-lease] catalog refresh armed. Calls stay dark until OPENROUTER_API_KEY is real.');
+        console.log('[model-lease] catalog refresh armed. Free rows until confirmed cash. Calls stay dark until OPENROUTER_API_KEY is real.');
       }
     } catch (e) { console.warn('[model-lease] start failed:', e && e.message); }
   }
@@ -12537,6 +12537,7 @@ app.get(['/api/model-lease', '/.well-known/model-lease.json'], (req, res) => {
     const lease = require('./modules/model-lease-os');
     res.set('Cache-Control', 'no-store');
     res.set('X-Protocol', 'MLO/1.0');
+    res.set('X-Earn-Protocol', 'ETL/1.0');
     return res.json(lease.discovery());
   } catch (e) {
     return res.status(503).json({ ok: false, protocol: 'MLO/1.0', inventsModels: false, error: e && e.message });
