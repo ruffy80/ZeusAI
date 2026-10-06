@@ -8586,6 +8586,25 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   if (
+    urlPath === '/.well-known/module-census.json'
+    || urlPath === '/api/module-census'
+  ) {
+    try {
+      const census = require('../backend/modules/module-census-os');
+      const full = requestUrl.searchParams.get('full') === '1';
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'MCO/1.0',
+      });
+      return res.end(JSON.stringify(full ? census.discovery() : census.summary()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, protocol: 'MCO/1.0', inventsModules: false, error: e.message }));
+    }
+  }
+
+  if (
     urlPath === '/.well-known/origin-gravity.json'
     || urlPath === '/api/origin-gravity'
     || urlPath === '/api/origin-gravity/status'
@@ -12827,7 +12846,7 @@ a{color:#8a5cff;text-decoration:none}
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
-    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/module-census',
     // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
     '/agents', '/login', '/signup', '/auth',
     // Real-world sell surface (WSI public UI + conversion storefront)
