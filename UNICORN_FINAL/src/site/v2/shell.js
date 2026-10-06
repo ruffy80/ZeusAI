@@ -4112,7 +4112,7 @@ function pageModules() {
     <span class="hero-eyebrow"><span class="dot"></span> MCO/1.0 · Module Census</span>
     <h1>Every module, <span class="grad">one sheet.</span></h1>
     <p class="lead">Files ${_esc(s.files)} · aliases ${_esc(s.aliases)} · virtual workers ${_esc(s.virtualWorkers)} · unregistered ${_esc(s.unregisteredFiles)} · absent ${_esc(s.absent)} · refused ${_esc(s.refused)}. inventsModules = false.</p>
-    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused names have no file because a file would claim a capability this process does not run.</p>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused stays at ${_esc(s.refused)}. The five frontier engines run locally and meet in <a href="/frontier" data-link>FCO/1.0</a>.</p>
     <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${refused}</ul>
   </div>
 </section>`;
@@ -6497,10 +6497,20 @@ function pageTransparency() {
 }
 
 function pageFrontier() {
+  let fco = null;
+  try { fco = require('../../../backend/modules/frontier-continuum').cycle(); } catch (_) { fco = null; }
+  const offer = fco && fco.nextOffer ? fco.nextOffer : null;
+  const fcoCard = fco ? `<div class="card" id="fcoCard" style="margin-top:18px;padding:18px">
+    <span class="tag">FCO/1.0 · five engines, one cycle</span>
+    <h2 style="margin:10px 0 8px;font-size:22px">${_esc(fco.action)}</h2>
+    <p style="color:var(--ink-dim);font-size:15px;line-height:1.65;margin:0">Lane <code>${_esc(fco.lane)}</code> · confirmed cash $${_esc(fco.confirmedUsd)} · paid humans ${_esc(fco.paidHumans)}. ${offer ? ('Next listed package: ' + _esc(offer.title) + ' · $' + _esc(offer.priceUsd) + ' · sold=' + _esc(offer.sold) + '.') : 'No listed package loaded.'} A listed price is not a sale. inventsSales = false.</p>
+    <p style="margin:12px 0 0"><a class="btn btn-primary" href="${offer ? _esc(offer.checkoutPath) : '/enterprise'}" data-link>${offer ? 'Open the listed package →' : 'Enterprise →'}</a> <button type="button" class="btn" data-live-inspect="/api/frontier" data-live-title="Frontier cycle">Run cycle</button></p>
+  </div>` : '';
   return `<section style="padding-top:140px;max-width:1280px">
   <span class="kicker">Frontier · 12 sovereign inventions</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
   <p style="color:var(--ink-dim);font-size:15px;max-width:820px;line-height:1.7">Each invention below has a live API. Cards marked <span class="tag">interactive</span> open tools on this page. Honesty: refund/cancel emit signed intents and owner-processed settlement — not automatic on-chain clawbacks.</p>
+  ${fcoCard}
   <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Signed SLA + REFUND_INTENT audit trail.</p><a class="btn" href="/refund" data-link>Open</a></div>
     <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>

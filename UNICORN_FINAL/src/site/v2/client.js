@@ -764,6 +764,14 @@ function liveInspectSummary(data, endpoint) {
   if (data.title) parts.push('<div><b>' + liveInspectEsc(data.title) + '</b></div>');
   if (data.version) parts.push('<div>Version · <code>' + liveInspectEsc(data.version) + '</code></div>');
   if (data.ok != null) parts.push('<div>Status · <b style="color:#7fffd4">' + liveInspectEsc(data.ok ? 'ok' : 'degraded') + '</b></div>');
+  if (data.protocol === 'FCO/1.0') {
+    const offer = data.nextOffer || {};
+    parts.push('<div>Protocol · <code>FCO/1.0</code></div>');
+    parts.push('<div>Action · <b>' + liveInspectEsc(data.action) + '</b></div>');
+    parts.push('<div>Lane · ' + liveInspectEsc(data.lane) + ' · confirmed $' + liveInspectEsc(data.confirmedUsd) + '</div>');
+    parts.push('<div>Listed · ' + liveInspectEsc(offer.title || '') + ' · $' + liveInspectEsc(offer.priceUsd) + ' · sold=' + liveInspectEsc(offer.sold) + '</div>');
+    parts.push('<div>inventsSales · ' + liveInspectEsc(data.inventsSales) + '</div>');
+  }
   if (data.summary && typeof data.summary === 'object') {
     const s = data.summary;
     parts.push('<div>Coverage · ' + liveInspectEsc(s.total || 0) + ' items · ' + liveInspectEsc(s.live || 0) + ' live-100 · ' + liveInspectEsc(s.foundation || 0) + ' foundation</div>');

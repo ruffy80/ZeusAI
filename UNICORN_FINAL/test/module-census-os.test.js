@@ -35,17 +35,24 @@ check('census lists every file and invents nothing', () => {
   assert.strictEqual(d.inventsRoles, false);
   assert.ok(d.files > 600);
   assert.strictEqual(d.absent, 0);
-  assert.strictEqual(d.refused, 5);
+  assert.strictEqual(d.refused, 0);
   assert.ok(d.virtualWorkers >= 144);
   assert.ok(d.aliases >= 20);
 });
 
-check('refused names have no file and a reason', () => {
-  const row = census.find('QuantumInternetProtocol');
-  assert.ok(row);
-  assert.strictEqual(row.kind, 'refused');
-  assert.ok(row.reason.length > 10);
-  assert.strictEqual(fs.existsSync(path.join(ROOT, 'backend/modules/QuantumInternetProtocol.js')), false);
+check('frontier names are real module files', () => {
+  for (const id of [
+    'AutonomousSpaceComputing',
+    'DecentralizedDigitalTwinNetwork',
+    'NeuralInterfaceAPI',
+    'QuantumInternetProtocol',
+    'QuantumMachineLearningCore',
+  ]) {
+    const row = census.find(id);
+    assert.ok(row, id);
+    assert.strictEqual(row.kind, 'file', id);
+    assert.strictEqual(fs.existsSync(path.join(ROOT, 'backend/modules', id + '.js')), true, id);
+  }
 });
 
 check('registry aliases point at existing implementations', () => {
@@ -89,9 +96,9 @@ check('capability router resolves a real file', () => {
   const hit = router.resolve('usi-memory');
   assert.strictEqual(hit.found, true);
   assert.strictEqual(hit.kind, 'file');
-  const miss = router.resolve('QuantumInternetProtocol');
-  assert.strictEqual(miss.found, true);
-  assert.strictEqual(miss.kind, 'refused');
+  const frontier = router.resolve('QuantumInternetProtocol');
+  assert.strictEqual(frontier.found, true);
+  assert.strictEqual(frontier.kind, 'file');
 });
 
 check('pool workers return a real checksum', () => {
