@@ -100,15 +100,20 @@ const capabilities = {
     year: 2046,
     impact: 'high',
     role: 'compute_plane_sensor',
-    honestyNote: 'Senses local compute plane (CPU/RAM/disk) — not orbital satellites.',
+    honestyNote: 'Runs a local job space and senses CPU/RAM/disk — not orbital satellites.',
     sense: () => {
       const host = hostPlaneSense();
       const stressed = (host.freeMemPct != null && host.freeMemPct < 15)
         || (host.diskUsedPct != null && host.diskUsedPct >= 90);
+      const engine = require('./AutonomousSpaceComputing').getStatus();
       return Object.assign({}, host, {
         computePlane: stressed ? 'stressed' : 'nominal',
+        jobs: engine.used,
+        capacity: engine.capacity,
+        claimsOrbital: false,
       });
     },
+    onProcess: (body) => require('./AutonomousSpaceComputing').submit(body),
   }),
 
   digitalTwinNetwork: createCapability({
@@ -118,8 +123,13 @@ const capabilities = {
     year: 2036,
     impact: 'high',
     role: 'commerce_twin_observer',
-    honestyNote: 'Observes commerce/twin artifacts on disk — not a planetary twin grid.',
-    sense: () => _commerceTwinSense(),
+    honestyNote: 'Syncs an in-process twin graph and observes commerce artifacts — not a planetary twin grid.',
+    sense: () => {
+      const commerce = _commerceTwinSense();
+      const engine = require('./DecentralizedDigitalTwinNetwork').getStatus();
+      return Object.assign({}, commerce, { graphNodes: engine.nodes, graphLinks: engine.links, claimsPlanetaryGrid: false });
+    },
+    onProcess: (body) => require('./DecentralizedDigitalTwinNetwork').process(body),
   }),
 
   neuralInterfaceAPI: createCapability({
@@ -129,17 +139,21 @@ const capabilities = {
     year: 2034,
     impact: 'high',
     role: 'api_surface_sensor',
-    honestyNote: 'Scores API/process surface health — not a brain-computer implant API.',
+    honestyNote: 'Dispatches text commands to memory, ranking, and checksum — not a brain-computer implant API.',
     sense: () => {
       const host = hostPlaneSense();
       const memScore = host.freeMemPct == null ? 50 : Math.min(100, host.freeMemPct);
+      const engine = require('./NeuralInterfaceAPI').getStatus();
       return {
         ok: true,
         apiSurfaceScore: memScore,
         uptimeSec: host.uptimeSec,
         signal: memScore >= 40 ? 'clear' : 'noisy',
+        commands: engine.commands,
+        claimsNeuralImplant: false,
       };
     },
+    onProcess: (body) => require('./NeuralInterfaceAPI').process(body),
   }),
 
   quantumInternet: createCapability({
@@ -149,7 +163,7 @@ const capabilities = {
     year: 2031,
     impact: 'critical',
     role: 'crypto_channel_attestor',
-    honestyNote: 'Attests forever-key / crypto channel presence — not a quantum entanglement network.',
+    honestyNote: 'Opens X25519 packet links and attests the forever-key — not a quantum entanglement network.',
     sense: () => {
       const key = foreverKeySense();
       let triad = null;
@@ -157,14 +171,18 @@ const capabilities = {
         const tbos = require('./triad-bond-os');
         triad = typeof tbos.getScore === 'function' ? tbos.getScore() : null;
       } catch (_) { /* ok */ }
+      const engine = require('./QuantumInternetProtocol').getStatus();
       return {
         ok: true,
         foreverKeyPresent: key.foreverKeyPresent,
         triadGrade: triad && triad.grade,
         triadPending: !!(triad && triad.pending),
-        channel: key.foreverKeyPresent ? 'classical_forever_key' : 'unsigned_fallback',
+        channel: engine.channel,
+        links: engine.links,
+        claimsQuantumChannel: false,
       };
     },
+    onProcess: (body) => require('./QuantumInternetProtocol').process(body),
   }),
 
   quantumML: createCapability({
@@ -174,15 +192,20 @@ const capabilities = {
     year: 2032,
     impact: 'high',
     role: 'pricing_signal_observer',
-    honestyNote: 'Observes pricing/ML-adjacent signals — not a quantum computer.',
+    honestyNote: 'Runs a 2-qubit statevector and a perceptron, and observes pricing — not a quantum computer.',
     sense: () => {
       const pricing = _pricingSense();
+      const engine = require('./QuantumMachineLearningCore').getStatus();
       return {
         ok: true,
         pricingPresent: !!(pricing && pricing.ok !== false),
         pricingHint: pricing && (pricing.mode || pricing.status || pricing.protocol) || null,
+        qubits: engine.qubits,
+        backend: engine.backend,
+        claimsQuantumHardware: false,
       };
     },
+    onProcess: (body) => require('./QuantumMachineLearningCore').process(body),
   }),
 
   temporalData: createCapability({
