@@ -12532,6 +12532,17 @@ app.get('/api/traffic/status', (req, res) => {
   res.json(trafficEngine.getStatus());
 });
 
+app.get(['/api/frontier', '/.well-known/frontier.json'], (req, res) => {
+  try {
+    const fco = require('./modules/frontier-continuum');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'FCO/1.0');
+    return res.json(fco.discovery());
+  } catch (e) {
+    return res.status(503).json({ ok: false, protocol: 'FCO/1.0', inventsSales: false, inventsHardware: false, error: e && e.message });
+  }
+});
+
 app.get(['/api/module-census', '/.well-known/module-census.json'], (req, res) => {
   try {
     const census = require('./modules/module-census-os');

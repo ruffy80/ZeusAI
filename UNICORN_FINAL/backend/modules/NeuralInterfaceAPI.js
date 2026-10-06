@@ -32,6 +32,9 @@ function interpret(text) {
   if (lower.startsWith('checksum ')) {
     return { ok: true, intent: 'checksum', payload: raw.slice(9), claimsNeuralImplant: false };
   }
+  if (lower === 'frontier') {
+    return { ok: true, intent: 'frontier', claimsNeuralImplant: false };
+  }
   return { ok: true, intent: 'hear', heard: raw.slice(0, 200), claimsNeuralImplant: false };
 }
 
@@ -49,6 +52,21 @@ function dispatch(text) {
     const reasoning = require('./usi-reasoning');
     return { ok: true, intent: 'rank', result: reasoning.rank(intent.options), claimsNeuralImplant: false };
   }
+  if (intent.intent === 'frontier') {
+    const result = require('./frontier-continuum').cycle();
+    return {
+      ok: result.ok,
+      intent: 'frontier',
+      result: {
+        action: result.action,
+        lane: result.lane,
+        confirmedUsd: result.confirmedUsd,
+        nextOffer: result.nextOffer,
+        inventsSales: false,
+      },
+      claimsNeuralImplant: false,
+    };
+  }
   const skills = require('./usi-skills');
   return { ok: true, intent: 'checksum', result: skills.invoke('checksum', intent.payload), claimsNeuralImplant: false };
 }
@@ -57,7 +75,7 @@ function getStatus() {
   return {
     ok: true,
     name: 'NeuralInterfaceAPI',
-    commands: ['remember', 'recall', 'forget', 'rank', 'checksum'],
+    commands: ['remember', 'recall', 'forget', 'rank', 'checksum', 'frontier'],
     claimsNeuralImplant: false,
   };
 }
