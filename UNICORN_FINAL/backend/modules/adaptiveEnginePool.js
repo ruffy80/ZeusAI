@@ -50,11 +50,15 @@ function _makeWorker(name, kind, index) {
     process(input = {}) {
       state.invocations += 1;
       state.lastInvokeAt = new Date().toISOString();
+      let work = null;
+      try { work = require('./engine-core').Engine.defaultWork(input); } catch (_) { work = null; }
       return {
         ok: true,
         module: name,
         kind,
         receivedKeys: Object.keys(input || {}).slice(0, 20),
+        checksum: work && work.checksum,
+        bytes: work && work.bytes,
         at: state.lastInvokeAt,
       };
     },
@@ -88,6 +92,12 @@ for (let i = 1; i <= ADAPTIVE_COUNT; i++) {
 for (let i = 1; i <= ENGINE_COUNT; i++) {
   const name = 'Engine' + i;
   _engines.push(_makeWorker(name, 'engine', i));
+}
+for (let i = 1; i <= ADAPTIVE_COUNT; i++) {
+  _byName.set('AdaptivePool#' + String(i).padStart(2, '0'), _adaptive[i - 1]);
+}
+for (let i = 1; i <= ENGINE_COUNT; i++) {
+  _byName.set('EnginePool#' + i, _engines[i - 1]);
 }
 
 function listSummary() {

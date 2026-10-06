@@ -593,6 +593,7 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
     ${L('/status', 'Autonomy OS')}
+    ${L('/module-census', 'Modules')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
@@ -4099,6 +4100,24 @@ function pageFrom(params) {
 </section>`;
 }
 
+function pageModules() {
+  let s = null;
+  try { s = require('../../../backend/modules/module-census-os').summary(); } catch (_) { s = null; }
+  if (!s) {
+    return `<section class="hero"><h1>Module census</h1><p class="lead">The census module did not load.</p></section>`;
+  }
+  const refused = (s.refusedNames || []).map((id) => `<li><code>${_esc(id)}</code></li>`).join('');
+  return `<section class="hero" style="padding-bottom:28px">
+  <div class="hero-copy" style="max-width:860px">
+    <span class="hero-eyebrow"><span class="dot"></span> MCO/1.0 · Module Census</span>
+    <h1>Every module, <span class="grad">one sheet.</span></h1>
+    <p class="lead">Files ${_esc(s.files)} · aliases ${_esc(s.aliases)} · virtual workers ${_esc(s.virtualWorkers)} · unregistered ${_esc(s.unregisteredFiles)} · absent ${_esc(s.absent)} · refused ${_esc(s.refused)}. inventsModules = false.</p>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused names have no file because a file would claim a capability this process does not run.</p>
+    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${refused}</ul>
+  </div>
+</section>`;
+}
+
 function renderRoute(route, params = {}) {
   if (route.startsWith('/origin/')) {
     return pageOrigin(Object.assign({}, params, { originIndex: route.slice('/origin/'.length) }));
@@ -4155,6 +4174,7 @@ function renderRoute(route, params = {}) {
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();
     case '/wizard': return pageWizard();
+    case '/module-census': return pageModules();
     case '/status': return pageStatus(params);
     case '/changelog': return pageChangelog();
     case '/terms': return pageTerms();
@@ -7115,6 +7135,7 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return 'Instant Resume Makeover $39';
+  if (route === '/module-census') return 'Module census';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
   if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
   if (route.startsWith('/services/')) return 'Service';
@@ -7127,6 +7148,7 @@ function routeTitle(route) {
 function routeDescription(route) {
   const map = {
     '/': 'Pay $39 for an Instant Resume + LinkedIn Makeover with PayPal, card, or Bitcoin. Pass the offer once from /relay. ZeusAI does not invent visitors or customers.',
+    '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',
     '/buy': 'Buy only ZeusAI products with real fulfillment recipes — BTC self-serve, professional reserves, honest enterprise contact.',

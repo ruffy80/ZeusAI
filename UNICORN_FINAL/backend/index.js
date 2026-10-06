@@ -12283,15 +12283,15 @@ app.get('/api/admin/executive/revenue', adminTokenMiddleware, (req, res) => {
 });
 
 app.get('/api/admin/executive/modules', adminTokenMiddleware, (req, res) => {
-  const fs = require('fs');
-  const modulesDir = require('path').join(__dirname, 'modules');
-  let total = 0;
-  try { total = fs.readdirSync(modulesDir).filter(f => f.endsWith('.js')).length; } catch (_) {}
+  const census = require('./modules/module-census-os').summary();
   res.json({
-    total,
-    autoCreated: Math.floor(total * 0.15),
-    inDevelopment: Math.floor(total * 0.08),
-    active: total - Math.floor(total * 0.08)
+    total: census.files,
+    aliases: census.aliases,
+    absent: census.absent,
+    refused: census.refused,
+    virtualWorkers: census.virtualWorkers,
+    unregisteredFiles: census.unregisteredFiles,
+    inventsCounts: false,
   });
 });
 
@@ -12530,6 +12530,18 @@ app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, r
 app.get('/api/traffic/status', (req, res) => {
   if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
   res.json(trafficEngine.getStatus());
+});
+
+app.get(['/api/module-census', '/.well-known/module-census.json'], (req, res) => {
+  try {
+    const census = require('./modules/module-census-os');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'MCO/1.0');
+    const full = String(req.query.full || '') === '1';
+    return res.json(full ? census.discovery() : census.summary());
+  } catch (e) {
+    return res.status(503).json({ ok: false, protocol: 'MCO/1.0', inventsModules: false, error: e && e.message });
+  }
 });
 
 app.get(['/api/model-lease', '/.well-known/model-lease.json'], (req, res) => {
