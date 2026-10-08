@@ -201,6 +201,7 @@ async function handle(req, res, ctx) {
       'Disallow: /api/admin/',
       'Disallow: /dashboard',
       'Disallow: /account',
+      'Disallow: /outreach-desk',
       '',
       '# IndexNow key file lives at /{32-hex}.txt — notifications, not visitors',
       '# World index: /.well-known/world-index.json',

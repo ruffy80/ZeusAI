@@ -107,7 +107,9 @@ check('homepage strip is a pass, and the hero headline stays pinned', () => {
   assert.ok(strip.includes('href="/relay"'));
   assert.ok(!/millions of users|biggest site/i.test(strip));
   const shell = read('src/site/v2/shell.js');
-  assert.ok(shell.includes('ZeusAI</span> <span class="grad">Ship AI products at machine speed.</span>'));
+  assert.ok(shell.includes('id="dtHeroH1"'));
+  assert.ok(shell.includes('discoverTrust.ssrVariant().h1'));
+  assert.ok(shell.includes('Ship AI products at machine speed'));
   assert.ok(shell.includes("route === '/') return 'Instant Resume Makeover $39'"));
   assert.ok(shell.includes('homeRelayGraft') || shell.includes('relay-graft-os'));
 });
@@ -117,6 +119,8 @@ check('rendered homepage includes the graft and keeps the pinned headline', () =
   const html = shell.getHtml('/');
   assert.ok(html.includes('id="homeRelayGraft"'));
   assert.ok(html.includes('Ship AI products at machine speed.'));
+  assert.ok(html.includes('Send a stronger resume today.'));
+  assert.ok(html.includes('id="dtHeroCta"'));
   assert.ok(html.includes('<title>Instant Resume Makeover $39 — ZEUSAI</title>'));
   assert.ok(html.includes('/relay'));
   const desc = html.match(/<meta name="description" content="([^"]*)"/);

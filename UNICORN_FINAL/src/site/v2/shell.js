@@ -9,6 +9,7 @@ const continuitySurface = require('./continuity-surface');
 const continuityAttestation = require('./continuity-attestation');
 const merchantStandardSurface = require('./merchant-standard-surface');
 const seoSurface = require('./seo-surface');
+const discoverTrust = require('./discover-trust-os');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -356,8 +357,17 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   });
   blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items });
   // 5) FAQPage on /how, /pricing and /faq — small but valuable for rich results.
-  if (route === '/how' || route === '/pricing' || route === '/faq') {
-    const faq = route === '/faq' ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
+  try {
+    if (route === '/' || route === '/services' || route === '/pricing') {
+      blocks.push(discoverTrust.serviceListJsonLd(base));
+    }
+    if (String(route || '').indexOf('/insights/') === 0) {
+      const articleBlock = discoverTrust.articleJsonLd(route, base);
+      if (articleBlock) blocks.push(articleBlock);
+    }
+  } catch (_) { /* structured data is additive */ }
+  if (route === '/how' || route === '/pricing' || route === '/faq' || route === '/trust-safety') {
+    const faq = (route === '/faq' || route === '/trust-safety') ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
     : route === '/pricing' ? [
       { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
       { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: on SLA breach a signed REFUND_INTENT is sealed and owner-settled (not an automatic on-chain clawback). Plus a 30-day pre-activation money-back window. See /refund.' },
@@ -470,6 +480,8 @@ ${hreflangs}
 <meta name="twitter:title" content="${title} — ZeusAI"/>
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
+${discoverTrust.headExtras()}
+${(route === '/outreach-desk' || (String(route || '').indexOf('/insights/') === 0 && !discoverTrust.article(route))) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
@@ -649,6 +661,7 @@ function footer(route, opts) {
       <li><a href="/continuity" data-link>Continuity attestation</a></li>
       <li><a href="/standard" data-link>Merchant standard</a></li>
       <li><a href="/trust" data-link>Trust Center</a></li>
+      <li><a href="/trust-safety" data-link>Trust and safety</a></li>
       <li><a href="/security" data-link>Security</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/refund" data-link>Refund Guarantee</a></li>
@@ -1169,7 +1182,7 @@ function pageHome() {
         <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
         <span style="font-size:11px;color:var(--ink-dim)">BTC on-chain · PayPal · card/crypto when armed</span>
       </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">No on-chain settlements yet — paidHumans = 0. Be Origin #1: Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">No confirmed settlements yet. paidHumans stays 0 until a payment matches. Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></div>
     </div>
     <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
       <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
@@ -1247,12 +1260,13 @@ function pageHome() {
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
-      <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Ship AI products at machine speed.</span></h1>
-      <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
+      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
+      <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
+      <p id="dtSocialProof" style="margin:0 0 14px;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:640px">Ship AI products at machine speed. Operated by ${OWNER.name}. The buyer count is public on <a href="/origin" data-link>/origin</a> and stays at zero until a payment settles. No invented testimonials.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="/buy" data-link>Buy what we deliver →</a>
-        <a class="btn btn-ghost" href="/services" data-link>Full marketplace</a>
+        <a class="btn btn-primary" id="dtHeroCta" href="${_esc(discoverTrust.ssrVariant().href)}" data-link data-b-href="${_esc(discoverTrust.HEADLINES.B.href)}" data-b-label="${_esc(discoverTrust.HEADLINES.B.cta)}">${_esc(discoverTrust.ssrVariant().cta)}</a>
       </div>
+      <div style="margin-top:8px;font-size:13.5px"><a href="/services" data-link style="color:var(--violet2)">Browse the full marketplace</a></div>
       ${(() => { try { return require('../../commerce/relay-graft-os').homeStripHtml(); } catch (_) { return ''; } })()}
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
         <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
@@ -1280,13 +1294,15 @@ function pageHome() {
   </div>
 </section>
 
+${discoverTrust.objectionHtml()}
+
 ${sellSurface.homeBuyStripHtml(_all.length)}
 
 <section id="homeOriginGravity" class="card" style="margin:28px 0 0;padding:22px 24px;background:linear-gradient(135deg,rgba(0,255,163,.10),rgba(138,92,255,.08));border:1px solid rgba(0,255,163,.38)" data-ogp-banner>
   <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
     <div style="min-width:240px;flex:1">
       <span class="kicker" style="color:#00ffa3">OGP/1.0 · Origin Gravity</span>
-      <h2 style="margin:8px 0 6px;font-size:clamp(22px,3vw,32px);line-height:1.15">0 paid humans. <span class="grad">Be Origin #1.</span></h2>
+      <h2 style="margin:8px 0 6px;font-size:clamp(22px,3vw,32px);line-height:1.15">The public ledger is the proof. <span class="grad">Be Origin #1.</span></h2>
       <p id="ogpBannerCopy" style="margin:0;color:var(--ink-dim);font-size:14.5px;line-height:1.55;max-width:640px">This AI-commerce OS publishes a hash-chained genesis that admits zero customers. The next confirmed payment becomes a Founding Origin Passport — verifiable forever. No fake “trusted by thousands.”</p>
       <p style="margin:10px 0 0;font-family:var(--mono);font-size:12px;color:var(--ink-dim)">paidHumans <b id="ogpHumans" style="color:#00ffa3">0</b> · next seat <b id="ogpSeat" style="color:#fff">Origin #1</b> · <span id="ogpHash">genesis on /origin</span></p>
     </div>
@@ -2063,6 +2079,8 @@ function pageHow() {
   </div>
 </section>
 
+${discoverTrust.howBuyerHtml()}
+
 <section>
   <div class="section-title"><div><h2 style="font-size:28px">The clockwork flow</h2></div></div>
   <pre class="code">request  →  Zeus Core  →  capability token (CBAT)  →  Module
@@ -2075,7 +2093,7 @@ function pageHow() {
                                  ↓
                  Revenue Router (Ed25519)  →  BTC / PayPal
                                  ↓
-                       Marketplace Mesh  →  572M reach</pre>
+                       Marketplace Mesh  →  public catalog (no invented reach)</pre>
 </section>`;
 }
 
@@ -2204,6 +2222,7 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Owner BTC wallet</span><h3 style="margin:6px 0;font-size:16px;font-family:var(--mono)">${_esc(btcShort)}</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Revenue destination. 100% owner-routed — no custodian ever holds funds.</p><div style="margin-top:8px"><span class="btc-addr" data-copy="${OWNER.btc}" title="Click to copy full address">Copy full address</span></div></div>
     <div class="card"><span class="tag">Integrity manifest</span><h3 style="margin:6px 0;font-size:16px">/integrity.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Deploy SHA + Ed25519 signature over the deployed bundle.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/integrity.json" data-live-title="Inspect integrity">Inspect integrity live →</button></div></div>
     <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
+    <div class="card"><span class="tag">Trust and safety</span><h3 style="margin:6px 0;font-size:16px">/trust-safety</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">WHOIS, shared hosting, the buyer ledger, and how to report a missing Bitcoin delivery. No invented address.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/trust-safety" data-link>Read trust and safety →</a></div></div>
     <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
     <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/api/v50/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/api/v50/keys.json" data-live-title="Inspect public keys" style="margin-top:8px">Inspect keys</button></div></div>
     <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/api/commerce/integrity" data-live-title="Open integrity report">Open integrity report</button></div></div>
@@ -4193,6 +4212,9 @@ function renderRoute(route, params = {}) {
     case '/contact': return pageContact();
     case '/faq': return pageFaq();
     case '/blog': return pageBlog();
+    case '/trust-safety': return discoverTrust.pageTrustSafety();
+    case '/insights': return discoverTrust.pageInsightsIndex();
+    case '/outreach-desk': return discoverTrust.pageDesk();
     case '/affiliate': return pageAffiliate();
     case '/partners': return pagePartners();
     case '/roadmap': return pageRoadmap();
@@ -4201,6 +4223,7 @@ function renderRoute(route, params = {}) {
     case '/agents': return pageAgents();
     case '/__not-found__': return pageNotFound(params.missingPath || route);
     default:
+      if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
@@ -6725,7 +6748,7 @@ const FAQ_ITEMS = [
   { q: 'Do you train AI models on my data?', a: 'No. Minimal data collection, no resale, no model training on personal data. Full details in /privacy and /dpa.' },
   { q: 'Can software agents buy from you autonomously?', a: 'Yes — the catalog is machine-readable (/agents.json, /openapi.json) and checkout is a single signed POST. Agent-to-agent commerce is a first-class flow.' },
   { q: 'Who is behind ZeusAI?', a: `Owner-operated by ${OWNER.name}. No VC obligations, no exit pressure — built for a 30-year horizon. See /about.` },
-];
+].concat(discoverTrust.objections());
 
 function pageFaq() {
   return `<section style="padding-top:140px;max-width:880px">
@@ -6747,14 +6770,14 @@ function pageFaq() {
 function pageBlog() {
   // Honest "insights" index: every entry links to a REAL live page — no
   // fabricated articles, no fake authors. The product itself is the content.
-  const posts = [
+  const posts = discoverTrust.blogCards().concat([
     { href: '/frontier', tag: 'Frontier', title: 'F1–F12: inventions that ship as products, not papers', sub: 'Refund guarantees, live conversion aura, self-healing checkout — each frontier module is live and purchasable.' },
     { href: '/innovations', tag: 'Durability', title: '30-year cryptographic durability by design', sub: 'Post-quantum readiness, Merkle-chained receipts and constitution hashing on every response.' },
     { href: '/transparency', tag: 'Pricing', title: 'Why our pricing experiments are public', sub: 'Every bandit experiment behind a price you see is published. Radical transparency converts better than tricks.' },
     { href: '/trust', tag: 'Trust', title: 'Proof over promises: the Trust Center', sub: 'Deploy SHA, integrity signature, wallet proof and audit logs — verifiable live, not in a PDF.' },
     { href: '/how', tag: 'Architecture', title: 'How a sovereign AI OS routes a dollar', sub: 'From quote → invoice → on-chain settlement → signed delivery, with zero custodians.' },
     { href: '/changelog', tag: 'Shipping', title: 'The changelog is the roadmap receipt', sub: 'Everything we said we would build, with the commit that proves we did.' },
-  ];
+  ]);
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">Insights</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">The product <span class="grad">is the publication.</span></h1>
@@ -7145,6 +7168,13 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return 'Instant Resume Makeover $39';
+  if (route === '/trust-safety') return 'Trust and safety';
+  if (route === '/insights') return 'Buyer insights';
+  if (route === '/outreach-desk') return 'Outreach desk';
+  if (route.startsWith('/insights/')) {
+    const found = discoverTrust.article(route);
+    return found ? found.title : 'Insight';
+  }
   if (route === '/module-census') return 'Module census';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
   if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
@@ -7214,6 +7244,9 @@ function routeDescription(route) {
     '/contact': 'Contact ZeusAI directly — sales, enterprise licensing, partnerships and security reports land with the owner-operator within 24h.',
     '/faq': 'Straight answers about ZeusAI payments, BTC checkout, signed receipts, refunds, cancellation, privacy and agent commerce.',
     '/blog': 'ZeusAI insights: frontier inventions, 30-year cryptographic durability, public pricing transparency and sovereign commerce architecture.',
+    '/trust-safety': 'How to check ZeusAI before paying: operator identity, Bitcoin wallet, refund contract, WHOIS limits, and the public buyer ledger.',
+    '/insights': 'Owner-written notes on autonomous AI commerce, the AI resume service, Bitcoin checkout, delivery, and low trust scores.',
+    '/outreach-desk': 'Internal outreach desk. Drafts are not sent from this page.',
     '/affiliate': 'ZeusAI affiliate program with live server-side referral tracking and BTC commission payouts — generate your link instantly.',
     '/partners': 'Partner with ZeusAI: reseller, integrator and agent-to-agent technology lanes with BTC-native settlement and direct owner access.',
     '/roadmap': 'ZeusAI public roadmap: shipped capabilities you can verify live, what the autonomous loop is building now, and the next horizon.',
@@ -7221,6 +7254,10 @@ function routeDescription(route) {
     '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.',
     '/agents': 'Agent Commerce Protocol: how AI agents discover, quote, buy and settle ZeusAI capabilities autonomously via /agents.json + BTC checkout + Ed25519 receipts.'
   };
+  if (route.startsWith('/insights/')) {
+    const found = discoverTrust.article(route);
+    return found ? found.description : 'ZeusAI insight.';
+  }
   if (route.startsWith('/order/')) return 'Digital order passport with signed receipt, BTC payment status and delivery credentials.';
   if (route.startsWith('/twin/')) return 'Portable buyer commerce twin with offline-verifiable export bundle.';
   return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';

@@ -40,8 +40,10 @@ function check(label, fn) {
 check('shell: hero eyebrow uses BTC-native save-10% copy', () => {
   assert.ok(shell.includes('₿ Native Bitcoin · save 10% · instant delivery'));
 });
-check('shell: hero headline keeps ZeusAI brand + Ship AI products signal', () => {
-  assert.ok(/ZeusAI\s*<span class="grad">Ship AI products at machine speed\./.test(shell));
+check('shell: hero headline keeps ZeusAI brand + a benefit line', () => {
+  assert.ok(/id="dtHeroH1"[\s\S]{0,240}hero-brand">ZeusAI/.test(shell));
+  assert.ok(shell.includes('discoverTrust.ssrVariant().h1'));
+  assert.ok(shell.includes('Ship AI products at machine speed'));
 });
 check('shell: Building the future sits above ZeusAI brand (no right panel)', () => {
   assert.ok(!shell.includes('hero-side hero-vision'), 'old right panel must be gone');
