@@ -148,12 +148,27 @@ function startAll(opts = {}) {
   return { ok: true, started, total: _adaptive.length + _engines.length };
 }
 
-/** Write thin AdaptiveModule/Engine shim files if missing (honest re-exports). */
+/**
+ * Write thin AdaptiveModule/Engine shim files if missing (honest re-exports).
+ * Alias keys (AdaptivePool# / EnginePool#) point at the same workers and must
+ * never become files — those names are not the committed sources.
+ * DISABLE_SELF_MUTATION=1 skips disk writes; canonical files already live in git.
+ */
 function materializeShims(opts = {}) {
+  const names = [..._adaptive, ..._engines].map((w) => w.name).filter((name) => name && name.indexOf('#') < 0);
+  if (String(process.env.DISABLE_SELF_MUTATION || '') === '1' && !opts.force) {
+    return {
+      ok: true,
+      written: 0,
+      existed: names.length,
+      total: names.length,
+      skipped: 'self_mutation_disabled',
+      aliasesSkipped: true,
+    };
+  }
   const dir = opts.dir || MODULES_DIR;
   let written = 0;
   let existed = 0;
-  const names = [..._byName.keys()];
   for (const name of names) {
     const file = path.join(dir, name + '.js');
     if (fs.existsSync(file) && !opts.force) {
@@ -173,7 +188,7 @@ function materializeShims(opts = {}) {
       return { ok: false, error: e.message, written, existed };
     }
   }
-  return { ok: true, written, existed, total: names.length };
+  return { ok: true, written, existed, total: names.length, aliasesSkipped: true };
 }
 
 function getStatus() {
