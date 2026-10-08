@@ -1146,6 +1146,122 @@ function globalChrome(N) {
 </style>`;
 }
 
+function _atlasMoney(n) {
+  const price = Number(n) || 0;
+  const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
+  return '$' + price.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+}
+function _atlasRange(items) {
+  const prices = (items || []).map(p => Number(p.priceUSD || p.priceUsd || p.price || 0)).filter(n => n > 0);
+  if (!prices.length) return '';
+  const lo = Math.min.apply(null, prices);
+  const hi = Math.max.apply(null, prices);
+  return lo === hi ? _atlasMoney(lo) : (_atlasMoney(lo) + '–' + _atlasMoney(hi));
+}
+function _atlasWhen(p) {
+  const id = String((p && p.id) || '');
+  if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
+  const tier = String((p && p.tier) || '');
+  if (tier === 'enterprise' || /^ent-/i.test(id)) return 'Request a proposal · not an instant download';
+  const mins = Number(p && p.deliveryMinutes);
+  if (mins > 0) return 'About ' + mins + ' min after payment settles';
+  const days = Number(p && p.deliveryDays);
+  if (days > 0) return 'Kickoff pack now · team delivery about ' + days + ' days · not an instant download';
+  if (tier === 'professional') return 'Kickoff pack now · human delivery on the stated window · not an instant download';
+  return 'After payment settles';
+}
+function _atlasEnterprise(fromCatalog) {
+  const live = new Map((fromCatalog || []).filter(p => p && p.id).map(p => [String(p.id), p]));
+  let seed = [];
+  try { seed = require('../../commerce/enterprise-catalog').all() || []; } catch (_) { seed = []; }
+  const byId = new Map();
+  const ids = [];
+  for (const p of seed) {
+    if (!p || !p.id || byId.has(String(p.id))) continue;
+    const over = live.get(String(p.id)) || {};
+    byId.set(String(p.id), Object.assign({}, p, over, {
+      id: p.id,
+      tier: 'enterprise',
+      billing: p.billing || over.billing,
+      revenueShare: p.revenueShare != null ? p.revenueShare : over.revenueShare,
+      title: over.title || p.title,
+      description: over.description || p.description,
+      priceUSD: Number(over.priceUSD || p.priceUSD || 0)
+    }));
+    ids.push(String(p.id));
+  }
+  for (const p of (fromCatalog || [])) {
+    if (!p || !p.id || byId.has(String(p.id))) continue;
+    byId.set(String(p.id), p);
+    ids.push(String(p.id));
+  }
+  return ids.map(id => byId.get(id)).sort((a, b) => {
+    if (a.id === 'ent-engagement-kickoff') return -1;
+    if (b.id === 'ent-engagement-kickoff') return 1;
+    return Number(a.priceUSD || 0) - Number(b.priceUSD || 0);
+  });
+}
+function _atlasCard(p) {
+  const id = String((p && p.id) || '');
+  const title = _esc(p.title || p.id || 'Service');
+  const desc = _esc(p.description || '');
+  const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
+  const priceTxt = price > 0 ? _atlasMoney(price) : 'Custom';
+  const billing = p.billing === 'annual' ? '<small style="color:var(--ink-dim);font-weight:400">/yr</small>'
+    : (p.billing === 'monthly' ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '');
+  const share = Number(p.revenueShare) > 0
+    ? `<span class="atlas-share">then ${Math.round(Number(p.revenueShare) * 100)}% of net</span>`
+    : '';
+  const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
+  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  const btcDiscountNote = price > 0
+    ? '<span class="btc-discount">10% BTC discount applied</span>'
+    : '';
+  return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}" itemscope itemtype="https://schema.org/Product">
+    <span class="atlas-when">${_esc(_atlasWhen(p))}</span>
+    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price">${priceTxt}</span>${billing}${share}<span class="btc-line">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <h3 itemprop="name">${title}</h3>
+    <p itemprop="description">${desc}</p>
+    <div class="atlas-actions">${price > 0 ? _primaryCtaHtml(p, { flex: true }) : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+  </article>`;
+}
+function _homeAtlasHtml(byTier) {
+  const instant = (byTier.instant || []).slice().sort((a, b) => Number(a.priceUSD || 0) - Number(b.priceUSD || 0));
+  const professional = (byTier.professional || []).slice().sort((a, b) => Number(a.priceUSD || 0) - Number(b.priceUSD || 0));
+  const enterprise = _atlasEnterprise(byTier.enterprise || []);
+  const kick = enterprise.find(p => p.id === 'ent-engagement-kickoff');
+  const kickPrice = kick ? _atlasMoney(kick.priceUSD || 2500) : '$2,500';
+  const total = instant.length + professional.length + enterprise.length;
+  const cards = (items) => items.map(_atlasCard).join('');
+  return `<section id="homeAtlas">
+  <div class="section-title">
+    <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
+    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day-clock engagement unlocks a kickoff pack now and a human-built system on the window shown. A contract is a proposal — one of them you can pay today.</p>
+  </div>
+  <nav class="atlas-clocks" aria-label="Delivery clocks">
+    <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
+    <a class="atlas-clock" href="#atlasDays"><b>Days</b><span>${professional.length} engagements · ${_esc(_atlasRange(professional))}</span></a>
+    <a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} figures · ${_esc(_atlasRange(enterprise))} listed</span></a>
+  </nav>
+  <div id="atlasMinutes" class="atlas-band">
+    <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
+    <p>Each card names the file and the listed window. Bitcoin is live. Card and PayPal appear on the same checkout when they are configured. The price already includes the Bitcoin discount.</p></div>
+    <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
+  </div>
+  <div id="atlasDays" class="atlas-band">
+    <div class="section-title"><div><span class="kicker">Days</span><h2>Reserve today. The team builds across the window.</h2></div>
+    <p>Payment unlocks a signed kickoff pack immediately. The finished system is human-delivered. It is not an instant download.</p></div>
+    <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
+  </div>
+  <div id="atlasContract" class="atlas-band">
+    <div class="section-title"><div><span class="kicker">Contract</span><h2>One payable start. The other prices are proposals.</h2></div>
+    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock is the price a proposal would name — the button asks for that proposal.</p></div>
+    <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
+  </div>
+  <p class="atlas-footnote">This is the public shelf. Dropship stays paused until supplier credentials exist. The frontier desk is research you can read; it does not sell orbital compute, a neural implant, or a quantum channel. Industry architecture packs are kickoff engagements, listed on <a href="/vom" data-link>/vom</a>.</p>
+</section>`;
+}
+
 function pageHome() {
   // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
   // from each tier so the page always shows a buyable price range without
@@ -1557,6 +1673,7 @@ ${_zaccBanner}
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
         <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
+        <a href="#homeAtlas" style="color:var(--violet2)">See every priced deliverable →</a>
       </div>
       ${_heroQuickBuy}
       <div class="hero-stats" id="heroStats" style="margin-top:14px">
@@ -1578,7 +1695,7 @@ ${_zaccBanner}
 
 ${discoverTrust.homeLandingHtml()}
 
-${_featuredHtml}
+${_homeAtlasHtml(_byTier)}
 
 ${_homeProofRail}
 
@@ -7198,7 +7315,7 @@ function routeTitle(route) {
 
 function routeDescription(route) {
   const map = {
-    '/': 'A $39 AI resume and LinkedIn rewrite for the role you name. Pay with Bitcoin. Card and PayPal appear on checkout when configured. Public refund guarantee.',
+    '/': 'ZeusAI sells a priced shelf: minute-clock files from $39, day-clock build engagements, and contract figures with one payable kickoff. Bitcoin is live. Card and PayPal appear when configured.',
     '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',
