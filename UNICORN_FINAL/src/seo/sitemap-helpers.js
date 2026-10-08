@@ -85,6 +85,7 @@ const ROBOTS_DISALLOW = new Set([
   '/admin',
   '/api/admin',
   '/api/admin/',
+  '/outreach-desk',
 ]);
 
 function normalizeBase(base) {
@@ -236,7 +237,16 @@ function buildSitemapIndexXml(base, children) {
 }
 
 function corePublicPaths() {
-  return CORE_PUBLIC_PATHS.slice();
+  let extra = [];
+  try { extra = require('../site/v2/discover-trust-os').publicPaths(); } catch (_) { extra = []; }
+  const seen = new Set();
+  const out = [];
+  CORE_PUBLIC_PATHS.concat(extra).forEach((p) => {
+    if (!p || seen.has(p) || ROBOTS_DISALLOW.has(p)) return;
+    seen.add(p);
+    out.push(p);
+  });
+  return out;
 }
 
 module.exports = {

@@ -126,6 +126,77 @@ function funnelSessionId(){
     return sid;
   } catch(_) { return 'no-storage'; }
 }
+function postDiscoverTrust(event, meta){
+  try {
+    const body = JSON.stringify(Object.assign({ event: event }, meta || {}));
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/discover-trust/event', new Blob([body], { type: 'application/json' }));
+      return;
+    }
+    fetch('/api/discover-trust/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, cache: 'no-store' }).catch(function(){});
+  } catch (_) {}
+}
+function initDiscoverTrust(){
+  const grad = document.getElementById('dtHeroGrad');
+  if (!grad || grad.getAttribute('data-dt-bound') === '1') return;
+  grad.setAttribute('data-dt-bound', '1');
+  let variant = 'A';
+  try {
+    variant = localStorage.getItem('dt_home_v');
+    if (variant !== 'A' && variant !== 'B') {
+      variant = Math.random() < 0.5 ? 'A' : 'B';
+      localStorage.setItem('dt_home_v', variant);
+    }
+  } catch (_) { variant = 'A'; }
+  const lead = document.getElementById('dtHeroLead');
+  const cta = document.getElementById('dtHeroCta');
+  if (variant === 'B') {
+    if (grad.getAttribute('data-b')) grad.textContent = grad.getAttribute('data-b');
+    if (lead && lead.getAttribute('data-b')) lead.textContent = lead.getAttribute('data-b');
+    if (cta) {
+      if (cta.getAttribute('data-b-label')) cta.textContent = cta.getAttribute('data-b-label');
+      if (cta.getAttribute('data-b-href')) cta.setAttribute('href', cta.getAttribute('data-b-href'));
+    }
+  }
+  postDiscoverTrust('impression', { variant: variant });
+  if (cta && cta.getAttribute('data-dt-cta') !== '1') {
+    cta.setAttribute('data-dt-cta', '1');
+    cta.addEventListener('click', function(){ postDiscoverTrust('conversion', { variant: variant }); });
+  }
+}
+function bindDiscoverDesk(){
+  const form = document.getElementById('dtDeskForm');
+  if (form && form.getAttribute('data-dt-bound') !== '1') {
+    form.setAttribute('data-dt-bound', '1');
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      const fd = new FormData(form);
+      const body = {};
+      fd.forEach(function(v, k){ body[k] = v; });
+      const msg = document.getElementById('dtDeskMsg');
+      fetch('/api/discover-trust/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (msg) msg.textContent = j && j.ok ? ('Saved ' + j.id) : ((j && j.error) || 'Not saved'); })
+        .catch(function(){ if (msg) msg.textContent = 'Network error'; });
+    });
+  }
+  const refresh = document.getElementById('dtDeskRefresh');
+  if (refresh && refresh.getAttribute('data-dt-bound') !== '1') {
+    refresh.setAttribute('data-dt-bound', '1');
+    refresh.addEventListener('click', function(){
+      const tokenEl = document.getElementById('dtDeskToken');
+      const token = tokenEl ? tokenEl.value : '';
+      const headers = token ? { 'X-Desk-Token': token } : {};
+      fetch('/api/discover-trust/leads', { headers: headers, cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          const list = document.getElementById('dtDeskList');
+          if (list) list.textContent = JSON.stringify(j, null, 2);
+        })
+        .catch(function(){});
+    });
+  }
+}
 function trackFunnel(event, meta){
   try {
     if (!event) return;
@@ -1902,7 +1973,8 @@ async function hydratePage(route){
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  try { if (route === '/') { if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/') { initDiscoverTrust(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/outreach-desk') bindDiscoverDesk(); } catch (e) { console.warn('hydratePage:desk', e && e.message); }
   try { if (route === '/services' || route === '/marketplace') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
@@ -2220,7 +2292,7 @@ async function hydrateHomeProof(){
       const r = await api('/api/commerce/recent-sales?limit=8');
       const sales = (r && Array.isArray(r.sales)) ? r.sales : [];
       if (!sales.length) {
-        body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — paidHumans = 0. Be Origin #1: Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></span>';
+        body.innerHTML = '<span style="color:var(--ink-dim)">No confirmed settlements yet. paidHumans stays 0 until a payment matches. Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></span>';
       } else {
         const fmtTime = function(iso){
           try {
@@ -5308,7 +5380,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (href.startsWith('/services')) {
       trackFunnel('view_service', { target: href.slice(0, 160), serviceId: String(a.getAttribute('data-product-id') || '') });
     } else if (href.startsWith('/checkout')) {
-      trackFunnel('checkout_start', { target: href.slice(0, 160), serviceId: String((new URLSearchParams((href.split('?')[1] || '')).get('plan') || '')) });
+      const plan = String((new URLSearchParams((href.split('?')[1] || '')).get('plan') || ''));
+      trackFunnel('checkout_start', { target: href.slice(0, 160), serviceId: plan });
+      postDiscoverTrust('checkout_start', { serviceId: plan });
+      postDiscoverTrust('btc_checkout', { serviceId: plan });
+    } else if (href.startsWith('/signup') || href.startsWith('/account') || href.startsWith('/login')) {
+      postDiscoverTrust('signup', { target: href.slice(0, 80) });
     }
   }, { passive: true });
   refreshCustomerNav();
@@ -5319,6 +5396,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // Real visitor counting: one page_view beacon per load → durable funnel.
   // RO: un beacon page_view per încărcare — vizitatori reali, durabili.
   trackFunnel('page_view', {});
+  postDiscoverTrust('pageview', { route: (location.pathname || '/').slice(0, 120) });
+  document.addEventListener('submit', function(ev){
+    const form = ev.target;
+    if (form && form.id === 'contactForm') postDiscoverTrust('contact_submit', {});
+  }, true);
 });
 
 // ===================== AUTONOMOUS LIVE BRIDGE =====================
