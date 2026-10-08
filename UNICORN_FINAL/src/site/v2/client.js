@@ -386,7 +386,7 @@ async function hydratePaymentRails(){
         + (paypalActive ? ' · PayPal' : '')
         + (nowActive ? ' · card/crypto (NOWPayments)' : '')
         + '. Pick any button above.')
-      : 'Bitcoin is live. PayPal / card-crypto unlock when those rails are armed.';
+      : 'Bitcoin is live. Card and PayPal show on this checkout when they are configured.';
   }
   const cardChip = document.querySelector('.co-method .chip[data-method="card"], .co-method .chip[data-method="stripe"]');
   const cardPanel = document.getElementById('coPanelCard') || document.getElementById('coPanelStripe');
@@ -2299,7 +2299,7 @@ async function hydrateHomeProof(){
       const r = await api('/api/commerce/recent-sales?limit=8');
       const sales = (r && Array.isArray(r.sales)) ? r.sales : [];
       if (!sales.length) {
-        body.innerHTML = '<span style="color:var(--ink-dim)">No confirmed settlements yet. paidHumans stays 0 until a payment matches. Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></span>';
+        body.innerHTML = '<span style="color:var(--ink-dim)">Settlements appear here after a payment is confirmed. Instant Resume Makeover is $39. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Get the makeover →</a></span>';
       } else {
         const fmtTime = function(iso){
           try {
@@ -5396,6 +5396,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, { passive: true });
   refreshCustomerNav();
+  initNavOffer();
   openStream();
   openPricingStream();
   subscribeAutonomousEvents();
@@ -5670,6 +5671,21 @@ function setCustProfile(customer){
   } catch(_){}
   refreshCustomerNav();
 }
+function initNavOffer(){
+  const nav = document.querySelector('nav.nav');
+  if (!nav || nav.dataset.offerBound === '1') return;
+  nav.dataset.offerBound = '1';
+  const onScroll = function(){
+    const show = window.scrollY > 480;
+    nav.classList.toggle('is-scrolled', show);
+    const offer = document.getElementById('navOfferCta');
+    if (!offer) return;
+    if (show) offer.removeAttribute('hidden');
+    else offer.setAttribute('hidden', '');
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
 function refreshCustomerNav(){
   try {
     const token = getCustToken();
@@ -5689,7 +5705,7 @@ function refreshCustomerNav(){
       else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
     document.querySelectorAll('[data-customer-cta]').forEach((el) => {
-      el.textContent = active ? 'My Account' : 'Sign in';
+      el.textContent = active ? 'My Account' : 'Sign up';
       if (customer && customer.email) el.setAttribute('title', customer.email);
       else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });

@@ -515,7 +515,7 @@ ${jsonLdBlocks}
    ============================================================ */
 :root{--bg:#05040a;--bg2:#0a0818;--ink:#e8ecff;--ink-dim:#8fa1d4;--violet:#8a5cff;--blue:#3ea0ff;--gold:#ffd36a;--stroke:rgba(163,138,255,.22);--radius:18px;--font:"Space Grotesk","Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--cic-zeus-a:#FF3B5C;--cic-zeus-b:#FF9F1C;--cic-zeus-c:#FFEE32;--cic-zeus-d:#FF6B35;--cic-ai-a:#00E8A0;--cic-ai-b:#2DE2E6;--cic-frame-glow:rgba(255,159,28,.48)}
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+html{scroll-behavior:smooth}html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(255,159,28,.10),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(0,232,160,.07),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
 a{color:#6fd3ff;text-decoration:none}
 img{max-width:100%;display:block}
@@ -528,12 +528,12 @@ img{max-width:100%;display:block}
 .brand-logo img{width:100%;height:100%;object-fit:cover;object-position:center 18%;border-radius:inherit}
 .zeus-wordmark{font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;font-weight:800;font-size:36px;letter-spacing:-.038em;background:linear-gradient(180deg,#ffffff,#E8FFF8,#7CF7C0,#00E8A0,#2DE2E6,#ffffff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#00E8A0;filter:drop-shadow(0 0 12px #00E8A0)}
 .zeus-wordmark .ai{background:linear-gradient(180deg,#ffffff,#E8FFF8,#7CF7C0,#00E8A0,#2DE2E6,#ffffff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#00E8A0;filter:drop-shadow(0 0 12px #00E8A0)}
-.btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
+.btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}#dtHeroCta{box-shadow:0 0 0 1px rgba(110,180,255,.55),0 0 28px rgba(138,92,255,.55)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw}
 @media(max-width:980px){.hero{padding-top:168px}}
-@media(max-width:640px){.hero{padding-top:176px}}
+@media(max-width:768px){.hero{min-height:0;align-items:flex-start;padding:128px 14px 210px}.hero h1{font-size:clamp(28px,7.2vw,38px);line-height:1.2;margin:8px 0 10px}}
 .hero-copy{padding:28px 0 20px}
 .hero h1{line-height:1.22;padding:0;margin:16px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
@@ -618,7 +618,8 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
 </div>
 <div class="nav-cta">
 ${langToggle}
-<a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign in</a>
+<a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign up</a>
+<a class="btn btn-primary nav-offer" id="navOfferCta" href="/checkout/?plan=instant-resume-makeover" data-link hidden>Get My $39 Resume Makeover</a>
 <a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
 </nav>`;
@@ -770,8 +771,8 @@ ${globalChrome(N)}
     document.head.appendChild(s);
   }
   var ric = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
-  if (document.readyState === 'complete') ric(inject, { timeout: 3000 });
-  else window.addEventListener('load', function(){ ric(inject, { timeout: 3000 }); }, { once: true });
+  if (document.readyState === 'complete') ric(inject, { timeout: 12000 });
+  else window.addEventListener('load', function(){ ric(inject, { timeout: 12000 }); }, { once: true });
 })();
 </script>
 <script${N}>
@@ -1185,9 +1186,9 @@ function pageHome() {
     <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
-        <span style="font-size:11px;color:var(--ink-dim)">BTC on-chain · PayPal · card/crypto when armed</span>
+        <span style="font-size:11px;color:var(--ink-dim)">Bitcoin live · card and PayPal when configured</span>
       </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">No confirmed settlements yet. paidHumans stays 0 until a payment matches. Instant Resume Makeover is $39 in BTC. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Buy now →</a></div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Settlements appear here after a payment is confirmed. Instant Resume Makeover is $39. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Get the makeover →</a></div>
     </div>
     <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
       <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
@@ -1222,7 +1223,7 @@ function pageHome() {
     return `<option value="${id}"${selected}>${label}</option>`;
   }).join('');
   const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
-      <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · BTC · PayPal · card/crypto</span>
+      <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · Bitcoin live · card and PayPal when configured</span>
       <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
       <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
       <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
@@ -1246,60 +1247,8 @@ function pageHome() {
     </div>
   </div>
 </section>`;
-  return `<section class="hero">
-  <div class="zeus-scene" aria-hidden="true">
-    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
-    <div class="zeus-halo zeus-halo-a"></div>
-    <div class="zeus-halo zeus-halo-b"></div>
-    <div class="zeus-stars"></div>
-    <div class="zeus-vignette"></div>
-  </div>
-  <div class="hero-fx" aria-hidden="true">
-    <div class="fx-orb fx-orb-a"></div>
-    <div class="fx-orb fx-orb-b"></div>
-    <div class="fx-orb fx-orb-c"></div>
-    <div class="fx-grid"></div>
-    <div class="fx-scan"></div>
-  </div>
-  <div class="hero-grid">
-    <div class="hero-copy">
-      <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
-      <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
-      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
-      <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
-      <p id="dtSocialProof" style="margin:0 0 14px;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:640px">Ship AI products at machine speed. Operated by ${OWNER.name}. The buyer count is public on <a href="/origin" data-link>/origin</a> and stays at zero until a payment settles. No invented testimonials.</p>
-      <div class="hero-cta">
-        <a class="btn btn-primary" id="dtHeroCta" href="${_esc(discoverTrust.ssrVariant().href)}" data-link data-b-href="${_esc(discoverTrust.HEADLINES.B.href)}" data-b-label="${_esc(discoverTrust.HEADLINES.B.cta)}">${_esc(discoverTrust.ssrVariant().cta)}</a>
-      </div>
-      <div style="margin-top:8px;font-size:13.5px"><a href="/services" data-link style="color:var(--violet2)">Browse the full marketplace</a></div>
-      ${(() => { try { return require('../../commerce/relay-graft-os').homeStripHtml(); } catch (_) { return ''; } })()}
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
-        <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
-      </div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--ink-dim)">
-        <a href="/status" data-link style="color:var(--violet2)">Autonomy OS</a>
-        <a href="/pricing" data-link style="color:var(--violet2)">Transparent pricing</a>
-        <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
-      </div>
-      ${_heroQuickBuy}
-      <div class="hero-stats" id="heroStats" style="margin-top:14px">
-        <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
-        <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
-        <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
-        <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
-      </div>
-      <div class="hero-stats" style="margin-top:14px">
-        <div class="hero-stat"><b id="statModules">—</b><span>Modules</span></div>
-        <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">—</b><span>Catalog SKUs</span></div>
-        <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
-        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-${discoverTrust.objectionHtml()}
+  try { require('../../commerce/relay-graft-os'); } catch (_) {}
+  const _offHome = `${discoverTrust.objectionHtml()}
 
 ${sellSurface.homeBuyStripHtml(_all.length)}
 
@@ -1579,6 +1528,62 @@ ${_zaccBanner}
   </div>
   <div class="grid" id="verticals"></div>
 </section>`;
+  void _offHome;
+  return `<section class="hero">
+  <div class="zeus-scene" aria-hidden="true">
+    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
+    <div class="zeus-halo zeus-halo-a"></div>
+    <div class="zeus-halo zeus-halo-b"></div>
+    <div class="zeus-stars"></div>
+    <div class="zeus-vignette"></div>
+  </div>
+  <div class="hero-fx" aria-hidden="true">
+    <div class="fx-orb fx-orb-a"></div>
+    <div class="fx-orb fx-orb-b"></div>
+    <div class="fx-orb fx-orb-c"></div>
+    <div class="fx-grid"></div>
+    <div class="fx-scan"></div>
+  </div>
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
+      <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
+      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
+      <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
+      <p class="hero-pay-note">Secure payment confirmation and a public refund guarantee.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="${_esc(discoverTrust.ssrVariant().href)}" data-link data-b-href="${_esc(discoverTrust.HEADLINES.B.href)}" data-b-label="${_esc(discoverTrust.HEADLINES.B.cta)}">${_esc(discoverTrust.ssrVariant().cta)}</a>
+        <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
+        <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
+      </div>
+      ${_heroQuickBuy}
+      <div class="hero-stats" id="heroStats" style="margin-top:14px">
+        <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
+        <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
+        <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
+        <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
+      </div>
+      <div class="hero-stats hero-stats-ops" style="margin-top:14px">
+        <div class="hero-stat"><b id="statModules">—</b><span>Modules</span></div>
+        <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
+        <div class="hero-stat"><b id="statMarkets">—</b><span>Catalog SKUs</span></div>
+        <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
+        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+${discoverTrust.homeLandingHtml()}
+
+${_featuredHtml}
+
+${_homeProofRail}
+
+${sellSurface.homeBuyStripHtml(_all.length)}
+`;
 }
 
 function pageServices() {
@@ -7193,7 +7198,7 @@ function routeTitle(route) {
 
 function routeDescription(route) {
   const map = {
-    '/': 'Pay $39 for an Instant Resume + LinkedIn Makeover with PayPal, card, or Bitcoin. Pass the offer once from /relay. ZeusAI does not invent visitors or customers.',
+    '/': 'A $39 AI resume and LinkedIn rewrite for the role you name. Pay with Bitcoin. Card and PayPal appear on checkout when configured. Public refund guarantee.',
     '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',

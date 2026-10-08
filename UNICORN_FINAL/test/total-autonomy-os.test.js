@@ -152,7 +152,8 @@ check('agents.json discovery advertises autonomy score + smoke', () => {
 check('shell.js hero exposes statTaos + machine-speed headline', () => {
   const src = fs.readFileSync(SHELL, 'utf8');
   assert.ok(src.includes('id="statTaos"'), 'statTaos hero stat missing');
-  assert.ok(src.includes('Ship AI products at machine speed'), 'softened headline missing');
+  assert.ok(src.includes('See How It Works'), 'how-it-works link missing');
+  assert.ok(!src.includes('Ship AI products at machine speed'), 'internal machine-speed line must stay off the shell');
   assert.ok(!/Launch AI products faster\./.test(src), 'legacy headline still present');
 });
 

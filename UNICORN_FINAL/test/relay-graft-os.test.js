@@ -109,20 +109,23 @@ check('homepage strip is a pass, and the hero headline stays pinned', () => {
   const shell = read('src/site/v2/shell.js');
   assert.ok(shell.includes('id="dtHeroH1"'));
   assert.ok(shell.includes('discoverTrust.ssrVariant().h1'));
-  assert.ok(shell.includes('Ship AI products at machine speed'));
+  assert.ok(shell.includes('See How It Works'));
   assert.ok(shell.includes("route === '/') return 'Instant Resume Makeover $39'"));
   assert.ok(shell.includes('homeRelayGraft') || shell.includes('relay-graft-os'));
+  assert.ok(!shell.includes('Ship AI products at machine speed'));
 });
 
-check('rendered homepage includes the graft and keeps the pinned headline', () => {
+check('rendered homepage keeps the offer and leaves the graft on /relay', () => {
   const shell = require('../src/site/v2/shell');
   const html = shell.getHtml('/');
-  assert.ok(html.includes('id="homeRelayGraft"'));
-  assert.ok(html.includes('Ship AI products at machine speed.'));
-  assert.ok(html.includes('Send a stronger resume today.'));
+  assert.ok(!html.includes('id="homeRelayGraft"'));
+  assert.ok(!html.includes('RGP/1.0'));
+  assert.ok(!html.includes('Ship AI products at machine speed.'));
+  assert.ok(html.includes('A resume written for the job you want.'));
+  assert.ok(html.includes('Get My $39 Resume Makeover'));
   assert.ok(html.includes('id="dtHeroCta"'));
   assert.ok(html.includes('<title>Instant Resume Makeover $39 — ZEUSAI</title>'));
-  assert.ok(html.includes('/relay'));
+  assert.ok(!html.includes('The server does not post, and it does not count you.'));
   const desc = html.match(/<meta name="description" content="([^"]*)"/);
   assert.ok(desc && /\$39|resume/i.test(desc[1]));
   assert.ok(!/millions of users|biggest site in the world/i.test(html));

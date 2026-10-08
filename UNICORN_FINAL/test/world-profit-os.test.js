@@ -43,7 +43,8 @@ check('shell: hero eyebrow uses BTC-native save-10% copy', () => {
 check('shell: hero headline keeps ZeusAI brand + a benefit line', () => {
   assert.ok(/id="dtHeroH1"[\s\S]{0,240}hero-brand">ZeusAI/.test(shell));
   assert.ok(shell.includes('discoverTrust.ssrVariant().h1'));
-  assert.ok(shell.includes('Ship AI products at machine speed'));
+  assert.ok(shell.includes('See How It Works'));
+  assert.ok(shell.includes('Get My $39 Resume Makeover'));
 });
 check('shell: Building the future sits above ZeusAI brand (no right panel)', () => {
   assert.ok(!shell.includes('hero-side hero-vision'), 'old right panel must be gone');
