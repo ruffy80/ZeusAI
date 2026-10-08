@@ -5408,6 +5408,24 @@ app.get('/api/catalog', async (req, res) => {
   }
 });
 
+app.get('/api/shelf', (req, res) => {
+  try {
+    const shelf = require('../src/commerce/public-shelf');
+    const items = shelf.publicShelf();
+    return res.json({ ok: true, protocol: shelf.PROTOCOL, count: items.length, items });
+  } catch (err) {
+    return res.status(503).json({ ok: false, error: 'shelf_unavailable' });
+  }
+});
+app.post('/api/shelf/advise', express.json({ limit: '12kb' }), (req, res) => {
+  try {
+    const advice = require('../src/commerce/public-shelf').advise(req.body && req.body.text);
+    return res.json(advice);
+  } catch (err) {
+    return res.status(503).json({ ok: false, error: 'advise_unavailable' });
+  }
+});
+
 function buildHealthResponse() {
   const s = Math.floor(process.uptime());
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;

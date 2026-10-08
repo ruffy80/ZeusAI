@@ -234,6 +234,14 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 .atlas-price .btc-discount,.atlas-share{color:#ffd36a}
 .atlas-actions{display:flex;gap:8px;margin-top:6px}
 .atlas-footnote{margin:22px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:78ch}
+.shelf-ask{display:flex;flex-direction:column;gap:10px;max-width:720px;margin:8px 0 0}
+.shelf-ask label{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim)}
+.shelf-ask textarea{width:100%;min-height:96px;resize:vertical;padding:14px 16px;border-radius:16px;border:1px solid rgba(62,160,255,.45);background:rgba(8,6,20,.72);color:var(--ink);font:inherit;line-height:1.45;box-shadow:0 0 0 1px rgba(138,92,255,.2),0 18px 40px -28px rgba(62,160,255,.9)}
+.shelf-ask textarea:focus{outline:2px solid rgba(62,160,255,.7);outline-offset:2px}
+#conciergeReply{margin-top:14px;max-width:920px}
+.concierge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:10px}
+.concierge-card p{color:var(--ink-dim);line-height:1.5}
+.concierge-meta{font-family:var(--mono);color:var(--gold)!important}
 .resume-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .resume-pane{border-radius:18px;padding:18px 18px 20px;background:rgba(12,10,24,.55);border:1px solid rgba(138,92,255,.28);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .resume-pane h3{margin:0 0 8px}
@@ -676,10 +684,29 @@ body:has(#zeus-cookie:not([hidden])){padding-bottom:132px}
   body{padding-bottom:132px}
   .hero,body:has(#zeus-cookie:not([hidden])) .hero{min-height:0;align-items:flex-start;padding-top:128px;padding-bottom:210px}
   .hero h1,body:has(#zeus-cookie:not([hidden])) .hero h1{font-size:clamp(28px,7.2vw,38px);margin:8px 0 10px;line-height:1.2}
+  .hero .hero-pay-note{display:none}
+  .hero p.lead{margin-bottom:8px}
+  .shelf-ask textarea{min-height:64px}
+}
+@media (max-height:940px){
+  .hero h1{font-size:clamp(32px,4.2vw,56px);margin:8px 0 12px}
+  .hero .hero-pay-note{margin:0 0 8px}
+  .shelf-ask textarea{min-height:72px}
 }
 
 /* fluid typography — universal */
 .hero h1{font-size:clamp(36px,7vw,88px)}
+@media (max-height:940px) and (min-width:769px){
+  .hero h1{font-size:clamp(32px,4.2vw,56px);margin:8px 0 12px}
+  .hero .hero-pay-note{margin:0 0 8px}
+  .shelf-ask textarea{min-height:72px}
+}
+@media (max-width:768px){
+  .hero h1{font-size:clamp(28px,7.2vw,38px);margin:8px 0 10px}
+  .hero .hero-pay-note{display:none}
+  .hero p.lead{margin-bottom:8px}
+  .shelf-ask textarea{min-height:64px}
+}
 .hero p.lead{font-size:clamp(14px,1.6vw,19px)}
 .section-title h1,.section-title h2{font-size:clamp(26px,4vw,44px)}
 .section-title p{font-size:clamp(13px,1.3vw,15px)}

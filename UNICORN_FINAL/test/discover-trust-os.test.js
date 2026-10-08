@@ -127,13 +127,15 @@ check('search console meta is inert until a token is set', () => {
 check('pages render trust, articles, faq, and a noindex desk', () => {
   const home = shell.getHtml('/');
   assert.ok(home.includes('id="dtHeroH1"'));
-  assert.ok(home.includes('A resume written for the job you want.'));
+  assert.ok(home.includes('Hello. What can I do for you?'));
+  assert.ok(home.includes('id="concierge"'));
   assert.ok(home.includes('id="dtHeroCta"'));
-  assert.ok(home.includes('Get My $39 Resume Makeover'));
+  assert.ok(home.includes('Show me the offer'));
+  assert.ok(!home.includes('Get My $39 Resume Makeover'));
   assert.ok(home.includes('See How It Works'));
   assert.ok(home.includes('id="howItWorks"'));
   assert.ok(home.includes('id="homeTrust"'));
-  assert.ok(home.includes('id="resumeSample"'));
+  assert.ok(!home.includes('id="resumeSample"'));
   assert.ok(home.includes('No published buyer quotes yet.'));
   assert.ok(home.includes('does not publish invented testimonials'));
   assert.ok(home.includes('Is this a scam?'));
