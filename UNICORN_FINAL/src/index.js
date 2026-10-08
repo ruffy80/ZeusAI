@@ -5788,6 +5788,27 @@ async function unicornHandler(req, res) {
     return proxyToBackend(req, res, backendUrl);
   }
   if (urlPath.startsWith('/api/') && !forceLocalApi && !isLocalV2Api && !isUaic && !isAutonomousBridge) {
+    // Site-local health only when this process is not proxying. Production
+    // nginx sends /api/health to the backend, whose field contract stays untouched.
+    if (!backendUrl && req.method === 'GET' && (urlPath === '/api/health' || urlPath === '/api/health/')) {
+      let discover = null;
+      try { discover = require('./site/v2/discover-trust-os').status(); } catch (_) { discover = null; }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({
+        ok: true,
+        role: 'site',
+        service: 'unicorn-site',
+        brand: 'ZeusAI',
+        backendConfigured: false,
+        dbConnected: false,
+        btcWalletPublished: !!(discover && discover.btcWalletPublished),
+        btcGatewayProbe: (discover && discover.btcGatewayProbe) || 'not_run',
+        inventsCustomers: false,
+        note: 'Site process. Set BACKEND_API_URL to proxy /api/health to the backend contract.',
+        uptimeSec: Math.round(process.uptime()),
+        ts: Date.now(),
+      }));
+    }
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
   }

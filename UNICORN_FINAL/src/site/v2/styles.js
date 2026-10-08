@@ -327,7 +327,7 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .tourbillon-label span{font-family:var(--mono);font-size:13px;color:var(--ink-dim)}
 
 /* ============ SECTIONS ============ */
-section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 auto}
+section,main#app>article{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 auto}
 .section-title{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;gap:24px;flex-wrap:wrap}
 .section-title h1,.section-title h2{font-size:clamp(30px,3.2vw,44px);margin:0;font-weight:700;letter-spacing:-.5px}
 .section-title h1 .grad,.section-title h2 .grad{background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -390,7 +390,7 @@ section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 
 section[data-reveal]{opacity:0;transform:translateY(20px) scale(.99);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}
 section[data-reveal].revealed{opacity:1;transform:translateY(0) scale(1)}
 /* Never animate/transform the home hero — scale creates a containing block that clips ascenders */
-section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important;overflow:visible!important}
+section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>section:first-of-type[data-reveal]{opacity:1!important;transform:none!important;overflow:visible!important}
 /* Commerce surfaces must never stay invisible (nested sections + SPA re-hydrate). */
 #autonomousLiveSection,#unicornModulesMirror,#catalogGrid,#storeGrid,#storeCheckout,#servicePage,
 .ds-world section,[data-reveal].commerce-visible{opacity:1!important;transform:none!important}
@@ -618,6 +618,12 @@ body{overflow-x:hidden;min-height:100vh;min-height:100dvh}
 /* safe-area insets for notched devices */
 .nav,footer,.hero,section{padding-left:max(env(safe-area-inset-left,0px),16px);padding-right:max(env(safe-area-inset-right,0px),16px)}
 .zeus-cookie,.zeus-buy-bar{padding-bottom:max(env(safe-area-inset-bottom,0px),12px)}
+.zeus-cookie[hidden],#zeus-cookie[hidden]{display:none!important}
+body:has(#zeus-cookie:not([hidden])){padding-bottom:132px}
+@media (max-width:768px){
+  body:has(#zeus-cookie:not([hidden])) .hero{min-height:0;align-items:flex-start;padding-top:128px;padding-bottom:210px}
+  body:has(#zeus-cookie:not([hidden])) .hero h1{font-size:clamp(28px,7.2vw,38px);margin:8px 0 10px;line-height:1.2}
+}
 
 /* fluid typography — universal */
 .hero h1{font-size:clamp(36px,7vw,88px)}

@@ -171,6 +171,12 @@ check('robots disallow the desk and the client logs variants', () => {
   assert.ok(site.includes("'/trust-safety'"));
   assert.ok(site.includes("v2Path.startsWith('/insights/')"));
   assert.ok(site.includes("urlPath.startsWith('/api/discover-trust')"));
+  assert.ok(site.includes("role: 'site'"));
+  assert.ok(site.includes('backendConfigured: false'));
+  assert.ok(site.includes('dbConnected: false'));
+  const uptime = fs.readFileSync(path.join(__dirname, '../scripts/uptime-ping.js'), 'utf8');
+  assert.ok(uptime.includes('200000'));
+  assert.ok(!uptime.includes('slice(0, 500)'));
 });
 
 check('outreach script prints drafts and does not send', () => {

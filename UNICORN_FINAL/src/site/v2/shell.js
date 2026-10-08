@@ -404,28 +404,33 @@ const _ZEUS_BG_HERO  = ['/services','/enterprise','/wizard','/frontier','/dashbo
 const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/live-actions','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin','/contact','/faq','/blog','/affiliate','/partners','/roadmap','/careers','/press'];
 function _pickZeusBgSSR(route) {
   if (!route || route === '/') return null;
-  // Exact match first.
-  if (_ZEUS_BG_HERO.indexOf(route)  >= 0) return assetPath('/assets/zeus/hero.jpg');
-  if (_ZEUS_BG_BRAND.indexOf(route) >= 0) return assetPath('/assets/zeus/brand.jpg');
+  // Exact match first. Logical paths; zeusPageBgSSR hashes each format.
+  if (_ZEUS_BG_HERO.indexOf(route)  >= 0) return '/assets/zeus/hero.jpg';
+  if (_ZEUS_BG_BRAND.indexOf(route) >= 0) return '/assets/zeus/brand.jpg';
   // Sub-route prefix (e.g. /services/foo, /admin/x, /vertical/health-os).
-  for (let i = 0; i < _ZEUS_BG_HERO.length;  i++) if (route.indexOf(_ZEUS_BG_HERO[i]  + '/') === 0) return assetPath('/assets/zeus/hero.jpg');
-  for (let i = 0; i < _ZEUS_BG_BRAND.length; i++) if (route.indexOf(_ZEUS_BG_BRAND[i] + '/') === 0) return assetPath('/assets/zeus/brand.jpg');
+  for (let i = 0; i < _ZEUS_BG_HERO.length;  i++) if (route.indexOf(_ZEUS_BG_HERO[i]  + '/') === 0) return '/assets/zeus/hero.jpg';
+  for (let i = 0; i < _ZEUS_BG_BRAND.length; i++) if (route.indexOf(_ZEUS_BG_BRAND[i] + '/') === 0) return '/assets/zeus/brand.jpg';
   // Verticals + grow + any remaining route → deterministic alternation by
   // simple hash so each page gets the SAME Zeus on every visit.
   let h = 0; for (let i = 0; i < route.length; i++){ h = (h * 31 + route.charCodeAt(i)) >>> 0; }
-  return (h % 2 === 0)
-    ? assetPath('/assets/zeus/hero.jpg')
-    : assetPath('/assets/zeus/brand.jpg');
+  return (h % 2 === 0) ? '/assets/zeus/hero.jpg' : '/assets/zeus/brand.jpg';
+}
+function _zeusBgImageCss(logicalJpg) {
+  const jpg = assetPath(logicalJpg);
+  const avif = assetPath(logicalJpg.replace(/\.jpg$/, '.avif'));
+  const webp = assetPath(logicalJpg.replace(/\.jpg$/, '.webp'));
+  return `image-set(url('${avif}') type('image/avif'), url('${webp}') type('image/webp'), url('${jpg}') type('image/jpeg'))`;
 }
 function zeusPageBgSSR(route) {
-  const url = _pickZeusBgSSR(route);
-  if (!url) {
+  const logical = _pickZeusBgSSR(route);
+  if (!logical) {
     return `<div class="zeus-page-bg" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
   }
-  // Pre-activate layer A with the chosen URL so the background paints on
-  // first frame, even if /assets/app.js never executes. Client-side
-  // applyZeusBackdrop() will swap to layer B for SPA navigation.
-  return `<div class="zeus-page-bg is-active" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a is-on" style="background-image:url('${url}')"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
+  const css = _zeusBgImageCss(logical);
+  // Pre-activate layer A so the portrait paints on the first frame.
+  // image-set prefers AVIF. The hashed JPEG URL stays inside the value so
+  // applyZeusBackdrop() sees a match and does not replace it with JPEG-only.
+  return `<div class="zeus-page-bg is-active" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a is-on" style="background-image:${css}"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
 }
 
 function head(title, route, opts) {
@@ -537,7 +542,7 @@ img{max-width:100%;display:block}
 .hero-future{margin:18px 0 0;padding:0}
 .hero-future-plate{display:inline-block;padding:11px 18px 10px;border-radius:10px;background:linear-gradient(180deg,rgba(18,14,28,.72),rgba(5,8,16,.55));border:1px solid rgba(255,159,28,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.35),0 0 0 1px rgba(0,232,160,.18),0 12px 28px -16px rgba(255,159,28,.45)}
 .hero-future-type{display:inline-block;font-family:Orbitron,Syne,ui-monospace,monospace;font-weight:700;font-size:clamp(.95rem,1.6vw,1.2rem);letter-spacing:.18em;text-transform:uppercase;line-height:1.2;background:linear-gradient(115deg,#FF3B5C 0%,#FF9F1C 30%,#FFEE32 55%,#00E8A0 78%,#2DE2E6 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important}
+section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>section:first-of-type[data-reveal],main#app>article{opacity:1!important;transform:none!important;position:relative;z-index:3}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays
    active in #google_translate_element (kept off-screen). */
@@ -1220,7 +1225,7 @@ function pageHome() {
       <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · BTC · PayPal · card/crypto</span>
       <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
       <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
-      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Buy → choose payment</button>
+      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
     </form>` : '';
   // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
   // before any other section, so the world\u2019s first fully-autonomous economic
@@ -1931,6 +1936,7 @@ function pageCheckout(params) {
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
             <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Prefer the gold button above for one-click sovereign invoice. QR + address unlock only after a unique sats-exact invoice is minted — never pay an estimate to the static wallet.</p>
+            <button type="button" class="btn" id="coSkipForm" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" style="margin-top:8px;width:100%;justify-content:center">Skip form — open sovereign invoice</button>
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320" style="opacity:.35"></canvas><p style="color:var(--ink-dim);font-size:12px;margin-top:8px;text-align:center">QR unlocks with your invoice</p></div>
         </div>
@@ -2224,7 +2230,7 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
     <div class="card"><span class="tag">Trust and safety</span><h3 style="margin:6px 0;font-size:16px">/trust-safety</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">WHOIS, shared hosting, the buyer ledger, and how to report a missing Bitcoin delivery. No invented address.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/trust-safety" data-link>Read trust and safety →</a></div></div>
     <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
-    <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/api/v50/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/api/v50/keys.json" data-live-title="Inspect public keys" style="margin-top:8px">Inspect keys</button></div></div>
+    <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/.well-known/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests. The same document is also at /api/v50/keys.json.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/keys.json" data-live-title="Inspect public keys" style="margin-top:8px">Inspect keys</button></div></div>
     <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/api/commerce/integrity" data-live-title="Open integrity report">Open integrity report</button></div></div>
     <div class="card"><span class="tag">Enterprise Standard OS</span><h3 style="margin:6px 0;font-size:16px">/.well-known/enterprise.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 posture: money integrity, real commerce metrics, rate-limit, AI-cost visibility.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/enterprise.json" data-live-title="Inspect enterprise posture" style="margin-top:8px">Inspect enterprise posture</button></div></div>
     ${continuityAttestation.trustCardHtml()}

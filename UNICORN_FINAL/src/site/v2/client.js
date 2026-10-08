@@ -2018,7 +2018,14 @@ function initCinematicInteractions(){
     return;
   }
   // reveal sections — stamp once; never re-hide on SPA re-hydrate
-  sections.forEach(function(s){
+  sections.forEach(function(s, idx){
+    // The first section is the LCP candidate. Hiding it behind data-reveal
+    // resets Largest Contentful Paint until JS adds .revealed.
+    if (idx === 0) {
+      s.classList.add('revealed');
+      s.removeAttribute('data-reveal');
+      return;
+    }
     if (_sectionMustStayVisible(s)) {
       s.classList.add('revealed');
       s.setAttribute('data-reveal', '');

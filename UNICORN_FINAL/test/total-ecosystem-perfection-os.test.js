@@ -35,6 +35,9 @@ async function main() {
     const e = require('../backend/modules/Engine62');
     assert.equal(a.getStatus().module, 'AdaptiveModule01');
     assert.equal(e.getStatus().module, 'Engine62');
+    assert.equal(mat.skipped, 'self_mutation_disabled');
+    const aliases = fs.readdirSync(dir).filter((f) => /^(AdaptivePool#|EnginePool#)/.test(f));
+    assert.equal(aliases.length, 0, 'alias shims must not be written');
   });
 
   await check('TEP start reports 200+ modules and essential surface', () => {
