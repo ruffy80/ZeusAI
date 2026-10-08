@@ -533,7 +533,7 @@ img{max-width:100%;display:block}
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw}
 @media(max-width:980px){.hero{padding-top:168px}}
-@media(max-width:640px){.hero{padding-top:176px}}
+@media(max-width:768px){.hero{min-height:0;align-items:flex-start;padding:128px 14px 210px}.hero h1{font-size:clamp(28px,7.2vw,38px);line-height:1.2;margin:8px 0 10px}}
 .hero-copy{padding:28px 0 20px}
 .hero h1{line-height:1.22;padding:0;margin:16px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
@@ -771,8 +771,8 @@ ${globalChrome(N)}
     document.head.appendChild(s);
   }
   var ric = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
-  if (document.readyState === 'complete') ric(inject, { timeout: 3000 });
-  else window.addEventListener('load', function(){ ric(inject, { timeout: 3000 }); }, { once: true });
+  if (document.readyState === 'complete') ric(inject, { timeout: 12000 });
+  else window.addEventListener('load', function(){ ric(inject, { timeout: 12000 }); }, { once: true });
 })();
 </script>
 <script${N}>

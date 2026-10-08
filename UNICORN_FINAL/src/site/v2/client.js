@@ -5676,7 +5676,12 @@ function initNavOffer(){
   if (!nav || nav.dataset.offerBound === '1') return;
   nav.dataset.offerBound = '1';
   const onScroll = function(){
-    nav.classList.toggle('is-scrolled', window.scrollY > 480);
+    const show = window.scrollY > 480;
+    nav.classList.toggle('is-scrolled', show);
+    const offer = document.getElementById('navOfferCta');
+    if (!offer) return;
+    if (show) offer.removeAttribute('hidden');
+    else offer.setAttribute('hidden', '');
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
