@@ -21,16 +21,16 @@ const OWNER = {
 const HEADLINES = {
   A: {
     id: 'A',
-    h1: 'Send a stronger resume today.',
-    lead: 'The $39 Instant Resume + LinkedIn Makeover rewrites your one-page resume and LinkedIn headline for a target role. Pay in Bitcoin, or by PayPal or card when those rails are armed. You receive an Ed25519-signed receipt and the public refund contract.',
-    cta: 'Get the $39 resume makeover',
+    h1: 'A resume written for the job you want.',
+    lead: 'The AI rewrites your one-page resume and LinkedIn headline for the role you name. No generic template. Pay securely with Bitcoin. Card and PayPal appear on the same checkout when they are live.',
+    cta: 'Get My $39 Resume Makeover',
     href: '/checkout/?plan=instant-resume-makeover',
   },
   B: {
     id: 'B',
-    h1: 'Pay once. Receive a signed AI deliverable.',
-    lead: 'Start with a $39 resume makeover or a $49 website audit. Delivery follows settlement. The public buyer count stays at zero until a payment is confirmed. ZeusAI does not invent customers.',
-    cta: 'Start the $39 checkout',
+    h1: 'One payment. A resume aimed at one role.',
+    lead: 'Send your resume text, the job title, and an email. After payment settles, you receive the rewritten resume plus a LinkedIn headline and About. The refund contract is public.',
+    cta: 'Get My $39 Resume Makeover',
     href: '/checkout/?plan=instant-resume-makeover',
   },
 };
@@ -139,15 +139,15 @@ const ARTICLES = [
 const OBJECTIONS = [
   {
     q: 'Is this a scam?',
-    a: 'You can check the operator, the wallet, and the refund contract before you pay. The operator is Vladoi Ionut, reachable at the email on /contact. The buyer ledger on /origin stays at zero until a payment settles. ZeusAI does not publish invented testimonials. A low automated trust score and any unpaid-delivery complaint are addressed on /trust-safety, not waved away.',
+    a: 'Check the operator, the wallet, and the refund contract before you pay. The operator is Vladoi Ionut, reachable at the email on /contact. ZeusAI does not publish invented testimonials. A low automated trust score and any unpaid-delivery complaint are addressed on /trust-safety, not waved away.',
   },
   {
-    q: 'How does Bitcoin payment work?',
-    a: 'Checkout quotes one dollar price, shows the owner Bitcoin address, and waits for a matching settlement. A signed receipt is issued after that match. Compare the address with /trust before you send coins. PayPal or card is shown only when that rail is configured.',
-  },
-  {
-    q: 'What if I am not satisfied?',
+    q: 'How does the refund work?',
     a: 'Read /refund before you pay. It states a 30-day money-back window and a signed refund intent when a service promise is breached. Email the owner with your order id. Bitcoin is not automatically reversible, so the contract and the named operator are the protection.',
+  },
+  {
+    q: 'Do I need to pay with Bitcoin?',
+    a: 'Bitcoin is the payment method that is live today. Card and PayPal show on the same checkout when those processors are configured. If a button is missing, that method is not available yet. Compare the Bitcoin address with /trust before you send coins.',
   },
 ];
 
@@ -303,7 +303,7 @@ function draftOutreach(rows) {
     const body = [
       hello,
       '',
-      companyLine + noteLine + 'ZeusAI sells a $39 Instant Resume + LinkedIn Makeover and other signed AI services. Bitcoin is the primary checkout. PayPal and card appear only when those rails are armed.',
+      companyLine + noteLine + 'ZeusAI sells a $39 Instant Resume + LinkedIn Makeover and other signed AI services. Bitcoin is the live checkout. Card and PayPal appear on the same checkout when they are configured.',
       'The public ledger currently shows zero paid customers. That number is not invented. Refund terms: ' + OWNER.domain + '/refund',
       'Trust notes: ' + OWNER.domain + '/trust-safety',
       'Operator: ' + OWNER.name + ' <' + OWNER.email + '>',
@@ -506,6 +506,45 @@ function howBuyerHtml() {
 </section>`;
 }
 
+function homeLandingHtml() {
+  return `<section id="homeTrust" class="home-trust" aria-label="Trust and safety">
+  <a class="trust-badge" href="/trust" data-link><b>Secure payment</b><span>Bitcoin to the published wallet. Card and PayPal when that checkout is live.</span></a>
+  <a class="trust-badge" href="/refund" data-link><b>Refund guarantee</b><span>30-day window and a public contract at /refund.</span></a>
+  <a class="trust-badge" href="/privacy" data-link><b>Privacy and GDPR rights</b><span>Export and delete from your account. No resale of your brief.</span></a>
+</section>
+<section id="howItWorks">
+  <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps. <span class="grad">Then you apply.</span></h2></div>
+  <p>The makeover is a paid rewrite for one role. It is not a promise of interviews.</p></div>
+  <div class="grid how-steps">
+    <article class="card glass-card"><span class="tag">1 · Send the brief</span><h3>Your resume, the role, your email</h3><p>At checkout, paste your resume text, the job title you want, and an email. There is no separate upload portal.</p></article>
+    <article class="card glass-card"><span class="tag">2 · Pay $39</span><h3>Bitcoin is live</h3><p>Card and PayPal show on the same checkout when they are configured. The listed price already includes the Bitcoin discount.</p></article>
+    <article class="card glass-card"><span class="tag">3 · Download and apply</span><h3>The pack follows settlement</h3><p>You receive a rewritten one-page resume plus a LinkedIn headline and About. The listed window is about 10 minutes from the matched payment. You apply with it yourself.</p></article>
+  </div>
+</section>
+<section id="resumeSample">
+  <div class="section-title"><div><span class="kicker">Sample preview</span><h2>What the rewrite <span class="grad">looks like.</span></h2></div>
+  <p>An illustration of the deliverable shape. Not a customer resume. Not a measured hiring result.</p></div>
+  <div class="resume-compare">
+    <article class="resume-pane" aria-label="Sample bullet before the rewrite">
+      <h3>Before</h3>
+      <p class="resume-kicker">Generic bullet</p>
+      <p>Responsible for various tasks and helping the team succeed.</p>
+    </article>
+    <article class="resume-pane resume-after" aria-label="Sample bullet after the rewrite">
+      <h3>After</h3>
+      <p class="resume-kicker">Same bullet, aimed at one role</p>
+      <p class="resume-rewrite">Led the launch checklist for a named role, matched the job post’s keywords, and stated the outcome in one line.</p>
+    </article>
+  </div>
+</section>
+<section id="earlyAccess" class="card glass-card">
+  <span class="kicker">Early access</span>
+  <h2 style="margin:8px 0">No published buyer quotes yet.</h2>
+  <p style="margin:0;color:var(--ink-dim);line-height:1.65;max-width:68ch">ZeusAI does not publish invented testimonials. A quote will appear here only after a real customer agrees to be named. Until then, use the refund contract, the sample above, and /trust-safety.</p>
+</section>
+${objectionHtml()}`;
+}
+
 function objectionHtml() {
   const rows = OBJECTIONS.map((f) => `<details class="card" style="padding:14px 16px"><summary style="cursor:pointer;font-weight:650">${esc(f.q)}</summary><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:10px 0 0">${esc(f.a)}</p></details>`).join('');
   return `<section id="homeObjections" style="margin:28px 0 0">
@@ -565,6 +604,7 @@ module.exports = {
   pageArticle,
   pageDesk,
   howBuyerHtml,
+  homeLandingHtml,
   objectionHtml,
   blogCards,
   resetForTests,
