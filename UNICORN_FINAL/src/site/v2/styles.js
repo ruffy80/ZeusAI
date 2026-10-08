@@ -215,7 +215,25 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 .glass-card{background:rgba(12,10,24,.5);border:1px solid rgba(138,92,255,.28);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .how-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .how-steps p{color:var(--ink-dim);line-height:1.6}
-#howItWorks,#resumeSample,#homeTrust{scroll-margin-top:96px}
+#howItWorks,#resumeSample,#homeTrust,#homeAtlas,#atlasMinutes,#atlasDays,#atlasContract{scroll-margin-top:96px}
+.atlas-clocks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 8px}
+.atlas-clock{display:flex;flex-direction:column;gap:4px;padding:16px 16px 18px;border-radius:18px;text-decoration:none;color:var(--ink);background:rgba(12,10,24,.55);border:1px solid rgba(62,160,255,.35);box-shadow:0 0 0 1px rgba(138,92,255,.18),0 18px 40px -28px rgba(62,160,255,.8)}
+.atlas-clock:hover{border-color:rgba(180,220,255,.8);transform:translateY(-2px)}
+.atlas-clock b{font-size:18px}
+.atlas-clock span{color:var(--ink-dim);font-size:13px;line-height:1.4}
+.atlas-band{margin-top:28px}
+.atlas-grid{grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px}
+.atlas-card{display:flex;flex-direction:column;gap:10px}
+.atlas-card h3{margin:0;font-size:18px;line-height:1.25}
+.atlas-card p{margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1}
+.atlas-when{align-self:flex-start;padding:3px 8px;border-radius:999px;border:1px solid rgba(62,160,255,.45);color:#b7dcff;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.atlas-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.atlas-price{font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right}
+.atlas-price .btc-line,.atlas-price .btc-discount,.atlas-share{display:block;font-size:11px;font-weight:600;margin-top:3px}
+.atlas-price .btc-line{color:#f7a13b}
+.atlas-price .btc-discount,.atlas-share{color:#ffd36a}
+.atlas-actions{display:flex;gap:8px;margin-top:6px}
+.atlas-footnote{margin:22px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:78ch}
 .resume-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .resume-pane{border-radius:18px;padding:18px 18px 20px;background:rgba(12,10,24,.55);border:1px solid rgba(138,92,255,.28);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .resume-pane h3{margin:0 0 8px}
@@ -226,7 +244,7 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 #earlyAccess{margin:8px 32px 0;padding:22px 24px}
 @media (max-width:720px){
   .nav.is-scrolled .nav-cta > a.btn-primary:not(.nav-offer){display:none}
-  .home-trust,.how-steps,.resume-compare{grid-template-columns:1fr}
+  .home-trust,.how-steps,.resume-compare,.atlas-clocks{grid-template-columns:1fr}
   .home-trust,#earlyAccess{padding-left:14px;padding-right:14px;margin-left:0;margin-right:0}
 }
 .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1000;border-color:transparent}
