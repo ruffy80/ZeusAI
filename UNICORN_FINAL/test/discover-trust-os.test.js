@@ -152,6 +152,8 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(home.includes('It does not deliver the license'));
   assert.ok(home.includes('not an instant download'));
   assert.ok(home.includes('See every priced deliverable'));
+  assert.ok(home.includes('Request a proposal →'));
+  assert.ok(home.includes('/checkout/?plan=ent-engagement-kickoff'));
   assert.ok(home.includes('"@type":"Service"'));
   assert.ok(!home.includes('id="homeRelayGraft"'));
   assert.ok(!home.includes('Ship AI products at machine speed'));

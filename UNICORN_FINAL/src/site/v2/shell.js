@@ -1217,12 +1217,16 @@ function _atlasCard(p) {
   const btcDiscountNote = price > 0
     ? '<span class="btc-discount">10% BTC discount applied</span>'
     : '';
+  const cta = _ctaForProduct(p);
+  const primary = cta.mode === 'contact'
+    ? `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Request a proposal for ${title}" style="flex:1;justify-content:center">Request a proposal →</a>`
+    : (price > 0 ? _primaryCtaHtml(p, { flex: true }) : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
   return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}" itemscope itemtype="https://schema.org/Product">
     <span class="atlas-when">${_esc(_atlasWhen(p))}</span>
     <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price">${priceTxt}</span>${billing}${share}<span class="btc-line">${btcTxt}</span>${btcDiscountNote}</span></div>
     <h3 itemprop="name">${title}</h3>
     <p itemprop="description">${desc}</p>
-    <div class="atlas-actions">${price > 0 ? _primaryCtaHtml(p, { flex: true }) : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _homeAtlasHtml(byTier) {
