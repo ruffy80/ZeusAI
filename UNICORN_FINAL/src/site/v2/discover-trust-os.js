@@ -21,17 +21,17 @@ const OWNER = {
 const HEADLINES = {
   A: {
     id: 'A',
-    h1: 'A resume written for the job you want.',
-    lead: 'The AI rewrites your one-page resume and LinkedIn headline for the role you name. No generic template. Pay securely with Bitcoin. Card and PayPal appear on the same checkout when they are live.',
-    cta: 'Get My $39 Resume Makeover',
-    href: '/checkout/?plan=instant-resume-makeover',
+    h1: 'Hello. What can I do for you?',
+    lead: 'Say what you do and what you want. ZeusAI answers from the live shelf: the deliverable, the price, when it arrives, and one next step. It also names a real option you did not ask for.',
+    cta: 'Show me the offer',
+    href: '#concierge',
   },
   B: {
     id: 'B',
-    h1: 'One payment. A resume aimed at one role.',
-    lead: 'Send your resume text, the job title, and an email. After payment settles, you receive the rewritten resume plus a LinkedIn headline and About. The refund contract is public.',
-    cta: 'Get My $39 Resume Makeover',
-    href: '/checkout/?plan=instant-resume-makeover',
+    h1: 'Tell me the work. I will price a real next step.',
+    lead: 'The reply uses only offers ZeusAI can deliver. Bitcoin is the live payment. Card and PayPal appear on checkout when they are configured.',
+    cta: 'Show me the offer',
+    href: '#concierge',
   },
 };
 
@@ -85,14 +85,14 @@ const ARTICLES = [
   {
     slug: 'ai-resume-service-bitcoin',
     title: 'An AI resume service you can pay for in Bitcoin',
-    description: 'How the $39 Instant Resume + LinkedIn Makeover works, what you must send, and what a signed receipt does and does not prove.',
+    description: 'How a minute-file on the public shelf works, what you must send, and what a signed receipt does and does not prove.',
     keywords: 'AI resume service',
     paragraphs: [
-      'The Instant Resume + LinkedIn Makeover is a $39 service. You provide your current resume text, a target role, and an email. The deliverable is a rewritten one-page resume plus a LinkedIn headline and About section aimed at that role.',
-      'Bitcoin is the primary checkout. Catalog prices already reflect the Bitcoin discount shown on the homepage. PayPal and card appear on the same checkout only when those processors are configured. If a button is missing, that rail is not armed. The page should not pretend it is.',
+      'Ask ZeusAI what you do and what you want. The reply is one shelf offer with a price and a delivery clock, plus a neighboring offer you did not have to name. A resume rewrite is one minute-file on that shelf. You provide the current text, a target role, and an email. The deliverable is a rewritten one-page resume plus a LinkedIn headline and About section aimed at that role.',
+      'Bitcoin is the primary checkout. The card on the shelf shows the live price, including the Bitcoin discount. PayPal and card appear on the same checkout only when those processors are configured. If a button is missing, that rail is not armed. The page should not pretend it is.',
       'Payment and delivery are separate facts. A signed receipt proves an order was recorded and, once settled, that the payment matched the quote. It does not by itself prove you liked the writing. If the result is wrong, the refund contract at /refund is the remedy, together with a message to the owner.',
-      'This is a small, specific product. It is not a career guarantee and it is not a claim that employers prefer AI-edited resumes. It is a paid rewrite with a public price, a public operator, and a public refund page.',
-      'Start at /checkout/?plan=instant-resume-makeover. If you want a different deliverable, the website audit is $49 and is listed beside it.',
+      'A minute-file is not a career guarantee and it is not a claim that employers prefer AI-edited resumes. It is a paid rewrite with a public price, a public operator, and a public refund page.',
+      'Start at the homepage and describe the work. The shelf lists the rewrite beside the website audit and the other minute-files. Pay only the card whose deliverable you actually want.',
     ],
   },
   {
@@ -303,7 +303,7 @@ function draftOutreach(rows) {
     const body = [
       hello,
       '',
-      companyLine + noteLine + 'ZeusAI sells a $39 Instant Resume + LinkedIn Makeover and other signed AI services. Bitcoin is the live checkout. Card and PayPal appear on the same checkout when they are configured.',
+      companyLine + noteLine + 'ZeusAI answers from a public shelf: say what you do and what you want, and the reply is a real offer with a price, a delivery clock, and one next step. Bitcoin is the live checkout. Card and PayPal appear on the same checkout when they are configured.',
       'The public ledger currently shows zero paid customers. That number is not invented. Refund terms: ' + OWNER.domain + '/refund',
       'Trust notes: ' + OWNER.domain + '/trust-safety',
       'Operator: ' + OWNER.name + ' <' + OWNER.email + '>',
@@ -465,7 +465,7 @@ function pageArticle(slug) {
   <h1 style="font-size:clamp(32px,4vw,52px);margin:10px 0 12px">${esc(found.title)}</h1>
   <p style="color:var(--ink-dim);font-size:14px">By ${esc(OWNER.name)} · ${PUBLISHED} · <a href="/insights" data-link>All insights</a></p>
   ${body}
-  <p style="margin-top:22px"><a class="btn btn-primary" href="/checkout/?plan=instant-resume-makeover" data-link>See the $39 checkout</a> <a class="btn" href="/trust-safety" data-link>Trust and safety</a></p>
+  <p style="margin-top:22px"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn" href="/trust-safety" data-link>Trust and safety</a></p>
 </article>`;
 }
 
@@ -498,7 +498,7 @@ function howBuyerHtml() {
   <div class="section-title"><div><span class="kicker">For buyers</span><h2>What happens after you <span class="grad">click pay.</span></h2></div>
   <p>The architecture above is the machine. This is the contract a person can use.</p></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
-    <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Pick a named service. The $39 resume makeover and the $49 website audit are instant SKUs. The chatbot and marketing engine are engagements with a kickoff pack, not a finished company in a download.</p></div>
+    <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Say what you do, or pick a named shelf item. Minute files are paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. None of them is a finished company in a download.</p></div>
     <div class="card"><span class="tag">2 · Quote</span><p style="color:var(--ink-dim);line-height:1.65">Checkout locks one dollar price. Bitcoin is the primary rail and shows the owner wallet. Other rails appear only when configured.</p></div>
     <div class="card"><span class="tag">3 · Settle</span><p style="color:var(--ink-dim);line-height:1.65">Delivery follows a matched payment. Instant SKUs quote minutes (resume about 10, website audit about 5). Engagements quote days. A signed receipt is the record.</p></div>
     <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">If the deliverable is missing or wrong, use <a href="/refund" data-link>/refund</a> and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. The 30-day window and the breach path are written on that page. Questions about the trust score are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
@@ -513,34 +513,18 @@ function homeLandingHtml() {
   <a class="trust-badge" href="/privacy" data-link><b>Privacy and GDPR rights</b><span>Export and delete from your account. No resale of your brief.</span></a>
 </section>
 <section id="howItWorks">
-  <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps. <span class="grad">Then you apply.</span></h2></div>
-  <p>The makeover is a paid rewrite for one role. It is not a promise of interviews.</p></div>
+  <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps. <span class="grad">Then one real offer.</span></h2></div>
+  <p>The reply is a shelf item. It is not a promise of customers, interviews, or a finished company in a download.</p></div>
   <div class="grid how-steps">
-    <article class="card glass-card"><span class="tag">1 · Send the brief</span><h3>Your resume, the role, your email</h3><p>At checkout, paste your resume text, the job title you want, and an email. There is no separate upload portal.</p></article>
-    <article class="card glass-card"><span class="tag">2 · Pay $39</span><h3>Bitcoin is live</h3><p>Card and PayPal show on the same checkout when they are configured. The listed price already includes the Bitcoin discount.</p></article>
-    <article class="card glass-card"><span class="tag">3 · Download and apply</span><h3>The pack follows settlement</h3><p>You receive a rewritten one-page resume plus a LinkedIn headline and About. The listed window is about 10 minutes from the matched payment. You apply with it yourself.</p></article>
-  </div>
-</section>
-<section id="resumeSample">
-  <div class="section-title"><div><span class="kicker">Sample preview</span><h2>What the rewrite <span class="grad">looks like.</span></h2></div>
-  <p>An illustration of the deliverable shape. Not a customer resume. Not a measured hiring result.</p></div>
-  <div class="resume-compare">
-    <article class="resume-pane" aria-label="Sample bullet before the rewrite">
-      <h3>Before</h3>
-      <p class="resume-kicker">Generic bullet</p>
-      <p>Responsible for various tasks and helping the team succeed.</p>
-    </article>
-    <article class="resume-pane resume-after" aria-label="Sample bullet after the rewrite">
-      <h3>After</h3>
-      <p class="resume-kicker">Same bullet, aimed at one role</p>
-      <p class="resume-rewrite">Led the launch checklist for a named role, matched the job post’s keywords, and stated the outcome in one line.</p>
-    </article>
+    <article class="card glass-card"><span class="tag">1 · Say the work</span><h3>What you do, and what you want</h3><p>Write it in the box above. Romanian or English. The match uses the public shelf, not a hidden catalog.</p></article>
+    <article class="card glass-card"><span class="tag">2 · Read the price</span><h3>One offer, plus one you did not ask for</h3><p>Each answer names the deliverable, the price, and when it arrives. A second card is an adjacent shelf item, labeled as something you did not request.</p></article>
+    <article class="card glass-card"><span class="tag">3 · Pay or ask</span><h3>Bitcoin is live</h3><p>Minute files and day-clock reserves open checkout. Contract figures request a proposal, except the payable kickoff. Card and PayPal show when they are configured.</p></article>
   </div>
 </section>
 <section id="earlyAccess" class="card glass-card">
   <span class="kicker">Early access</span>
   <h2 style="margin:8px 0">No published buyer quotes yet.</h2>
-  <p style="margin:0;color:var(--ink-dim);line-height:1.65;max-width:68ch">ZeusAI does not publish invented testimonials. A quote will appear here only after a real customer agrees to be named. Until then, use the refund contract, the sample above, and /trust-safety.</p>
+  <p style="margin:0;color:var(--ink-dim);line-height:1.65;max-width:68ch">ZeusAI does not publish invented testimonials. A quote will appear here only after a real customer agrees to be named. Until then, use the refund contract and /trust-safety.</p>
 </section>
 ${objectionHtml()}`;
 }

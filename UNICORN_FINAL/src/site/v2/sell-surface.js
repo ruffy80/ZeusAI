@@ -14,6 +14,25 @@ function _esc(s) {
 }
 
 function _loadBuyable() {
+  try {
+    const shelf = require('../../commerce/public-shelf');
+    const rows = typeof shelf.publicShelf === 'function' ? shelf.publicShelf() : [];
+    if (rows && rows.length) {
+      return rows.map((p) => ({
+        id: p.id,
+        title: p.title || p.id,
+        tier: p.tier || 'instant',
+        priceUSD: Number(p.priceUsd || 0),
+        description: p.description || '',
+        deliveryMinutes: p.deliveryMinutes || null,
+        mode: p.mode || 'btc',
+        buyable: p.buyable === true,
+        reason: p.mode || 'shelf',
+        ctaLabel: p.ctaLabel,
+        ctaHref: p.ctaHref || ('/checkout/?plan=' + encodeURIComponent(p.id)),
+      }));
+    }
+  } catch (_) { /* unified catalog fallback */ }
   let items = [];
   try {
     const uc = require('../../commerce/unified-catalog');
@@ -107,7 +126,7 @@ function pageBuy() {
 
   const instantHtml = instant.map(card).join('') || '<p class="card">Instant catalog loading…</p>';
   const proHtml = professional.map(card).join('');
-  const contactHtml = contact.slice(0, 6).map(card).join('');
+  const contactHtml = contact.map(card).join('');
 
   return `<section class="hero" style="min-height:auto;padding:48px 0 24px">
   <div class="hero-grid">

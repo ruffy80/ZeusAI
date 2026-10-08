@@ -216,7 +216,7 @@ function _primaryCtaHtml(p, opts) {
   const flex = o.flex ? 'flex:1;justify-content:center;' : '';
   const size = o.compact ? 'font-size:12px;padding:6px 10px;' : '';
   if (cta.mode === 'contact') {
-    return `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Start autonomous deal for ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Start autonomous deal →')}</a>`;
+    return `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Request a proposal for ${title}" style="${flex}${size}">Request a proposal →</a>`;
   }
   if (cta.mode === 'unavailable' || !cta.buyable) {
     return `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Not for sale')}</a>`;
@@ -271,7 +271,9 @@ function _catalogCard(p) {
   const priceTxt = price > 0
     ? ('$' + price.toLocaleString('en-US', { minimumFractionDigits: _hasFrac ? 2 : 0, maximumFractionDigits: 2 }))
     : 'Free';
-  const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
+  const billing = price > 0 && p.billing === 'monthly'
+    ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>'
+    : (price > 0 && p.billing === 'annual' ? '<small style="color:var(--ink-dim);font-weight:400">/yr</small>' : '');
   // BTC price line — shown next to the "Buy with BTC →" CTA so users can see
   // the exact Bitcoin amount that will be requested at checkout. Sourced from
   // the AI-negotiated pricing pipeline (priceNegotiator → live BTC rate),
@@ -533,9 +535,12 @@ img{max-width:100%;display:block}
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw}
 @media(max-width:980px){.hero{padding-top:168px}}
-@media(max-width:768px){.hero{min-height:0;align-items:flex-start;padding:128px 14px 210px}.hero h1{font-size:clamp(28px,7.2vw,38px);line-height:1.2;margin:8px 0 10px}}
+@media(max-width:768px){.hero{min-height:0;align-items:flex-start;padding:128px 14px 210px}.hero h1{font-size:clamp(28px,7.2vw,38px);line-height:1.2;margin:8px 0 10px}.hero .hero-pay-note{display:none}.hero p.lead{margin-bottom:8px}.shelf-ask textarea{min-height:64px}}
+@media(max-height:940px){.hero h1{font-size:clamp(32px,4.2vw,56px);margin:8px 0 12px}.hero .hero-pay-note{margin:0 0 8px}.shelf-ask textarea{min-height:72px}}
 .hero-copy{padding:28px 0 20px}
 .hero h1{line-height:1.22;padding:0;margin:16px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
+@media(max-width:768px){.hero h1{font-size:clamp(28px,7.2vw,38px);margin:8px 0 10px}.hero .hero-pay-note{display:none}.hero p.lead{margin-bottom:8px}.shelf-ask textarea{min-height:64px}}
+@media(max-height:940px) and (min-width:769px){.hero h1{font-size:clamp(32px,4.2vw,56px);margin:8px 0 12px}.hero .hero-pay-note{margin:0 0 8px}.shelf-ask textarea{min-height:72px}}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
 .hero h1 .grad{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
 .hero-grid{display:grid;grid-template-columns:1fr;gap:40px;align-items:start;max-width:1480px;margin:0 auto;width:100%}
@@ -619,7 +624,7 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
 <div class="nav-cta">
 ${langToggle}
 <a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign up</a>
-<a class="btn btn-primary nav-offer" id="navOfferCta" href="/checkout/?plan=instant-resume-makeover" data-link hidden>Get My $39 Resume Makeover</a>
+<a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 <a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
 </nav>`;
@@ -948,19 +953,18 @@ window.addEventListener('securitypolicyviolation', function(e){
 }
 
 function concierge() {
-  return `<div class="concierge" id="concierge">
+  return `<div class="concierge" id="zeusDock">
   <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Concierge">⚡</button>
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
-    <div class="concierge-head"><span class="dot"></span> Zeus · <span style="color:var(--violet2);font-weight:700">30Y</span> AI<span class="meta" id="conciergeMeta">zeus-30y</span></div>
+    <div class="concierge-head"><span class="dot"></span> Zeus<span class="meta" id="conciergeMeta">shelf</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">Salut! Sunt <b>Zeus-30Y</b> — standardul AI sales pentru următorii 30 de ani. Streaming, voce, memorie, recomandări live, checkout BTC direct și activare instant.\n\nHi! I'm <b>Zeus-30Y</b> — the 30-year AI sales standard. Streaming, voice, memory, live recs, direct BTC checkout, instant activation.</div></div>
+      <div class="msg bot"><div class="msg-body">Hello. What can I do for you?<br><br>Say what you do and what you want. The answer is a real shelf offer: the deliverable, the price, when it arrives, and one next step — plus something you did not ask for.<br><br>Salut. Ce pot face pentru tine? Spune ce faci și ce vrei. Răspunsul vine doar din raftul public.</div></div>
     </div>
     <div class="chips" id="conciergeChips">
-      <button class="chip" data-q="Ce servicii ai și ce prețuri?">💰 Prețuri</button>
-      <button class="chip" data-q="Cum plătesc în BTC?">₿ BTC checkout</button>
-      <button class="chip" data-q="Recomandă-mi pachetul pentru lead generation">🚀 Growth</button>
-      <button class="chip" data-q="What's the best service for enterprise?">🏢 Enterprise</button>
-      <button class="chip" data-q="Arată-mi serviciile mele">📦 My services</button>
+      <button class="chip" data-q="I run a clinic and I need a site plus a way to answer patient questions">Clinic</button>
+      <button class="chip" data-q="Am o companie și vreau licența și un private cloud">Companie</button>
+      <button class="chip" data-q="I need a logo, a landing page, and SEO">Brand + site</button>
+      <button class="chip" data-q="Vreau un magazin online și un chatbot">Magazin</button>
     </div>
     <div class="concierge-foot">
       <textarea id="conciergeInput" rows="1" placeholder="Întreabă Zeus orice… / Ask Zeus anything…  (Enter · Shift+Enter newline)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
@@ -1223,18 +1227,20 @@ function _atlasCard(p) {
     : (price > 0 ? _primaryCtaHtml(p, { flex: true }) : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
   return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}" itemscope itemtype="https://schema.org/Product">
     <span class="atlas-when">${_esc(_atlasWhen(p))}</span>
-    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price">${priceTxt}</span>${billing}${share}<span class="btc-line">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
     <h3 itemprop="name">${title}</h3>
     <p itemprop="description">${desc}</p>
     <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
-function _homeAtlasHtml(byTier) {
-  const instant = (byTier.instant || []).slice().sort((a, b) => Number(a.priceUSD || 0) - Number(b.priceUSD || 0));
-  const professional = (byTier.professional || []).slice().sort((a, b) => Number(a.priceUSD || 0) - Number(b.priceUSD || 0));
-  const enterprise = _atlasEnterprise(byTier.enterprise || []);
+function _homeAtlasHtml() {
+  let shelfItems = [];
+  try { shelfItems = require('../../commerce/public-shelf').publicShelf(); } catch (_) { shelfItems = []; }
+  const instant = shelfItems.filter(p => p.clock === 'minutes');
+  const professional = shelfItems.filter(p => p.clock === 'days');
+  const enterprise = shelfItems.filter(p => p.clock === 'contract');
   const kick = enterprise.find(p => p.id === 'ent-engagement-kickoff');
-  const kickPrice = kick ? _atlasMoney(kick.priceUSD || 2500) : '$2,500';
+  const kickPrice = kick ? _atlasMoney(kick.priceUsd || kick.priceUSD || 2500) : '$2,500';
   const total = instant.length + professional.length + enterprise.length;
   const cards = (items) => items.map(_atlasCard).join('');
   return `<section id="homeAtlas">
@@ -1308,7 +1314,7 @@ function pageHome() {
         <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
         <span style="font-size:11px;color:var(--ink-dim)">Bitcoin live · card and PayPal when configured</span>
       </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Settlements appear here after a payment is confirmed. Instant Resume Makeover is $39. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Get the makeover →</a></div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Settlements appear here after a payment is confirmed. <a href="#concierge" style="color:#00ffa3">Ask what to buy →</a></div>
     </div>
     <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
       <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
@@ -1322,8 +1328,9 @@ function pageHome() {
   </div>
 </section>`;
   // Hero quick-buy — First-Dollar Gravity: default SKU is the cheapest
-  // honest instant deliverable (instant-resume-makeover $39), never api-call
-  // or global-giants. Hydrated by client.js bindHeroQuickBuy().
+  // honest instant deliverable (instant-resume-makeover), never api-call
+  // or global-giants. Checkout path: /checkout/?plan=instant-resume-makeover
+  // The form stays in source for the gravity pin. The homepage renders the concierge.
   let _heroQuickPicks = [];
   try {
     const gravity = require('../../commerce/storefront-gravity-os');
@@ -1670,16 +1677,20 @@ ${_zaccBanner}
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
       <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
-      <p class="hero-pay-note">Secure payment confirmation and a public refund guarantee.</p>
-      <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="${_esc(discoverTrust.ssrVariant().href)}" data-link data-b-href="${_esc(discoverTrust.HEADLINES.B.href)}" data-b-label="${_esc(discoverTrust.HEADLINES.B.cta)}">${_esc(discoverTrust.ssrVariant().cta)}</a>
-        <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
-      </div>
+      <p class="hero-pay-note">Secure payment confirmation and a public refund guarantee. Bitcoin is live. Card and PayPal appear when that checkout is configured.</p>
+      <form id="concierge" class="shelf-ask" action="/api/shelf/advise" method="post">
+        <label for="conciergeAsk">What do you do, and what do you want?</label>
+        <textarea id="conciergeAsk" name="text" required maxlength="2000" placeholder="I run a clinic. I need a site and a way to answer patient questions."></textarea>
+        <div class="hero-cta">
+          <button class="btn btn-primary dt-cta-glow" id="dtHeroCta" type="submit">${_esc(discoverTrust.ssrVariant().cta)}</button>
+          <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
+        </div>
+      </form>
+      <div id="conciergeReply" aria-live="polite"></div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
         <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
         <a href="#homeAtlas" style="color:var(--violet2)">See every priced deliverable →</a>
       </div>
-      ${_heroQuickBuy}
       <div class="hero-stats" id="heroStats" style="margin-top:14px">
         <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
         <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
@@ -1699,7 +1710,7 @@ ${_zaccBanner}
 
 ${discoverTrust.homeLandingHtml()}
 
-${_homeAtlasHtml(_byTier)}
+${_homeAtlasHtml()}
 
 ${_homeProofRail}
 
@@ -1708,13 +1719,16 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
 }
 
 function pageServices() {
-  const catalog = _loadCatalog();
+  let catalog = [];
+  try {
+    catalog = require('../../commerce/public-shelf').publicShelf().map(p => Object.assign({}, p, { priceUSD: p.priceUsd }));
+  } catch (_) { catalog = _loadCatalog(); }
   const counts = catalog.reduce((acc, p) => { const t = String(p.tier || 'professional'); acc[t] = (acc[t] || 0) + 1; return acc; }, {});
   const summary = `${catalog.length} live products · ${counts.instant || 0} instant · ${counts.professional || 0} professional · ${counts.enterprise || 0} enterprise`;
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
-    <p>Strategic services + Frontier inventions + Vertical OSes + Adaptive AI modules — all live from the ZeusAI fabric. Buy any item directly in BTC. Receipt is Ed25519-signed and revenue routes 100% to the owner wallet.</p>
+    <p>The same public shelf as the homepage. Minute files can be paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
   </div>
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
@@ -1786,9 +1800,15 @@ function pageService(id) {
 
   let s = null;
   try {
-    const catalog = _loadCatalog() || [];
-    s = catalog.find((p) => String(p.id) === safeId) || null;
+    const shelfItem = require('../../commerce/public-shelf').byId(safeId);
+    if (shelfItem) s = Object.assign({}, shelfItem, { priceUSD: shelfItem.priceUsd, category: shelfItem.clock || shelfItem.tier });
   } catch (_) { s = null; }
+  if (!s) {
+    try {
+      const catalog = _loadCatalog() || [];
+      s = catalog.find((p) => String(p.id) === safeId) || null;
+    } catch (_) { s = null; }
+  }
   if (!s) {
     // Fallback: pull straight from the module registry if the id isn't
     // in the canonical unified catalog. Keeps every module URL alive.
@@ -1877,15 +1897,15 @@ function pageService(id) {
       <span class="kicker">Pricing</span>
       <h3 style="margin:6px 0 10px">${_esc(title)}</h3>
       <div class="price" id="svcLivePrice" data-pricing-value="${_esc(safeId)}" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">
-        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span>${(s.billing === 'monthly' || String(s.tier || '').toLowerCase() === 'enterprise') ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : ''}
+        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span>${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
       ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
         if (cta.mode === 'contact') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">Enterprise engagements start with a signed SOW — not a self-serve cart. Request a proposal and our team responds with scope, milestones and settlement options.</p>
-      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Start autonomous deal →')}</a>`;
+          return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart. It does not deliver the license, the source, or a private cloud.</p>
+      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">Request a proposal →</a>`;
         }
         if (cta.mode === 'reserve') {
           return `<p style="color:var(--ink-dim);font-size:13.5px">Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.</p>
@@ -1995,7 +2015,11 @@ function pageCheckout(params) {
   const p = params || {};
   // Allow virtual SKU prefixes (dropship:…, social-tip:…) — colons must survive.
   const ssrPlan = String(p.plan || 'starter').trim().replace(/[^a-zA-Z0-9_.:@-]/g, '').slice(0, 160) || 'starter';
-  const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
+  let shelfItem = null;
+  try { shelfItem = require('../../commerce/public-shelf').byId(ssrPlan); } catch (_) { shelfItem = null; }
+  const contactOnly = !!(shelfItem && shelfItem.mode === 'contact');
+  let ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
+  if (shelfItem && Number(shelfItem.priceUsd) > 0) ssrUsd = Number(shelfItem.priceUsd);
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
   const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
   // Human rails lead when PayPal or NOWPayments secrets are actually on this
@@ -2030,12 +2054,13 @@ function pageCheckout(params) {
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div style="min-width:220px">
         <span class="kicker">You are buying</span>
-        <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(ssrPlan)}</h3>
-        <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · choose how you want to pay.</p>
+        <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
+        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${contactOnly ? 'Request a proposal. It does not deliver the license, the source, or a private cloud.' : _esc(shelfItem.description)}</p>` : ''}
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
-      ${railBtns}
+      ${contactOnly ? `<a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a>` : railBtns}
     </div>
     <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
   </div>
@@ -2044,7 +2069,7 @@ function pageCheckout(params) {
     <div class="card"><span class="tag">Step 2</span><h3>Pay securely</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">BTC QR / BIP-21, PayPal approve, or NOWPayments hosted invoice. Exact amount identifies your order.</p></div>
     <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token and deliverable unlock automatically.</p></div>
   </div>
-  <div class="checkout">
+  <div class="checkout"${contactOnly ? ' hidden' : ''}>
     <div class="co-box">
       <div class="co-method" aria-label="Payment method">
         <button type="button" class="chip${chipOn('btc')}" data-method="btc">₿ Bitcoin</button>
@@ -2060,9 +2085,9 @@ function pageCheckout(params) {
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr" data-copy="">Invoice address appears after you generate a secure BTC invoice</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
-            <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
+            ${contactOnly ? '' : `<button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
             <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Prefer the gold button above for one-click sovereign invoice. QR + address unlock only after a unique sats-exact invoice is minted — never pay an estimate to the static wallet.</p>
-            <button type="button" class="btn" id="coSkipForm" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" style="margin-top:8px;width:100%;justify-content:center">Skip form — open sovereign invoice</button>
+            <button type="button" class="btn" id="coSkipForm" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" style="margin-top:8px;width:100%;justify-content:center">Skip form — open sovereign invoice</button>`}
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320" style="opacity:.35"></canvas><p style="color:var(--ink-dim);font-size:12px;margin-top:8px;text-align:center">QR unlocks with your invoice</p></div>
         </div>
@@ -7299,7 +7324,7 @@ function _legalSub(title, body) {
 }
 
 function routeTitle(route) {
-  if (route === '/') return 'Instant Resume Makeover $39';
+  if (route === '/') return 'Hello. What can I do for you?';
   if (route === '/trust-safety') return 'Trust and safety';
   if (route === '/insights') return 'Buyer insights';
   if (route === '/outreach-desk') return 'Outreach desk';
@@ -7319,7 +7344,7 @@ function routeTitle(route) {
 
 function routeDescription(route) {
   const map = {
-    '/': 'ZeusAI sells a priced shelf: minute-clock files from $39, day-clock build engagements, and contract figures with one payable kickoff. Bitcoin is live. Card and PayPal appear when configured.',
+    '/': 'Tell ZeusAI what you do and what you want. The reply is a real shelf offer with a price, a delivery clock, and one next step. Bitcoin is live. Card and PayPal appear when configured.',
     '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',

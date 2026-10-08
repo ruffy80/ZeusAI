@@ -1973,7 +1973,7 @@ async function hydratePage(route){
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  try { if (route === '/') { initDiscoverTrust(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/') { initDiscoverTrust(); bindConcierge(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
   try { if (route === '/outreach-desk') bindDiscoverDesk(); } catch (e) { console.warn('hydratePage:desk', e && e.message); }
   try { if (route === '/services' || route === '/marketplace') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
@@ -2299,7 +2299,7 @@ async function hydrateHomeProof(){
       const r = await api('/api/commerce/recent-sales?limit=8');
       const sales = (r && Array.isArray(r.sales)) ? r.sales : [];
       if (!sales.length) {
-        body.innerHTML = '<span style="color:var(--ink-dim)">Settlements appear here after a payment is confirmed. Instant Resume Makeover is $39. <a href="/checkout/?plan=instant-resume-makeover" data-link style="color:#00ffa3">Get the makeover →</a></span>';
+        body.innerHTML = '<span style="color:var(--ink-dim)">Settlements appear here after a payment is confirmed. <a href="#concierge" style="color:#00ffa3">Ask what to buy →</a></span>';
       } else {
         const fmtTime = function(iso){
           try {
@@ -4719,6 +4719,67 @@ async function hydrateOwnerRevenue(){
     }
   }
 
+  function renderShelfOffers(offers){
+    const list = (offers || []).filter(Boolean);
+    if (!list.length) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'rec-list';
+    wrap.innerHTML = list.map(function(r){
+      const price = r.priceLabel || (r.priceUsd != null ? ('$' + Number(r.priceUsd).toLocaleString()) : '');
+      const url = r.ctaHref || ('/services/' + encodeURIComponent(r.id || ''));
+      const label = r.ctaLabel || 'Open';
+      const tag = r.roleLabel || '';
+      return '<div class="rec-card" data-url="' + esc(url) + '">'
+        + '<div class="rec-head"><span class="rec-title">' + esc(r.title || r.id || 'Offer') + '</span><span class="rec-price">' + esc(price) + '</span></div>'
+        + (tag ? '<div class="rec-desc">' + esc(tag) + '</div>' : '')
+        + (r.strategy ? '<div class="rec-desc">' + esc(r.strategy) + '</div>' : '')
+        + '<button class="rec-buy" data-url="' + esc(url) + '">' + esc(label) + '</button></div>';
+    }).join('');
+    bodyEl.appendChild(wrap);
+    wrap.querySelectorAll('.rec-buy, .rec-card').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        const url = el.dataset.url;
+        if (url) { panel.classList.remove('open'); navigate(url); }
+      });
+    });
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+  }
+
+  async function askShelf(q){
+    const typing = showTyping();
+    try {
+      const resp = await fetch('/api/shelf/advise', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: q })
+      });
+      const j = await resp.json();
+      typing.remove();
+      if (!resp.ok || !j || j.ok === false) return false;
+      const primary = j.primary || null;
+      const also = Array.isArray(j.also) ? j.also : [];
+      const lines = [];
+      if (j.question) lines.push(j.question);
+      if (primary) {
+        lines.push('');
+        lines.push('**' + primary.title + '** — ' + (primary.priceLabel || ''));
+        if (primary.strategy) lines.push(primary.strategy);
+      }
+      const reply = lines.join('\n') || (j.lang === 'ro' ? 'Spune ce faci și ce vrei.' : 'Say what you do and what you want.');
+      addMsg(mdToHtml(reply), 'bot', { userMsg: q });
+      renderShelfOffers([primary].concat(also));
+      history.push({ role: 'user', content: q }, { role: 'assistant', content: reply });
+      saveHistory();
+      maybeSpeak(reply);
+      if (metaEl) metaEl.textContent = 'shelf';
+      return true;
+    } catch (_) {
+      try { typing.remove(); } catch (__) {}
+      return false;
+    }
+  }
+
   async function ask(q){
     if (!q || busy) return;
     busy = true;
@@ -4726,8 +4787,11 @@ async function hydrateOwnerRevenue(){
     if (chipsBox && !chipsBox.dataset.dynamic) chipsBox.style.display = 'none';
     addMsg(esc(q), 'user', {withTools:false});
     inp.value = ''; if (inp.style) inp.style.height = 'auto';
-    const ok = await askStream(q);
-    if (!ok) await askFallback(q);
+    const shelved = await askShelf(q);
+    if (!shelved) {
+      const ok = await askStream(q);
+      if (!ok) await askFallback(q);
+    }
     busy = false;
     sendBtn && (sendBtn.disabled = false);
     inp.focus();
@@ -5397,6 +5461,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }, { passive: true });
   refreshCustomerNav();
   initNavOffer();
+  bindConcierge();
   openStream();
   openPricingStream();
   subscribeAutonomousEvents();
@@ -5670,6 +5735,35 @@ function setCustProfile(customer){
     else localStorage.removeItem(STORE_CUSTOMER_KEY);
   } catch(_){}
   refreshCustomerNav();
+}
+function escConcierge(s){
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderConciergeCard(offer){
+  if (!offer) return '';
+  const role = offer.roleLabel || (offer.role === 'unasked' ? 'You did not ask for this' : (offer.role === 'start' ? 'A real door' : 'Matched to what you said'));
+  const href = offer.ctaHref || ('/services/' + encodeURIComponent(offer.id || ''));
+  return '<article class="card concierge-card"><span class="tag">' + escConcierge(role) + '</span><h3>' + escConcierge(offer.title) + '</h3><p>' + escConcierge(offer.strategy) + '</p><p class="concierge-meta">' + escConcierge(offer.priceLabel || '') + (offer.priceBtc ? (' · ≈ ' + Number(offer.priceBtc).toFixed(8) + ' BTC') : '') + '</p><a class="btn btn-primary" href="' + escConcierge(href) + '" data-link>' + escConcierge(offer.ctaLabel || 'Open') + '</a></article>';
+}
+function bindConcierge(){
+  const form = document.getElementById('concierge');
+  if (!form || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    const field = document.getElementById('conciergeAsk');
+    const reply = document.getElementById('conciergeReply');
+    const text = field ? field.value : '';
+    if (reply) reply.textContent = 'Reading the shelf…';
+    fetch('/api/shelf/advise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!reply) return;
+        const cards = [renderConciergeCard(j && j.primary)].concat((j && j.also || []).map(renderConciergeCard)).join('');
+        reply.innerHTML = '<p>' + escConcierge((j && j.question) || '') + '</p><div class="concierge-grid">' + cards + '</div>';
+      })
+      .catch(function(){ if (reply) reply.textContent = 'The shelf did not answer. The priced offers are below.'; });
+  });
 }
 function initNavOffer(){
   const nav = document.querySelector('nav.nav');
