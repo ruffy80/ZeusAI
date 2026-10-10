@@ -1315,21 +1315,28 @@ document.addEventListener('click', (e) => {
   // Find the nearest grid that hosts the cards. Common SSR ids:
   //   #catalogGrid (services page)  ·  #homeFeaturedGrid (home featured)
   //   any .grid sibling of the chip's parent .filter-bar / .chips
-  let grid = null;
   const wrap = chip.closest('section, main, #app, body') || document;
-  grid = wrap.querySelector('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
-  if (!grid) grid = document.querySelector('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
-  if (!grid) return; // nothing to filter on this page
+  let grids = wrap.querySelectorAll('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
+  if (!grids.length) grids = document.querySelectorAll('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
+  if (!grids.length) return; // nothing to filter on this page
   // Toggle .on among sibling chips of the same data-group bar
-  const bar = chip.parentElement || chip.closest('.chips, .filter-bar') || document;
+  const bar = chip.parentElement || chip.closest('.chips, .filters, .filter-bar') || document;
   bar.querySelectorAll('button.chip[data-group], .chip[data-group]').forEach((c) => c.classList.toggle('on', c === chip));
-  // Apply tier filter
+  // Apply tier filter across every shelf clock, not only the first grid.
   let visible = 0;
-  grid.querySelectorAll('[data-tier], [data-product-id]').forEach((card) => {
-    const tier = String(card.getAttribute('data-tier') || '').toLowerCase();
-    const show = (group === 'all') || (tier && tier === group);
-    card.style.display = show ? '' : 'none';
-    if (show) visible++;
+  grids.forEach((grid) => {
+    grid.querySelectorAll('[data-tier], [data-product-id]').forEach((card) => {
+      const tier = String(card.getAttribute('data-tier') || '').toLowerCase();
+      const show = (group === 'all') || (tier && tier === group);
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+  });
+  wrap.querySelectorAll('.atlas-band').forEach((band) => {
+    const cards = band.querySelectorAll('[data-product-id]');
+    if (!cards.length) return;
+    const any = Array.prototype.some.call(cards, (c) => c.style.display !== 'none');
+    band.style.display = any ? '' : 'none';
   });
   try { window.dispatchEvent(new CustomEvent('unicorn:chip-filter', { detail: { group, visible } })); } catch (_) {}
 });

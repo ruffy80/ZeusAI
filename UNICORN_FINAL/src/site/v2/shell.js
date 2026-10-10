@@ -1775,6 +1775,12 @@ function pageServices() {
       <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Articles + brief</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
     </div>
   </section>
+  <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
+    <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
+    <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
+    <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
+    <button class="chip" data-group="enterprise" type="button">👑 Enterprise (${counts.enterprise || 0})</button>
+  </div>
   ${_homeAtlasHtml()}
 </section>`;
 }
