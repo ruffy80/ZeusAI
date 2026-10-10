@@ -4768,7 +4768,7 @@ async function hydrateOwnerRevenue(){
       }
       const reply = lines.join('\n') || (j.lang === 'ro' ? 'Spune ce faci și ce vrei.' : 'Say what you do and what you want.');
       addMsg(mdToHtml(reply), 'bot', { userMsg: q });
-      renderShelfOffers([primary].concat(also));
+      renderShelfOffers((j.limits || []).concat([primary]).concat(also));
       history.push({ role: 'user', content: q }, { role: 'assistant', content: reply });
       saveHistory();
       maybeSpeak(reply);
@@ -5741,9 +5741,11 @@ function escConcierge(s){
 }
 function renderConciergeCard(offer){
   if (!offer) return '';
-  const role = offer.roleLabel || (offer.role === 'unasked' ? 'You did not ask for this' : (offer.role === 'start' ? 'A real door' : 'Matched to what you said'));
+  const role = offer.roleLabel || (offer.role === 'aside' ? 'Not for sale' : (offer.role === 'unasked' ? 'You did not ask for this' : (offer.role === 'start' ? 'A real door' : 'Matched to what you said')));
   const href = offer.ctaHref || ('/services/' + encodeURIComponent(offer.id || ''));
-  return '<article class="card concierge-card"><span class="tag">' + escConcierge(role) + '</span><h3>' + escConcierge(offer.title) + '</h3><p>' + escConcierge(offer.strategy) + '</p><p class="concierge-meta">' + escConcierge(offer.priceLabel || '') + (offer.priceBtc ? (' · ≈ ' + Number(offer.priceBtc).toFixed(8) + ' BTC') : '') + '</p><a class="btn btn-primary" href="' + escConcierge(href) + '" data-link>' + escConcierge(offer.ctaLabel || 'Open') + '</a></article>';
+  const price = offer.priced === false ? '' : ('<p class="concierge-meta">' + escConcierge(offer.priceLabel || '') + (offer.priceBtc ? (' · ≈ ' + Number(offer.priceBtc).toFixed(8) + ' BTC') : '') + '</p>');
+  const btnClass = offer.priced === false ? 'btn btn-ghost' : 'btn btn-primary';
+  return '<article class="card concierge-card"><span class="tag">' + escConcierge(role) + '</span><h3>' + escConcierge(offer.title) + '</h3><p>' + escConcierge(offer.strategy) + '</p>' + price + '<a class="' + btnClass + '" href="' + escConcierge(href) + '" data-link>' + escConcierge(offer.ctaLabel || 'Open') + '</a></article>';
 }
 function bindConcierge(){
   const form = document.getElementById('concierge');
@@ -5759,8 +5761,17 @@ function bindConcierge(){
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!reply) return;
-        const cards = [renderConciergeCard(j && j.primary)].concat((j && j.also || []).map(renderConciergeCard)).join('');
+        const cards = (j && j.limits || []).map(renderConciergeCard).concat([renderConciergeCard(j && j.primary)]).concat((j && j.also || []).map(renderConciergeCard)).join('');
         reply.innerHTML = '<p>' + escConcierge((j && j.question) || '') + '</p><div class="concierge-grid">' + cards + '</div>';
+        try {
+          reply.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' });
+          const cookie = document.getElementById('zeus-cookie');
+          if (cookie && cookie.hidden === false) {
+            const limit = cookie.getBoundingClientRect().top - 12;
+            const bottom = reply.getBoundingClientRect().bottom;
+            if (bottom > limit) window.scrollBy({ top: bottom - limit, left: 0, behavior: 'instant' });
+          }
+        } catch (_) {}
       })
       .catch(function(){ if (reply) reply.textContent = 'The shelf did not answer. The priced offers are below.'; });
   });

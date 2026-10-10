@@ -238,9 +238,15 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 .shelf-ask label{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim)}
 .shelf-ask textarea{width:100%;min-height:96px;resize:vertical;padding:14px 16px;border-radius:16px;border:1px solid rgba(62,160,255,.45);background:rgba(8,6,20,.72);color:var(--ink);font:inherit;line-height:1.45;box-shadow:0 0 0 1px rgba(138,92,255,.2),0 18px 40px -28px rgba(62,160,255,.9)}
 .shelf-ask textarea:focus{outline:2px solid rgba(62,160,255,.7);outline-offset:2px}
-#conciergeReply{margin-top:14px;max-width:920px}
-.concierge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:10px}
-.concierge-card p{color:var(--ink-dim);line-height:1.5}
+#conciergeReply{margin-top:14px;max-width:920px;scroll-margin-top:96px;scroll-margin-bottom:180px}
+.hero-shelf-facts{margin:8px 0 0;max-width:72ch;color:var(--ink-dim);font-size:14px;line-height:1.45}
+.concierge-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:6px}
+.concierge-card{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.concierge-card h3{margin:0;font-size:16px;line-height:1.25}
+.concierge-card p{margin:0;color:var(--ink-dim);line-height:1.35;font-size:13.5px}
+.concierge-card .btn{margin-top:4px;justify-content:center;padding:8px 12px}
+#conciergeReply > p{margin:0 0 4px;font-size:13.5px;line-height:1.35}
+@media(min-width:769px){.concierge-grid{grid-template-columns:1fr 1fr;align-items:stretch}}
 .concierge-meta{font-family:var(--mono);color:var(--gold)!important}
 .resume-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .resume-pane{border-radius:18px;padding:18px 18px 20px;background:rgba(12,10,24,.55);border:1px solid rgba(138,92,255,.28);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
@@ -396,6 +402,7 @@ section,main#app>article{position:relative;z-index:3;padding:80px 32px;max-width
 /* cards */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
 .card{position:relative;padding:22px;border-radius:var(--radius);border:1px solid var(--stroke);background:linear-gradient(180deg,var(--glass),rgba(10,8,24,.3));backdrop-filter:blur(var(--autotune-blur));transition:transform .25s,opacity .25s,border-color .25s;overflow:hidden}
+.card.concierge-card{padding:10px 12px}
 .card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(138,92,255,.35),transparent 50%,rgba(62,160,255,.25));-webkit-mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.4;transition:opacity .3s}
 .card:hover{transform:translateY(-3px);border-color:var(--stroke-hot);box-shadow:0 24px 60px -20px rgba(138,92,255,calc(.35 * var(--autotune-glow)))}
 .card:hover::before{opacity:1}
@@ -678,10 +685,10 @@ body{overflow-x:hidden;min-height:100vh;min-height:100dvh}
 .nav,footer,.hero,section{padding-left:max(env(safe-area-inset-left,0px),16px);padding-right:max(env(safe-area-inset-right,0px),16px)}
 .zeus-cookie,.zeus-buy-bar{padding-bottom:max(env(safe-area-inset-bottom,0px),12px)}
 .zeus-cookie[hidden],#zeus-cookie[hidden]{display:none!important}
-body:has(#zeus-cookie:not([hidden])){padding-bottom:132px}
+body:has(#zeus-cookie:not([hidden])){padding-bottom:180px}
 @media (max-width:768px){
   /* Reserve the consent bar up front so showing it does not move the hero. */
-  body{padding-bottom:132px}
+  body{padding-bottom:180px}
   .hero,body:has(#zeus-cookie:not([hidden])) .hero{min-height:0;align-items:flex-start;padding-top:128px;padding-bottom:210px}
   .hero h1,body:has(#zeus-cookie:not([hidden])) .hero h1{font-size:clamp(28px,7.2vw,38px);margin:8px 0 10px;line-height:1.2}
   .hero .hero-pay-note{display:none}

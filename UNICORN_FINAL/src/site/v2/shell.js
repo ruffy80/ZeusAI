@@ -625,7 +625,6 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
 ${langToggle}
 <a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign up</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
-<a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
 </nav>`;
 }
@@ -1209,7 +1208,7 @@ function _atlasCard(p) {
   const id = String((p && p.id) || '');
   const title = _esc(p.title || p.id || 'Service');
   const desc = _esc(p.description || '');
-  const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
+  const price = Number(p.priceUsd != null ? p.priceUsd : (p.priceUSD || p.price || 0));
   const priceTxt = price > 0 ? _atlasMoney(price) : 'Custom';
   const billing = p.billing === 'annual' ? '<small style="color:var(--ink-dim);font-weight:400">/yr</small>'
     : (p.billing === 'monthly' ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '');
@@ -1221,12 +1220,16 @@ function _atlasCard(p) {
   const btcDiscountNote = price > 0
     ? '<span class="btc-discount">10% BTC discount applied</span>'
     : '';
-  const cta = _ctaForProduct(p);
+  const cta = (p && p.ctaHref) ? p : _ctaForProduct(p);
+  const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(id));
+  const label = cta.mode === 'contact' ? 'Request a proposal →' : (cta.ctaLabel || 'Buy → choose payment');
   const primary = cta.mode === 'contact'
-    ? `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Request a proposal for ${title}" style="flex:1;justify-content:center">Request a proposal →</a>`
-    : (price > 0 ? _primaryCtaHtml(p, { flex: true }) : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
+    ? `<a class="btn btn-gold" href="${_esc(href)}" data-link aria-label="Request a proposal for ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
+    : (price > 0
+      ? `<a class="btn btn-primary" href="${_esc(href)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
+      : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
   return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}" itemscope itemtype="https://schema.org/Product">
-    <span class="atlas-when">${_esc(_atlasWhen(p))}</span>
+    <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
     <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
     <h3 itemprop="name">${title}</h3>
     <p itemprop="description">${desc}</p>
@@ -1678,6 +1681,7 @@ ${_zaccBanner}
       <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
       <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
       <p class="hero-pay-note">Secure payment confirmation and a public refund guarantee. Bitcoin is live. Card and PayPal appear when that checkout is configured.</p>
+      <p class="hero-shelf-facts" id="heroShelfFacts">${_heroShelfFacts()}</p>
       <form id="concierge" class="shelf-ask" action="/api/shelf/advise" method="post">
         <label for="conciergeAsk">What do you do, and what do you want?</label>
         <textarea id="conciergeAsk" name="text" required maxlength="2000" placeholder="I run a clinic. I need a site and a way to answer patient questions."></textarea>
@@ -1718,6 +1722,16 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
 `;
 }
 
+function _heroShelfFacts() {
+  let items = [];
+  try { items = require('../../commerce/public-shelf').publicShelf(); } catch (_) { items = []; }
+  const minutes = items.filter((p) => p.clock === 'minutes');
+  const days = items.filter((p) => p.clock === 'days');
+  const kick = items.find((p) => p.id === 'ent-engagement-kickoff');
+  const kickPrice = kick ? _atlasMoney(kick.priceUsd || kick.priceUSD || 0) : '';
+  return `Minutes ${_esc(_atlasRange(minutes) || '—')} · Days ${_esc(_atlasRange(days) || '—')} · Kickoff ${kickPrice}. Press Show me the offer.`;
+}
+
 function pageServices() {
   let catalog = [];
   try {
@@ -1733,8 +1747,8 @@ function pageServices() {
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a class="btn btn-primary" href="/wizard" data-link>Find my plan →</a>
-      <a class="btn btn-ghost" href="/checkout/?plan=custom" data-link title="Skip catalog and open a manual BTC invoice for a custom amount">Custom order</a>
+      <a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a>
+      <a class="chip" href="/wizard" data-link>Find my plan →</a>
     </div>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
@@ -1748,7 +1762,7 @@ function pageServices() {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">${_esc(summary)}</div>
-        <a class="btn btn-primary" href="/wizard" data-link>Find my plan →</a>
+        <a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a>
       </div>
     </div>
   </div>
@@ -1761,27 +1775,7 @@ function pageServices() {
       <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Articles + brief</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
     </div>
   </section>
-  <div class="filters" id="catFilters" role="tablist" aria-label="Filter services by tier">
-    <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
-    <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
-    <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
-    <button class="chip" data-group="enterprise" type="button">👑 Enterprise (${counts.enterprise || 0})</button>
-    <a class="chip" href="/wizard" data-link style="text-decoration:none">🧭 Find my plan →</a>
-  </div>
-  <section id="autonomousLiveSection" style="margin:20px 0 30px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">⚡ Live from Unicorn fabric <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— rendered server-side, refreshed live</small></h3>
-      <span id="autonomousStatus" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">${catalog.length} products SSR · hydrating…</span>
-    </div>
-    ${_ssrCatalogGrid(catalog, { gridId: 'catalogGrid', minCol: 300 })}
-  </section>
-  <section id="unicornModulesMirror" aria-label="Live Unicorn modules" style="margin:28px 0 10px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">🧬 Live Unicorn modules <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— operational mirror from backend (not the buyable 25-SKU catalog)</small></h3>
-      <span id="autonomousModulesHint" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">connecting to Unicorn modules…</span>
-    </div>
-    <div id="autonomousServicesGrid" class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
-  </section>
+  ${_homeAtlasHtml()}
 </section>`;
 }
 
@@ -1903,22 +1897,22 @@ function pageService(id) {
       ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
+        const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
+        const label = cta.mode === 'contact' ? 'Request a proposal →' : (cta.ctaLabel || 'Buy → choose payment');
         if (cta.mode === 'contact') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart. It does not deliver the license, the source, or a private cloud.</p>
-      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">Request a proposal →</a>`;
+          return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart.</p>
+      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(href)}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
         }
-        if (cta.mode === 'reserve') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.</p>
+        const note = safeId === 'ent-engagement-kickoff'
+          ? 'Paid start only. It does not deliver the license, the source, or a private cloud.'
+          : (cta.mode === 'reserve'
+            ? 'Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.'
+            : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.');
+        return `<p style="color:var(--ink-dim);font-size:13.5px">${note}</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
-      <a class="btn btn-primary" id="svcBuyBtn" href="/checkout/?plan=${encodeURIComponent(safeId)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">Reserve → choose payment</a>`;
-        }
-        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.</p>
-      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
-        <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
-      </label>
-      <a class="btn btn-primary" id="svcBuyBtn" href="/checkout/?plan=${encodeURIComponent(safeId)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">Buy now → choose payment</a>`;
+      <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
       })()}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
@@ -1930,80 +1924,20 @@ function pageService(id) {
 }
 
 function pagePricing() {
-  // Plan tiers use checkout plan ids starter / pro / enterprise. BTC checkout is
-  // one-shot — prices revalidate at pay time via hydratePricingPage() in client.js.
-  const starter    = _liveTierPrice('starter', 29);
-  const pro        = _liveTierPrice('pro', 99);
-  const enterprise = _liveTierPrice('enterprise', 499);
-  const fmt = (info) => {
-    const n = Number(info.price);
-    if (!Number.isFinite(n)) return '—';
-    const hasFrac = Math.abs(n - Math.round(n)) > 0.0049;
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 });
-  };
-  const oneTimeNote = '<small style="display:block;font-size:11px;color:var(--ink-dim);font-weight:400;margin-top:4px">one-time access (not a metered subscription)</small>';
-  const deliverables = '<li>Ed25519-signed entitlement receipt</li><li>API key for the purchased plan scope</li><li>Onboarding packet (FAQ + activation steps)</li>';
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Pricing · one-time plan access</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Fair. Sovereign. <span class="grad">What you actually get.</span></h1></div>
-    <p>Each plan is a single BTC / PayPal / card checkout — not a recurring metered subscription. You receive a signed entitlement, API key, and onboarding packet (see FAQ on checkout). Amount is revalidated before payment.</p>
+    <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
+    <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. There is no separate Starter or Growth plan. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
-  <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
-    Prices refresh from live catalog pricing and revalidate at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
-  </div>
-  <div class="pricing">
-    <div class="plan" data-pricing-plan="starter">
-      <h3>Starter</h3>
-      <div class="price" data-pricing-value="starter">${fmt(starter)}${oneTimeNote}</div>
-      <p style="color:var(--ink-dim);margin:0">For founders validating ZeusAI on real workloads.</p>
-      <ul>
-        ${deliverables}
-        <li id="pricingPaymentRail">Direct BTC checkout · PayPal / card when configured</li>
-      </ul>
-      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-sovereign-buy="starter" data-buy-mode="checkout">Buy → choose payment</a>
-    </div>
-    <div class="plan highlight" data-pricing-plan="pro">
-      <h3>Growth</h3>
-      <div class="price" data-pricing-value="pro">${fmt(pro)}${oneTimeNote}</div>
-      <p style="color:var(--ink-dim);margin:0">For teams shipping multiple automations.</p>
-      <ul>
-        ${deliverables}
-        <li>Higher plan scope on the same entitlement rails as Starter</li>
-        <li>Priority handling when support channels are armed</li>
-      </ul>
-      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-sovereign-buy="pro" data-buy-mode="checkout">Buy → choose payment</a>
-    </div>
-    <div class="plan" data-pricing-plan="enterprise">
-      <h3>Enterprise</h3>
-      <div class="price" data-pricing-value="enterprise">${fmt(enterprise)}${oneTimeNote}</div>
-      <p style="color:var(--ink-dim);margin:0">Custom scope · proposal-led.</p>
-      <ul>
-        ${deliverables}
-        <li>Live catalog counts only — never invented traction</li>
-        <li>SLA unpublished until an incident ledger exists</li>
-        <li>Outcome pricing only after measured value — contact for proposal</li>
-      </ul>
-      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Contact / request proposal →</a>
-    </div>
-  </div>
-  <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.06));border:1px solid rgba(247,147,26,.35)">
-    <div style="min-width:260px;flex:1">
-      <span class="kicker">One-time deliverables</span>
-      <h3 style="margin:6px 0 4px;font-size:20px">Prefer a one-shot BTC purchase?</h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Browse the one-time catalog — signed artefacts, no subscription, no card. Catalog lists the base USD; checkout applies a 10% BTC discount to that same base.</p>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-primary" href="/services" data-link>Open one-time catalog →</a>
-      <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
-    </div>
-  </div>
-  <div class="card" style="margin-top:16px;padding:12px 14px">
-    <b>Use-case playbooks:</b>
-    <a href="/solutions/ai-pricing" data-link style="margin-left:8px">AI pricing engine</a> ·
-    <a href="/solutions/ai-checkout" data-link>AI checkout optimizer</a> ·
-    <a href="/solutions/ai-self-healing" data-link>AI self-healing ops</a>
-  </div>
-</section>`;
+  <p style="margin:0 0 12px"><a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
+</section>
+${_homeAtlasHtml()}
+<div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px">
+  <span class="kicker">One door</span>
+  <h3 style="margin:6px 0 4px;font-size:20px">The price on the card is the checkout price.</h3>
+  <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Ask what you do and what you want. The reply uses this shelf only.</p>
+  <p style="margin:12px 0 0"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn btn-ghost" href="/services" data-link>Open one-time catalog →</a></p>
+</div>`;
 }
 
 function pageCheckout(params) {
@@ -2014,10 +1948,25 @@ function pageCheckout(params) {
   // pe card e în HTML înainte de orice JS.
   const p = params || {};
   // Allow virtual SKU prefixes (dropship:…, social-tip:…) — colons must survive.
-  const ssrPlan = String(p.plan || 'starter').trim().replace(/[^a-zA-Z0-9_.:@-]/g, '').slice(0, 160) || 'starter';
+  const ssrPlan = String(p.plan || '').trim().replace(/[^a-zA-Z0-9_.:@-]/g, '').slice(0, 160);
+  const ghostPlan = !ssrPlan || ssrPlan === 'starter' || ssrPlan === 'pro' || ssrPlan === 'enterprise';
+  if (ghostPlan) {
+    return `<section style="padding-top:140px">
+  <div class="section-title">
+    <div><span class="kicker">You are buying</span><h2>This checkout has no shelf offer yet.</h2></div>
+    <p>Starter, Growth, and a bare enterprise plan are not products. Say what you do and what you want. The reply names a real offer, a price, and one button.</p>
+  </div>
+  <p><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a></p>
+  <details id="checkoutFaq" class="card" style="margin:18px 0 0;padding:14px 18px">
+    <summary style="cursor:pointer;font-weight:600;font-size:15px">What happens after I send BTC?</summary>
+    <p style="color:var(--ink-dim)">A shelf checkout quotes one amount, watches the payment, and issues a signed receipt. Open an offer from the shelf first.</p>
+  </details>
+</section>`;
+  }
   let shelfItem = null;
   try { shelfItem = require('../../commerce/public-shelf').byId(ssrPlan); } catch (_) { shelfItem = null; }
   const contactOnly = !!(shelfItem && shelfItem.mode === 'contact');
+  const kickoffOnly = !!(shelfItem && shelfItem.id === 'ent-engagement-kickoff');
   let ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   if (shelfItem && Number(shelfItem.priceUsd) > 0) ssrUsd = Number(shelfItem.priceUsd);
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
@@ -2056,7 +2005,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${contactOnly ? 'Request a proposal. It does not deliver the license, the source, or a private cloud.' : _esc(shelfItem.description)}</p>` : ''}
+        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (contactOnly ? 'Request a proposal. This figure is not a cart.' : _esc(shelfItem.description))}</p>` : ''}
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
@@ -2147,8 +2096,8 @@ function pageSolution(kind) {
       title: 'AI Checkout Conversion Optimizer',
       copy: 'Improves payment completion with live quote confidence, route fallback and automatic recovery after pending payments.',
       bullets: ['Inline validation + trust copy', 'Payment rail fallback', 'Receipt + delivery auto-issue'],
-      cta: '/checkout/?plan=starter',
-      ctaLabel: 'Open optimized checkout'
+      cta: '/#concierge',
+      ctaLabel: 'Ask ZeusAI'
     },
     'ai-self-healing': {
       kicker: 'AI reliability solution',
