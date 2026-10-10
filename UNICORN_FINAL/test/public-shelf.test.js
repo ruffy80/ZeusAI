@@ -78,6 +78,43 @@ check('checkout uses the shelf price and refuses a self-serve cart for a proposa
   assert.ok(proposal.includes('Request a proposal →'));
   assert.ok(proposal.includes('hidden'));
   assert.ok(!proposal.includes('id="coSkipForm"'));
+  assert.ok(pay.includes('It does not deliver the license, the source, or a private cloud.'));
+  assert.ok(!proposal.includes('It does not deliver the license, the source, or a private cloud.'));
+});
+
+check('a paused power is explained without a price, then three real doors', () => {
+  const advice = shelf.advise('I want to dropship with Printful');
+  assert.ok(advice.limits && advice.limits.length === 1);
+  assert.strictEqual(advice.limits[0].priced, false);
+  assert.strictEqual(advice.limits[0].priceLabel, '');
+  assert.ok(advice.limits[0].ctaHref.includes('/zacc'));
+  assert.ok(advice.primary);
+  assert.strictEqual(advice.primary.role, 'start');
+  assert.ok(advice.also.length >= 1);
+});
+
+check('pricing, services, buy, and home share one shelf', () => {
+  const kick = shelf.byId('ent-engagement-kickoff');
+  const acq = shelf.byId('ent-acquisition-pack');
+  for (const path of ['/', '/pricing', '/services', '/buy']) {
+    const html = shell.getHtml(path);
+    assert.ok(html.includes('data-product-id="' + kick.id + '"'), path + ' kickoff');
+    assert.ok(html.includes(kick.ctaHref), path + ' kickoff href');
+    assert.ok(html.includes(acq.ctaHref), path + ' proposal href');
+  }
+  const pricing = shell.getHtml('/pricing');
+  assert.ok(!/\/checkout\/\?plan=starter(?![a-z0-9_-])/i.test(pricing));
+  assert.ok(!/\/checkout\/\?plan=pro(?![a-z0-9_-])/i.test(pricing));
+  const home = shell.getHtml('/');
+  assert.ok(home.includes('id="heroShelfFacts"'));
+  assert.ok(!home.includes('data-pricing-plan="starter"'));
+  const ro = shelf.advise('Am o companie și vreau un chatbot');
+  const en = shelf.advise('I need a chatbot for patient questions');
+  assert.strictEqual(ro.lang, 'ro');
+  assert.strictEqual(en.lang, 'en');
+  assert.notStrictEqual(ro.primary.strategy, en.primary.strategy);
+  assert.ok(!/Kickoff pack now|About \d+ days/.test(ro.primary.strategy));
+  assert.ok(ro.primary.strategy.includes('zile') || ro.primary.strategy.includes('Nu este un coș') || ro.primary.strategy.includes('Rezervi'));
 });
 
 console.log('public-shelf: ' + passed + ' checks passed');

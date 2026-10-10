@@ -24,6 +24,39 @@ const LANES = [
   { keys: ['enterprise', 'licen', 'license', 'acquisition', 'achiziti', 'achiziți', 'source code', 'white-label', 'white label', 'on-prem', 'sovereign', 'suveran', 'private cloud', 'transformare'], ids: ['ent-engagement-kickoff'], also: ['ent-platform-license', 'ent-private-cloud', 'ent-acquisition-pack', 'ent-sovereign-deployment'] },
 ];
 
+const LIMITS = [
+  {
+    keys: ['dropship', 'printful', 'cj dropshipping', 'supplier feed', 'furnizor'],
+    href: '/zacc',
+    titleEn: 'Dropship is paused',
+    titleRo: 'Dropship este în pauză',
+    noteEn: 'Supplier connectors stay off until credentials exist. This is not a product and it has no price.',
+    noteRo: 'Conectorii de furnizori rămân opriți până există credențiale. Nu este un produs și nu are preț.',
+    ctaEn: 'Read the paused cockpit',
+    ctaRo: 'Vezi cabina în pauză',
+  },
+  {
+    keys: ['quantum', 'orbital', 'implant', 'neural', 'frontier', 'cuantic', 'cuantică'],
+    href: '/frontier',
+    titleEn: 'Frontier is research',
+    titleRo: 'Frontier este cercetare',
+    noteEn: 'You can read the frontier desk. It does not sell orbital compute, a neural implant, or a quantum channel, and it has no price.',
+    noteRo: 'Poți citi biroul frontier. Nu vinde calcul orbital, un implant neural sau un canal cuantic și nu are preț.',
+    ctaEn: 'Read the research',
+    ctaRo: 'Citește cercetarea',
+  },
+  {
+    keys: ['vertical', 'industrie', 'industry os', 'pharma', 'vom', 'architecture pack', 'pachet de industrie'],
+    href: '/vom',
+    titleEn: 'Industry packs are a kickoff',
+    titleRo: 'Pachetele de industrie sunt un kickoff',
+    noteEn: 'An industry architecture pack is an engagement kickoff, not a finished system delivered on payment. The list is on /vom. It is not a separate priced product here.',
+    noteRo: 'Un pachet de arhitectură pe industrie este un kickoff de angajament, nu un sistem finit livrat la plată. Lista este pe /vom. Nu este un produs cu preț separat aici.',
+    ctaEn: 'See the kickoff list',
+    ctaRo: 'Vezi lista de kickoff',
+  },
+];
+
 function spotUsd() {
   try {
     const cache = global.__btcSpotCache || global._btcSpotCache;
@@ -137,9 +170,22 @@ function langOf(text) {
   return /[ăâîșțĂÂÎȘȚ]|\b(vreau|vrea|fac|faci|pentru|companie|clinica|clinică|am nevoie|ajuta|ajută|oferă|pret|preț|magazin)\b/i.test(text) ? 'ro' : 'en';
 }
 
+function whenLang(item, lang) {
+  if (lang !== 'ro') return item.when;
+  if (item.id === 'ent-engagement-kickoff') return 'Pachetul de propunere după plată · se creditează la un angajament semnat';
+  if (item.clock === 'contract') return 'Cere o propunere · nu este o descărcare instant';
+  const mins = Number(item.deliveryMinutes);
+  if (mins > 0) return 'Cam ' + mins + ' min după confirmarea plății';
+  const days = Number(item.deliveryDays);
+  if (days > 0) return 'Pachetul de kickoff acum · echipa livrează în cam ' + days + ' zile · nu este o descărcare instant';
+  if (item.clock === 'days') return 'Pachetul de kickoff acum · livrare umană în fereastra anunțată · nu este o descărcare instant';
+  return 'După confirmarea plății';
+}
+
 function strategy(item, lang) {
   const price = money(item.priceUsd);
   const per = item.billing === 'annual' ? (lang === 'ro' ? '/an' : '/yr') : '';
+  const when = whenLang(item, lang);
   if (item.id === 'ent-engagement-kickoff') {
     return lang === 'ro'
       ? `Plătești ${price}. Primești brief-ul, propunerea comercială și draftul de contract. Suma se creditează la un angajament semnat. Nu livrează licența, sursa sau cloud-ul.`
@@ -147,23 +193,55 @@ function strategy(item, lang) {
   }
   if (item.mode === 'contact') {
     return lang === 'ro'
-      ? `Cifra listată este ${price}${per}. Nu este un coș. Butonul cere o propunere. ${item.when}.`
-      : `The listed figure is ${price}${per}. It is not a cart. The button requests a proposal. ${item.when}.`;
+      ? `Cifra listată este ${price}${per}. Nu este un coș. Butonul cere o propunere. ${when}.`
+      : `The listed figure is ${price}${per}. It is not a cart. The button requests a proposal. ${when}.`;
   }
   if (item.clock === 'days') {
+    const days = Number(item.deliveryDays) || 0;
     return lang === 'ro'
-      ? `Rezervi ${price}. Pachetul de kickoff se deblochează acum. Echipa livrează sistemul finit. ${item.when}.`
-      : `Reserve ${price}. The kickoff pack unlocks now. The team delivers the finished system. ${item.when}.`;
+      ? `Rezervi ${price}. Primești pachetul de kickoff acum. Sistemul finit ajunge${days ? ' în cam ' + days + ' zile' : ''}. Nu este o descărcare instant.`
+      : `Reserve ${price}. The kickoff pack unlocks now. The finished system arrives${days ? ' in about ' + days + ' days' : ''}. It is not an instant download.`;
   }
   return lang === 'ro'
-    ? `Plătești ${price}. După confirmarea plății primești: ${item.description} ${item.when}. Bitcoin este calea deschisă. Cardul și PayPal apar la checkout când sunt configurate.`
-    : `Pay ${price}. After payment settles you receive: ${item.description} ${item.when}. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.`;
+    ? `Plătești ${price}. Primești ${item.title}. ${when}. Bitcoin este calea deschisă. Cardul și PayPal apar la checkout când sunt configurate.`
+    : `Pay ${price}. You receive ${item.title}. ${item.when}. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.`;
 }
 
 function roleLabel(role, lang) {
+  if (role === 'aside') return lang === 'ro' ? 'Nu este de vânzare' : 'Not for sale';
   if (role === 'unasked') return lang === 'ro' ? 'Nu ai cerut asta' : 'You did not ask for this';
   if (role === 'start') return lang === 'ro' ? 'O ușă reală' : 'A real door';
   return lang === 'ro' ? 'Potrivit cu ce ai spus' : 'Matched to what you said';
+}
+
+function limitView(limit, lang) {
+  const ro = lang === 'ro';
+  return {
+    id: null,
+    title: ro ? limit.titleRo : limit.titleEn,
+    description: ro ? limit.noteRo : limit.noteEn,
+    strategy: ro ? limit.noteRo : limit.noteEn,
+    role: 'aside',
+    roleLabel: roleLabel('aside', lang),
+    priced: false,
+    priceUsd: null,
+    priceLabel: '',
+    priceBtc: 0,
+    mode: 'unavailable',
+    buyable: false,
+    ctaLabel: ro ? limit.ctaRo : limit.ctaEn,
+    ctaHref: limit.href,
+  };
+}
+
+function matchedLimits(text, lang) {
+  const hay = String(text || '').toLowerCase();
+  const out = [];
+  for (const limit of LIMITS) {
+    if (!limit.keys.some((key) => hay.includes(key))) continue;
+    out.push(limitView(limit, lang));
+  }
+  return out;
 }
 
 function offerView(item, lang, role) {
@@ -207,8 +285,9 @@ function advise(text) {
   const emptyQuestion = lang === 'ro'
     ? 'Spune ce faci și ce vrei să existe după plată. Răspunsul vine doar din raftul public.'
     : 'Say what you do and what you want to exist after you pay. The answer comes only from the public shelf.';
+  const limits = matchedLimits(raw, lang);
   if (!raw) {
-    return { ok: true, lang, heard: '', primary: null, also: [], question: emptyQuestion };
+    return { ok: true, lang, heard: '', primary: null, also: [], limits: [], question: emptyQuestion };
   }
   let best = null;
   let bestScore = 0;
@@ -219,15 +298,17 @@ function advise(text) {
   if (!best) {
     const starters = ['instant-website-audit', 'professional-ai-chatbot', 'ent-engagement-kickoff']
       .map((id) => by.get(id)).filter(Boolean).map((item) => offerView(item, lang, 'start'));
+    const limitNote = limits[0] ? (' ' + limits[0].strategy) : '';
     return {
       ok: true,
       lang,
       heard: raw.slice(0, 180),
       primary: starters[0] || null,
       also: starters.slice(1),
-      question: lang === 'ro'
+      limits,
+      question: (lang === 'ro'
         ? 'Nu am potrivit o cerere precisă. Astea sunt trei intrări reale: un fișier, o rezervare și kickoff-ul de contract. Spune mai concret ce livrezi clienților tăi.'
-        : 'No precise match. These three are real doors: a file, a reservation, and the contract kickoff. Say more concretely what you deliver to your own customers.',
+        : 'No precise match. These three are real doors: a file, a reservation, and the contract kickoff. Say more concretely what you deliver to your own customers.') + limitNote,
     };
   }
   const primary = best.ids.map((id) => by.get(id)).find(Boolean) || null;
@@ -263,6 +344,7 @@ function advise(text) {
     heard: raw.slice(0, 180),
     primary: primary ? offerView(primary, lang, 'match') : null,
     also,
+    limits,
     question,
   };
 }

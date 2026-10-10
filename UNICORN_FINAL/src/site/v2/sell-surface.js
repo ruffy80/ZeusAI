@@ -25,6 +25,7 @@ function _loadBuyable() {
         priceUSD: Number(p.priceUsd || 0),
         description: p.description || '',
         deliveryMinutes: p.deliveryMinutes || null,
+        clock: p.clock || 'minutes',
         mode: p.mode || 'btc',
         buyable: p.buyable === true,
         reason: p.mode || 'shelf',
@@ -88,14 +89,9 @@ function _loadBuyable() {
 
 function pageBuy() {
   const all = _loadBuyable();
-  let gravity = null;
-  try { gravity = require('../../commerce/storefront-gravity-os'); } catch (_) {}
-  const ranked = gravity && typeof gravity.rankPublicCatalogItems === 'function'
-    ? gravity.rankPublicCatalogItems(all)
-    : all.slice().sort((a, b) => (a.priceUSD || 0) - (b.priceUSD || 0));
-  const instant = ranked.filter((p) => p.tier === 'instant' && p.mode === 'btc');
-  const professional = ranked.filter((p) => p.tier === 'professional' || p.mode === 'reserve');
-  const contact = ranked.filter((p) => p.mode === 'contact');
+  const instant = all.filter((p) => p.clock === 'minutes');
+  const professional = all.filter((p) => p.clock === 'days');
+  const contact = all.filter((p) => p.clock === 'contract');
 
   function card(p) {
     const mins = p.deliveryMinutes ? `<span class="tag">${_esc(String(p.deliveryMinutes))} min delivery</span>` : '';
@@ -104,15 +100,17 @@ function pageBuy() {
       : (p.mode === 'reserve'
         ? '<span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">Reserve · multi-rail</span>'
         : '<span class="tag">Contact / SOW</span>');
-    const price = p.priceUSD > 0
-      ? ('$' + p.priceUSD.toLocaleString('en-US', { maximumFractionDigits: 0 }))
+    const priceNum = Number(p.priceUSD) || 0;
+    const frac = Number.isFinite(priceNum) && Math.abs(priceNum - Math.round(priceNum)) > 0.0049;
+    const price = priceNum > 0
+      ? ('$' + priceNum.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 }))
       : 'Free';
     const href = p.ctaHref;
     const btnClass = p.buyable ? 'btn btn-primary' : 'btn btn-ghost';
     const sov = p.buyable
       ? ` data-sovereign-buy="${_esc(p.id)}" data-buy-mode="checkout"`
       : '';
-    return `<article class="card" style="padding:18px;display:flex;flex-direction:column;gap:10px;border-color:${(p.mode === 'btc' || p.mode === 'checkout') ? 'rgba(247,147,26,.35)' : 'var(--stroke)'}">
+    return `<article class="card" data-product-id="${_esc(p.id)}" style="padding:18px;display:flex;flex-direction:column;gap:10px;border-color:${(p.mode === 'btc' || p.mode === 'checkout') ? 'rgba(247,147,26,.35)' : 'var(--stroke)'}">
   <div style="display:flex;flex-wrap:wrap;gap:8px">${modeTag}${mins}</div>
   <h3 style="margin:0;font-size:18px">${_esc(p.title)}</h3>
   <p style="margin:0;color:var(--ink-dim);font-size:13.5px;flex:1;line-height:1.5">${_esc(p.description)}</p>
@@ -133,7 +131,7 @@ function pageBuy() {
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> Real-world storefront · BTC to owner wallet</span>
       <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Buy what we actually deliver.</span></h1>
-      <p class="lead">Only self-serve SKUs with real fulfillment recipes appear here. Every buy opens BTC · PayPal · card/crypto — signed receipt and delivery after settlement. Never faked rails.</p>
+      <p class="lead">The same public shelf as the homepage, split by delivery clock. The button and the price match checkout. Bitcoin is live. Card and PayPal appear when they are configured.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#buy-instant" data-link>Shop instant delivery</a>
         <a class="btn btn-ghost" href="/outcomes" data-link>See outcome proofs</a>
