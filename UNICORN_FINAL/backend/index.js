@@ -15019,6 +15019,7 @@ app.get('/api/zeusai-social/reach', (req, res) => {
 
   app.get('/api/zeusai-social/surface', wrap(() => surface.snapshot()));
   app.get('/api/zeusai-social/timeline', wrap((req) => {
+    try { require('./modules/social-orchestrator/service-broadcast').broadcastShelf(); } catch (_) { /* catalog mirror */ }
     const u = authUser(req);
     const mode = req.query.mode || 'for-you';
     if (mode === 'following' && !u) {

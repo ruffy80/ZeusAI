@@ -4347,7 +4347,12 @@ function pageSocialNetwork() {
   let ssrFeed = '';
   let ssrStories = '';
   let ssrInventions = '';
+  let worldDesk = '';
   let offerOptions = '<option value="">No offer — post only</option>';
+  try {
+    const broadcast = require('../../../backend/modules/social-orchestrator/service-broadcast');
+    worldDesk = broadcast.deskHtml(broadcast.broadcastShelf());
+  } catch (_) { worldDesk = ''; }
   try {
     const shelf = require('../../commerce/public-shelf');
     const rows = (shelf.publicShelf() || []).filter((p) => p && p.buyable === true && p.ctaHref);
@@ -4383,13 +4388,15 @@ function pageSocialNetwork() {
     <div class="za-social-hero__inner">
       <p class="za-social-live"><span class="za-social-live__dot"></span> Live · same account as the rest of ZeusAI</p>
       <h1 class="za-social-brand">ZeusAI <span>Social</span></h1>
-      <p class="za-social-lead">Signed posts, an intent feed, and one buy button that uses the same shelf price and the same checkout. Paid humans stay at zero until a real payment.</p>
+      <p class="za-social-lead">Signed posts, an intent feed, and one buy button that uses the same shelf price and the same checkout. Unicorn posts every buyable service on this network. Paid humans stay at zero until a real payment.</p>
       <div class="za-social-cta">
         <a class="btn btn-primary" href="#za-app">Enter the feed</a>
         <a class="btn btn-ghost" id="zaHeroAuth" href="/account?next=/social-network" data-link>Create account / Sign in</a>
       </div>
     </div>
   </header>
+
+  ${worldDesk}
 
   <section class="card" id="zaShelfDesk" style="margin:24px 0;padding:20px">
     <span class="kicker">Profit · public shelf</span>

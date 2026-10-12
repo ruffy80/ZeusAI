@@ -187,6 +187,7 @@ async function main() {
   console.log('\n📊 Results: ' + passed + ' passed, ' + failed + ' failed\n');
   if (failed > 0) process.exit(1);
   console.log('✅ social-viralizer-channels: ' + passed + ' tests passed');
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 main().catch((err) => {

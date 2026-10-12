@@ -221,6 +221,31 @@ class SocialSurface {
     } catch (_) { /* fail-soft */ }
   }
 
+  /** Union posts and users from disk so the site and the backend do not drop each other's rows. */
+  reloadMerge() {
+    try {
+      if (!fs.existsSync(DATA_FILE)) return { ok: true, mergedPosts: 0 };
+      const disk = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      if (!disk || !Array.isArray(disk.posts)) return { ok: true, mergedPosts: 0 };
+      const ids = new Set(this.state.posts.map((p) => p && p.id));
+      let mergedPosts = 0;
+      for (const p of disk.posts) {
+        if (!p || !p.id || ids.has(p.id)) continue;
+        this.state.posts.push(p);
+        ids.add(p.id);
+        mergedPosts += 1;
+      }
+      const users = new Set(this.state.users.map((u) => u && u.id));
+      for (const u of disk.users || []) {
+        if (!u || !u.id || users.has(u.id)) continue;
+        this.state.users.push(u);
+      }
+      return { ok: true, mergedPosts };
+    } catch (_) {
+      return { ok: false, mergedPosts: 0 };
+    }
+  }
+
   _user(id) {
     return this.state.users.find((u) => u.id === id) || null;
   }
@@ -273,8 +298,8 @@ class SocialSurface {
         displayName: String(meta.name || handle).slice(0, 64),
         bio: String(meta.bio || 'ZeusAI Social member').slice(0, 160),
         email: meta.email || null,
-        verified: false,
-        system: false,
+        verified: !!meta.verified,
+        system: !!meta.system,
         presence: 'active',
         passport: 50,
         intent: 'discover',
@@ -289,6 +314,8 @@ class SocialSurface {
       let dirty = false;
       if (meta.name && meta.name !== u.displayName) { u.displayName = String(meta.name).slice(0, 64); dirty = true; }
       if (meta.email && meta.email !== u.email) { u.email = meta.email; dirty = true; }
+      if (meta.system && !u.system) { u.system = true; dirty = true; }
+      if (meta.verified && !u.verified) { u.verified = true; dirty = true; }
       u.presence = 'active';
       if (dirty) this._save();
     }
@@ -752,6 +779,58 @@ class SocialSurface {
       bandwidth: bw,
       humanFresh: worldStandard.isHumanFresh(authorId),
     };
+  }
+
+  /**
+   * Official catalog card. Not a human post: the platform account publishes
+   * one buyable shelf id. Human Proof-of-Human stays on compose().
+   */
+  publishOfficial({ text, offerId } = {}) {
+    const authorId = 'zid_unicorn_official';
+    this.reloadMerge();
+    this.ensureProfile(authorId, {
+      handle: 'unicorn',
+      name: 'Unicorn',
+      bio: 'Official catalog. The price on the card is the checkout price.',
+      system: true,
+      verified: true,
+    });
+    const attached = _acceptShelfOffer(offerId);
+    if (!attached.ok) return attached;
+    if (!attached.offerId) return { ok: false, error: 'offer_required' };
+    const body = String(text || '').trim().slice(0, 2000);
+    if (!body) return { ok: false, error: 'empty' };
+    const existing = this.state.posts.find((p) => p && p.authorId === authorId && p.offerId === attached.offerId);
+    if (existing) {
+      const live = _liveShelfOffer(attached.offerId);
+      if (live && live.priceLabel && !String(existing.text).includes(live.priceLabel)) {
+        existing.text = body;
+        this._save();
+      }
+      return { ok: true, already: true, post: this._enrichPost(existing) };
+    }
+    const id = _id('p');
+    const post = {
+      id,
+      authorId,
+      kind: 'text',
+      platformCue: 'unicorn',
+      text: body,
+      media: null,
+      tags: ['#shelf'],
+      createdAt: _now(),
+      stats: { likes: 0, comments: 0, shares: 0, saves: 0, views: 0 },
+      proofOfAuthorship: _hash({ id, text: body, authorId, offerId: attached.offerId }),
+      truthAnchor: _hash({ claim: body.slice(0, 80), id }).slice(0, 16),
+      royaltyHintBtc: 0,
+      viralReanchorAt: null,
+      offerId: attached.offerId,
+      official: true,
+    };
+    this.state.posts.unshift(post);
+    if (this.state.posts.length > 200) this.state.posts.length = 200;
+    this._save();
+    return { ok: true, already: false, post: this._enrichPost(post), invention: 'official-shelf-card' };
   }
 
   react({ postId, type = 'like', actorId } = {}) {

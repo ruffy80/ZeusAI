@@ -506,6 +506,11 @@ class SocialMediaViralizer {
     if (t.producthuntDevToken) results.producthunt = await this.postToProductHunt();
     else skipped.push('producthunt');
 
+    try {
+      const shelfPass = await this.postNextShelfService();
+      if (shelfPass && shelfPass.results) Object.assign(results, shelfPass.results);
+    } catch (_) { /* shelf rotation never blocks the origin cycle */ }
+
     const published = Object.keys(results).filter((k) => results[k] && results[k].success);
     if (published.length === 0) {
       console.warn('⚠️  postToAllPlatforms: 0 canale publicate — skipped/lipsesc: ' + skipped.join(', '));
@@ -1096,6 +1101,76 @@ class SocialMediaViralizer {
         ? 'No live social poster armed. Gaze networks the owner checks (Facebook/X/Instagram) need FACEBOOK_PAGE_TOKEN, X user-context keys, INSTAGRAM_ACCESS_TOKEN in GitHub secrets → sync-all-secrets → /etc/zeusai/social.env, or POST /api/visible-social/arm. Telegram/Discord/webhook are operator rails, not Facebook posts. Open /visible.'
         : `${liveReady.length} live poster(s) ready: ${liveReady.join(', ')}. Gaze proof: /visible`,
     };
+  }
+
+  /**
+   * One buyable shelf service, sent only to armed channels by this designated poster.
+   * A missing key is a skip. Success is whatever the channel API itself returned.
+   */
+  async postNextShelfService() {
+    const crypto = require('crypto');
+    let shelf;
+    try { shelf = require('../../src/commerce/public-shelf'); } catch (_) {
+      return { ok: false, reason: 'shelf_unavailable', results: {}, posted: 0, inventsReach: false };
+    }
+    const rows = (typeof shelf.publicShelf === 'function' ? shelf.publicShelf() : [])
+      .filter((p) => p && p.buyable === true && p.ctaHref);
+    if (!rows.length) return { ok: true, posted: 0, results: {}, reason: 'no_buyable_service', inventsReach: false };
+    const item = rows[(this._shelfCursor || 0) % rows.length];
+    this._shelfCursor = (this._shelfCursor || 0) + 1;
+    const origin = String(process.env.PUBLIC_APP_URL || 'https://zeusai.pro').replace(/\/+$/, '');
+    const href = /^https?:/i.test(String(item.ctaHref)) ? item.ctaHref : origin + item.ctaHref;
+    const price = typeof shelf.money === 'function' ? shelf.money(item.priceUsd) : ('$' + item.priceUsd);
+    const text = [item.title, price + '. ' + String(item.when || ''), href, 'ZeusAI Social ' + origin + '/social-network'].join('\n').slice(0, 270);
+    const content = {
+      text,
+      url: href,
+      hashtags: ['ZeusAI'],
+      contentHash: crypto.createHash('sha256').update(String(item.id) + '|' + price + '|' + text).digest('hex'),
+    };
+    const t = this.reloadTokensFromEnv();
+    const targets = [
+      ['x', !!(t.xBearer || (t.xAccessToken && t.xAccessSecret)), (c) => this.postToX(c)],
+      ['telegram', !!(t.telegram && t.telegramChat), (c) => this.postToTelegram(c)],
+      ['facebook', !!(t.facebookPageToken && t.facebookPageId), (c) => this.postToFacebook(c)],
+      ['instagram', !!(t.instagramToken && t.instagramUserId), (c) => this.postToInstagram(c)],
+      ['linkedin', !!(t.linkedin && t.linkedinAuthor), (c) => this.postToLinkedIn(c)],
+      ['discord', !!t.discord, (c) => this.postToDiscord(c)],
+      ['threads', !!(t.threadsToken && t.threadsUserId), (c) => this.postToThreads(c)],
+      ['mastodon', !!t.mastodonToken, (c) => this.postToMastodon(c)],
+      ['bluesky', !!(t.blueskyHandle && t.blueskyPassword), (c) => this.postToBluesky(c)],
+      ['reddit', !!(t.redditClientId && t.redditClientSecret && t.redditUsername && t.redditPassword && t.redditSubreddit), (c) => this.postToReddit(c)],
+    ];
+    let vuk = null;
+    try { vuk = require('./viral-unification-os'); } catch (_) { vuk = null; }
+    const results = {};
+    let posted = 0;
+    for (const [name, armed, fn] of targets) {
+      const key = 'shelf_' + name;
+      if (!armed) {
+        results[key] = { success: false, skipped: true, posted: false, reason: 'keys_missing', serviceId: item.id };
+        continue;
+      }
+      if (vuk && typeof vuk.admit === 'function') {
+        const gate = vuk.admit({ channel: name, source: 'viralizer', kind: 'shelf-service', contentHash: content.contentHash });
+        if (!gate.ok) {
+          results[key] = { success: false, skipped: true, posted: false, reason: gate.reason || 'vuk_dedupe', serviceId: item.id };
+          continue;
+        }
+      }
+      try {
+        const r = await fn(content);
+        const success = !!(r && r.success);
+        results[key] = Object.assign({}, r, { serviceId: item.id, posted: success });
+        if (success) posted += 1;
+        if (vuk && typeof vuk.record === 'function') {
+          vuk.record({ channel: name, source: 'viralizer', kind: 'shelf-service', success, reason: r && (r.reason || r.error), contentHash: content.contentHash });
+        }
+      } catch (err) {
+        results[key] = { success: false, posted: false, error: err && err.message, serviceId: item.id };
+      }
+    }
+    return { ok: true, serviceId: item.id, priceUsd: item.priceUsd, posted, results, inventsReach: false };
   }
 
   /**
