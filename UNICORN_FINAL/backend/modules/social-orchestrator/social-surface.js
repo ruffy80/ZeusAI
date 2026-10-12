@@ -26,6 +26,52 @@ const DATA_DIR = process.env.ZEUSAI_SOCIAL_DATA_DIR
   || path.join(__dirname, '../../../data/zeusai-social');
 const DATA_FILE = path.join(DATA_DIR, 'surface.json');
 
+function _shelfApi() {
+  try { return require('../../../src/commerce/public-shelf'); } catch (_) { return null; }
+}
+
+/** Live shelf row for a stored id. Unknown or non-buyable ids render nothing. */
+function _liveShelfOffer(offerId) {
+  const id = String(offerId || '').trim();
+  if (!id) return null;
+  const shelf = _shelfApi();
+  if (!shelf || typeof shelf.byId !== 'function') return null;
+  const item = shelf.byId(id);
+  if (!item || item.buyable !== true || !item.ctaHref) return null;
+  return {
+    id: item.id,
+    title: item.title,
+    priceUsd: item.priceUsd,
+    priceLabel: typeof shelf.money === 'function' ? shelf.money(item.priceUsd) : null,
+    ctaHref: item.ctaHref,
+    ctaLabel: item.ctaLabel,
+    mode: item.mode,
+    when: item.when,
+    clock: item.clock,
+  };
+}
+
+/** Accept only a public-shelf id that checkout can sell today. */
+function _acceptShelfOffer(offerId) {
+  if (offerId == null || String(offerId).trim() === '') return { ok: true, offerId: null };
+  const offer = _liveShelfOffer(offerId);
+  if (!offer) return { ok: false, error: 'offer_not_on_shelf' };
+  return { ok: true, offerId: offer.id };
+}
+
+function _offerCardHtml(p, esc) {
+  const o = p && p.offer;
+  if (!o || !o.id || !o.ctaHref) return '';
+  const mode = o.mode === 'reserve' ? 'reserve' : 'checkout';
+  return `<aside class="za-post-offer" data-product-id="${esc(o.id)}" data-price-usd="${esc(o.priceUsd)}">
+    <span class="za-post-offer-k">Shelf offer · same checkout</span>
+    <strong>${esc(o.title)}</strong>
+    <span class="za-post-offer-price">${esc(o.priceLabel || '')}</span>
+    <span class="za-post-offer-when">${esc(o.when || '')}</span>
+    <a class="btn btn-primary" href="${esc(o.ctaHref)}" data-sovereign-buy="${esc(o.id)}" data-buy-mode="${esc(mode)}">${esc(o.ctaLabel || 'Buy')}</a>
+  </aside>`;
+}
+
 const PLATFORM_PARITY = {
   facebook: ['profiles', 'friends', 'groups', 'text_posts', 'images', 'videos', 'stories', 'live', 'reactions', 'comments', 'shares', 'dms', 'events'],
   x_twitter: ['profiles', 'follows', 'text_posts', 'images', 'videos', 'reposts', 'quotes', 'likes', 'bookmarks', 'lists', 'spaces', 'dms', 'trending'],
@@ -408,6 +454,8 @@ class SocialSurface {
       truthAnchor: p.truthAnchor,
       royaltyHintBtc: p.royaltyHintBtc,
       royaltyAccruedBtc: royalty && royalty.ok ? royalty.accruedBtc : 0,
+      offerId: p.offerId || null,
+      offer: _liveShelfOffer(p.offerId),
       viralReanchorAt: p.viralReanchorAt || null,
       virality: viral,
       federationCid: fed.ok ? fed.cid : null,
@@ -611,6 +659,7 @@ class SocialSurface {
     bondBtc, splitShares, claimState, bandwidthOverride,
     quotedPostId, quoteText,
     mediaUrl, mediaMime, mediaHash,
+    offerId,
   } = {}) {
     if (!authorId) return { ok: false, error: 'auth_required' };
     this.ensureProfile(authorId);
@@ -628,6 +677,8 @@ class SocialSurface {
     if (!worldStandard.isHumanFresh(authorId)) {
       return { ok: false, error: 'needs_human_challenge', invention: 'proof-of-human-light' };
     }
+    const attached = _acceptShelfOffer(offerId);
+    if (!attached.ok) return attached;
     // A media-only post is auto-classified as `image` unless the caller
     // explicitly chose a video/short/reel kind. Guarantees the media surface
     // renders a real attachment instead of a gradient placeholder.
@@ -657,6 +708,7 @@ class SocialSurface {
       truthAnchor: _hash({ claim: body.slice(0, 80), id }).slice(0, 16),
       royaltyHintBtc: 0,
       viralReanchorAt: null,
+      offerId: attached.offerId,
     };
     if (quotedPostId) {
       post.quotedPostId = quotedPostId;
@@ -955,7 +1007,7 @@ class SocialSurface {
         platformsCovered: Object.keys(PLATFORM_PARITY).length,
         inventionsLive: WORLD_INVENTIONS.length,
       },
-      claim: 'Facebook + X + Instagram + TikTok surface parity with Zeus inventions on top',
+      claim: 'Feature names compared with Facebook, X, Instagram, and TikTok. Planned stays planned. Audience size is not claimed.',
     };
   }
 
@@ -998,6 +1050,7 @@ class SocialSurface {
   </header>
   <p class="za-post-text">${esc(p.text)}</p>
   ${media}
+  ${_offerCardHtml(p, esc)}
   <footer class="za-post-foot">
     <button type="button" data-react="like" data-id="${esc(p.id)}">Like ${esc(p.stats.likes)}</button>
     <button type="button" data-react="comment" data-id="${esc(p.id)}">Reply ${esc(p.stats.comments)}</button>

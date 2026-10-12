@@ -711,9 +711,11 @@ function socialArcPanelHtml() {
         html += '<span class="tag">Offer minted</span>';
         html += '<h3 style="margin:8px 0 4px">'+esc(offer.title||offer.serviceId||'Attention offer')+'</h3>';
         html += '<p style="margin:0;color:var(--ink-dim);font-size:13.5px">Weight '+esc(weight)+' · actor '+esc(actorId)+'</p>';
-        if (offer.priceUsd != null) html += '<p style="margin:8px 0 0;font-size:18px;font-weight:700">$'+esc(offer.priceUsd)+'</p>';
-        if (offer.checkoutPath) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="'+esc(offer.checkoutPath)+'" data-sovereign-buy="'+esc(offer.serviceId||'')+'" data-buy-mode="checkout">Checkout → choose payment</a></p>';
-        else if (offer.serviceId) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="/checkout/?plan='+encodeURIComponent(offer.serviceId)+'" data-sovereign-buy="'+esc(offer.serviceId)+'" data-buy-mode="checkout">Checkout → choose payment</a></p>';
+        if (offer.priceLabel) html += '<p style="margin:8px 0 0;font-size:18px;font-weight:700">'+esc(offer.priceLabel)+'</p>';
+        else if (offer.priceUsd != null) html += '<p style="margin:8px 0 0;font-size:18px;font-weight:700">$'+esc(offer.priceUsd)+'</p>';
+        var buyLabel = offer.ctaLabel || 'Checkout → choose payment';
+        if (offer.checkoutPath) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="'+esc(offer.checkoutPath)+'" data-sovereign-buy="'+esc(offer.serviceId||'')+'" data-buy-mode="checkout">'+esc(buyLabel)+'</a></p>';
+        else if (offer.serviceId) html += '<p style="margin:12px 0 0"><a class="btn btn-primary" href="/checkout/?plan='+encodeURIComponent(offer.serviceId)+'" data-sovereign-buy="'+esc(offer.serviceId)+'" data-buy-mode="checkout">'+esc(buyLabel)+'</a></p>';
         html += '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--ink-dim)">Technical detail</summary><pre class="code" style="margin-top:8px;font-size:11px;max-height:120px;overflow:auto">'+esc(JSON.stringify(d,null,2))+'</pre></details>';
         html += '</div>';
         el.innerHTML = html;

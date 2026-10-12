@@ -4347,6 +4347,14 @@ function pageSocialNetwork() {
   let ssrFeed = '';
   let ssrStories = '';
   let ssrInventions = '';
+  let offerOptions = '<option value="">No offer — post only</option>';
+  try {
+    const shelf = require('../../commerce/public-shelf');
+    const rows = (shelf.publicShelf() || []).filter((p) => p && p.buyable === true && p.ctaHref);
+    offerOptions += rows.map((p) => (
+      `<option value="${_esc(p.id)}">${_esc(p.title)} · ${_esc(shelf.money(p.priceUsd))}</option>`
+    )).join('');
+  } catch (_) { /* shelf select stays empty */ }
   try {
     const surface = require('../../../backend/modules/social-orchestrator/social-surface');
     ssrFeed = surface.renderSsrFeed(6);
@@ -4361,6 +4369,9 @@ function pageSocialNetwork() {
   } catch (_) {
     ssrFeed = '<p class="za-social-empty">Feed offline — sign in or retry shortly to see the live surface.</p>';
   }
+  if (!ssrFeed) {
+    ssrFeed = '<p class="za-social-empty" id="zaFeedEmpty">No posts yet. Sign in and publish. Attach a shelf offer only when the card should open the same checkout.</p>';
+  }
 
   return `<section class="za-social">
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -4372,7 +4383,7 @@ function pageSocialNetwork() {
     <div class="za-social-hero__inner">
       <p class="za-social-live"><span class="za-social-live__dot"></span> Live · same account as the rest of ZeusAI</p>
       <h1 class="za-social-brand">ZeusAI <span>Social</span></h1>
-      <p class="za-social-lead">Create, follow, message and go viral with the exact cryptoauth identity you use on /account — every button hits a real API.</p>
+      <p class="za-social-lead">Signed posts, an intent feed, and one buy button that uses the same shelf price and the same checkout. Paid humans stay at zero until a real payment.</p>
       <div class="za-social-cta">
         <a class="btn btn-primary" href="#za-app">Enter the feed</a>
         <a class="btn btn-ghost" id="zaHeroAuth" href="/account?next=/social-network" data-link>Create account / Sign in</a>
@@ -4380,12 +4391,18 @@ function pageSocialNetwork() {
     </div>
   </header>
 
+  <section class="card" id="zaShelfDesk" style="margin:24px 0;padding:20px">
+    <span class="kicker">Profit · public shelf</span>
+    <h2 style="margin:8px 0 6px;font-size:22px">A post can carry one real offer</h2>
+    <p style="color:var(--ink-dim);margin:0;font-size:14px">The price and the button match /pricing, /services, /buy, and checkout. ZeusAI sells only what it can deliver today. This page does not claim a larger audience than any other network.</p>
+  </section>
+
   ${sellSurface.socialArcPanelHtml()}
 
   <section class="card" id="zaSocialTipPanel" style="margin:24px 0;padding:20px;border:1px solid rgba(0,112,186,.35);background:linear-gradient(135deg,rgba(0,112,186,.10),rgba(247,147,26,.06))">
-    <span class="kicker">Support · multi-rail</span>
-    <h2 style="margin:8px 0 6px;font-size:20px">Tip a creator — Bitcoin, PayPal, or card/crypto</h2>
-    <p style="color:var(--ink-dim);margin:0 0 12px;font-size:14px">Opens the same ZeusAI checkout chooser used everywhere else. Amount in USD.</p>
+    <span class="kicker">Support · not a product</span>
+    <h2 style="margin:8px 0 6px;font-size:20px">Support a creator — not a ZeusAI product</h2>
+    <p style="color:var(--ink-dim);margin:0 0 12px;font-size:14px">This opens a support payment for a person. It does not deliver a catalog item. Bitcoin is the live rail. Card and PayPal show when they are configured. Amount in USD.</p>
     <form id="zaSocialTipForm" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center" onsubmit="return false">
       <input id="zaSocialTipHandle" type="text" placeholder="@handle or creator id" maxlength="64" style="padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);min-width:180px"/>
       <input id="zaSocialTipUsd" type="number" min="1" step="1" value="5" style="width:110px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
@@ -4445,12 +4462,14 @@ function pageSocialNetwork() {
       <textarea id="zaComposeText" maxlength="2000" rows="2" placeholder="Share a signal — sealed with Proof-of-Authorship (sign in required)"></textarea>
       <div class="za-composer-actions">
         <select id="zaComposeKind" aria-label="Post kind">
-          <option value="text">Post (X / FB)</option>
-          <option value="image">Image (IG)</option>
-          <option value="short">Short (TikTok)</option>
-          <option value="reel">Reel (IG)</option>
-          <option value="story">Story (IG / FB)</option>
+          <option value="text">Post</option>
+          <option value="image">Image</option>
+          <option value="short">Short</option>
+          <option value="reel">Reel</option>
+          <option value="story">Story</option>
         </select>
+        <label class="za-sr" for="zaComposeOffer">Shelf offer</label>
+        <select id="zaComposeOffer" aria-label="Attach a shelf offer">${offerOptions}</select>
         <button class="btn btn-primary" type="submit" id="zaPublishBtn">Publish</button>
       </div>
       <details class="za-composer-extra">
@@ -4494,7 +4513,7 @@ function pageSocialNetwork() {
       <section class="za-pane" data-pane="world" id="zaPaneWorld">
         <div class="za-world-head">
           <h2 class="za-social-h2">World Standard · 12 inventions</h2>
-          <p class="za-social-sub">Live primitives that outclass every existing social network — all wired to your cryptoauth identity.</p>
+          <p class="za-social-sub">Signed posts, an intent feed, and a buy button that is the same shelf checkout. Wired to the cryptoauth identity you already use on /account.</p>
         </div>
         <div id="zaWorldStatus" class="za-social-metrics"></div>
         <div class="za-world-grid">
@@ -4626,6 +4645,17 @@ function pageSocialNetwork() {
         '<div class="za-post-meta"><strong>'+esc(a.displayName||'')+(a.verified?' <span class="za-verified">✓</span>':'')+(a.system?' <span class="za-system">official</span>':'')+'</strong>'+
         '<span><button type="button" class="za-handle" data-profile="'+esc(a.handle||'')+'">@'+esc(a.handle||'')+'</button> · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+' · rep '+esc(a.reputation)+'</span></div></header>'+
         '<p class="za-post-text">'+esc(p.text)+'</p>'+quoted+
+        (function(){
+          var o=p.offer;
+          if(!o||!o.id||!o.ctaHref) return '';
+          var mode=o.mode==='reserve'?'reserve':'checkout';
+          return '<aside class="za-post-offer" data-product-id="'+esc(o.id)+'" data-price-usd="'+esc(o.priceUsd)+'">'+
+            '<span class="za-post-offer-k">Shelf offer · same checkout</span>'+
+            '<strong>'+esc(o.title)+'</strong>'+
+            '<span class="za-post-offer-price">'+esc(o.priceLabel||'')+'</span>'+
+            '<span class="za-post-offer-when">'+esc(o.when||'')+'</span>'+
+            '<a class="btn btn-primary" href="'+esc(o.ctaHref)+'" data-sovereign-buy="'+esc(o.id)+'" data-buy-mode="'+esc(mode)+'">'+esc(o.ctaLabel||'Buy')+'</a></aside>';
+        })()+
         '<div class="za-post-flags"><span data-claim="'+esc(p.claimState||'unverified')+'">claim:'+esc(p.claimState||'unverified')+'</span>'+
         (p.virality&&p.virality.expired?'<span class="za-viral-expired">virality expired</span>':'<span class="za-viral-live">viral window</span>')+
         (p.federationCid?'<span class="za-cid" title="'+esc(p.federationCid)+'">CID</span>':'')+
@@ -4720,6 +4750,8 @@ function pageSocialNetwork() {
       var kind=document.getElementById('zaComposeKind').value;
       var cue=kind==='short'?'tiktok':(kind==='reel'||kind==='image'||kind==='story')?'instagram':'x';
       var body={text:text,kind:kind,platformCue:cue};
+      var offerEl=document.getElementById('zaComposeOffer');
+      if(offerEl&&offerEl.value) body.offerId=offerEl.value;
       var bond=(document.getElementById('zaCxBond').value||'').trim();
       if(bond) body.bondBtc=bond;
       var claim=document.getElementById('zaCxClaim').value;
@@ -4742,6 +4774,8 @@ function pageSocialNetwork() {
         document.getElementById('zaCxSplit').value='';
         document.getElementById('zaCxClaim').value='';
         document.getElementById('zaCxBandwidth').checked=false;
+        var offerClear=document.getElementById('zaComposeOffer');
+        if(offerClear) offerClear.value='';
         showPane('home'); loadPane('home');
         return;
       }
@@ -4877,7 +4911,7 @@ function pageSocialNetwork() {
     });
     document.getElementById('zaSharePage').addEventListener('click',async function(){
       var url=location.origin+'/social-network';
-      if(navigator.share){ try{ await navigator.share({title:'ZeusAI Social',text:'The world-standard social layer — FB+X+IG+TikTok with real inventions.',url:url}); return;}catch(_){}}
+      if(navigator.share){ try{ await navigator.share({title:'ZeusAI Social',text:'ZeusAI Social — signed posts and the same checkout as the shelf.',url:url}); return;}catch(_){}}
       try{ await navigator.clipboard.writeText(url); alert('Link copied — paste anywhere to go viral'); }catch(_){ prompt('Copy', url); }
     });
     async function loadPane(name){
@@ -4937,7 +4971,7 @@ function pageSocialNetwork() {
             '<div class="za-social-metric"><span class="za-social-metric__l">Coverage</span><strong class="za-social-metric__v">'+(reach.autonomyCoveragePct!=null?reach.autonomyCoveragePct:'—')+'%</strong></div>'+
             '<div class="za-social-metric"><span class="za-social-metric__l">Features live</span><strong class="za-social-metric__v">'+esc(parity.totals&&parity.totals.featuresLive)+'</strong></div>'+
             '<div class="za-social-metric"><span class="za-social-metric__l">Inventions</span><strong class="za-social-metric__v">'+esc(parity.totals&&parity.totals.inventionsLive)+'</strong></div>'+
-            '<div class="za-social-metric"><span class="za-social-metric__l">Platforms</span><strong class="za-social-metric__v">FB · X · IG · TikTok</strong></div>';
+            '<div class="za-social-metric"><span class="za-social-metric__l">Compared with</span><strong class="za-social-metric__v">FB · X · IG · TikTok</strong></div>';
           document.getElementById('zaParity').innerHTML='<p class="za-social-sub">'+esc(parity.claim||'')+'</p>';
           var head=pulse.ledgerHead;
           document.getElementById('zaLedger').innerHTML=head
@@ -5249,7 +5283,7 @@ function pageAdminSocialNetwork() {
         const reach=x.proofOfReach||{};
         box.innerHTML='<div class="grid">'+
           '<div class="card"><span class="tag">Brand</span><h3>'+String(x.brand||'ZeusAI Social')+'</h3><p style="color:var(--ink-dim)">mode '+String(x.mode||'—')+' · dry-run until '+String(x.dryRunUntil||'n/a')+'</p></div>'+
-          '<div class="card"><span class="tag">Commerce mirror</span><h3>$'+String(x.profitUsdDay||0)+'</h3><p style="color:var(--ink-dim)">'+String(x.profitBtcDay||0)+' BTC/day</p></div>'+
+          '<div class="card"><span class="tag">Confirmed cash</span><h3>$'+String(x.profitUsdDay||0)+'</h3><p style="color:var(--ink-dim)">Forecast, not cash: $'+String(x.profitPotentialUsdDay||0)+'/day</p></div>'+
           '<div class="card"><span class="tag">Proof-of-Reach</span><h3>'+String(reach.autonomyCoveragePct!=null?reach.autonomyCoveragePct:'—')+'%</h3><p style="color:var(--ink-dim)">signals '+String(reach.signalCount||0)+' · arbitrage '+String(reach.attentionArbitrageScore||'—')+'</p></div>'+
           '</div>';
       }catch(e){ box.innerHTML='<p style="margin:0;color:#ff6b6b">Access denied or unavailable: '+String(e&&e.message||e)+'</p>'; }
