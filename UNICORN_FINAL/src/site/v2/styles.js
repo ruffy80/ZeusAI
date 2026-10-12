@@ -1073,6 +1073,9 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 .za-post-media--gradient-mint{background:linear-gradient(145deg,#6ff2c0,#1a6b55 55%,#0b2030)}
 .za-post-media--gradient-amber{background:linear-gradient(145deg,#f0c57a,#8a5a28 55%,#1a1420)}
 .za-post-media--gradient-cyan{background:linear-gradient(145deg,#7fd7ff,#1a4d6b 55%,#0b1520)}
+.za-service-list,.za-channel-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.za-service-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(111,242,192,.12)}
+.za-channel-list li{font-size:14px;color:var(--za-dim,#c5d0e0)}
 .za-post-offer{display:grid;gap:4px;margin:0 0 12px;padding:12px;border:1px solid rgba(247,147,26,.45);border-radius:12px;background:rgba(247,147,26,.08)}
 .za-post-offer-k{font:700 11px/1 Syne,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#f7931a}
 .za-post-offer strong{font:700 15px/1.3 Syne,sans-serif}

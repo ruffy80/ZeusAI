@@ -172,6 +172,7 @@ async function main() {
   console.log('✓ pulseDiscovery dry-run does not invent reach');
   passed += 1;
   console.log('\n✅ social-gravity: ' + passed + ' tests passed');
+  process.exit(0);
 }
 
 main().catch((err) => {

@@ -52,6 +52,7 @@ Promise.resolve(orchestrator.process({ action: 'run-health' })).then((h) => {
   assert.ok(s.pulse && s.pulse.ok);
   assert.ok(Array.isArray(s.feed));
   console.log('✅ social-orchestrator.test.js: passed');
+  process.exit(0);
 }).catch((err) => {
   console.error(err);
   process.exit(1);

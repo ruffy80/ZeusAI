@@ -168,36 +168,28 @@ async function _executeAction(action) {
 }
 
 async function _postToChannels(post) {
-  const payload = post && post.text ? post.text : '';
   const responses = [];
   try {
-    const vuk = require('../viral-unification-os');
-    const cycle = vuk.shouldRunFullCycle('social-orchestrator');
-    if (!cycle.ok) {
-      return {
-        ok: true, skipped: true, reason: cycle.reason, protocol: 'VUK/1.0',
-        postId: post && post.item && post.item.id ? post.item.id : null,
-        responses: [{ channel: 'all', ok: false, skipped: true, reason: 'vuk_not_designated' }],
-      };
-    }
-  } catch (_) { /* VUK optional */ }
-
-  if (deps.socialViralizer && typeof deps.socialViralizer.generateSocialPost === 'function') {
-    try {
-      const generated = deps.socialViralizer.generateSocialPost('twitter', payload.slice(0, 180));
-      responses.push({ channel: 'x', ok: true, preview: generated && generated.content ? generated.content.slice(0, 120) : payload.slice(0, 120) });
-    } catch (e) {
-      responses.push({ channel: 'x', ok: false, error: e && e.message ? e.message : String(e) });
-    }
-  } else {
-    responses.push({ channel: 'x', ok: false, fallback: true, reason: 'socialViralizer_unavailable' });
+    const local = require('./service-broadcast').broadcastShelf();
+    responses.push({
+      channel: 'zeusai-social', ok: true, posted: true,
+      published: local.published, already: local.already, inventsReach: false,
+    });
+  } catch (e) {
+    responses.push({ channel: 'zeusai-social', ok: false, posted: false, error: e && e.message ? e.message : String(e) });
   }
-
-  // Always keep internal fallback logs so external API failures never block the loop.
-  responses.push({ channel: 'telegram', ok: true, fallback: true, note: 'logged_for_dispatch' });
-  responses.push({ channel: 'linkedin', ok: true, fallback: true, note: 'logged_for_dispatch' });
-
-  return { ok: true, postId: post && post.item && post.item.id ? post.item.id : null, responses };
+  // External networks are posted by socialMediaViralizer, and only when that channel's keys exist.
+  responses.push({
+    channel: 'world', ok: false, posted: false,
+    reason: 'outbound_only_when_channel_keys_exist',
+    postId: post && post.item && post.item.id ? post.item.id : null,
+  });
+  return {
+    ok: true,
+    postedExternal: false,
+    postId: post && post.item && post.item.id ? post.item.id : null,
+    responses,
+  };
 }
 
 function _getTopPosts() {
@@ -210,7 +202,12 @@ function _getTopPosts() {
     } catch (_) {}
   }
   if (!top.length) {
-    top.push({ id: 'autonomous-social-update', title: 'Autonomous social network is live', score: 99 });
+    try {
+      const shelf = require('../../../src/commerce/public-shelf');
+      for (const p of shelf.publicShelf().filter((x) => x && x.buyable && x.ctaHref)) {
+        top.push({ id: p.id, title: p.title, score: Number(p.priceUsd) || 0, priceUsd: p.priceUsd, ctaHref: p.ctaHref });
+      }
+    } catch (_) { /* shelf optional */ }
   }
   return top.sort((a, b) => (b.score || 0) - (a.score || 0));
 }
@@ -261,6 +258,7 @@ async function _runInnovation() {
 
 async function _runViral() {
   _maybeAutoSwitchRealMode();
+  try { require('./service-broadcast').broadcastShelf(); } catch (_) { /* catalog mirror is fail-soft */ }
   const out = await viralEngine.runOnce({
     dryRun: state.dryRun,
     llm: async (p, o) => {
