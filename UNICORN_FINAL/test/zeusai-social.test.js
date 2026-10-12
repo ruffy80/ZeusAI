@@ -70,6 +70,39 @@ humanize(uid);
 const composed = surface.compose({ authorId: uid, text: 'Real-world signal from authenticated user', kind: 'text' });
 assert.equal(composed.ok, true);
 assert.equal(composed.post.author.id, uid);
+assert.equal(composed.post.offer, null);
+
+const rejectedOffer = surface.compose({ authorId: uid, text: 'Unknown product', offerId: 'not-a-real-sku' });
+assert.equal(rejectedOffer.ok, false);
+assert.equal(rejectedOffer.error, 'offer_not_on_shelf');
+
+const shelf = require('../src/commerce/public-shelf');
+const seo = shelf.byId('instant-seo-content-pack');
+assert.ok(seo && seo.buyable && seo.ctaHref);
+const withOffer = surface.compose({ authorId: uid, text: 'The SEO pack is what we deliver', offerId: seo.id });
+assert.equal(withOffer.ok, true);
+assert.equal(withOffer.post.offer.id, seo.id);
+assert.equal(withOffer.post.offer.priceUsd, seo.priceUsd);
+assert.equal(withOffer.post.offer.ctaHref, seo.ctaHref);
+assert.equal(withOffer.post.offer.ctaLabel, seo.ctaLabel);
+
+const contact = shelf.byId('ent-acquisition-pack');
+if (contact) {
+  const blocked = surface.compose({ authorId: uid, text: 'Proposal is not a cart', offerId: contact.id });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.error, 'offer_not_on_shelf');
+}
+
+const feedHtml = surface.renderSsrFeed(8);
+assert.ok(feedHtml.includes('data-product-id="' + seo.id + '"'));
+assert.ok(feedHtml.includes(seo.ctaHref));
+assert.ok(feedHtml.includes('data-price-usd="' + seo.priceUsd + '"'));
+
+const shell = require('fs').readFileSync(require('path').join(__dirname, '../src/site/v2/shell.js'), 'utf8');
+assert.ok(shell.includes('id="zaComposeOffer"'));
+assert.ok(shell.includes('id="zaShelfDesk"'));
+assert.ok(!shell.includes('outclass every existing social network'));
+assert.ok(shell.includes("plan='social-tip:'"));
 
 const reacted = surface.react({ postId: composed.post.id, type: 'like', actorId: uid });
 assert.equal(reacted.ok, true);
@@ -100,6 +133,7 @@ Promise.resolve(orchestrator.process({ action: 'run-decision' })).then(() => {
   assert.ok(pulse.surface && pulse.surface.ok);
   assert.equal(orchestrator.verifyChain().ok, true);
   console.log('✅ zeusai-social.test.js: passed');
+  process.exit(0);
 }).catch((err) => {
   console.error(err);
   process.exit(1);

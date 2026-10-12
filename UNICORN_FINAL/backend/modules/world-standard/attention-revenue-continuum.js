@@ -63,16 +63,40 @@ function start() {
   return getStatus();
 }
 
+const REAL_POOL = [
+  { serviceId: 'instant-website-audit', minWeight: 1 },
+  { serviceId: 'instant-logo-kit', minWeight: 3 },
+  { serviceId: 'instant-pitch-deck', minWeight: 5 },
+];
+
+function _resolveSku(serviceId) {
+  try {
+    const shelf = require('../../../src/commerce/public-shelf');
+    const item = shelf.byId(serviceId);
+    if (item && item.buyable === true && item.ctaHref) {
+      return {
+        serviceId: item.id,
+        title: item.title,
+        priceUsd: item.priceUsd,
+        ctaLabel: item.ctaLabel,
+        checkoutPath: item.ctaHref,
+      };
+    }
+  } catch (_) { /* shelf unavailable */ }
+  return {
+    serviceId,
+    title: serviceId,
+    priceUsd: null,
+    ctaLabel: 'Buy → choose payment',
+    checkoutPath: '/checkout/?plan=' + encodeURIComponent(serviceId),
+  };
+}
+
 function _pickSku(weight) {
-  // Curated instant SKUs only — never require backend/index (circular).
-  const pool = [
-    { serviceId: 'instant-seo-content-pack', priceUsd: 49, minWeight: 1 },
-    { serviceId: 'instant-ai-ops-audit', priceUsd: 99, minWeight: 3 },
-    { serviceId: 'instant-pitch-deck', priceUsd: 149, minWeight: 5 },
-  ];
   const w = Number(weight || 1);
-  const eligible = pool.filter((p) => w >= p.minWeight);
-  return eligible[eligible.length - 1] || pool[0];
+  const eligible = REAL_POOL.filter((p) => w >= p.minWeight);
+  const chosen = eligible[eligible.length - 1] || REAL_POOL[0];
+  return _resolveSku(chosen.serviceId);
 }
 
 /**
@@ -106,13 +130,15 @@ function recordAttention(input = {}) {
       offerId,
       actorId,
       serviceId: sku.serviceId,
+      title: sku.title || sku.serviceId,
       priceUsd: sku.priceUsd,
+      ctaLabel: sku.ctaLabel || 'Buy → choose payment',
       sourceEventId: event.eventId,
       channel,
       status: 'minted',
       live: false,
       bookedRevenue: false,
-      checkoutPath: `/checkout?serviceId=${encodeURIComponent(sku.serviceId)}&src=arc&offer=${offerId}`,
+      checkoutPath: sku.checkoutPath,
       apiCheckout: {
         method: 'POST',
         path: '/api/checkout/create',

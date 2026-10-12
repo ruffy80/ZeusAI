@@ -100,24 +100,24 @@ function _deriveMetrics() {
   const p = deps.profitAutopilot && typeof deps.profitAutopilot.getStatus === 'function'
     ? deps.profitAutopilot.getStatus()
     : null;
-  const z = deps.zacc && typeof deps.zacc.status === 'function'
-    ? deps.zacc.status()
-    : null;
-  const s = deps.subscriptionEngine && typeof deps.subscriptionEngine.getStatus === 'function'
-    ? deps.subscriptionEngine.getStatus()
-    : null;
 
-  const usdDay = Math.round(((p && p.profitPotentialUsd && p.profitPotentialUsd.low) || 0) / 30);
-  const btcDay = Math.round((usdDay / 60000) * 1e8) / 1e8;
-  const activeUsers = Math.max(120, Number((z && z.learning && z.learning.patternsLearned) || 250));
+  let registeredUsers = 0;
+  try {
+    const snap = socialSurface.snapshot();
+    registeredUsers = Number(snap && snap.users) || 0;
+  } catch (_) { registeredUsers = 0; }
+  const potentialUsdDay = Math.round(((p && p.profitPotentialUsd && p.profitPotentialUsd.low) || 0) / 30);
 
   const out = {
-    profitUsdDay: usdDay,
-    profitBtcDay: btcDay,
-    activeUsers,
-    userGrowthPct24h: Math.round((1.3 + (activeUsers % 23) / 10) * 100) / 100,
-    engagementPct: Math.round((3 + (activeUsers % 17) / 12) * 100) / 100,
-    conversionPct: Math.round((2 + (Number((s && s.mrr) || 0) % 19) / 10) * 100) / 100,
+    profitUsdDay: 0,
+    profitBtcDay: 0,
+    profitPotentialUsdDay: potentialUsdDay,
+    confirmedCashUsdDay: 0,
+    activeUsers: registeredUsers,
+    userGrowthPct24h: 0,
+    engagementPct: 0,
+    conversionPct: 0,
+    honesty: 'activeUsers counts registered ZeusAI Social profiles. profitUsdDay is confirmed cash and stays 0 until a paid order is observed. profitPotentialUsdDay is a forecast, not cash.',
   };
   state.lastMetrics = out;
   return out;
@@ -394,7 +394,9 @@ function getPulse(limit) {
     commerceMirror: {
       usdDay: metrics.profitUsdDay,
       btcDay: metrics.profitBtcDay,
-      note: 'Mirrors Zeus revenue engines — not scraped social vanity metrics.',
+      potentialUsdDay: metrics.profitPotentialUsdDay || 0,
+      confirmedCashUsdDay: 0,
+      note: 'Confirmed cash stays 0 until a paid order is observed. potentialUsdDay is a forecast, not cash.',
     },
     loops: {
       health: true,
@@ -469,6 +471,8 @@ function _adminPayload() {
     userGrowthPct24h: s.metrics.userGrowthPct24h,
     profitUsdDay: s.metrics.profitUsdDay,
     profitBtcDay: s.metrics.profitBtcDay,
+    profitPotentialUsdDay: s.metrics.profitPotentialUsdDay || 0,
+    confirmedCashUsdDay: 0,
     globalPresence: s.globalPresence,
     featureParity: s.featureParity,
     federation: s.federation,

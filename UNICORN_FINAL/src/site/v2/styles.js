@@ -998,7 +998,7 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 
 /* ============ ZEUSAI SOCIAL — world-standard surface ============ */
 .za-social{--za-ink:#eef3fa;--za-dim:rgba(210,222,240,.72);--za-mint:#6ff2c0;--za-amber:#f0c57a;--za-deep:#05080f;position:relative;isolation:isolate;font-family:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;color:var(--za-ink)}
-.za-social-hero{position:relative;min-height:min(94vh,900px);display:flex;align-items:flex-end;padding:0 0 64px;overflow:hidden}
+.za-social-hero{position:relative;min-height:min(94vh,900px);display:flex;align-items:flex-end;padding:0 0 180px;overflow:hidden}
 .za-social-hero__atm{position:absolute;inset:0;background:
   radial-gradient(110% 75% at 12% 18%,rgba(111,242,192,.26),transparent 52%),
   radial-gradient(80% 60% at 92% 22%,rgba(240,197,122,.16),transparent 48%),
@@ -1048,7 +1048,9 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 .za-wellbeing{margin-left:auto;font-weight:600;color:var(--za-amber);font-size:12px;max-width:42ch}
 .za-composer{display:grid;gap:10px;margin:0 0 18px;padding-bottom:16px;border-bottom:1px solid rgba(111,242,192,.12)}
 .za-composer textarea{width:100%;min-height:64px;resize:vertical;border:1px solid rgba(111,242,192,.2);background:rgba(8,14,22,.65);color:var(--za-ink);padding:12px 14px;font:500 15px/1.45 "Source Sans 3",sans-serif}
-.za-composer-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center}
+.za-composer-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap;max-width:100%}
+#zaComposeOffer{flex:1 1 220px;min-width:0;max-width:100%}
+#zaComposer,#zaShelfDesk,#zaSocialTipPanel,#zaArcPanel{scroll-margin-top:168px;scroll-margin-bottom:180px}
 .za-composer select{background:rgba(8,14,22,.8);color:var(--za-ink);border:1px solid rgba(111,242,192,.2);padding:8px 10px;font:500 13px "Source Sans 3",sans-serif}
 .za-stories{display:flex;gap:14px;overflow-x:auto;padding:4px 0 18px;scrollbar-width:thin}
 .za-story{flex:0 0 auto;border:0;background:transparent;color:var(--za-dim);display:grid;gap:6px;justify-items:center;cursor:pointer;font:500 11px/1.2 "Source Sans 3",sans-serif;width:72px}
@@ -1071,6 +1073,13 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 .za-post-media--gradient-mint{background:linear-gradient(145deg,#6ff2c0,#1a6b55 55%,#0b2030)}
 .za-post-media--gradient-amber{background:linear-gradient(145deg,#f0c57a,#8a5a28 55%,#1a1420)}
 .za-post-media--gradient-cyan{background:linear-gradient(145deg,#7fd7ff,#1a4d6b 55%,#0b1520)}
+.za-post-offer{display:grid;gap:4px;margin:0 0 12px;padding:12px;border:1px solid rgba(247,147,26,.45);border-radius:12px;background:rgba(247,147,26,.08)}
+.za-post-offer-k{font:700 11px/1 Syne,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#f7931a}
+.za-post-offer strong{font:700 15px/1.3 Syne,sans-serif}
+.za-post-offer-price{font:700 18px/1.2 Syne,sans-serif}
+.za-post-offer-when{font-size:13px;color:var(--za-dim,#9eb0d0)}
+.za-post-offer .btn{justify-content:center;margin-top:6px}
+.za-composer-actions select{max-width:100%}
 .za-post-foot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .za-post-foot button{border:0;background:transparent;color:var(--za-dim);font:600 12.5px/1 "Source Sans 3",sans-serif;cursor:pointer;padding:4px 0}
 .za-post-foot button:hover{color:var(--za-mint)}
@@ -1157,7 +1166,9 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 @keyframes za-social-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes za-social-spin{to{transform:rotate(360deg)}}
 @media (max-width:720px){
-  .za-social-hero{min-height:78vh;padding-bottom:44px;align-items:center}
+  .za-social-hero{min-height:0;padding:128px 0 210px;align-items:flex-start}
+  .za-composer-actions{justify-content:stretch}
+  #zaComposeKind,#zaComposeOffer,.za-composer-actions .btn{flex:1 1 100%;width:100%;max-width:100%}
   .za-social-brand{font-size:clamp(2.7rem,13vw,3.7rem)}
   .za-wellbeing{margin-left:0;width:100%}
   .za-post-media[data-aspect="9:16"]{max-width:100%}
