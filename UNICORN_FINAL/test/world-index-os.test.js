@@ -91,6 +91,7 @@ check('site + nginx + sitemap + traffic-engine are wired', () => {
   assert.ok(site.includes("urlPath === '/visible-world'"));
   assert.ok(site.includes('worldIndex:'));
   const nginx = read('scripts/nginx-unicorn.conf');
+  assert.ok(nginx.includes('location = /google4757746388248111.html'));
   const idx = nginx.indexOf('location = /.well-known/world-index.json');
   assert.ok(idx >= 0);
   assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(nginx.slice(idx, idx + 420)));

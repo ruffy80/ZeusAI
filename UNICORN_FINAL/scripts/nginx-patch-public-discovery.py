@@ -627,6 +627,22 @@ _REQUIRED_LOCATIONS = [
             "}\n"
         ),
     },
+    {
+        "match": "location = /google4757746388248111.html",
+        "block": (
+            "\n"
+            "# ── Google Search Console FILE verification (exact match beats *.html 404) ──\n"
+            "location = /google4757746388248111.html {\n"
+            "    proxy_pass http://127.0.0.1:3001;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"public, max-age=300\" always;\n"
+            "}\n"
+        ),
+    },
 ]
 
 
