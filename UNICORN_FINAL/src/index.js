@@ -8878,6 +8878,29 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  if (urlPath === '/.well-known/discovery-seven.json' || urlPath === '/api/discovery-seven') {
+    try {
+      const d7 = require('../backend/modules/discovery-seven');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'D7/1.0',
+      });
+      return res.end(JSON.stringify(d7.audit()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({
+        ok: false,
+        protocol: 'D7/1.0',
+        inventsIndexed: false,
+        inventsVisitors: false,
+        inventsReach: false,
+        inventsPosts: false,
+        error: e && e.message,
+      }));
+    }
+  }
+
   if (
     urlPath === '/.well-known/world-index.json'
     || urlPath === '/api/world-index'
@@ -12949,7 +12972,7 @@ a{color:#8a5cff;text-decoration:none}
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
-    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/module-census',
+    '/contact', '/faq', '/blog', '/guides', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/module-census',
     '/trust-safety', '/insights', '/outreach-desk',
     // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
     '/agents', '/login', '/signup', '/auth',
@@ -12968,7 +12991,7 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;

@@ -5,6 +5,8 @@
  */
 
 function pageSeo() {
+  let seven = '';
+  try { seven = require('../../../backend/modules/discovery-seven').sevenHtml(); } catch (_) { seven = ''; }
   return `<section class="hero" style="min-height:auto;padding:48px 0 20px">
   <div class="hero-copy">
     <span class="hero-eyebrow"><span class="dot"></span> SEO · discovery desk</span>
@@ -41,6 +43,7 @@ function pageSeo() {
   </div>
 </section>
 
+${seven}
 <section class="card" style="padding:20px;margin-bottom:48px">
   <span class="kicker">Honesty</span>
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
@@ -49,7 +52,8 @@ function pageSeo() {
     <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>
-    <li>Google ranking needs <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> so Search Console gets the sitemap. Google retired the ping API in 2023.</li>
+    <li>Google ranking needs <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> so Search Console gets the sitemap. Google retired the ping API in 2023. This desk does not claim the site is indexed.</li>
+    <li>Every shelf offer has a guide at <a href="/guides" data-link>/guides</a>. The price on the article is the shelf price.</li>
     <li>Facebook/X/TikTok/Instagram stay dark without their tokens. Telegram is an operator rail. Tokenless hop: <a href="/relay" data-link>/relay</a> and <a href="/share" data-link>/share</a>.</li>
   </ul>
   <p style="margin-top:14px;font-size:13px;color:var(--ink-dim)">

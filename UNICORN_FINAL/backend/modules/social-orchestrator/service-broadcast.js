@@ -61,6 +61,7 @@ function cardText(item, shelf) {
     item.title,
     price + '. ' + String(item.when || ''),
     'Checkout: ' + _abs(item.ctaHref),
+    'Guide: ' + ORIGIN + '/guides/' + encodeURIComponent(item.id),
     'Same offer on ZeusAI Social and on the public shelf.',
   ].join('\n').slice(0, 2000);
 }

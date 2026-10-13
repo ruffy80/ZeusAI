@@ -114,6 +114,10 @@ function urlsToSubmit() {
     '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
     '/enterprise', '/wizard', '/dropship', '/zacc', '/marketplace', '/tg', '/llms.txt'];
   const urls = new Set(core.map((p) => APP_URL + p));
+  try {
+    const d7 = require('./discovery-seven');
+    for (const p of d7.publicPaths()) urls.add(APP_URL + p);
+  } catch (_) { /* guides optional */ }
   urls.add(APP_URL + '/.well-known/origin-gravity.json');
   urls.add(APP_URL + '/.well-known/social-gravity.json');
   urls.add(APP_URL + '/.well-known/viral-unification.json');
@@ -315,9 +319,15 @@ async function runCycle(opts) {
   state.lastRunAt = new Date().toISOString();
   const submission = await pingAll(opts);
   const searchConsole = await _searchConsoleBridge(opts);
+  let discoverySeven = null;
+  try {
+    discoverySeven = require('./discovery-seven').tick();
+  } catch (e) {
+    discoverySeven = { ok: false, error: (e && e.message) || 'discovery_seven_failed', inventsReach: false, inventsIndexed: false };
+  }
   const outreach = buildOutreachQueue(opts);
   _saveState();
-  return { ok: true, submission, searchConsole, outreach };
+  return { ok: true, submission, searchConsole, outreach, discoverySeven };
 }
 
 function start() {

@@ -66,6 +66,8 @@ function desk() {
     tokenless: { share: '/share', relay: '/relay', visibleWorld: '/visible-world' },
     pages: {
       seo: '/seo',
+      guides: '/guides',
+      discoverySeven: '/api/discovery-seven',
       activation: '/api/world-index/activation',
       traffic: '/api/traffic/status',
       worldIndex: '/.well-known/world-index.json',
