@@ -64,10 +64,12 @@ check('shareHead includes canonical og:image', () => {
   assert.ok(wivp.ogImageUrl().includes('og-default'));
 });
 
-check('googleHtmlVerification is inert without a token', () => {
+check('owner Google file is served and an env token still wins the default', () => {
   delete process.env.GOOGLE_SITE_VERIFICATION_TOKEN;
   delete process.env.GSC_HTML_TOKEN;
-  assert.strictEqual(wivp.googleHtmlVerification(), null);
+  const published = wivp.googleHtmlVerification('/google4757746388248111.html');
+  assert.strictEqual(published.body, 'google-site-verification: google4757746388248111.html');
+  assert.strictEqual(wivp.googleHtmlVerification('/googleWRONG.html'), null);
   process.env.GOOGLE_SITE_VERIFICATION_TOKEN = 'abcXYZ123';
   const gsc = wivp.googleHtmlVerification();
   assert.strictEqual(gsc.path, '/googleabcXYZ123.html');
