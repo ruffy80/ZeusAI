@@ -239,9 +239,11 @@ function buildSitemapIndexXml(base, children) {
 function corePublicPaths() {
   let extra = [];
   try { extra = require('../site/v2/discover-trust-os').publicPaths(); } catch (_) { extra = []; }
+  let guides = [];
+  try { guides = require('../../backend/modules/discovery-seven').publicPaths(); } catch (_) { guides = []; }
   const seen = new Set();
   const out = [];
-  CORE_PUBLIC_PATHS.concat(extra).forEach((p) => {
+  CORE_PUBLIC_PATHS.concat(extra, guides).forEach((p) => {
     if (!p || seen.has(p) || ROBOTS_DISALLOW.has(p)) return;
     seen.add(p);
     out.push(p);

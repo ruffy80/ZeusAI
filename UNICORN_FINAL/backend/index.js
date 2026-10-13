@@ -12585,6 +12585,25 @@ app.get(['/api/model-lease', '/.well-known/model-lease.json'], (req, res) => {
   }
 });
 
+app.get(['/api/discovery-seven', '/.well-known/discovery-seven.json'], (req, res) => {
+  try {
+    const d7 = require('./modules/discovery-seven');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'D7/1.0');
+    return res.json(d7.audit());
+  } catch (e) {
+    return res.status(503).json({
+      ok: false,
+      protocol: 'D7/1.0',
+      inventsIndexed: false,
+      inventsVisitors: false,
+      inventsReach: false,
+      inventsPosts: false,
+      error: e && e.message,
+    });
+  }
+});
+
 app.get('/api/seo/status', (req, res) => {
   try {
     const desk = require('./modules/seo-viral-desk').desk();

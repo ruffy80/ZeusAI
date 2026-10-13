@@ -661,6 +661,7 @@ function footer(route, opts) {
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">OpenAPI 3.1</button></li>
       <li><a href="/seo" data-link>SEO desk</a></li>
+      <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
       <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
       <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
@@ -4324,6 +4325,7 @@ function renderRoute(route, params = {}) {
     case '/contact': return pageContact();
     case '/faq': return pageFaq();
     case '/blog': return pageBlog();
+    case '/guides': return pageGuides();
     case '/trust-safety': return discoverTrust.pageTrustSafety();
     case '/insights': return discoverTrust.pageInsightsIndex();
     case '/outreach-desk': return discoverTrust.pageDesk();
@@ -4336,6 +4338,7 @@ function renderRoute(route, params = {}) {
     case '/__not-found__': return pageNotFound(params.missingPath || route);
     default:
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
+      if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
@@ -6920,10 +6923,33 @@ function pageFaq() {
 </section>`;
 }
 
+function pageGuides() {
+  try {
+    return require('../../../backend/modules/discovery-seven').indexHtml();
+  } catch (_) {
+    return `<section style="padding-top:140px"><h1>Offer guides</h1><p>The discovery desk is offline.</p></section>`;
+  }
+}
+
+function pageGuide(id) {
+  try {
+    return require('../../../backend/modules/discovery-seven').guideHtml(id);
+  } catch (_) {
+    return `<section style="padding-top:140px"><h1>Offer guide</h1><p>The discovery desk is offline.</p></section>`;
+  }
+}
+
 function pageBlog() {
   // Honest "insights" index: every entry links to a REAL live page — no
   // fabricated articles, no fake authors. The product itself is the content.
-  const posts = discoverTrust.blogCards().concat([
+  let shelfGuides = [];
+  try { shelfGuides = require('../../../backend/modules/discovery-seven').guideCards(); } catch (_) { shelfGuides = []; }
+  const posts = shelfGuides.map((g) => ({
+    href: g.path,
+    tag: g.priceLabel || 'Shelf',
+    title: g.title,
+    sub: g.metaDescription || g.description,
+  })).concat(discoverTrust.blogCards()).concat([
     { href: '/frontier', tag: 'Frontier', title: 'F1–F12: inventions that ship as products, not papers', sub: 'Refund guarantees, live conversion aura, self-healing checkout — each frontier module is live and purchasable.' },
     { href: '/innovations', tag: 'Durability', title: '30-year cryptographic durability by design', sub: 'Post-quantum readiness, Merkle-chained receipts and constitution hashing on every response.' },
     { href: '/transparency', tag: 'Pricing', title: 'Why our pricing experiments are public', sub: 'Every bandit experiment behind a price you see is published. Radical transparency converts better than tricks.' },
@@ -7331,7 +7357,21 @@ function routeTitle(route) {
   if (route === '/module-census') return 'Module census';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
   if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
-  if (route.startsWith('/services/')) return 'Service';
+  if (route === '/guides') return 'Offer guides';
+  if (route.startsWith('/guides/')) {
+    try {
+      const found = require('../../../backend/modules/discovery-seven').guideFor(route.slice('/guides/'.length));
+      if (found && found.title) return found.title;
+    } catch (_) { /* keep fallback */ }
+    return 'Offer guide';
+  }
+  if (route.startsWith('/services/')) {
+    try {
+      const meta = require('../../../backend/modules/discovery-seven').serviceMeta(route.slice('/services/'.length));
+      if (meta && meta.title) return meta.title;
+    } catch (_) { /* keep fallback */ }
+    return 'Service';
+  }
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
   const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
@@ -7351,7 +7391,8 @@ function routeDescription(route) {
     '/vom': 'Vertical Outcome Machines — SEO and other real vertical loops from offer to passport.',
     '/continuity': 'Continuity Attestation Chain — signed proof the ZeusAI operator plane was bonded or honestly degraded during your payment window.',
     '/standard': 'Merchant Trust Standard — signed commerce-ready envelope for humans and agents: buyable floor, rails honesty, bond and continuity.',
-    '/seo': 'ZeusAI SEO desk — human guide to sitemap.xml, sitemap index, service sitemaps and robots.txt.',
+    '/seo': 'ZeusAI SEO desk — sitemap.xml, offer guides, IndexNow, and the seven discovery checks. Indexed status is never invented.',
+    '/guides': 'One public article per ZeusAI shelf offer: deliverable, clock, live price, and the same checkout as the card.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
     '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
@@ -7410,6 +7451,19 @@ function routeDescription(route) {
   if (route.startsWith('/insights/')) {
     const found = discoverTrust.article(route);
     return found ? found.description : 'ZeusAI insight.';
+  }
+  if (route.startsWith('/guides/')) {
+    try {
+      const found = require('../../../backend/modules/discovery-seven').guideFor(route.slice('/guides/'.length));
+      if (found && found.metaDescription) return found.metaDescription;
+    } catch (_) { /* generic */ }
+    return 'ZeusAI offer guide. Price and checkout match the public shelf.';
+  }
+  if (route.startsWith('/services/')) {
+    try {
+      const meta = require('../../../backend/modules/discovery-seven').serviceMeta(route.slice('/services/'.length));
+      if (meta && meta.description) return meta.description;
+    } catch (_) { /* generic */ }
   }
   if (route.startsWith('/order/')) return 'Digital order passport with signed receipt, BTC payment status and delivery credentials.';
   if (route.startsWith('/twin/')) return 'Portable buyer commerce twin with offline-verifiable export bundle.';

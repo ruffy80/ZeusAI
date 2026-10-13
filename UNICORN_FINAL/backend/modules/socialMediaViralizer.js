@@ -1121,7 +1121,8 @@ class SocialMediaViralizer {
     const origin = String(process.env.PUBLIC_APP_URL || 'https://zeusai.pro').replace(/\/+$/, '');
     const href = /^https?:/i.test(String(item.ctaHref)) ? item.ctaHref : origin + item.ctaHref;
     const price = typeof shelf.money === 'function' ? shelf.money(item.priceUsd) : ('$' + item.priceUsd);
-    const text = [item.title, price + '. ' + String(item.when || ''), href, 'ZeusAI Social ' + origin + '/social-network'].join('\n').slice(0, 270);
+    const guide = origin + '/guides/' + encodeURIComponent(item.id);
+    const text = [item.title, price + '. ' + String(item.when || ''), href, guide].join('\n').slice(0, 270);
     const content = {
       text,
       url: href,
