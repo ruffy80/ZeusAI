@@ -323,8 +323,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     operatingSystem: 'Web',
     url: canonical,
     description: desc,
-    creator: { '@type': 'Person', name: OWNER.name, email: OWNER.email },
-    offers: { '@type': 'Offer', priceCurrency: 'USD', availability: 'https://schema.org/InStock' }
+    creator: { '@type': 'Person', name: OWNER.name, email: OWNER.email }
   });
   // 2) Organization — same on every page so search engines can dedupe.
   blocks.push({
@@ -363,9 +362,20 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     if (route === '/' || route === '/services' || route === '/pricing') {
       blocks.push(discoverTrust.serviceListJsonLd(base));
     }
-    if (String(route || '').indexOf('/insights/') === 0) {
+    if (String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) {
       const articleBlock = discoverTrust.articleJsonLd(route, base);
       if (articleBlock) blocks.push(articleBlock);
+    }
+    const topic = discoverTrust.landing(route);
+    if (topic) {
+      blocks.push({
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: topic.title,
+        description: topic.description,
+        url: base + '/' + topic.slug,
+        isPartOf: { '@type': 'WebSite', name: 'ZeusAI', url: base + '/' },
+      });
     }
   } catch (_) { /* structured data is additive */ }
   if (route === '/how' || route === '/pricing' || route === '/faq' || route === '/trust-safety') {
@@ -441,7 +451,11 @@ function head(title, route, opts) {
   const nonce = opts.nonce || '';
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   const base = OWNER.domain.replace(/\/$/, '');
-  const canonical = base + (route || '/');
+  let canonical = base + (route || '/');
+  if (String(route || '').indexOf('/blog/') === 0) {
+    const alias = discoverTrust.article(route);
+    if (alias) canonical = base + '/insights/' + alias.slug;
+  }
   // Per-route OG image: dedicated 1200x630 banner with safe fallback.
   const ogImage = base + assetPath('/assets/icons/og-default.png');
   const desc = routeDescription(route);
@@ -488,7 +502,7 @@ ${hreflangs}
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
 ${discoverTrust.headExtras()}
-${(route === '/outreach-desk' || (String(route || '').indexOf('/insights/') === 0 && !discoverTrust.article(route))) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
+${(route === '/outreach-desk' || ((String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) && !discoverTrust.article(route))) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
@@ -2291,19 +2305,29 @@ function pageAbout() {
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI began as one question: what if every action inside a SaaS platform could be cryptographically proven, and every dollar routed without a custodian?</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Today it is a running operating system for the AI era. <span id="aboutModules">—</span> living modules. <span id="aboutVerticals">—</span> pre‑wired vertical industries. Hyperscaler integrations and marketplaces under one Zeus core. All of it owned by one person — ${OWNER.name} — and designed so that no one else can silently take a slice.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">It is not a product. It is a sovereign thesis: that intelligence, value, and property can finally be unified inside a single cryptographic chassis. This is the chassis.</p>
+  <ul id="aboutIdentity" style="color:var(--ink-dim);font-size:15.5px;line-height:1.8;padding-left:18px">
+    <li>Founder: ${OWNER.name}</li>
+    <li>Email: <a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
+    <li>Street address: Not published</li>
+    <li>Phone: Not published</li>
+    <li>Company registration: Not published</li>
+  </ul>
   <div style="display:flex;gap:14px;margin-top:30px"><a class="btn btn-primary" href="/services" data-link>See the fabric</a><a class="btn" href="mailto:${OWNER.email}">Contact the owner</a></div>
   <script>
   (function(){
-    function set(id,v){ var el=document.getElementById(id); if(el && v!=null) el.textContent=v; }
+    function set(id,v){ var el=document.getElementById(id); if(el && v!=null && v!=='') el.textContent=v; }
     fetch('/api/innovation/coverage',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
       var s=d&&d.summary||{};
       if (s.total!=null) set('aboutModules', s.total);
-    }).catch(function(){ set('aboutModules','160+'); });
+    }).catch(function(){});
     fetch('/health',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
       var n = d && d.unicornSync && d.unicornSync.modulesMirror && d.unicornSync.modulesMirror.count;
       if (n!=null) set('aboutModules', n);
     }).catch(function(){});
-    fetch('/api/trust/center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(){ set('aboutVerticals','18'); }).catch(function(){ set('aboutVerticals','18'); });
+    fetch('/api/trust/center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+      var n = d && (d.verticalCount != null ? d.verticalCount : (Array.isArray(d && d.verticals) ? d.verticals.length : null));
+      if (typeof n === 'number') set('aboutVerticals', n);
+    }).catch(function(){});
   })();
   </script>
 </section>`;
@@ -4328,6 +4352,10 @@ function renderRoute(route, params = {}) {
     case '/guides': return pageGuides();
     case '/trust-safety': return discoverTrust.pageTrustSafety();
     case '/insights': return discoverTrust.pageInsightsIndex();
+    case '/model-routing':
+    case '/self-improvement':
+    case '/multi-agent':
+    case '/experiment-engine': return discoverTrust.pageLanding(route.slice(1));
     case '/outreach-desk': return discoverTrust.pageDesk();
     case '/affiliate': return pageAffiliate();
     case '/partners': return pagePartners();
@@ -4338,6 +4366,7 @@ function renderRoute(route, params = {}) {
     case '/__not-found__': return pageNotFound(params.missingPath || route);
     default:
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
+      if (route.startsWith('/blog/') && route !== '/blog') return discoverTrust.pageArticle(route.slice('/blog/'.length));
       if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
@@ -6383,11 +6412,12 @@ function pageChangelog() {
 </section>`;
 }
 
-function pageTerms()   { return _legalSub('Terms of Service', 'By using ZeusAI you agree that all outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and refund guarantee at /refund.'); }
+function pageTerms()   { return _legalSub('Terms of Service', 'In plain language: you pay for a named deliverable, delivery follows a matched payment, and the refund rules live on /refund. By using ZeusAI you agree that outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and the refund guarantee at /refund.'); }
 function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR export/delete: signed-in customers use /account (API: GET /api/privacy/export · POST /api/privacy/delete-request). Cryptographic receipts are append-only and owner-owned. Sub-processors: see /dpa and GET /api/compliance/attestation when available.'); }
 function pageRefund()  { return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">In plain language: if the file or the work you paid for is missing or wrong, email ${OWNER.email} with the order id. There is a 30-day window. Bitcoin cannot be pulled back automatically.</p>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. 30-day money-back remains available via contact.</p>
   <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
   <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"><p style="color:var(--ink-dim);font-size:13px">Loading guarantee terms…</p></div>
@@ -7350,10 +7380,12 @@ function routeTitle(route) {
   if (route === '/trust-safety') return 'Trust and safety';
   if (route === '/insights') return 'Buyer insights';
   if (route === '/outreach-desk') return 'Outreach desk';
-  if (route.startsWith('/insights/')) {
+  if (route.startsWith('/insights/') || route.startsWith('/blog/')) {
     const found = discoverTrust.article(route);
     return found ? found.title : 'Insight';
   }
+  const topicTitle = discoverTrust.landing(route);
+  if (topicTitle && topicTitle.title) return topicTitle.title;
   if (route === '/module-census') return 'Module census';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
   if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
@@ -7448,10 +7480,12 @@ function routeDescription(route) {
     '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.',
     '/agents': 'Agent Commerce Protocol: how AI agents discover, quote, buy and settle ZeusAI capabilities autonomously via /agents.json + BTC checkout + Ed25519 receipts.'
   };
-  if (route.startsWith('/insights/')) {
+  if (route.startsWith('/insights/') || route.startsWith('/blog/')) {
     const found = discoverTrust.article(route);
     return found ? found.description : 'ZeusAI insight.';
   }
+  const topicDesc = discoverTrust.landing(route);
+  if (topicDesc && topicDesc.description) return topicDesc.description;
   if (route.startsWith('/guides/')) {
     try {
       const found = require('../../../backend/modules/discovery-seven').guideFor(route.slice('/guides/'.length));

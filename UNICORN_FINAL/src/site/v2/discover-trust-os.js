@@ -134,6 +134,71 @@ const ARTICLES = [
       'The pages that answer the check are /trust-safety, /refund, /trust, and /origin. The buyer count on /origin is allowed to be zero. A zero you can see is more trustworthy than a testimonial you cannot verify.',
     ],
   },
+  {
+    slug: 'ai-orchestration-on-a-public-shelf',
+    title: 'What AI orchestration means when the catalog is public',
+    description: 'AI orchestration on ZeusAI is the path from a sentence to one shelf offer, a price, and a checkout. It is not a hidden chain of models.',
+    keywords: 'AI orchestration',
+    paragraphs: [
+      'Orchestration, on this site, means one path: you describe the work, the server matches a public shelf offer, checkout locks a price, and a signed receipt follows a matched payment. That is the loop a person can inspect. It is not a claim that several unnamed models are chained together behind every purchase.',
+      'The shelf is the boundary. A minute file names a file you receive. A day engagement names a kickoff, then human delivery on the stated window. A contract figure is a proposal unless the card says the kickoff itself is payable. Orchestration does not turn those clocks into a finished company.',
+      'If a sentence does not match an offer ZeusAI can deliver, the reply should say so. Adding a product that is not on the shelf would make the orchestration look larger than the store. The concierge on the homepage is the place to test that limit.',
+      'Search engines can read the same offers in /sitemap.xml and on /guides. Those pages are how a stranger finds a specific deliverable. They are not a traffic count.',
+      'Start at the homepage, name the work, and compare the button with the card. If the price or the href differs, that is a defect, not a routing feature.',
+    ],
+  },
+  {
+    slug: 'model-routing-without-a-hidden-catalog',
+    title: 'Model routing without a hidden catalog',
+    description: 'ZeusAI does not sell an unnamed model router as a checkout line. The price on a card is the price of a named deliverable.',
+    keywords: 'model routing',
+    paragraphs: [
+      'Model routing usually means software that sends each request to a different model based on cost or quality. That is a real category. It is not a ZeusAI checkout SKU. The public shelf prices a resume, an audit, a logo, a kickoff, and the other named offers. It does not price a router.',
+      'The number on the card is the number on checkout. Bitcoin is the live rail. Card and PayPal appear when those processors are configured. None of those rails is a token meter for a model you did not choose.',
+      'A later lease of models, if one is published, has to appear as its own offer with its own price. Until that row exists, a landing page about routing must not grow a buy button for a product that is not for sale.',
+      'What you can buy today is listed on /services and /guides. Each guide repeats the deliverable, the clock, and the same checkout href. That repetition is the routing a buyer can verify.',
+      'If you need a specific file, ask the concierge. The reply should name the shelf id. If it names a router you cannot find on /services, do not pay.',
+    ],
+  },
+  {
+    slug: 'what-self-improvement-means-here',
+    title: 'What self-improvement means on an autonomous store',
+    description: 'Autonomy ticks and proposed changes are not the same thing as an unsupervised rewrite of production. Buyers can read the public receipts.',
+    keywords: 'self-improvement AI',
+    paragraphs: [
+      'Self-improvement, as a slogan, often means a system that rewrites itself. ZeusAI records autonomy ticks and can hold proposals. A proposal is not a production edit. The public place to read what actually ran is /live-actions.',
+      'The improvement a buyer can check is narrower. Guide pages and service pages read the live shelf, so a price change shows up on the article without a hand-edited blog post. That is maintenance of the catalog, not a claim that the model invented a new company overnight.',
+      'Search Console, social network keys, and a street address are not things the loop can invent. When those are missing, the status pages stay open on purpose. Closing them with a fake token or a fake post would be the opposite of improvement.',
+      'If you are paying for a deliverable, self-improvement of the platform is not your deliverable unless the shelf card says so. Read the card. The refund contract at /refund covers a missed promise, not a missed roadmap fantasy.',
+      'Operators can inspect the same honesty on /seo. Four of the discovery checks are closed in code. Google indexing, Search Console, and off-site posts stay open until an outside system confirms them.',
+    ],
+  },
+  {
+    slug: 'multi-agent-checkout',
+    title: 'Multi-agent systems and who is allowed to pay',
+    description: 'Software agents can discover a ZeusAI price. An agent is not a customer until a payment settles. The protocol is /agents.',
+    keywords: 'multi-agent systems',
+    paragraphs: [
+      'A multi-agent system is a set of programs that hand work to each other. ZeusAI publishes an agent commerce protocol at /agents and a machine-readable catalog at /agents.json. An agent can request a quote and, if the offer is buyable, open the same checkout a person uses.',
+      'Loading a page is not a purchase. A bot, a crawler, and an agent are not added to the buyer ledger because they fetched HTML. The ledger on /origin moves when a settlement is confirmed.',
+      'There is no rented swarm of employees on the shelf. If a card says the engagement is a kickoff, paying does not hire a team of agents to run your company. The clock on the card is the contract.',
+      'Agent checkout still has to show a real offer id, a price, and a rail that is actually configured. Bitcoin is live. Other rails appear only when their keys exist. An agent that skips that check is not using the protocol.',
+      'Read /agents before you connect anything that can spend money. Then read /refund. Autonomous payment does not delete the refund contract or the owner email.',
+    ],
+  },
+  {
+    slug: 'public-cost-of-an-ai-service',
+    title: 'The public cost of an AI service',
+    description: 'ZeusAI prices are on the shelf and on the guide. Pricing experiments belong on /transparency. A lower number is not a profit promise.',
+    keywords: 'AI cost optimization',
+    paragraphs: [
+      'Cost, for a buyer, is the price on the card. That price is repeated on the service page, the guide, and checkout. If those three differ, trust the defect report, not a marketing sentence about optimization.',
+      'The site also has a public pricing experiment page at /transparency. Experiments are supposed to show impressions and conversions that actually happened. An empty experiment is not a winner. No page should crown a headline from zero visits.',
+      'Bitcoin checkout shows the discount the shelf already includes. It is not a second, secret price. Card and PayPal, when configured, are the same checkout, not a cheaper hidden catalog.',
+      'There is no shelf line that promises a percentage cut of your cloud bill. If you want a file, an audit, or a kickoff, pay for that. If you want a cost-cutting retainer, it has to be written as its own offer before it is a cart.',
+      'The useful optimization is the one you can recompute: open /guides, read the price, open checkout, and see the same figure. That check does not require an analytics vendor.',
+    ],
+  },
 ];
 
 const OBJECTIONS = [
@@ -174,6 +239,57 @@ const TARGETS = [
   { name: 'LinkedIn AI groups search', url: 'https://www.linkedin.com/search/results/groups/?keywords=artificial%20intelligence', audience: 'operators and hiring managers' },
 ];
 
+const LANDINGS = [
+  {
+    slug: 'model-routing',
+    title: 'Model routing is not a hidden checkout',
+    description: 'ZeusAI does not sell an unnamed model router. The public shelf prices named deliverables, and checkout uses that same price.',
+    h1: 'There is no secret model-routing product.',
+    sub: 'The card, the guide, and the checkout name one offer. A router that is not on /services is not for sale.',
+    cta: 'Ask for a real offer',
+    href: '/#concierge',
+    article: '/insights/model-routing-without-a-hidden-catalog',
+  },
+  {
+    slug: 'self-improvement',
+    title: 'Self-improvement without an unsupervised rewrite',
+    description: 'Autonomy receipts are public. A proposal is not a production edit, and a missing Search Console token stays missing.',
+    h1: 'Self-improvement stops where the proof stops.',
+    sub: 'Read /live-actions for what ran. The shelf price updates on the guide. The loop does not invent customers or a street address.',
+    cta: 'Read the public receipts',
+    href: '/live-actions',
+    article: '/insights/what-self-improvement-means-here',
+  },
+  {
+    slug: 'multi-agent',
+    title: 'Multi-agent checkout that still requires a payment',
+    description: 'Agents can discover a ZeusAI price at /agents. A page load is not a customer. The buyer ledger moves on settlement.',
+    h1: 'Agents can quote. Only settlement counts.',
+    sub: 'The protocol is /agents. There is no rented swarm on the shelf. A kickoff is a kickoff.',
+    cta: 'Read the agent protocol',
+    href: '/agents',
+    article: '/insights/multi-agent-checkout',
+  },
+  {
+    slug: 'experiment-engine',
+    title: 'Experiments stay unpublished until the counts are real',
+    description: 'Headline and price experiments are recorded in public. Zero impressions do not produce a winner.',
+    h1: 'An empty experiment is not a winner.',
+    sub: 'Impressions and conversions on /transparency are counts that happened. The homepage does not swap its headline from a zero sample.',
+    cta: 'Open the experiment record',
+    href: '/transparency',
+    article: '/insights/public-cost-of-an-ai-service',
+  },
+];
+
+const SOCIAL_DRAFTS = [
+  { channel: 'linkedin', text: 'ZeusAI prices a named deliverable on a public shelf. The guide, the card, and checkout use the same number. Bitcoin is live. Buyer count is on /origin. https://zeusai.pro/guides' },
+  { channel: 'linkedin', text: 'I wrote a plain note on what AI orchestration means here: one sentence in, one shelf offer out. No hidden router. https://zeusai.pro/insights/ai-orchestration-on-a-public-shelf' },
+  { channel: 'x', text: 'Public shelf. Same price on the guide and at checkout. Bitcoin is the live rail. The buyer ledger is on /origin. https://zeusai.pro/buy' },
+  { channel: 'reddit', text: 'Showing the work, not a launch thread with fake users. ZeusAI is an owner-operated checkout for named AI deliverables. Refund contract: https://zeusai.pro/refund — questions go to the owner email on /contact.' },
+  { channel: 'reddit', text: 'If you want the long version of how a Bitcoin checkout is supposed to match the card, this note stays specific: https://zeusai.pro/insights/bitcoin-checkout-for-ai-services' },
+];
+
 const state = {
   events: {
     impression: { A: 0, B: 0 },
@@ -208,12 +324,23 @@ function pickVariant(seed) {
 }
 
 function article(slug) {
-  const id = String(slug || '').replace(/^\/insights\//, '').replace(/\/+$/, '');
+  const id = String(slug || '').replace(/^\/(?:insights|blog)\//, '').replace(/\/+$/, '');
   return ARTICLES.find((a) => a.slug === id) || null;
 }
 
 function publicPaths() {
-  return ['/trust-safety', '/insights'].concat(ARTICLES.map((a) => '/insights/' + a.slug));
+  return ['/trust-safety', '/insights']
+    .concat(ARTICLES.map((a) => '/insights/' + a.slug))
+    .concat(LANDINGS.map((l) => '/' + l.slug));
+}
+
+function landing(slug) {
+  const id = String(slug || '').replace(/^\//, '').replace(/\/+$/, '');
+  return LANDINGS.find((l) => l.slug === id) || null;
+}
+
+function socialDrafts() {
+  return SOCIAL_DRAFTS.map((d) => Object.assign({ sent: false, inventsReach: false }, d));
 }
 
 function objections() {
@@ -344,31 +471,47 @@ function headExtras() {
   return '<meta name="google-site-verification" content="' + token + '"/>';
 }
 
+function _liveService(id, fallbackPrice, fallbackPath) {
+  try {
+    const shelf = require('../../commerce/public-shelf');
+    const item = shelf && typeof shelf.byId === 'function' ? shelf.byId(id) : null;
+    if (item && item.ctaHref && Number(item.priceUsd) > 0) {
+      return { price: Number(item.priceUsd), path: item.ctaHref };
+    }
+  } catch (_) { /* seed figures */ }
+  return { price: fallbackPrice, path: fallbackPath };
+}
+
 function serviceListJsonLd(base) {
   const origin = String(base || OWNER.domain).replace(/\/+$/, '');
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'ZeusAI services',
-    itemListElement: SERVICES.map((s, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'Service',
-        name: s.name,
-        serviceType: s.name,
-        description: s.description,
-        url: origin + s.path,
-        provider: { '@type': 'Organization', name: 'ZeusAI', email: OWNER.email },
-        offers: {
-          '@type': 'Offer',
-          price: s.priceUsd,
-          priceCurrency: 'USD',
-          availability: 'https://schema.org/InStock',
-          url: origin + s.path,
+    itemListElement: SERVICES.map((s, i) => {
+      const live = _liveService(s.id, s.priceUsd, s.path);
+      const href = String(live.path || s.path);
+      const abs = /^https?:/i.test(href) ? href : origin + href;
+      return {
+        '@type': 'ListItem',
+        position: i + 1,
+        item: {
+          '@type': 'Service',
+          name: s.name,
+          serviceType: s.name,
+          description: s.description,
+          url: abs,
+          provider: { '@type': 'Organization', name: 'ZeusAI', email: OWNER.email },
+          offers: {
+            '@type': 'Offer',
+            price: Number(live.price).toFixed(2),
+            priceCurrency: 'USD',
+            availability: 'https://schema.org/InStock',
+            url: abs,
+          },
         },
-      },
-    })),
+      };
+    }),
   };
 }
 
@@ -448,9 +591,27 @@ function pageInsightsIndex() {
   const cards = ARTICLES.map((a) => `<a class="card" href="/insights/${esc(a.slug)}" data-link style="padding:20px;text-decoration:none;display:block"><span class="tag">${esc(a.keywords)}</span><h3 style="margin:12px 0 8px;font-size:17px;color:#fff">${esc(a.title)}</h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;margin:0">${esc(a.description)}</p><span style="display:inline-block;margin-top:12px;color:var(--blue2);font-size:13px">Read article →</span></a>`).join('');
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">Insights · owner written</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Five notes on <span class="grad">buying from this system.</span></h1>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">${ARTICLES.length} notes on <span class="grad">buying from this system.</span></h1>
   <p style="color:var(--ink-dim);max-width:680px">Written by ${esc(OWNER.name)}. No guest customers, no invented case studies. Each note describes a page you can open.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px;margin-top:26px">${cards}</div>
+</section>`;
+}
+
+function pageLanding(slug) {
+  const found = landing(slug);
+  if (!found) {
+    return `<section style="padding-top:140px;max-width:760px"><h1>Page not found</h1><p><a href="/guides" data-link>Offer guides</a></p></section>`;
+  }
+  return `<section style="padding-top:140px;max-width:820px" id="topicLanding" data-landing="${esc(found.slug)}">
+  <span class="kicker">Topic · not a new SKU</span>
+  <h1 style="font-size:clamp(32px,4.2vw,52px);margin:10px 0 12px">${esc(found.h1)}</h1>
+  <p style="color:var(--ink-dim);font-size:18px;line-height:1.6;max-width:40rem">${esc(found.sub)}</p>
+  <p style="margin-top:18px"><a class="btn btn-primary" href="${esc(found.href)}" data-link>${esc(found.cta)}</a> <a class="btn btn-ghost" href="${esc(found.article)}" data-link>Read the article</a></p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px">
+    <a class="card" href="/refund" data-link style="padding:16px;text-decoration:none"><b>Refund guarantee</b><p style="color:var(--ink-dim);margin:8px 0 0">The contract is public. Bitcoin is not auto-reversed.</p></a>
+    <a class="card" href="/origin" data-link style="padding:16px;text-decoration:none"><b>Buyer ledger</b><p style="color:var(--ink-dim);margin:8px 0 0">Confirmed payments are counted on /origin.</p></a>
+    <a class="card" href="/trust-safety" data-link style="padding:16px;text-decoration:none"><b>Operator</b><p style="color:var(--ink-dim);margin:8px 0 0">${esc(OWNER.name)} · ${esc(OWNER.email)}. Address and phone are not published.</p></a>
+  </div>
 </section>`;
 }
 
@@ -584,7 +745,11 @@ module.exports = {
   status,
   discovery,
   pageTrustSafety,
+  LANDINGS,
+  landing,
+  socialDrafts,
   pageInsightsIndex,
+  pageLanding,
   pageArticle,
   pageDesk,
   howBuyerHtml,

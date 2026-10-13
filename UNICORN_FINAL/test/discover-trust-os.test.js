@@ -40,13 +40,22 @@ check('protocol stays honest', () => {
   assert.strictEqual(s.analytics.sentryEnabled, false);
 });
 
-check('five articles and twenty communities, desk excluded from sitemap', () => {
-  assert.strictEqual(dto.ARTICLES.length, 5);
+check('ten articles, four topic pages, and twenty communities, desk excluded from sitemap', () => {
+  assert.strictEqual(dto.ARTICLES.length, 10);
+  assert.strictEqual(dto.LANDINGS.length, 4);
+  assert.strictEqual(dto.socialDrafts().length, 5);
+  dto.socialDrafts().forEach((d) => {
+    assert.strictEqual(d.sent, false);
+    assert.strictEqual(d.inventsReach, false);
+  });
   assert.strictEqual(dto.outreachTargets().length, 20);
   const paths = dto.publicPaths();
   assert.ok(paths.includes('/trust-safety'));
   assert.ok(paths.includes('/insights/autonomous-ai-commerce'));
+  assert.ok(paths.includes('/insights/ai-orchestration-on-a-public-shelf'));
   assert.ok(paths.includes('/insights/reading-a-low-trust-score'));
+  assert.ok(paths.includes('/model-routing'));
+  assert.ok(paths.includes('/experiment-engine'));
   assert.ok(!paths.includes('/outreach-desk'));
   dto.ARTICLES.forEach((a) => {
     assert.ok(a.paragraphs.length >= 4);
@@ -55,6 +64,8 @@ check('five articles and twenty communities, desk excluded from sitemap', () => 
   const pub = seo.corePublicPaths();
   assert.ok(pub.includes('/trust-safety'));
   assert.ok(pub.includes('/insights/ai-resume-service-bitcoin'));
+  assert.ok(pub.includes('/insights/public-cost-of-an-ai-service'));
+  assert.ok(pub.includes('/multi-agent'));
   assert.ok(!pub.includes('/outreach-desk'));
 });
 
@@ -175,6 +186,26 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(article.includes('How Bitcoin checkout works'));
   assert.ok(article.includes('"@type":"Article"'));
   assert.ok(article.includes('<link rel="canonical" href="https://zeusai.pro/insights/bitcoin-checkout-for-ai-services"/>'));
+  const alias = shell.getHtml('/blog/bitcoin-checkout-for-ai-services');
+  assert.ok(alias.includes('How Bitcoin checkout works'));
+  assert.ok(alias.includes('<link rel="canonical" href="https://zeusai.pro/insights/bitcoin-checkout-for-ai-services"/>'));
+  const topic = shell.getHtml('/model-routing');
+  assert.ok(topic.includes('id="topicLanding"'));
+  assert.ok(topic.includes('There is no secret model-routing product.'));
+  assert.ok(topic.includes('not a new SKU'));
+  assert.ok(topic.includes('href="/#concierge"'));
+  assert.ok(!topic.includes('/checkout/?plan=model-routing'));
+  const about = shell.getHtml('/about');
+  assert.ok(about.includes('Street address: Not published'));
+  assert.ok(about.includes('Phone: Not published'));
+  assert.ok(about.includes('Company registration: Not published'));
+  assert.ok(!about.includes('160+'));
+  assert.ok(!/123 Main Street|ACME LTD/i.test(about));
+  const offers = home.match(/"@type":"Offer"[^}]*/g) || [];
+  assert.ok(offers.length > 0);
+  offers.forEach((o) => assert.ok(/"price":"/.test(o), o));
+  assert.ok(!home.includes('googletagmanager'));
+  assert.ok(!home.includes('plausible.io'));
   const blog = shell.getHtml('/blog');
   assert.ok(blog.includes('/insights/autonomous-ai-commerce'));
   const desk = shell.getHtml('/outreach-desk');

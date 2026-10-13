@@ -12604,6 +12604,45 @@ app.get(['/api/discovery-seven', '/.well-known/discovery-seven.json'], (req, res
   }
 });
 
+app.get(['/api/growth-agent', '/.well-known/growth-agent.json'], (req, res) => {
+  try {
+    const g = require('./modules/growth-agent');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'GDO/1.0');
+    return res.json(g.tick({ dryRun: true, source: 'manual' }));
+  } catch (e) {
+    return res.status(503).json({
+      ok: false,
+      protocol: 'GDO/1.0',
+      published: false,
+      indexNowPinged: false,
+      inventsReach: false,
+      inventsPosts: false,
+      inventsIndexed: false,
+      error: e && e.message,
+    });
+  }
+});
+
+app.get(['/api/ab-test-engine', '/.well-known/ab-test-engine.json'], (req, res) => {
+  try {
+    const ab = require('./modules/ab-test-engine');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'ABX/1.0');
+    return res.json(ab.evaluateFromDesk());
+  } catch (e) {
+    return res.status(503).json({
+      ok: false,
+      protocol: 'ABX/1.0',
+      winner: null,
+      promoted: false,
+      appliedToHomepage: false,
+      inventsConversions: false,
+      error: e && e.message,
+    });
+  }
+});
+
 app.get('/api/seo/status', (req, res) => {
   try {
     const desk = require('./modules/seo-viral-desk').desk();

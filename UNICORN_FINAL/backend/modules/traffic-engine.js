@@ -325,9 +325,15 @@ async function runCycle(opts) {
   } catch (e) {
     discoverySeven = { ok: false, error: (e && e.message) || 'discovery_seven_failed', inventsReach: false, inventsIndexed: false };
   }
+  let growthDiscover = null;
+  try {
+    growthDiscover = require('./growth-agent').tick({ dryRun: true, source: 'schedule' });
+  } catch (e) {
+    growthDiscover = { ok: false, published: false, indexNowPinged: false, inventsIndexed: false, error: (e && e.message) || 'growth_failed' };
+  }
   const outreach = buildOutreachQueue(opts);
   _saveState();
-  return { ok: true, submission, searchConsole, outreach, discoverySeven };
+  return { ok: true, submission, searchConsole, outreach, discoverySeven, growthDiscover };
 }
 
 function start() {
