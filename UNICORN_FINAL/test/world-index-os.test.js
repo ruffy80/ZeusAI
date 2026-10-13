@@ -64,10 +64,12 @@ check('shareHead includes canonical og:image', () => {
   assert.ok(wivp.ogImageUrl().includes('og-default'));
 });
 
-check('googleHtmlVerification is inert without a token', () => {
+check('owner Google file is served and an env token still wins the default', () => {
   delete process.env.GOOGLE_SITE_VERIFICATION_TOKEN;
   delete process.env.GSC_HTML_TOKEN;
-  assert.strictEqual(wivp.googleHtmlVerification(), null);
+  const published = wivp.googleHtmlVerification('/google4757746388248111.html');
+  assert.strictEqual(published.body, 'google-site-verification: google4757746388248111.html');
+  assert.strictEqual(wivp.googleHtmlVerification('/googleWRONG.html'), null);
   process.env.GOOGLE_SITE_VERIFICATION_TOKEN = 'abcXYZ123';
   const gsc = wivp.googleHtmlVerification();
   assert.strictEqual(gsc.path, '/googleabcXYZ123.html');
@@ -89,6 +91,7 @@ check('site + nginx + sitemap + traffic-engine are wired', () => {
   assert.ok(site.includes("urlPath === '/visible-world'"));
   assert.ok(site.includes('worldIndex:'));
   const nginx = read('scripts/nginx-unicorn.conf');
+  assert.ok(nginx.includes('location = /google4757746388248111.html'));
   const idx = nginx.indexOf('location = /.well-known/world-index.json');
   assert.ok(idx >= 0);
   assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(nginx.slice(idx, idx + 420)));

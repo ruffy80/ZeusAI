@@ -204,7 +204,8 @@ check('operator checklist promises automation only where a secret is armed', () 
   const googleRow = unarmed.find((r) => r.id === 'google-search-console');
   assert.strictEqual(bingRow.ready, false);
   assert.ok(bingRow.action.includes('BING_WEBMASTER_API_KEY'));
-  assert.strictEqual(googleRow.ready, false);
+  assert.strictEqual(googleRow.ready, true);
+  assert.ok(googleRow.action.includes('submitted by hand'));
   assert.ok(googleRow.action.includes('GOOGLE_SERVICE_ACCOUNT_JSON'));
 
   process.env.BING_WEBMASTER_API_KEY = 'test-key';
