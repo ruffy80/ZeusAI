@@ -106,6 +106,13 @@ function shareHead(opts) {
  * env token and the token search-console-bridge negotiated automatically are
  * both valid — Google only ever fetches the one it issued.
  */
+// Owner-supplied Search Console FILE method. Public by design: Google fetches it.
+const OWNER_GOOGLE_HTML = Object.freeze({
+  path: '/google4757746388248111.html',
+  body: 'google-site-verification: google4757746388248111.html',
+  source: 'owner-file',
+});
+
 function googleVerificationRecords() {
   const out = [];
   const token = String(process.env.GOOGLE_SITE_VERIFICATION_TOKEN || process.env.GSC_HTML_TOKEN || '')
@@ -125,6 +132,7 @@ function googleVerificationRecords() {
       out.push({ path: rec.path, body: rec.body, source: 'search-console-bridge' });
     }
   } catch (_) { /* bridge optional */ }
+  if (!out.some((r) => r.path === OWNER_GOOGLE_HTML.path)) out.push(OWNER_GOOGLE_HTML);
   return out;
 }
 
