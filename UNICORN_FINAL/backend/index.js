@@ -16423,6 +16423,17 @@ app.post('/api/auto-evolve/run', adminTokenMiddleware, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get(['/api/ecosystem-map', '/.well-known/ecosystem-map.json'], (req, res) => {
+  try {
+    const bond = require('./modules/ecosystem-bond');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'EBO/1.0');
+    return res.json(bond.summary());
+  } catch (e) {
+    return res.status(503).json({ ok: false, protocol: 'EBO/1.0', inventsModules: false, error: e && e.message });
+  }
+});
+
 // ── Ops Dashboard (public, read-only) ─────────────────────────────────────────
 app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
   try {
