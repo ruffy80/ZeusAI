@@ -69,9 +69,11 @@ function enrichOrderStatus(order) {
       return out;
     }
     const artifacts = Array.isArray(d.artifacts) ? d.artifacts : [];
-    out.fulfillmentStatus = d.fulfillmentStatus || d.status || 'unknown';
+    out.fulfillmentStatus = d.fulfillmentStatus || (artifacts.length ? (d.status || 'unknown') : 'generating');
     out.artifactsReady = artifacts.length > 0;
-    out.deliveryReady = out.artifactsReady || String(d.status || '') === 'delivered';
+    // A registry row is marked delivered as soon as paperwork is created.
+    // The buyer pack exists only after attachArtifacts stores a file.
+    out.deliveryReady = out.artifactsReady;
     out.packGenerating = !out.deliveryReady;
   } catch (_) { /* honest unknown stays queued */ }
   return out;

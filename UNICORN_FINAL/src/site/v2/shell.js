@@ -7204,7 +7204,7 @@ function pageOrderPassport(id) {
         <li data-op-step="created" data-active="1" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:var(--violet2);flex:none;margin-top:4px"></span><div><b style="display:block">Order created</b><span style="color:var(--ink-dim);font-size:13px" id="opCreatedAt">—</span></div></li>
         <li data-op-step="pending" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block" id="opPendingTitle">Awaiting payment</b><span style="color:var(--ink-dim);font-size:13px" id="opPaymentHint">Open the invoice and choose Bitcoin, PayPal, or card/crypto.</span></div></li>
         <li data-op-step="paid" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block" id="opPaidTitle">Payment confirmed</b><span style="color:var(--ink-dim);font-size:13px" id="opPaidAt">—</span></div></li>
-        <li data-op-step="activated" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Delivery pack issued</b><span style="color:var(--ink-dim);font-size:13px" id="opDeliveredAt">—</span></div></li>
+        <li data-op-step="activated" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block" id="opDeliveredTitle">Delivery pack</b><span style="color:var(--ink-dim);font-size:13px" id="opDeliveredAt">—</span></div></li>
       </ol>
     </div>
     <aside class="co-box" style="padding:22px">
@@ -7245,6 +7245,7 @@ function pageOrderPassport(id) {
     var createdAtEl = document.getElementById('opCreatedAt');
     var paidAtEl = document.getElementById('opPaidAt');
     var deliveredAtEl = document.getElementById('opDeliveredAt');
+    var deliveredTitle = document.getElementById('opDeliveredTitle');
     var deliveryCard = document.getElementById('opDeliveryCard');
     var deliveryLinks = document.getElementById('opDeliveryLinks');
     function markStep(step, active){
@@ -7319,8 +7320,11 @@ function pageOrderPassport(id) {
           if (paidTitle) paidTitle.textContent = 'Payment confirmed · ' + viaLabel(j.paid_via || 'btc');
           if (paidAtEl) paidAtEl.textContent = j.paid_at || j.paidAt ? fmt(j.paid_at || j.paidAt) : (j.confirmedAt ? fmt(j.confirmedAt) : 'confirmed');
         }
-        if (['activated','delivered','completed'].includes(status) || (status === 'paid' && j.entitlement_id)) {
+        var packReady = j.deliveryReady === true || j.artifactsReady === true;
+        var legacyDone = ['activated','delivered','completed'].includes(status) && j.deliveryReady !== false;
+        if (packReady || legacyDone) {
           markStep('activated', true);
+          if (deliveredTitle) deliveredTitle.textContent = 'Delivery pack issued';
           if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'ready';
           if (deliveryCard) { deliveryCard.hidden = false; }
           if (deliveryLinks) {
@@ -7330,6 +7334,11 @@ function pageOrderPassport(id) {
             deliveryLinks.innerHTML = '<a class="btn btn-primary" download href="'+deliveryHref+'">Download signed delivery pack</a>'
               + '<a class="btn" href="/account" data-link>Go to my account</a>';
           }
+        } else if (status === 'paid' || status === 'confirmed') {
+          markStep('activated', false);
+          if (deliveredTitle) deliveredTitle.textContent = 'Delivery pack';
+          if (deliveredAtEl) deliveredAtEl.textContent = 'Generating pack…';
+          if (deliveryCard) deliveryCard.hidden = true;
         }
       } catch (_) { /* keep last render */ }
     }
