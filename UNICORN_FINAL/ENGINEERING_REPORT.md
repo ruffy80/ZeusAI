@@ -29,3 +29,16 @@ The Integrated Autonomy Kernel on the already-running local backend was healthy 
 - ESLint `--max-warnings=0` on the edited JavaScript files, including `shell.js`, exited 0.
 
 Not run: the full `test:chain`. Not deployed. The live backend on port 3000 was not restarted, so production and that process still serve the previous checkout page.
+
+## Shelf file shape
+
+The public shelf stays the whole catalog. The $39 resume is one minute-clock file among the others, not the front door.
+
+Each card on `/`, `/pricing`, `/services`, and `/buy` names the file payment unlocks today:
+
+- A proposal figure says there is no checkout file.
+- A day or contract engagement names the Project Kickoff Pack.
+- A minute offer names the Service Activation Pack when no model key is armed for that SKU, and the recipe title when a key is armed.
+- The old services block that promised an HTML audit, an SVG logo, and a finished SEO pack is gone. Those three names remain as part of the shelf, with the real file on the card.
+
+After payment, the checkout page and the order passport (when the checkout token is in the URL) render the artifact text on the page. The text is inserted as text, not as HTML.

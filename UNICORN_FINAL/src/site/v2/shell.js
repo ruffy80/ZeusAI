@@ -1219,6 +1219,25 @@ function _atlasEnterprise(fromCatalog) {
     return Number(a.priceUSD || 0) - Number(b.priceUSD || 0);
   });
 }
+function _atlasFile(p) {
+  let preview = null;
+  try {
+    preview = require('./fulfillment-engine').offerPreview(String((p && p.id) || ''), {
+      mode: p && p.mode,
+      clock: p && p.clock,
+      tier: p && p.tier,
+    });
+  } catch (_) { preview = null; }
+  if (!preview || !preview.fileTitle) return '';
+  const sections = (preview.sections || []).slice(0, 5).map((line) => `<li>${_esc(line)}</li>`).join('');
+  const list = sections ? `<ul class="atlas-file-list" style="margin:6px 0 0;padding-left:16px;color:var(--ink-dim);font-size:12px">${sections}</ul>` : '';
+  return `<div class="atlas-file" style="margin:8px 0 0;padding:10px 12px;border:1px dashed var(--stroke);border-radius:10px">
+    <span class="kicker">File today</span>
+    <b style="display:block;margin-top:4px;font-size:14px">${_esc(preview.fileTitle)}</b>
+    ${list}
+    <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
+  </div>`;
+}
 function _atlasCard(p) {
   const id = String((p && p.id) || '');
   const title = _esc(p.title || p.id || 'Service');
@@ -1248,6 +1267,7 @@ function _atlasCard(p) {
     <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
     <h3 itemprop="name">${title}</h3>
     <p itemprop="description">${desc}</p>
+    ${_atlasFile(p)}
     <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
@@ -1783,12 +1803,8 @@ function pageServices() {
   </div>
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
     <span class="kicker">What you receive</span>
-    <h3 style="margin:6px 0 12px;font-size:20px">Every purchase ships a concrete artefact — not a promise.</h3>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-      <div class="card" style="margin:0;padding:14px"><span class="tag">Website Audit</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">HTML report</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Signed audit with performance, accessibility, SEO and conversion notes — delivered as a single self-contained HTML file.</p></div>
-      <div class="card" style="margin:0;padding:14px"><span class="tag">Logo Kit</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">SVG + palette</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Vector logo, monochrome variants and a documented color palette. Import-ready in Figma, Illustrator, or any browser.</p></div>
-      <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Articles + brief</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
-    </div>
+    <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the other files. Day engagements unlock a kickoff pack. Contract figures are proposals, except the payable kickoff. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
@@ -1896,6 +1912,7 @@ function pageService(id) {
       </div>
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05" itemprop="name">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7" itemprop="description">${_esc(desc)}</p>
+      ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
         <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Mempool confirm</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
@@ -7222,7 +7239,8 @@ function pageOrderPassport(id) {
   <div class="card" style="padding:22px;margin-top:18px" id="opDeliveryCard" hidden>
     <span class="tag" style="background:rgba(127,255,212,.14);color:#7fffd4">Delivery</span>
     <h3 style="margin:12px 0 6px">Your entitlement is live</h3>
-    <p style="color:var(--ink-dim);font-size:14px">The signed delivery pack is ready. Verify the signature against the public key at <a href="/api/v1/crypto/public-keys"><code>/api/v1/crypto/public-keys</code></a>.</p>
+    <p style="color:var(--ink-dim);font-size:14px">The file from this order is below when the checkout token is on this page. Verify the signature against the public key at <a href="/api/v1/crypto/public-keys"><code>/api/v1/crypto/public-keys</code></a>.</p>
+    <pre id="opPackBody" hidden style="margin:12px 0 0;white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;line-height:1.5;max-height:480px;overflow:auto;background:#0b0f17;border:1px solid var(--stroke);border-radius:10px;padding:12px"></pre>
     <div id="opDeliveryLinks" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"></div>
   </div>
   <p style="color:var(--ink-dim);font-size:12.5px;margin-top:18px">Passport is bookmarkable. Refresh anytime — the status is fetched live.</p>
@@ -7333,6 +7351,17 @@ function pageOrderPassport(id) {
             var deliveryHref = '/api/delivery/'+encodeURIComponent(ORDER_ID)+(tok ? '?access_token='+encodeURIComponent(tok) : '');
             deliveryLinks.innerHTML = '<a class="btn btn-primary" download href="'+deliveryHref+'">Download signed delivery pack</a>'
               + '<a class="btn" href="/account" data-link>Go to my account</a>';
+            var packBody = document.getElementById('opPackBody');
+            if (packBody && tok && !packBody.dataset.loaded) {
+              packBody.dataset.loaded = '1';
+              fetch('/api/delivery/'+encodeURIComponent(ORDER_ID)+'?format=artifact&access_token='+encodeURIComponent(tok), {cache:'no-store'})
+                .then(function(res){ return res.ok ? res.text() : ''; })
+                .then(function(text){
+                  if (!text) return;
+                  packBody.hidden = false;
+                  packBody.textContent = text;
+                }).catch(function(){});
+            }
           }
         } else if (status === 'paid' || status === 'confirmed') {
           markStep('activated', false);

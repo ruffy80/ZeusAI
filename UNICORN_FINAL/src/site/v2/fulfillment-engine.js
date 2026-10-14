@@ -210,6 +210,60 @@ const PROFESSIONAL_RECIPE = {
 Context: ${ctx}.`
 };
 
+const RECIPE_OUTLINE = {
+  'website-audit': ['Scorecard', 'SEO findings', 'Performance', 'Accessibility', '30-day fix plan'],
+  'seo-content-pack': ['Keywords', 'Title and meta', 'Article', 'Internal links'],
+  'landing-page': ['Hero', 'Benefits', 'FAQ', 'Call to action'],
+  'brand-kit': ['Name candidates', 'Positioning', 'Taglines', 'Voice', 'Color and type'],
+  'pitch-deck': ['Problem', 'Solution', 'Market', 'Product', 'Ask'],
+  'email-sequence': ['Subject', 'Preview', 'Body', 'Send timing', 'Call to action'],
+  'social-kit': ['Weekly theme', 'Hooks', 'Captions', 'Hashtags'],
+  'resume': ['Resume', 'LinkedIn headline', 'About section'],
+  'code-scaffold': ['Architecture', 'Stack', 'Build plan', 'Starter code', 'Deploy checklist'],
+  'ad-copy': ['Headlines', 'Descriptions', 'Audience', 'Testing plan'],
+  'product-desc': ['Title', 'Bullets', 'Description', 'Upsells', 'FAQ'],
+  'consulting-brief': ['Objectives', 'Execution plan', 'Templates', 'KPIs', '30-day timeline'],
+  'enterprise-engagement': ['Outcomes', 'Architecture', 'Scope phases', 'Milestones', 'Next steps'],
+  'professional-kickoff': ['Goals', 'Scope', 'Architecture sketch', 'Milestones', 'What you have now'],
+};
+
+const PACK_SECTIONS = ['Order Summary', 'What Is Included', 'Next Steps', 'Receipt references', 'Download links'];
+
+function offerPreview(serviceId, opts) {
+  const mode = opts && opts.mode;
+  const clock = opts && opts.clock;
+  if (mode === 'contact' || mode === 'unavailable') {
+    return {
+      kind: 'proposal',
+      fileTitle: 'No checkout file',
+      sections: [],
+      note: 'This figure is a proposal. The button asks for it. Nothing is downloaded.',
+    };
+  }
+  const human = mode === 'reserve' || clock === 'days' || clock === 'contract';
+  const recipe = human
+    ? ((clock === 'contract' || (opts && opts.tier === 'enterprise')) ? ENTERPRISE_RECIPE : PROFESSIONAL_RECIPE)
+    : pickRecipe(serviceId);
+  const armed = !human && shouldUseAiForSku(serviceId);
+  if (!armed) {
+    return {
+      kind: human ? 'kickoff' : 'activation',
+      fileTitle: human ? 'Project Kickoff Pack' : 'Service Activation Pack',
+      sections: PACK_SECTIONS.slice(),
+      note: human
+        ? 'Payment unlocks this kickoff file now. The finished build follows on the stated window. It is not an instant download.'
+        : 'Payment unlocks this activation file. A model key is not armed for this offer, so the file is the record, not a generated finished work.',
+    };
+  }
+  const sections = RECIPE_OUTLINE[recipe.id] || PACK_SECTIONS;
+  return {
+    kind: 'generated',
+    fileTitle: recipe.title,
+    sections: sections.slice(),
+    note: 'After payment, this file is written from your brief. The headings are the template, not a past customer.',
+  };
+}
+
 function pickRecipe(serviceId) {
   const raw = String(serviceId || '').trim();
   const exact = SKU_RECIPES[raw] || SKU_RECIPES[h(raw)];
@@ -525,7 +579,7 @@ async function fulfillReceipt(receipt, opts = {}) {
 }
 
 module.exports = {
-  fulfillReceipt, fulfillService, pickRecipe, isEnterprise, needsHumanFulfillment,
+  fulfillReceipt, fulfillService, pickRecipe, offerPreview, isEnterprise, needsHumanFulfillment,
   shouldUseAiForSku, aiSkuAllowlist,
   fulfillmentAiOs,
   RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,

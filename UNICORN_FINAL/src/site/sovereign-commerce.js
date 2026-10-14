@@ -1664,6 +1664,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <div class="row"><span class="k">Fulfillment</span><span class="v" id="packStatus">processing</span></div>
+  <pre id="packBody" hidden style="margin:12px 0 0;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.5;max-height:480px;overflow:auto;background:#0b0f17;border:1px solid #243044;border-radius:10px;padding:12px;color:#eaf0ff"></pre>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
@@ -1725,7 +1726,20 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         if(pack){
           pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
         }
-        if(j.deliveryReady) return;
+        if(j.deliveryReady){
+          var body=document.getElementById('packBody');
+          if(body && !body.dataset.loaded){
+            body.dataset.loaded='1';
+            fetch('/api/delivery/'+encodeURIComponent(ORDER_ID)+'?format=artifact&access_token='+encodeURIComponent(TOK),{cache:'no-store'})
+              .then(function(r){return r.ok?r.text():'';})
+              .then(function(text){
+                if(!text) return;
+                body.hidden=false;
+                body.textContent=text;
+              }).catch(function(){});
+          }
+          return;
+        }
         setTimeout(poll,4000);
         return;
       }
