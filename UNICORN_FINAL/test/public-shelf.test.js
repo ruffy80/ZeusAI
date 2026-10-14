@@ -117,5 +117,103 @@ check('pricing, services, buy, and home share one shelf', () => {
   assert.ok(ro.primary.strategy.includes('zile') || ro.primary.strategy.includes('Nu este un coș') || ro.primary.strategy.includes('Rezervi'));
 });
 
+check('advise hears a person and keeps the resume file', () => {
+  const advice = shelf.advise('I am a normal person and I need my resume and LinkedIn rewritten');
+  const count = shelf.publicShelf().length;
+  assert.strictEqual(advice.buyer.kind, 'person');
+  assert.strictEqual(advice.buyer.org, null);
+  assert.strictEqual(advice.primary.id, 'instant-resume-makeover');
+  assert.strictEqual(advice.knownOffers, count);
+  assert.ok(advice.primary.strategy.includes(advice.primary.priceLabel));
+  assert.ok(advice.question.includes('Heard as a person'));
+  assert.ok(advice.question.includes(String(count)));
+});
+
+check('advise keeps a file when the person works at Google', () => {
+  const advice = shelf.advise('I work at Google and I need a resume');
+  assert.strictEqual(advice.buyer.kind, 'person');
+  assert.strictEqual(advice.buyer.org, 'Google');
+  assert.strictEqual(advice.primary.id, 'instant-resume-makeover');
+  assert.ok(advice.question.includes('does not replace Google'));
+  assert.ok(advice.question.includes('file'));
+  assert.notStrictEqual(advice.primary.id, 'ent-engagement-kickoff');
+});
+
+check('advise keeps a website audit as a file for Google', () => {
+  const advice = shelf.advise('We are Google and we need a website audit');
+  assert.strictEqual(advice.buyer.org, 'Google');
+  assert.ok(['instant-website-audit', 'instant-landing-page', 'instant-seo-content-pack'].includes(advice.primary.id));
+  assert.strictEqual(advice.primary.clock, 'minutes');
+  assert.ok(advice.question.includes('does not replace Google'));
+});
+
+check('advise opens the kickoff for an AWS platform ask and does not replace AWS', () => {
+  const advice = shelf.advise('We are AWS and we want a private cloud and the platform license');
+  assert.strictEqual(advice.buyer.kind, 'hyperscale');
+  assert.strictEqual(advice.buyer.org, 'AWS');
+  assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
+  assert.ok(advice.primary.strategy.includes('does not deliver the license'));
+  assert.ok(advice.also.some((x) => x.mode === 'contact'));
+  assert.ok(advice.question.includes('does not replace AWS'));
+  assert.ok(advice.question.includes('engagement kickoff'));
+});
+
+check('advise answers an open Google ask from the whole shelf without inventing a cloud', () => {
+  const advice = shelf.advise('We are Google. What can you do for us?');
+  const ids = new Set(shelf.publicShelf().map((p) => p.id));
+  assert.strictEqual(advice.buyer.kind, 'hyperscale');
+  assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
+  assert.strictEqual(advice.knownOffers, ids.size);
+  assert.ok(advice.question.includes('does not replace Google'));
+  assert.ok(advice.also.some((x) => x.mode === 'contact'));
+  for (const row of [advice.primary].concat(advice.also)) {
+    if (row && row.id) assert.ok(ids.has(row.id), row.id);
+  }
+});
+
+check('advise reserves a build for a company and does not jump to the license', () => {
+  const advice = shelf.advise('We are a company and we need a mobile app');
+  assert.strictEqual(advice.buyer.kind, 'company');
+  assert.strictEqual(advice.buyer.org, null);
+  assert.strictEqual(advice.primary.id, 'professional-mobile-app');
+  assert.notStrictEqual(advice.primary.id, 'ent-engagement-kickoff');
+  assert.ok(advice.question.includes('Heard as a company'));
+  assert.ok(advice.question.includes('build'));
+});
+
+check('advise answers a Romanian person with the resume file', () => {
+  const advice = shelf.advise('Sunt o persoană și vreau un CV pentru angajare');
+  assert.strictEqual(advice.lang, 'ro');
+  assert.strictEqual(advice.buyer.kind, 'person');
+  assert.strictEqual(advice.primary.id, 'instant-resume-makeover');
+  assert.ok(advice.question.includes('Te-am auzit ca om') || advice.question.includes('persoană'));
+  assert.ok(!/Kickoff pack now|About \d+ days/.test(advice.primary.strategy));
+  assert.ok(!/Kickoff pack now|About \d+ days/.test(advice.question));
+});
+
+check('advise finds a naming file from the whole shelf when the lane words are absent', () => {
+  const advice = shelf.advise('I need 25 product names and free domains');
+  const ids = new Set(shelf.publicShelf().map((p) => p.id));
+  assert.strictEqual(advice.primary.id, 'instant-product-naming');
+  assert.strictEqual(advice.knownOffers, ids.size);
+  assert.ok(advice.also.some((x) => x.role === 'unasked'));
+  assert.ok(advice.question.includes(String(ids.size)));
+});
+
+check('advise stays on real doors when nothing on the shelf matches', () => {
+  const advice = shelf.advise('I want a purple elephant tomorrow');
+  assert.strictEqual(advice.primary.role, 'start');
+  assert.ok(['instant-website-audit', 'professional-ai-chatbot', 'ent-engagement-kickoff'].includes(advice.primary.id));
+  assert.ok(advice.also.length >= 1);
+  assert.ok(advice.question.includes('No precise match'));
+});
+
+check('advise treats an AWS landing zone as a platform ask, not a marketing page', () => {
+  const advice = shelf.advise('We are AWS and we need a landing zone for our accounts');
+  assert.strictEqual(advice.buyer.org, 'AWS');
+  assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
+  assert.ok(advice.question.includes('does not replace AWS'));
+});
+
 console.log('public-shelf: ' + passed + ' checks passed');
 process.exit(0);

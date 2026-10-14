@@ -274,51 +274,202 @@ function scoreLane(text, lane) {
   return score;
 }
 
+function scopeOf(lane) {
+  const id = String((lane && lane.ids && lane.ids[0]) || '');
+  if (id.startsWith('ent-')) return 'platform';
+  if (id.startsWith('professional-')) return 'build';
+  return 'file';
+}
+
+function fold(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/ă/g, 'a')
+    .replace(/â/g, 'a')
+    .replace(/î/g, 'i')
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't');
+}
+
+function hasTerm(hay, term) {
+  if (term.includes(' ')) return hay.includes(term);
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('(^|[^a-z0-9])' + escaped + '([^a-z0-9]|$)').test(hay);
+}
+
+const ORGS = [
+  { org: 'AWS', keys: ['amazon web services', 'aws'] },
+  { org: 'Google', keys: ['google cloud', 'gcp', 'alphabet', 'google'] },
+  { org: 'Microsoft', keys: ['azure', 'microsoft'] },
+  { org: 'Meta', keys: ['facebook', 'meta'] },
+];
+
+const COMPANY_TERMS = ['company', 'companie', 'firma', 'startup', 'enterprise', 'business', 'afacere', 'clinic', 'clinica', 'echipa', 'organization', 'organisation', 'corporatie'];
+const PERSON_TERMS = ['resume', 'cv', 'personal', 'freelancer', 'angajare', 'persoana', 'pentru mine', 'for me', 'i am', 'eu sunt'];
+const PLATFORM_TERMS = [
+  'private cloud', 'cloud privat', 'platform license', 'enterprise license', 'the license', 'o licenta',
+  'source code', 'codul sursa', 'white-label', 'white label', 'on-prem', 'on prem', 'sovereign', 'suveran',
+  'acquisition', 'achizitie', 'multi-tenant', 'dedicated tenant', 'whole platform', 'entire platform',
+  'the platform', 'replace aws', 'replace google', 'landing zone', 'control tower',
+];
+const SHELF_STOP = new Set([
+  'this', 'that', 'with', 'from', 'your', 'have', 'need', 'want', 'help', 'what', 'when', 'where',
+  'which', 'about', 'just', 'please', 'pentru', 'vreau', 'vrea', 'nostru', 'noastra', 'suntem',
+  'este', 'sunt', 'care', 'ceva', 'something', 'anything', 'customer', 'customers', 'client',
+  'clients', 'company', 'google', 'amazon', 'microsoft', 'azure', 'facebook', 'their', 'them',
+  'they', 'ours', 'mai', 'dupa', 'unei', 'unui', 'work', 'works', 'make', 'made',
+]);
+
+function readBuyer(text) {
+  const hay = fold(text);
+  let org = null;
+  for (const row of ORGS) {
+    if (row.keys.some((key) => hasTerm(hay, key))) { org = row.org; break; }
+  }
+  const company = COMPANY_TERMS.some((term) => hasTerm(hay, term));
+  const person = PERSON_TERMS.some((term) => hasTerm(hay, term)) || hasTerm(hay, 'i') || hasTerm(hay, 'eu');
+  let kind = 'unknown';
+  if (org && person && !company) kind = 'person';
+  else if (org) kind = 'hyperscale';
+  else if (company) kind = 'company';
+  else if (person) kind = 'person';
+  return { kind, org };
+}
+
+function explicitPlatform(text) {
+  const hay = fold(text);
+  return PLATFORM_TERMS.some((term) => hay.includes(term)) || hasTerm(hay, 'licenta');
+}
+
+function doorOf(item) {
+  if (!item) return 'explore';
+  if (item.id === 'ent-engagement-kickoff' || item.clock === 'contract') return 'platform';
+  if (item.clock === 'days') return 'build';
+  return 'file';
+}
+
+function fitQuestion(buyer, door, lang, count, limitNote) {
+  const n = count;
+  const org = buyer && buyer.org;
+  const kind = buyer && buyer.kind;
+  const replace = org
+    ? (lang === 'ro' ? (' Unicorn nu înlocuiește ' + org + '.') : (' Unicorn does not replace ' + org + '.'))
+    : '';
+  let who = lang === 'ro' ? 'Te-am auzit.' : 'Heard the request.';
+  if (org && kind === 'person') who = lang === 'ro' ? ('Te-am auzit ca persoană de la ' + org + '.') : ('Heard as a person at ' + org + '.');
+  else if (org) who = lang === 'ro' ? ('Te-am auzit ca ' + org + '.') : ('Heard as ' + org + '.');
+  else if (kind === 'company') who = lang === 'ro' ? 'Te-am auzit ca o companie.' : 'Heard as a company.';
+  else if (kind === 'person') who = lang === 'ro' ? 'Te-am auzit ca om.' : 'Heard as a person.';
+  let doorLine;
+  if (door === 'platform') {
+    doorLine = lang === 'ro'
+      ? ('Am citit toate cele ' + n + ' oferte publice.' + (org ? '' : ' Unicorn nu înlocuiește un cloud mare.') + ' Ușa care se plătește acum este kickoff-ul. Licența, sursa și cloud-ul privat rămân propuneri.')
+      : ('I read all ' + n + ' public offers.' + (org ? '' : ' Unicorn does not replace that cloud.') + ' The payable start is the engagement kickoff. The license, the source, and a private cloud stay proposals.');
+  } else if (door === 'build') {
+    doorLine = lang === 'ro'
+      ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este o construcție, așa că ușa este rezervarea pe zile, nu un fișier de minute și nu licența.')
+      : ('I read all ' + n + ' public offers. The request is a build, so the door is the day-clock reservation, not a minute file and not the license.');
+  } else if (door === 'file') {
+    doorLine = lang === 'ro'
+      ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este un fișier, așa că ușa este fișierul potrivit, nu platforma.')
+      : ('I read all ' + n + ' public offers. The request is a file, so the door is that file, not the platform.');
+  } else {
+    doorLine = lang === 'ro'
+      ? ('Nu am potrivit o cerere precisă. Am citit toate cele ' + n + ' oferte publice. Astea sunt trei intrări reale: un fișier, o rezervare și kickoff-ul de contract.')
+      : ('No precise match. I read all ' + n + ' public offers. These three are real doors: a file, a reservation, and the contract kickoff.');
+  }
+  return (who + replace + ' ' + doorLine + (limitNote || '')).replace(/\s+/g, ' ').trim();
+}
+
+function rankShelf(text, shelf) {
+  const tokens = fold(text).split(/[^a-z0-9]+/).filter((tok) => tok.length >= 4 && !SHELF_STOP.has(tok));
+  const ranked = [];
+  for (const item of shelf) {
+    const hay = fold(item.title + ' ' + String(item.id || '').replace(/-/g, ' '));
+    const words = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    let score = 0;
+    for (const tok of tokens) {
+      const stem = tok.endsWith('s') && tok.length >= 5 ? tok.slice(0, -1) : tok;
+      const hit = hay.includes(tok) || (stem.length >= 4 && words.some((word) => word.startsWith(stem) && word.length - stem.length <= 4));
+      if (hit) score += tok.length;
+    }
+    if (score >= 8) ranked.push({ item, score });
+  }
+  ranked.sort((a, b) => b.score - a.score || Number(a.item.priceUsd || 0) - Number(b.item.priceUsd || 0));
+  return ranked;
+}
+
 function advise(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
   const lang = langOf(raw);
   const shelf = publicShelf();
   const by = new Map(shelf.map((p) => [p.id, p]));
-  const question = lang === 'ro'
-    ? 'Dacă nu asta e treaba, spune cine cumpără și ce trebuie să existe în ziua plății.'
-    : 'If that is the wrong job, say who is buying and what must exist on the day you pay.';
+  const buyer = readBuyer(raw);
   const emptyQuestion = lang === 'ro'
     ? 'Spune ce faci și ce vrei să existe după plată. Răspunsul vine doar din raftul public.'
     : 'Say what you do and what you want to exist after you pay. The answer comes only from the public shelf.';
   const limits = matchedLimits(raw, lang);
+  const base = { ok: true, lang, buyer, knownOffers: shelf.length, limits };
   if (!raw) {
-    return { ok: true, lang, heard: '', primary: null, also: [], limits: [], question: emptyQuestion };
+    return Object.assign({}, base, { heard: '', primary: null, also: [], question: emptyQuestion });
   }
+  const limitNote = limits[0] ? (' ' + limits[0].strategy) : '';
+  const platformLane = LANES.find((lane) => scopeOf(lane) === 'platform') || null;
+  const platformAsk = explicitPlatform(raw);
   let best = null;
   let bestScore = 0;
   for (const lane of LANES) {
     const score = scoreLane(raw, lane);
     if (score > bestScore) { best = lane; bestScore = score; }
   }
+  if (platformAsk && platformLane) best = platformLane;
+  const heard = raw.slice(0, 180);
+  if (!best) {
+    const ranked = rankShelf(raw, shelf);
+    if (ranked.length) {
+      let top = ranked[0].item;
+      const also = [];
+      if (top.clock === 'contract' && top.id !== 'ent-engagement-kickoff') {
+        const kick = by.get('ent-engagement-kickoff');
+        if (kick) {
+          also.push(offerView(top, lang, 'match'));
+          top = kick;
+        }
+      }
+      const second = ranked.find((row) => row.item.id !== top.id && !also.some((x) => x.id === row.item.id));
+      if (second) also.push(offerView(second.item, lang, 'match'));
+      if (!also.some((x) => x.role === 'unasked')) {
+        const neighbor = shelf.find((item) => item.id !== top.id && item.clock !== top.clock && !also.some((x) => x.id === item.id));
+        if (neighbor) also.push(offerView(neighbor, lang, 'unasked'));
+      }
+      const primary = offerView(top, lang, 'match');
+      return Object.assign({}, base, {
+        heard,
+        primary,
+        also,
+        question: fitQuestion(buyer, doorOf(top), lang, shelf.length, limitNote),
+      });
+    }
+    if (buyer.kind === 'hyperscale' && platformLane) best = platformLane;
+  }
   if (!best) {
     const starters = ['instant-website-audit', 'professional-ai-chatbot', 'ent-engagement-kickoff']
       .map((id) => by.get(id)).filter(Boolean).map((item) => offerView(item, lang, 'start'));
-    const limitNote = limits[0] ? (' ' + limits[0].strategy) : '';
-    return {
-      ok: true,
-      lang,
-      heard: raw.slice(0, 180),
+    return Object.assign({}, base, {
+      heard,
       primary: starters[0] || null,
       also: starters.slice(1),
-      limits,
-      question: (lang === 'ro'
-        ? 'Nu am potrivit o cerere precisă. Astea sunt trei intrări reale: un fișier, o rezervare și kickoff-ul de contract. Spune mai concret ce livrezi clienților tăi.'
-        : 'No precise match. These three are real doors: a file, a reservation, and the contract kickoff. Say more concretely what you deliver to your own customers.') + limitNote,
-    };
+      question: fitQuestion(buyer, 'explore', lang, shelf.length, limitNote),
+    });
   }
-  const primary = best.ids.map((id) => by.get(id)).find(Boolean) || null;
+  const primaryItem = best.ids.map((id) => by.get(id)).find(Boolean) || null;
   const scored = LANES
     .map((lane) => ({ lane, score: scoreLane(raw, lane) }))
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score);
   const also = [];
   const pushAlso = (id, role) => {
-    if (!primary || id === primary.id || also.some((x) => x.id === id)) return;
+    if (!primaryItem || id === primaryItem.id || also.some((x) => x.id === id)) return;
     const item = by.get(id);
     if (!item) return;
     also.push(offerView(item, lang, role));
@@ -326,7 +477,7 @@ function advise(text) {
   const named = [];
   for (const row of scored.slice(1)) {
     for (const id of row.lane.ids) {
-      if (primary && id !== primary.id && by.has(id) && !named.includes(id)) named.push(id);
+      if (primaryItem && id !== primaryItem.id && by.has(id) && !named.includes(id)) named.push(id);
     }
   }
   if (named[0]) pushAlso(named[0], 'match');
@@ -338,15 +489,19 @@ function advise(text) {
       if (also.some((x) => x.role === 'unasked')) break;
     }
   }
-  return {
-    ok: true,
-    lang,
-    heard: raw.slice(0, 180),
-    primary: primary ? offerView(primary, lang, 'match') : null,
+  if (platformAsk) {
+    for (const id of best.also) {
+      pushAlso(id, 'match');
+      if (also.some((x) => x.mode === 'contact')) break;
+    }
+  }
+  const primary = primaryItem ? offerView(primaryItem, lang, 'match') : null;
+  return Object.assign({}, base, {
+    heard,
+    primary,
     also,
-    limits,
-    question,
-  };
+    question: fitQuestion(buyer, platformAsk ? 'platform' : doorOf(primaryItem), lang, shelf.length, limitNote),
+  });
 }
 
 module.exports = { publicShelf, byId, advise, money, PROTOCOL: 'SHELF/1.0' };
