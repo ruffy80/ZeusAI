@@ -40,6 +40,26 @@ check('paid order without registry row is queued/generating', () => {
   assert.equal(st.deliveryReady, false);
 });
 
+check('paperwork row is not pack-ready until an artifact file exists', () => {
+  const registry = require('../src/site/v2/delivery-registry');
+  const id = 'ord_paper_' + Date.now();
+  registry.deliver({ id, serviceId: 'instant-resume-makeover', email: 'buyer@example.com', status: 'paid' });
+  const early = mpc.enrichOrderStatus({ orderId: id, status: 'paid' });
+  assert.equal(early.artifactsReady, false);
+  assert.equal(early.deliveryReady, false);
+  assert.equal(early.packGenerating, true);
+  registry.attachArtifacts(id, [{
+    serviceId: 'instant-resume-makeover',
+    filename: 'instant-resume-makeover-service-activation-pack.md',
+    content: '# activation pack',
+    status: 'delivered',
+  }], 'deterministic');
+  const ready = mpc.enrichOrderStatus({ orderId: id, status: 'paid' });
+  assert.equal(ready.artifactsReady, true);
+  assert.equal(ready.deliveryReady, true);
+  assert.equal(ready.packGenerating, false);
+});
+
 check('deliveryHref appends access_token', () => {
   const href = mpc.deliveryHref('ord_abc', 't_secret');
   assert.ok(href.includes('/api/delivery/ord_abc'));
@@ -74,6 +94,10 @@ check('invoice poll keeps asking until pack ready', () => {
   assert.ok(src.includes('id="packStatus"'));
   assert.ok(src.includes('if(j.deliveryReady) return'));
   assert.ok(src.includes('money-pack-continuum'));
+  const shell = fs.readFileSync(path.join(__dirname, '..', 'src/site/v2/shell.js'), 'utf8');
+  assert.ok(shell.includes('j.deliveryReady === true'));
+  assert.ok(shell.includes('Generating pack…'));
+  assert.ok(shell.includes('id="opDeliveredTitle"'));
 });
 
 console.log('\n✅ money-pack-continuum:', passed, 'tests passed');

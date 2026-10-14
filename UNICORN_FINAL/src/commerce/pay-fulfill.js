@@ -188,6 +188,31 @@ async function sendOrderReceiptEmail(receipt) {
   }
 }
 
+// Buyer link for the delivery email. A sovereign checkout token opens
+// /api/delivery/:id. A portal order token opens /account. Neither is logged.
+function buildDeliveryUrl(receipt) {
+  const orderId = receiptOrderId(receipt);
+  const publicBase = String(process.env.PUBLIC_APP_URL || process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/, '');
+  const checkoutToken = String((receipt && (receipt.access_token || receipt.accessToken)) || '').trim();
+  if (orderId && checkoutToken) {
+    try {
+      const href = require('./money-pack-continuum').deliveryHref(orderId, checkoutToken);
+      if (href) return publicBase + href;
+    } catch (_) { /* absolute fallback below */ }
+    return publicBase + '/api/delivery/' + encodeURIComponent(orderId) + '?access_token=' + encodeURIComponent(checkoutToken);
+  }
+  let deliveryUrl = publicBase + '/account?order=' + encodeURIComponent(orderId || '');
+  if (!orderId) return deliveryUrl;
+  try {
+    const portal = require('./customer-portal');
+    if (portal && typeof portal.signOrderAccessToken === 'function') {
+      const tok = portal.signOrderAccessToken(orderId, { ttlMs: 90 * 24 * 3600 * 1000 });
+      if (tok) deliveryUrl = publicBase + '/account?order=' + encodeURIComponent(orderId) + '&token=' + encodeURIComponent(tok);
+    }
+  } catch (_) { /* keep plain URL */ }
+  return deliveryUrl;
+}
+
 // Send the delivery_artifact link email once artifacts are available. Idempotent
 // per orderId. Best-effort — never throws.
 async function sendDeliveryArtifactEmail(receipt, deliveryPackage) {
@@ -201,18 +226,7 @@ async function sendDeliveryArtifactEmail(receipt, deliveryPackage) {
   const mailer = _mailer();
   if (!mailer) return { ok: false, error: 'mailer_unavailable' };
   const artifacts = _summarizeArtifacts(deliveryPackage);
-  const publicBase = String(process.env.PUBLIC_APP_URL || process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/, '');
-  // Prefer a signed order-access token when the portal supports it — the link
-  // then works for anonymous buyers (no account/login required) but is bound
-  // to this one order. Falls back to a plain /account?order=… URL otherwise.
-  let deliveryUrl = publicBase + '/account?order=' + encodeURIComponent(orderId);
-  try {
-    const portal = require('./customer-portal');
-    if (portal && typeof portal.signOrderAccessToken === 'function') {
-      const tok = portal.signOrderAccessToken(orderId, { ttlMs: 90 * 24 * 3600 * 1000 });
-      if (tok) deliveryUrl = publicBase + '/account?order=' + encodeURIComponent(orderId) + '&token=' + encodeURIComponent(tok);
-    }
-  } catch (_) { /* keep plain URL */ }
+  const deliveryUrl = buildDeliveryUrl(receipt);
   const data = {
     orderId,
     serviceId: receiptServiceId(receipt),
@@ -337,6 +351,7 @@ module.exports = {
   hasRunDelivery,
   sendOrderReceiptEmail,
   sendDeliveryArtifactEmail,
+  buildDeliveryUrl,
   settleAndNotify,
   _resetForTests
 };

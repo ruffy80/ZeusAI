@@ -71,6 +71,17 @@ async function main() {
     assert.equal(d1.ok, false);
     assert.equal(d1.reason, 'email_unconfigured');
   });
+  check('checkout access_token opens the delivery URL', () => {
+    const url = payFulfill.buildDeliveryUrl({ orderId: 'ord_tok_1', access_token: 'tok_abc' });
+    assert.ok(url.includes('/api/delivery/ord_tok_1'));
+    assert.ok(url.includes('access_token=tok_abc'));
+    assert.ok(!url.includes('/account?order='));
+  });
+  check('missing checkout token stays on the account link', () => {
+    const url = payFulfill.buildDeliveryUrl({ orderId: 'ord_plain_1' });
+    assert.ok(url.includes('/account?order=ord_plain_1'));
+    assert.ok(!url.includes('access_token='));
+  });
 
   // 4. Missing orderId / email surface explicit errors ---------------------
   const bad1 = await payFulfill.sendOrderReceiptEmail({ status: 'paid' });
