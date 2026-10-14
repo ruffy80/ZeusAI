@@ -92,7 +92,8 @@ check('custom order is a virtual SKU', () => {
 check('invoice poll keeps asking until pack ready', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src/site/sovereign-commerce.js'), 'utf8');
   assert.ok(src.includes('id="packStatus"'));
-  assert.ok(src.includes('if(j.deliveryReady) return'));
+  assert.ok(src.includes('if(j.deliveryReady){'));
+  assert.ok(src.includes('id="packBody"'));
   assert.ok(src.includes('money-pack-continuum'));
   const shell = fs.readFileSync(path.join(__dirname, '..', 'src/site/v2/shell.js'), 'utf8');
   assert.ok(shell.includes('j.deliveryReady === true'));

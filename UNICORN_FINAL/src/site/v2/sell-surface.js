@@ -87,6 +87,26 @@ function _loadBuyable() {
   return out;
 }
 
+function _buyFile(p) {
+  let preview = null;
+  try {
+    preview = require('./fulfillment-engine').offerPreview(String((p && p.id) || ''), {
+      mode: p && p.mode,
+      clock: p && p.clock,
+      tier: p && p.tier,
+    });
+  } catch (_) { preview = null; }
+  if (!preview || !preview.fileTitle) return '';
+  const sections = (preview.sections || []).slice(0, 5).map((line) => `<li>${_esc(line)}</li>`).join('');
+  const list = sections ? `<ul style="margin:6px 0 0;padding-left:16px;color:var(--ink-dim);font-size:12px">${sections}</ul>` : '';
+  return `<div class="atlas-file" style="padding:10px 12px;border:1px dashed var(--stroke);border-radius:10px">
+    <span class="kicker">File today</span>
+    <b style="display:block;margin-top:4px;font-size:14px">${_esc(preview.fileTitle)}</b>
+    ${list}
+    <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
+  </div>`;
+}
+
 function pageBuy() {
   const all = _loadBuyable();
   const instant = all.filter((p) => p.clock === 'minutes');
@@ -114,6 +134,7 @@ function pageBuy() {
   <div style="display:flex;flex-wrap:wrap;gap:8px">${modeTag}${mins}</div>
   <h3 style="margin:0;font-size:18px">${_esc(p.title)}</h3>
   <p style="margin:0;color:var(--ink-dim);font-size:13.5px;flex:1;line-height:1.5">${_esc(p.description)}</p>
+  ${_buyFile(p)}
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <strong style="font-size:22px">${_esc(price)}</strong>
     <a class="${btnClass}" href="${_esc(href)}"${sov} data-link>${_esc(p.ctaLabel)}</a>
