@@ -4592,10 +4592,10 @@ async function unicornHandler(req, res) {
     return res.end('Moved to /account');
   }
   if (earlyPath === '/api/uaic/receipts') {
-    const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
-    const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipts }));
+    const email = String(requestUrl.searchParams.get('email') || '');
+    const looked = require('./commerce/receipt-privacy').lookupByEmail(email, getAllReceipts());
+    res.writeHead(looked.status, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify(looked.body));
   }
   if (earlyPath.startsWith('/api/uaic/receipt/') || earlyPath.startsWith('/api/receipt/') || earlyPath.startsWith('/api/invoice/')) {
     const prefix = earlyPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (earlyPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');
@@ -7539,14 +7539,10 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   if (urlPath === '/api/uaic/receipts') {
-    const email = String(new URL(req.url, 'http://local').searchParams.get('email') || '').toLowerCase();
-    if (!email) {
-      res.writeHead(400, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-      return res.end(JSON.stringify({ ok:false, error: 'email_required' }));
-    }
-    const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipts }));
+    const email = String(new URL(req.url, 'http://local').searchParams.get('email') || '');
+    const looked = require('./commerce/receipt-privacy').lookupByEmail(email, getAllReceipts());
+    res.writeHead(looked.status, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify(looked.body));
   }
   if (urlPath.startsWith('/api/uaic/receipt/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/')) {
     const prefix = urlPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (urlPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');

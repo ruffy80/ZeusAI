@@ -42,3 +42,21 @@ Each card on `/`, `/pricing`, `/services`, and `/buy` names the file payment unl
 - The old services block that promised an HTML audit, an SVG logo, and a finished SEO pack is gone. Those three names remain as part of the shelf, with the real file on the card.
 
 After payment, the checkout page and the order passport (when the checkout token is in the URL) render the artifact text on the page. The text is inserted as text, not as HTML.
+
+## Receipt and invoice privacy
+
+Baseline for this pass is `origin/main` at `8c7b1489`. The previous checkout in this workspace was `cursor/force-backend-redeploy-c3b6` at `4c3f094d`, 163 commits behind that main and 2442 commits on a diverged history. New work starts from main. Muse Wonder (max, high, and medium) could not start because the model usage limit was already spent, so this pass was done in the main agent.
+
+Verified on main:
+
+- `GET /api/uaic/receipts` with no email returned every stored receipt, including buyer emails. The same path with an email returned that buyer's full receipt rows to anyone.
+- `GET /api/invoice/list` and `GET /api/invoice/:id` are public. Invoice ids are sequential. Each row includes `customerEmail` and `metadata`.
+- `POST /api/alerts/test` and `POST /api/invoice/verify-now` had no admin gate. `POST /api/order/:id/simulate-payment` already uses `salesAdminGate`.
+
+Changed:
+
+- An email lookup now returns `{ ok, count }` only. A missing email returns `email_required` and no rows.
+- Public invoice and QR responses keep the payment fields and omit `customerEmail` and `metadata`.
+- The invoice list, the ledger status, the verifier tick, and the alert test require the existing admin gate.
+
+Not changed: `/api/health`, shelf prices, the concierge, payment confirmation, or production. A receipt fetched by its random id still returns that one receipt, because checkout and the passport use that id. The simulate-payment route stays admin-only. No deploy.
