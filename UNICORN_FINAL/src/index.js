@@ -2606,16 +2606,6 @@ function verifyDeliveryAccess(id, req, params) {
       if (receiptTokens.some((candidate) => safeTokenEqual(token, candidate))) return true;
     } catch (_) {}
   }
-  try {
-    const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
-      ? commerce.ORDERS.get(id)
-      : null;
-    if (order && order.status === 'paid') {
-      const buyer = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
-      const hdr = String((req && req.headers && req.headers['x-user-email']) || '').trim().toLowerCase();
-      if (buyer && hdr && buyer === hdr) return true;
-    }
-  } catch (_) {}
   return false;
 }
 function issueFallbackLicense(receipt) {
@@ -4592,18 +4582,20 @@ async function unicornHandler(req, res) {
     return res.end('Moved to /account');
   }
   if (earlyPath === '/api/uaic/receipts') {
-    const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
-    const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipts }));
+    const email = String(requestUrl.searchParams.get('email') || '');
+    const orderId = requestUrl.searchParams.get('order') || requestUrl.searchParams.get('orderId');
+    const looked = require('./commerce/receipt-privacy').lookupByEmail(email, getAllReceipts(), orderId);
+    res.writeHead(looked.status, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify(looked.body));
   }
   if (earlyPath.startsWith('/api/uaic/receipt/') || earlyPath.startsWith('/api/receipt/') || earlyPath.startsWith('/api/invoice/')) {
     const prefix = earlyPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (earlyPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');
     const id = decodeURIComponent(earlyPath.slice(prefix.length));
     const receipt = findReceipt(id);
     if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipt }));
+    const view = require('./commerce/receipt-privacy').publicReceipt(receipt);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify({ ok:true, receipt: view }));
   }
   if (earlyPath.startsWith('/api/license/')) {
     const id = decodeURIComponent(earlyPath.slice('/api/license/'.length));
@@ -5278,7 +5270,7 @@ async function unicornHandler(req, res) {
     const tok = readCustomerToken(req);
     const cid = portal && tok ? portal.verifyToken(tok) : null;
     const customer = cid && portal ? portal.getById(cid) : null;
-    const email = String(req.headers['x-user-email'] || (customer && customer.email) || '').toLowerCase();
+    const email = String((customer && customer.email) || '').toLowerCase();
     const purchased = [];
     if (portal && cid) {
       const orders = portal.listOrdersByCustomer(cid);
@@ -7539,22 +7531,23 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }
 
   if (urlPath === '/api/uaic/receipts') {
-    const email = String(new URL(req.url, 'http://local').searchParams.get('email') || '').toLowerCase();
-    if (!email) {
-      res.writeHead(400, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-      return res.end(JSON.stringify({ ok:false, error: 'email_required' }));
-    }
-    const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipts }));
+    const params = new URL(req.url, 'http://local').searchParams;
+    const looked = require('./commerce/receipt-privacy').lookupByEmail(
+      params.get('email') || '',
+      getAllReceipts(),
+      params.get('order') || params.get('orderId')
+    );
+    res.writeHead(looked.status, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify(looked.body));
   }
   if (urlPath.startsWith('/api/uaic/receipt/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/')) {
     const prefix = urlPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (urlPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');
     const id = decodeURIComponent(urlPath.slice(prefix.length));
     const receipt = findReceipt(id);
     if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
-    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
-    return res.end(JSON.stringify({ ok:true, receipt }));
+    const view = require('./commerce/receipt-privacy').publicReceipt(receipt);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+    return res.end(JSON.stringify({ ok:true, receipt: view }));
   }
   if (urlPath.startsWith('/api/license/')) {
     const id = decodeURIComponent(urlPath.slice('/api/license/'.length));
@@ -11705,8 +11698,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     try { __pcosShared = require('./commerce/perfection-continuum-os'); } catch (_) { __pcosShared = null; }
 
     if (!portal) {
-      const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
-      if (!email) { return _iicSend(401, '{"error":"unauthorized","hint":"x-user-email required when portal is unavailable"}'); }
+      const email = String(resolveEmailFromCryptoauth() || '').toLowerCase();
+      if (!email) { return _iicSend(401, '{"error":"unauthorized"}'); }
       const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
       const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
       const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || 'starter']).map(serviceId => ({
@@ -11726,7 +11719,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     const cid = portal.verifyToken(tok);
     if (!cid) {
       // Cryptoauth / email fallback — still surface paid deliveries for the account page.
-      const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
+      const email = String(resolveEmailFromCryptoauth() || '').toLowerCase();
       if (!email) { return _iicSend(401, '{"error":"unauthorized"}'); }
       const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
       const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];

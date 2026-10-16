@@ -42,3 +42,30 @@ Each card on `/`, `/pricing`, `/services`, and `/buy` names the file payment unl
 - The old services block that promised an HTML audit, an SVG logo, and a finished SEO pack is gone. Those three names remain as part of the shelf, with the real file on the card.
 
 After payment, the checkout page and the order passport (when the checkout token is in the URL) render the artifact text on the page. The text is inserted as text, not as HTML.
+
+## Receipt and invoice privacy
+
+Baseline for this pass is `origin/main` at `8c7b1489`. The previous checkout in this workspace was `cursor/force-backend-redeploy-c3b6` at `4c3f094d`, 163 commits behind that main and 2442 commits on a diverged history. New work starts from main. Muse Wonder (max, high, and medium) could not start because the model usage limit was already spent, so this pass was done in the main agent.
+
+Verified on main:
+
+- `GET /api/uaic/receipts` with no email returned every stored receipt, including buyer emails. The same path with an email returned that buyer's full receipt rows to anyone.
+- `GET /api/invoice/list` and `GET /api/invoice/:id` are public. Invoice ids are sequential. Each row includes `customerEmail` and `metadata`.
+- `POST /api/alerts/test` and `POST /api/invoice/verify-now` had no admin gate. `POST /api/order/:id/simulate-payment` already uses `salesAdminGate`.
+
+Changed:
+
+- An email lookup returns whether that email and order id match. A missing email or a missing order id returns an error and no rows.
+- A public receipt omits `email`, `customerId`, and `did`. Public invoice and QR responses keep the payment fields and omit `customerEmail` and `metadata`.
+- The invoice list, the ledger status, the verifier tick, and the alert test require the existing admin gate.
+- `/api/user/services`, `/api/customer/me`, and delivery download no longer treat `x-user-email` as proof of identity.
+
+Not changed: `/api/health`, shelf prices, the concierge, payment confirmation, or production. A receipt fetched by its random id still returns that one receipt, because checkout and the passport use that id. The simulate-payment route stays admin-only. No deploy.
+
+## Buyer identity is no longer a header
+
+The receipt lookup now needs the email and the order id together. It answers only whether that pair matches. It does not return a count, so an email alone does not reveal how many orders exist. A public receipt omits `email`, `customerId`, and `did`. Checkout still reads status, amount, and the Bitcoin fields.
+
+`GET /api/user/services` uses only a verified bearer token. A caller-supplied `x-user-email` or `?email=` is ignored. `/api/customer/me` uses the customer token or a verified cryptoauth token, not the header. Delivery download no longer accepts the buyer email header as a substitute for the access token.
+
+Still open: `/api/omega/vault` and `/api/dna/strand` accept an email query and return that vault or strand. Those pages are built around that query. They need a signed-in buyer before they can stay useful and private. No deploy.
