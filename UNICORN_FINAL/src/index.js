@@ -12589,10 +12589,21 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           } catch (e) { /* never fail the chat path */ }
         }
 
-        // ---- Try backend first for richer AI if configured (non-stream)
+        // ---- External model only for open-ended intents with a real provider key.
+        // Routine sales intents keep the native composeReply above.
         const backendUrl = process.env.BACKEND_API_URL;
         let finalReply = reply, finalProvider = 'zeus-local-v30y', finalModel = 'zeus-30y';
-        if (backendUrl && intent !== 'catalog') {
+        let billable = false;
+        try { billable = !!require('../backend/modules/public-ai-spend-gate').hasBillableLlm(); }
+        catch (_) { billable = false; }
+        let allowExternal = false;
+        let nativeOpsProtocol = 'NOP/1.0';
+        try {
+          const nativeOps = require('./commerce/native-ops-policy');
+          nativeOpsProtocol = nativeOps.PROTOCOL || nativeOpsProtocol;
+          allowExternal = !!(backendUrl && nativeOps.shouldCallExternalModel(intent, { billable }));
+        } catch (_) { allowExternal = false; }
+        if (allowExternal) {
           try {
             const controller = new AbortController();
             const to = setTimeout(()=>controller.abort(), 8000);
@@ -12616,6 +12627,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           res.writeHead(200,{'Content-Type':'application/json'});
           return res.end(JSON.stringify({
             messageId, reply: finalReply, model: finalModel, provider: finalProvider,
+            nativeOps: { protocol: nativeOpsProtocol, external: allowExternal, billable: !!billable },
             lang, intent, recommendations, actions, cards, quickReplies,
             plan50y: ext50y && ext50y.plan ? ext50y.plan : null,
             viralAd: ext50y && ext50y.viralAd ? ext50y.viralAd : null,
@@ -12632,6 +12644,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         });
         const send = (event, data) => { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
         send('meta', { messageId, model: finalModel, provider: finalProvider, lang, intent,
+          nativeOps: { protocol: nativeOpsProtocol, external: allowExternal, billable: !!billable },
           personalization: customer ? { name: customer.name||customer.email, activeCount: activeServices.length, pendingCount: pendingOrders.length } : null });
         // Tokenize by word+space for smooth streaming (~80 wps display feel)
         const tokens = finalReply.match(/\S+\s*|\s+/g) || [finalReply];

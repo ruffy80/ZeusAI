@@ -42,3 +42,25 @@ Each card on `/`, `/pricing`, `/services`, and `/buy` names the file payment unl
 - The old services block that promised an HTML audit, an SVG logo, and a finished SEO pack is gone. Those three names remain as part of the shelf, with the real file on the card.
 
 After payment, the checkout page and the order passport (when the checkout token is in the URL) render the artifact text on the page. The text is inserted as text, not as HTML.
+
+## Native concierge gate
+
+The Integrated Autonomy Kernel remains the only orchestrator. Shelf advise, the ecosystem bond, and fulfillment packs were already native. Fulfillment still calls a model only for the six allowlisted minute SKUs when a real provider key is armed.
+
+The remaining routine leak was `POST /api/concierge`. A set `BACKEND_API_URL` replaced the local reply for every intent except `catalog`, with no check that a provider key existed.
+
+`src/commerce/native-ops-policy.js` (`NOP/1.0`) classifies those intents:
+
+- Catalog, pricing, checkout, Bitcoin, PayPal, account, support, greetings, enterprise, compare, demo, security, growth, and automation stay on `composeReply`.
+- `general`, `forecast`, and `roi` may call `POST /api/chat` only when `hasBillableLlm()` is true and the backend URL is set.
+- Any other intent stays native. A missing key, a failed require, or a failed fetch keeps the local reply.
+
+The JSON and stream responses add `nativeOps` (`protocol`, `external`, `billable`). Clients that ignore unknown fields are unchanged.
+
+This does not make the platform fully autonomous. Payments, delivery files, and mail still require their own real rails. No second orchestrator. No production self-modification. No deploy. Category C is still a real model call when a key exists; the local template is the fallback, not a silent substitute for that call.
+
+Verified on a local site (`PORT=3011`) pointed at a fake `POST /api/chat`:
+
+- With no provider key, pricing, a general sentence, forecast, and roi stayed on `zeus-local-v30y` and did not call `/api/chat`.
+- With a synthetic billable key, pricing and a catalog question stayed native. `general`, `forecast`, and `roi` called `/api/chat` and used that reply.
+- `node test/native-ops-policy.test.js` — 5 checks passed. ESLint on the edited JavaScript exited 0.
