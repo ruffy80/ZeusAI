@@ -89,10 +89,20 @@ function renderOmegaPage(urlPath, requestUrl, renderPage, res) {
       showDetail('Instance '+(out.instance&&out.instance.id||instMatch[1]), welcome+'\\n\\n'+JSON.stringify(out.instance,null,2));
     }).catch(function(){showDetail('Instance','unreachable');});
   } else if(path.indexOf('/omega/vault')===0){
-    var email=params.get('email')||'';
-    if(!email){showDetail('AI Vault','Add ?email=buyer@example.com to open a vault continuum.');}
-    else {
-      fetch('/api/omega/vault?email='+encodeURIComponent(email),{cache:'no-store'}).then(function(r){return r.json();}).then(function(out){
+    var headers={};
+    try {
+      var ct=localStorage.getItem('customerToken')||'';
+      var zt=localStorage.getItem('zeus_cryptoauth_token')||'';
+      if(ct) headers['x-customer-token']=ct;
+      if(zt) headers['Authorization']='Bearer '+zt;
+    } catch(e) {}
+    if(!headers['x-customer-token'] && !headers['Authorization']){
+      showDetail('AI Vault','Sign in at /account to open your vault.');
+    } else {
+      var email='';
+      try { email=params.get('email')||localStorage.getItem('u_email')||''; } catch(e2) { email=params.get('email')||''; }
+      var q=email?('?email='+encodeURIComponent(email)):'';
+      fetch('/api/omega/vault'+q,{cache:'no-store',headers:headers}).then(function(r){return r.json();}).then(function(out){
         showDetail('AI Vault', out);
       }).catch(function(){showDetail('AI Vault','unreachable');});
     }
@@ -125,6 +135,15 @@ function adminOk(req) {
   return { ok: false, code: 401, error: 'unauthorized' };
 }
 
+function buyerProof(req, requestedEmail) {
+  const gate = require('../commerce/buyer-record-gate');
+  return gate.decideBuyerRecord({
+    requestedEmail,
+    provenEmail: gate.provenBuyerEmail(req),
+    admin: gate.isRecordAdmin(req),
+  });
+}
+
 async function handleApi(req, res, urlPath, requestUrl) {
   const omega = _omega();
   const json = (code, obj) => {
@@ -145,12 +164,16 @@ async function handleApi(req, res, urlPath, requestUrl) {
   }
   if (urlPath === '/api/omega/vault' && req.method === 'GET') {
     const email = (requestUrl && requestUrl.searchParams && requestUrl.searchParams.get('email')) || '';
-    const out = omega.getVault(email);
+    const proof = buyerProof(req, email);
+    if (!proof.allow) return json(proof.status, proof.body);
+    const out = omega.getVault(proof.email);
     return json(out && out.ok ? 200 : 400, out);
   }
   if (urlPath === '/api/omega/vault/search' && req.method === 'GET') {
     const sp = requestUrl && requestUrl.searchParams;
-    const out = omega.searchVault(sp && sp.get('email'), sp && sp.get('q'));
+    const proof = buyerProof(req, sp && sp.get('email'));
+    if (!proof.allow) return json(proof.status, proof.body);
+    const out = omega.searchVault(proof.email, sp && sp.get('q'));
     return json(out && out.ok ? 200 : 400, out);
   }
   if ((urlPath === '/api/omega/bootstrap' || urlPath === '/api/omega/evolve') && req.method === 'POST') {

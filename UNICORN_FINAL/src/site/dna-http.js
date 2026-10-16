@@ -95,15 +95,28 @@ function renderDnaPage(urlPath, requestUrl, renderPage, res) {
     if(title) title.textContent=t;
     if(bodyEl) bodyEl.textContent=typeof obj==='string'?obj:JSON.stringify(obj,null,2);
   }
+  var headers={};
+  try {
+    var ct=localStorage.getItem('customerToken')||'';
+    var zt=localStorage.getItem('zeus_cryptoauth_token')||'';
+    if(ct) headers['x-customer-token']=ct;
+    if(zt) headers['Authorization']='Bearer '+zt;
+  } catch(e) {}
   var email=params.get('email')||'';
   var idMatch=path.match(/^\\/dna\\/([^/]+)/);
-  if(email){
-    fetch('/api/dna/strand?email='+encodeURIComponent(email),{cache:'no-store'}).then(function(r){return r.json();}).then(function(out){
+  if(!headers['x-customer-token'] && !headers['Authorization']){
+    showDetail('AI DNA','Sign in at /account to open your strand.');
+  } else if(email){
+    fetch('/api/dna/strand?email='+encodeURIComponent(email),{cache:'no-store',headers:headers}).then(function(r){return r.json();}).then(function(out){
       showDetail('AI DNA strand', out);
     }).catch(function(){showDetail('AI DNA','unreachable');});
   } else if(idMatch && idMatch[1]){
-    fetch('/api/dna/strand?email='+encodeURIComponent(idMatch[1]),{cache:'no-store'}).then(function(r){return r.json();}).then(function(out){
+    fetch('/api/dna/strand?id='+encodeURIComponent(idMatch[1]),{cache:'no-store',headers:headers}).then(function(r){return r.json();}).then(function(out){
       showDetail('AI DNA '+idMatch[1], out);
+    }).catch(function(){showDetail('AI DNA','unreachable');});
+  } else {
+    fetch('/api/dna/strand',{cache:'no-store',headers:headers}).then(function(r){return r.json();}).then(function(out){
+      showDetail('AI DNA strand', out);
     }).catch(function(){showDetail('AI DNA','unreachable');});
   }
 })();`;
@@ -116,6 +129,15 @@ function renderDnaPage(urlPath, requestUrl, renderPage, res) {
     });
   } catch (_) { /* ignore */ }
   return res.end(renderPage('AI DNA Engine · ZeusAI', body, js));
+}
+
+function buyerProof(req, requestedEmail) {
+  const gate = require('../commerce/buyer-record-gate');
+  return gate.decideBuyerRecord({
+    requestedEmail,
+    provenEmail: gate.provenBuyerEmail(req),
+    admin: gate.isRecordAdmin(req),
+  });
 }
 
 async function handleApi(req, res, urlPath, requestUrl) {
@@ -134,15 +156,21 @@ async function handleApi(req, res, urlPath, requestUrl) {
   }
   if ((urlPath === '/api/dna/strand' || urlPath === '/api/dna/dna') && req.method === 'GET') {
     const email = (sp && (sp.get('email') || sp.get('id'))) || '';
-    const out = dna.getDna(email);
+    const proof = buyerProof(req, email);
+    if (!proof.allow) return json(proof.status, proof.body);
+    const out = dna.getDna(proof.email);
     return json(out && out.ok ? 200 : 400, out);
   }
   if (urlPath === '/api/dna/search' && req.method === 'GET') {
+    const gate = require('../commerce/buyer-record-gate');
+    if (!gate.isRecordAdmin(req)) return json(401, { ok: false, error: 'auth_required' });
     return json(200, dna.searchDna(sp && sp.get('q')));
   }
   if (urlPath === '/api/dna/personalize' && req.method === 'GET') {
+    const proof = buyerProof(req, sp && sp.get('email'));
+    if (!proof.allow) return json(proof.status, proof.body);
     const out = dna.personalize({
-      email: sp && sp.get('email'),
+      email: proof.email,
       intent: sp && sp.get('intent'),
       sku: sp && sp.get('sku'),
       language: sp && sp.get('lang'),
@@ -152,7 +180,7 @@ async function handleApi(req, res, urlPath, requestUrl) {
   if ((urlPath === '/api/dna/observe' || urlPath === '/api/dna/settings'
     || urlPath === '/api/dna/personalize' || urlPath === '/api/dna/learn'
     || urlPath === '/api/dna/migrate') && req.method === 'POST') {
-    // learn/migrate admin-gated; observe/settings/personalize allowed with body email (platform UX)
+    // learn/migrate stay on the admin gate. observe/settings/personalize require the buyer record gate.
     if (urlPath.endsWith('/learn') || urlPath.endsWith('/migrate')) {
       const gate = adminOk(req);
       if (!gate.ok) return json(gate.code || 401, { ok: false, error: gate.error });
@@ -162,9 +190,17 @@ async function handleApi(req, res, urlPath, requestUrl) {
     let body = {};
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (_) { body = {}; }
     let out;
-    if (urlPath.endsWith('/observe')) out = dna.observeEvent(body.event || body);
-    else if (urlPath.endsWith('/settings')) out = dna.updateSettings(body.email, body.settings || body);
-    else if (urlPath.endsWith('/personalize')) out = dna.personalize(body);
+    if (urlPath.endsWith('/observe') || urlPath.endsWith('/settings') || urlPath.endsWith('/personalize')) {
+      const event = body.event || body;
+      const requested = urlPath.endsWith('/observe')
+        ? (event.email || event.customerKey)
+        : (body.email || body.customerKey);
+      const proof = buyerProof(req, requested);
+      if (!proof.allow) return json(proof.status, proof.body);
+      if (urlPath.endsWith('/observe')) out = dna.observeEvent(Object.assign({}, event, { email: proof.email }));
+      else if (urlPath.endsWith('/settings')) out = dna.updateSettings(proof.email, body.settings || body);
+      else out = dna.personalize(Object.assign({}, body, { email: proof.email }));
+    }
     else if (urlPath.endsWith('/learn')) out = dna.learnOnce(body.customerKey || body.id);
     else out = dna.proposePersonalizationMigration(body);
     return json(out && out.ok ? 200 : 400, out);

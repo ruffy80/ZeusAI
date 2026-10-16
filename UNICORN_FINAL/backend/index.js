@@ -988,11 +988,21 @@ app.get('/api/omega/instance/:id', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
+function readBuyerRecord(req, requestedEmail) {
+  const gate = require('../src/commerce/buyer-record-gate');
+  return gate.decideBuyerRecord({
+    requestedEmail,
+    provenEmail: gate.provenBuyerEmail(req),
+    admin: gate.isRecordAdmin(req),
+  });
+}
 app.get('/api/omega/vault', (req, res) => {
   try {
-    const omega = require('./modules/omega-ecosystem-os');
-    const out = omega.getVault(req.query.email);
+    const proof = readBuyerRecord(req, req.query.email);
     res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.getVault(proof.email);
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
@@ -1000,9 +1010,11 @@ app.get('/api/omega/vault', (req, res) => {
 });
 app.get('/api/omega/vault/search', (req, res) => {
   try {
-    const omega = require('./modules/omega-ecosystem-os');
-    const out = omega.searchVault(req.query.email, req.query.q);
+    const proof = readBuyerRecord(req, req.query.email);
     res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
+    const omega = require('./modules/omega-ecosystem-os');
+    const out = omega.searchVault(proof.email, req.query.q);
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
@@ -1138,9 +1150,11 @@ app.get('/api/dna/discovery', (req, res) => {
 });
 app.get(['/api/dna/strand', '/api/dna/dna'], (req, res) => {
   try {
-    const dna = require('./modules/ai-dna-engine');
-    const out = dna.getDna(req.query.email || req.query.id);
+    const proof = readBuyerRecord(req, req.query.email || req.query.id);
     res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.getDna(proof.email);
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
@@ -1148,8 +1162,10 @@ app.get(['/api/dna/strand', '/api/dna/dna'], (req, res) => {
 });
 app.get('/api/dna/search', (req, res) => {
   try {
-    const dna = require('./modules/ai-dna-engine');
+    const gate = require('../src/commerce/buyer-record-gate');
     res.set('Cache-Control', 'no-store');
+    if (!gate.isRecordAdmin(req)) return res.status(401).json({ ok: false, error: 'auth_required' });
+    const dna = require('./modules/ai-dna-engine');
     res.json(dna.searchDna(req.query.q));
   } catch (e) {
     res.status(500).json({ ok: false, error: e && e.message });
@@ -1157,9 +1173,12 @@ app.get('/api/dna/search', (req, res) => {
 });
 app.get('/api/dna/personalize', (req, res) => {
   try {
+    const proof = readBuyerRecord(req, req.query.email);
+    res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
     const dna = require('./modules/ai-dna-engine');
     const out = dna.personalize({
-      email: req.query.email,
+      email: proof.email,
       intent: req.query.intent,
       sku: req.query.sku,
       language: req.query.lang,
@@ -1172,8 +1191,12 @@ app.get('/api/dna/personalize', (req, res) => {
 });
 app.post('/api/dna/observe', express.json({ limit: '32kb' }), (req, res) => {
   try {
+    const event = (req.body && req.body.event) || req.body || {};
+    const proof = readBuyerRecord(req, event.email || event.customerKey);
+    res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
     const dna = require('./modules/ai-dna-engine');
-    const out = dna.observeEvent((req.body && req.body.event) || req.body || {});
+    const out = dna.observeEvent(Object.assign({}, event, { email: proof.email }));
     res.set('Cache-Control', 'no-store');
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
@@ -1182,9 +1205,12 @@ app.post('/api/dna/observe', express.json({ limit: '32kb' }), (req, res) => {
 });
 app.post('/api/dna/settings', express.json({ limit: '32kb' }), (req, res) => {
   try {
-    const dna = require('./modules/ai-dna-engine');
     const body = req.body || {};
-    const out = dna.updateSettings(body.email, body.settings || body);
+    const proof = readBuyerRecord(req, body.email);
+    res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
+    const dna = require('./modules/ai-dna-engine');
+    const out = dna.updateSettings(proof.email, body.settings || body);
     res.set('Cache-Control', 'no-store');
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {
@@ -1193,8 +1219,12 @@ app.post('/api/dna/settings', express.json({ limit: '32kb' }), (req, res) => {
 });
 app.post('/api/dna/personalize', express.json({ limit: '32kb' }), (req, res) => {
   try {
+    const body = req.body || {};
+    const proof = readBuyerRecord(req, body.email || body.customerKey);
+    res.set('Cache-Control', 'no-store');
+    if (!proof.allow) return res.status(proof.status).json(proof.body);
     const dna = require('./modules/ai-dna-engine');
-    const out = dna.personalize(req.body || {});
+    const out = dna.personalize(Object.assign({}, body, { email: proof.email }));
     res.set('Cache-Control', 'no-store');
     res.status(out && out.ok ? 200 : 400).json(out);
   } catch (e) {

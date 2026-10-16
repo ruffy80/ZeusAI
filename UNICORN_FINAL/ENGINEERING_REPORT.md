@@ -89,4 +89,4 @@ The receipt lookup now needs the email and the order id together. It answers onl
 
 `GET /api/user/services` uses only a verified bearer token. A caller-supplied `x-user-email` or `?email=` is ignored. `/api/customer/me` uses the customer token or a verified cryptoauth token, not the header. Delivery download no longer accepts the buyer email header as a substitute for the access token.
 
-Still open: `/api/omega/vault` and `/api/dna/strand` accept an email query and return that vault or strand. Those pages are built around that query. They need a signed-in buyer before they can stay useful and private. No deploy.
+`/api/omega/vault`, vault search, `/api/dna/strand`, and DNA personalize, observe, and settings now require the signed-in buyer's proven email, or a commerce/admin secret. A query email that does not match that account returns `email_mismatch` and no record. `/api/dna/search` is admin-only because it lists other strands. The vault and DNA pages ask for `/account` instead of `?email=`. Anonymous `?email=` is not a login.
