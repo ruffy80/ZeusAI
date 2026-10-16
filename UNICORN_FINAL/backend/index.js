@@ -7138,18 +7138,15 @@ app.post('/api/services/buy', (req, res) => {
 });
 
 app.get('/api/user/services', (req, res) => {
-  const headerEmail = String(req.headers['x-user-email'] || '').toLowerCase();
-  const queryEmail = String(req.query.email || '').toLowerCase();
-  let tokenEmail = '';
+  let email = '';
   try {
     const auth = String(req.headers.authorization || '');
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET);
-      tokenEmail = String(decoded.email || '').toLowerCase();
+      email = String(decoded.email || '').toLowerCase();
     }
   } catch (_) {}
-  const email = headerEmail || queryEmail || tokenEmail;
   if (!email) return res.json({ ok: true, services: [], count: 0 });
   const services = [];
   const seen = new Set();

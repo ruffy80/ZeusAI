@@ -6,17 +6,31 @@
  * A public invoice keeps the payment fields and drops the buyer record.
  */
 
-function lookupByEmail(email, receipts) {
+function lookupByEmail(email, receipts, orderId) {
   const clean = String(email || '').trim().toLowerCase();
   if (!clean || clean.indexOf('@') < 1) {
     return { status: 400, body: { ok: false, error: 'email_required' } };
   }
-  const list = Array.isArray(receipts) ? receipts : [];
-  let count = 0;
-  for (const row of list) {
-    if (String((row && row.email) || '').toLowerCase() === clean) count += 1;
+  const id = String(orderId || '').trim();
+  if (!id) {
+    return { status: 400, body: { ok: false, error: 'order_required' } };
   }
-  return { status: 200, body: { ok: true, count } };
+  const list = Array.isArray(receipts) ? receipts : [];
+  const matched = list.some((row) => {
+    if (!row || String(row.id || '') !== id) return false;
+    return String(row.email || '').toLowerCase() === clean;
+  });
+  return { status: 200, body: { ok: true, matched } };
+}
+
+function publicReceipt(receipt) {
+  if (!receipt || typeof receipt !== 'object') return null;
+  const out = {};
+  for (const key of Object.keys(receipt)) {
+    if (key === 'email' || key === 'customerId' || key === 'customerEmail' || key === 'metadata' || key === 'did') continue;
+    out[key] = receipt[key];
+  }
+  return out;
 }
 
 function publicInvoice(inv) {
@@ -29,4 +43,4 @@ function publicInvoice(inv) {
   return out;
 }
 
-module.exports = { lookupByEmail, publicInvoice };
+module.exports = { lookupByEmail, publicInvoice, publicReceipt };

@@ -2773,7 +2773,7 @@ function pageAccount(opts) {
 
     <div class="card" id="accountOrderLookup" style="margin-top:22px;padding:20px;border:1px solid rgba(247,147,26,.35);background:rgba(247,147,26,.06)">
       <h3 style="margin:0 0 6px;font-size:18px">Already bought? Look up your order</h3>
-      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 14px">Use the email you paid with plus your order id. Status is served from <code style="color:#ffd36a">/api/order/:id/status</code>; receipts by email use <code style="color:#ffd36a">/api/uaic/receipts</code>.</p>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0 0 14px">Use the email you paid with plus your order id. Status is served from <code style="color:#ffd36a">/api/order/:id/status</code>. The receipt check at <code style="color:#ffd36a">/api/uaic/receipts</code> answers only whether that pair matches.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
         <input id="acctLookupOrderId" placeholder="Order id" aria-label="Order id" style="flex:2;min-width:160px;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:14px;min-height:44px">
         <input id="acctLookupEmail" type="email" placeholder="Email used at checkout" aria-label="Email used at checkout" autocomplete="email" style="flex:2;min-width:160px;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:14px;min-height:44px">

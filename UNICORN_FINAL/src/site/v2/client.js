@@ -6141,18 +6141,19 @@ function bindAccountOrderLookup(){
     receiptsBtn.__zeusBound = true;
     receiptsBtn.addEventListener('click', async function(){
       const email = String((emailInput && emailInput.value) || '').trim();
-      if (!email) {
-        if (receiptsOut) receiptsOut.textContent = 'Enter the email you used at checkout.';
-        if (emailInput) emailInput.focus();
+      const orderId = String((orderInput && orderInput.value) || '').trim();
+      if (!email || !orderId) {
+        if (receiptsOut) receiptsOut.textContent = 'Enter the email and the order id from checkout.';
+        if (!orderId && orderInput) orderInput.focus();
+        else if (emailInput) emailInput.focus();
         return;
       }
-      if (receiptsOut) receiptsOut.textContent = 'Loading receipts…';
+      if (receiptsOut) receiptsOut.textContent = 'Checking that pair…';
       try {
-        const j = await fetch('/api/uaic/receipts?email=' + encodeURIComponent(email), { cache: 'no-store' }).then(function(r){ return r.json(); });
-        const n = j && (j.count != null ? j.count : (Array.isArray(j.receipts) ? j.receipts.length : null));
-        receiptsOut.textContent = (n != null)
-          ? (n + ' receipt(s) on file for this email — open an order passport with your order id.')
-          : 'Receipt lookup returned no rows for this email.';
+        const j = await fetch('/api/uaic/receipts?email=' + encodeURIComponent(email) + '&order=' + encodeURIComponent(orderId), { cache: 'no-store' }).then(function(r){ return r.json(); });
+        receiptsOut.textContent = (j && j.matched)
+          ? 'That order is on file for this email. Open the order passport.'
+          : 'No matching order for that email and order id.';
       } catch (_) {
         if (receiptsOut) receiptsOut.textContent = 'Receipt lookup unavailable — try your order passport link.';
       }

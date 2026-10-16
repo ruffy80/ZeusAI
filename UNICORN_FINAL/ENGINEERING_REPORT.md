@@ -55,8 +55,17 @@ Verified on main:
 
 Changed:
 
-- An email lookup now returns `{ ok, count }` only. A missing email returns `email_required` and no rows.
-- Public invoice and QR responses keep the payment fields and omit `customerEmail` and `metadata`.
+- An email lookup returns whether that email and order id match. A missing email or a missing order id returns an error and no rows.
+- A public receipt omits `email`, `customerId`, and `did`. Public invoice and QR responses keep the payment fields and omit `customerEmail` and `metadata`.
 - The invoice list, the ledger status, the verifier tick, and the alert test require the existing admin gate.
+- `/api/user/services`, `/api/customer/me`, and delivery download no longer treat `x-user-email` as proof of identity.
 
 Not changed: `/api/health`, shelf prices, the concierge, payment confirmation, or production. A receipt fetched by its random id still returns that one receipt, because checkout and the passport use that id. The simulate-payment route stays admin-only. No deploy.
+
+## Buyer identity is no longer a header
+
+The receipt lookup now needs the email and the order id together. It answers only whether that pair matches. It does not return a count, so an email alone does not reveal how many orders exist. A public receipt omits `email`, `customerId`, and `did`. Checkout still reads status, amount, and the Bitcoin fields.
+
+`GET /api/user/services` uses only a verified bearer token. A caller-supplied `x-user-email` or `?email=` is ignored. `/api/customer/me` uses the customer token or a verified cryptoauth token, not the header. Delivery download no longer accepts the buyer email header as a substitute for the access token.
+
+Still open: `/api/omega/vault` and `/api/dna/strand` accept an email query and return that vault or strand. Those pages are built around that query. They need a signed-in buyer before they can stay useful and private. No deploy.
