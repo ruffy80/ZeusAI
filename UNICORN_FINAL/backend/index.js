@@ -7138,18 +7138,15 @@ app.post('/api/services/buy', (req, res) => {
 });
 
 app.get('/api/user/services', (req, res) => {
-  const headerEmail = String(req.headers['x-user-email'] || '').toLowerCase();
-  const queryEmail = String(req.query.email || '').toLowerCase();
-  let tokenEmail = '';
+  let email = '';
   try {
     const auth = String(req.headers.authorization || '');
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET);
-      tokenEmail = String(decoded.email || '').toLowerCase();
+      email = String(decoded.email || '').toLowerCase();
     }
   } catch (_) {}
-  const email = headerEmail || queryEmail || tokenEmail;
   if (!email) return res.json({ ok: true, services: [], count: 0 });
   const services = [];
   const seen = new Set();
@@ -9904,11 +9901,11 @@ app.get('/api/sales/status', (req, res) => {
   res.json({ ok: true, sales: salesOrchestrator.getStatus(), catalog: serviceCatalogFacade.getStatus() });
 });
 
-app.get('/api/invoice/list', (req, res) => {
+app.get('/api/invoice/list', salesAdminGate, (req, res) => {
   res.json({ ok: true, invoices: btcLedger.listInvoices({ status: req.query.status, limit: parseInt(req.query.limit || '50', 10) }) });
 });
 
-app.get('/api/invoice/status', (req, res) => {
+app.get('/api/invoice/status', salesAdminGate, (req, res) => {
   res.json({
     ok: true,
     ledger: btcLedger.getStatus(),
@@ -9920,7 +9917,7 @@ app.get('/api/invoice/status', (req, res) => {
 app.get('/api/invoice/:id', (req, res) => {
   const inv = btcLedger.getInvoice(req.params.id);
   if (!inv) return res.status(404).json({ ok: false, error: 'not-found' });
-  res.json({ ok: true, invoice: inv });
+  res.json({ ok: true, invoice: require('../src/commerce/receipt-privacy').publicInvoice(inv) });
 });
 
 app.get('/api/invoice/:id/qr', async (req, res) => {
@@ -9930,17 +9927,17 @@ app.get('/api/invoice/:id/qr', async (req, res) => {
   try {
     const QRCode = require('qrcode');
     const qr = await QRCode.toDataURL(uri, { width: 320, margin: 2, color: { dark: '#00d4ff', light: '#05060e' } });
-    res.json({ ok: true, qr, uri, invoice: inv });
+    res.json({ ok: true, qr, uri, invoice: require('../src/commerce/receipt-privacy').publicInvoice(inv) });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/invoice/verify-now', async (req, res) => {
+app.post('/api/invoice/verify-now', salesAdminGate, async (req, res) => {
   if (!_btcVerifier) return res.status(503).json({ ok: false, error: 'verifier-disabled' });
   try { await _btcVerifier.tick(); res.json({ ok: true, status: _btcVerifier.getStatus() }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-app.post('/api/alerts/test', async (req, res) => {
+app.post('/api/alerts/test', salesAdminGate, async (req, res) => {
   const text = (req.body && req.body.message) || `ZAC alert test @ ${new Date().toISOString()}`;
   const r = await zacAlerts.broadcast(text);
   res.json({ ok: true, ...r });
