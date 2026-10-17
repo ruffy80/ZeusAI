@@ -90,3 +90,15 @@ The receipt lookup now needs the email and the order id together. It answers onl
 `GET /api/user/services` uses only a verified bearer token. A caller-supplied `x-user-email` or `?email=` is ignored. `/api/customer/me` uses the customer token or a verified cryptoauth token, not the header. Delivery download no longer accepts the buyer email header as a substitute for the access token.
 
 `/api/omega/vault`, vault search, `/api/dna/strand`, and DNA personalize, observe, and settings now require the signed-in buyer's proven email, or a commerce/admin secret. A query email that does not match that account returns `email_mismatch` and no record. `/api/dna/search` is admin-only because it lists other strands. The vault and DNA pages ask for `/account` instead of `?email=`. Anonymous `?email=` is not a login.
+
+## Native capability desk
+
+`NCD/1.0` (`backend/modules/native-capability-desk.js`) is one desk in front of organs that already exist. The Integrated Autonomy Kernel stays the only orchestrator. `GET /api/native-desk/status` and `POST /api/native-desk/assign` are served by the site and by the backend.
+
+- Demand calls `publicShelf().advise`. The hypothesis stays untested. Competition comes from the competitor spy status. An unarmed spy adds a risk and invents no competitor list.
+- The factory assembles the existing shelf card, the checkout route name (not invoked), the fulfillment preview, the existing test names, and `/pricing`, `/services`, `/buy`. A separate verifier rejects a missing offer, a contact card that opens `/checkout`, a preview that disagrees with itself, or a pack that writes files. `launch` stays false.
+- Revenue reads the CFO status and the spend gate. Paid revenue is copied only when the CFO `dataMode` is `live`. Acquisition cost, AI dollars, conversion, and margin stay unmeasured: the CFO keeps expenses at 0 because no cost API exists, and that zero is not a margin. Retention scores only rows supplied on that request. Nothing is stopped.
+- Governance names `self-healing-engine` and the port 3100 canary. Refunds, charges, deploys, and restarts stay proposals with `requiresHuman`.
+- Contest picks the verifier when a pack fails. Otherwise the organ with measured evidence wins. `externalModel` is false. Nothing is spent.
+
+This is not a generator of new interface, backend, documentation, or tests, and it is not a Word resume with a photo and three variants. No second orchestrator. No production self-modification. No deploy.
