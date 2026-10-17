@@ -643,20 +643,40 @@ _REQUIRED_LOCATIONS = [
             "}\n"
         ),
     },
+    {
+        "match": "location = /offline.html",
+        "block": (
+            "\n"
+            "# ── /offline.html — site maintenance document (exact match beats *.html 404) ──\n"
+            "location = /offline.html {\n"
+            "    proxy_pass http://127.0.0.1:3001;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
+            "}\n"
+        ),
+    },
 ]
 
 
-def _ensure_required_locations(target_path):
-    """Read the installed snippet and append any REQUIRED_LOCATIONS whose
-    exact-match `location` header is not already present. Returns the number
-    of blocks appended (0 when the snippet is already complete)."""
+def _ensure_required_locations(target_path, already=""):
+    """Append REQUIRED locations that are missing from the snippet.
+
+    `already` is the live vhost text. A location that already exists there
+    must not be copied into the included snippet: nginx rejects the duplicate
+    and the failed `nginx -t` restores the snippet, which used to drop the
+    Google HTML route on every deploy.
+    """
     try:
         current = _read(target_path)
     except FileNotFoundError:
         return 0
     appended = 0
     for entry in _REQUIRED_LOCATIONS:
-        if entry["match"] in current:
+        if entry["match"] in current or entry["match"] in (already or ""):
             continue
         current += entry["block"]
         appended += 1
@@ -678,7 +698,7 @@ def _snippet_looks_colliding(text):
     return any(m in text for m in markers)
 
 
-def _install_snippet(snippet_src, target_path):
+def _install_snippet(snippet_src, target_path, site_text=""):
     """Install or upgrade the discovery snippet without breaking nginx -t.
 
     Strategy:
@@ -721,7 +741,7 @@ def _install_snippet(snippet_src, target_path):
         note = "installed minimal discovery overlay (full snippet skipped — collision-safe)"
 
     os.chmod(target_path, 0o644)
-    appended = _ensure_required_locations(target_path)
+    appended = _ensure_required_locations(target_path, site_text)
     if appended:
         note += f"; appended {appended} required location(s)"
     # Optional: if caller passed a non-colliding custom snippet and target was
@@ -963,7 +983,8 @@ def main():
 
     # 1) Install / self-heal snippet (collision-safe: never wholesale-copy the
     # full public-discovery file when it would duplicate /api/eop etc.).
-    snippet_backup, note = _install_snippet(args.snippet, args.target)
+    site_text = _read(args.site) if os.path.isfile(args.site) else ""
+    snippet_backup, note = _install_snippet(args.snippet, args.target, site_text)
     print(f"[nginx-patch] snippet at {args.target} — {note}")
     if snippet_backup:
         print(f"[nginx-patch] snippet backup → {snippet_backup}")
@@ -997,6 +1018,14 @@ def main():
     def _restore_all():
         shutil.copyfile(backup, args.site)
         if snippet_backup and os.path.isfile(snippet_backup):
+            shutil.copyfile(snippet_backup, args.target)
+        # A failed vhost edit must not throw away HTML exact-matches. Skip any
+        # location the restored vhost already declares, then keep the append
+        # only when nginx still validates.
+        site_now = _read(args.site)
+        _ensure_required_locations(args.target, site_now)
+        retry = nginx_validate()
+        if retry.returncode != 0 and snippet_backup and os.path.isfile(snippet_backup):
             shutil.copyfile(snippet_backup, args.target)
 
     # 3) Validate

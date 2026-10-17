@@ -102,3 +102,13 @@ The receipt lookup now needs the email and the order id together. It answers onl
 - Contest picks the verifier when a pack fails. Otherwise the organ with measured evidence wins. `externalModel` is false. Nothing is spent.
 
 This is not a generator of new interface, backend, documentation, or tests, and it is not a Word resume with a photo and three variants. No second orchestrator. No production self-modification. No deploy.
+
+## Public HTML edge and the deploy sentinel
+
+`location ~* \.html$` on the live vhost sets a cache header and does not proxy. Exact files the site already serves, including the Google verification file and `/offline.html`, 404 at nginx. The discovery self-heal has listed the Google location since `acd9afc5`, and every deploy still dropped it: the same append also copied `/.well-known/zeusai.json`, which the vhost already declares. `nginx -t` failed on the duplicate and the restore deleted the Google block with it.
+
+`_ensure_required_locations` now skips a location the vhost already has. A failed vhost edit re-applies the remaining exact matches and keeps them only when `nginx -t` passes.
+
+The bot and Aethermail restart counters are not a crash loop. Both processes are online with exit code 0. The bot logs `poll error: fetch failed` and waits 5 seconds. Aethermail is waiting for `SMTP_PASS`. No social token was added.
+
+The sentinel unit defaults to `monitor`. A drop-in had set `ZEUS_SENTINEL_MODE=act`, and the timer was disabled after it quarantined releases on 2026-07-25. Monitor logs only. It does not move the live symlink.
