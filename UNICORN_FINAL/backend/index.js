@@ -996,6 +996,19 @@ function readBuyerRecord(req, requestedEmail) {
     admin: gate.isRecordAdmin(req),
   });
 }
+app.get('/api/native-desk/status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(require('./modules/native-capability-desk').status());
+});
+app.post('/api/native-desk/assign', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const out = require('./modules/native-capability-desk').assign(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
 app.get('/api/omega/vault', (req, res) => {
   try {
     const proof = readBuyerRecord(req, req.query.email);
