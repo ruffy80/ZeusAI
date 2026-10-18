@@ -69,6 +69,11 @@ function _parseRegistry(src) {
   return { categories, adaptiveN, engineN };
 }
 
+function _duty(rel) {
+  const judged = require('../../src/commerce/module-duty').judgeModule(rel);
+  return { duty: judged.duty, customerRole: judged.role };
+}
+
 function _classifyFile(full) {
   let src = '';
   try { src = fs.readFileSync(full, 'utf8'); } catch (_) { src = ''; }
@@ -89,6 +94,7 @@ function _classifyFile(full) {
     effectSource: 'name',
     effectIsCustomerDelivery: false,
     deliversCustomer: false,
+    ..._duty(rel),
   };
 }
 
@@ -126,6 +132,7 @@ function _build() {
       effectSource: 'name',
       effectIsCustomerDelivery: false,
       deliversCustomer: false,
+      ..._duty(null),
       aliasOf: './adaptiveEnginePool',
     });
   }
@@ -142,6 +149,7 @@ function _build() {
       effectSource: 'name',
       effectIsCustomerDelivery: false,
       deliversCustomer: false,
+      ..._duty(null),
       aliasOf: './adaptiveEnginePool',
     });
   }
@@ -163,6 +171,7 @@ function _build() {
         effectSource: 'name',
         effectIsCustomerDelivery: false,
         deliversCustomer: false,
+        ..._duty(null),
         reason: why.reason,
       });
       continue;
@@ -178,6 +187,7 @@ function _build() {
       effectSource: 'name',
       effectIsCustomerDelivery: false,
       deliversCustomer: false,
+      ..._duty(null),
       reason: 'Registry name has no file.',
     });
   }
@@ -198,8 +208,11 @@ function _build() {
     placeholders: files.filter((r) => r.placeholder).length,
     duplicateOwnership: files.filter((r) => r.duplicateOwnership).length,
     refusedNames: REFUSED.map((r) => r.id),
-    note: 'Every backend module file is listed. The effect field is a filename guess, not a customer delivery. Customer delivery is only a public shelf offer that passes SIO/1.0. Refused names stay unpublished as code because a file would claim a capability this process does not run.',
+    note: 'Every backend module file is listed. The effect field is a filename guess, not a customer delivery. Customer delivery is only a public shelf offer that passes SIO/1.0. MDT/1.0 marks a file as customer only when it creates that offer, opens the order, writes the buyer file, or proves they agree. Every other file works for Unicorn. Refused names stay unpublished as code because a file would claim a capability this process does not run.',
     modulesAdvertiseCustomerDelivery: false,
+    dutyProtocol: 'MDT/1.0',
+    unicornFiles: modules.filter((row) => row.duty === 'unicorn').length,
+    customerDutyFiles: modules.filter((row) => row.duty === 'customer').length,
     modules: all,
     generatedAt: new Date().toISOString(),
   };
@@ -236,6 +249,9 @@ function summary() {
     refusedNames: d.refusedNames,
     modulesAdvertiseCustomerDelivery: false,
     customerDelivery: 'public-shelf',
+    dutyProtocol: d.dutyProtocol,
+    unicornFiles: d.unicornFiles,
+    customerDutyFiles: d.customerDutyFiles,
     generatedAt: d.generatedAt,
   };
 }
