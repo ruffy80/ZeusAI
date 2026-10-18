@@ -4286,6 +4286,7 @@ function pageModules() {
     <h1>Every module, <span class="grad">one sheet.</span></h1>
     <p class="lead">Files ${_esc(s.files)} · aliases ${_esc(s.aliases)} · virtual workers ${_esc(s.virtualWorkers)} · unregistered ${_esc(s.unregisteredFiles)} · absent ${_esc(s.absent)} · refused ${_esc(s.refused)}. inventsModules = false.</p>
     <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused stays at ${_esc(s.refused)}. The five frontier engines run locally and meet in <a href="/frontier" data-link>FCO/1.0</a>.</p>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">A file name is not a customer delivery. The customer contract is the public shelf. <a href="/api/service-integrity" data-link><code>/api/service-integrity</code></a> proves every shelf offer: the button, the price, and the file agree. Checkout refuses a shelf id that fails.</p>
     <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${refused}</ul>
   </div>
 </section>`;

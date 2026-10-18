@@ -137,6 +137,7 @@ async function run() {
   });
 
   console.log(`\n✅ buy-immortal: ${passed} tests passed\n`);
+  process.exit(0);
 }
 
 run().catch((err) => {
