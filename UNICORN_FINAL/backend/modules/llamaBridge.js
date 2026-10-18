@@ -146,8 +146,9 @@
 
 'use strict';
 
+const hostFit        = require('./host-llm-fit');
 const OLLAMA_BASE    = process.env.OLLAMA_URL      || 'http://127.0.0.1:11434';
-const OLLAMA_MODEL   = process.env.OLLAMA_MODEL    || 'llama3.1:8b-instruct-q4_K_M';
+const OLLAMA_MODEL   = process.env.OLLAMA_MODEL    || hostFit.SAFE_MODEL;
 const REQ_TIMEOUT_MS = parseInt(process.env.LLAMA_TIMEOUT_MS  || '60000', 10);
 const PROBE_INTERVAL = parseInt(process.env.LLAMA_PROBE_MS    || '120000', 10); // 2 min
 const MAX_QUEUE      = parseInt(process.env.LLAMA_MAX_QUEUE   || '20', 10);
@@ -165,6 +166,7 @@ const stats = {
   errors:    0,
   probeOk:   0,
   probeFail: 0,
+  refused:   0,
 };
 
 // ─── Probe Ollama ─────────────────────────────────────────────────────────────
@@ -193,8 +195,13 @@ async function ensureAvailable() {
 
 // ─── Core generate call ───────────────────────────────────────────────────────
 async function callOllama(prompt, context) {
+  const choice = hostFit.decide(OLLAMA_MODEL);
+  if (!choice.model) {
+    stats.refused++;
+    return null;
+  }
   const body = {
-    model:  OLLAMA_MODEL,
+    model:  choice.model,
     prompt: context ? `${context}\n\n${prompt}` : prompt,
     stream: false,
     options: {
@@ -302,9 +309,11 @@ async function generate(prompt, priority = 4, context = '') {
 
 /** Returns current bridge status (used by /api/llama/status endpoint) */
 function getStatus() {
+  const choice = hostFit.decide(OLLAMA_MODEL);
   return {
     ollamaUrl:       OLLAMA_BASE,
-    model:           OLLAMA_MODEL,
+    model:           choice.model || OLLAMA_MODEL,
+    fit:             choice,
     available:       ollamaAvailable,
     lastProbeAt:     lastProbeTime ? new Date(lastProbeTime).toISOString() : null,
     busy,
