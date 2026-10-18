@@ -996,6 +996,14 @@ function readBuyerRecord(req, requestedEmail) {
     admin: gate.isRecordAdmin(req),
   });
 }
+app.get('/api/service-integrity', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json(require('../src/commerce/service-integrity').status());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
 app.get('/api/native-desk/status', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json(require('./modules/native-capability-desk').status());

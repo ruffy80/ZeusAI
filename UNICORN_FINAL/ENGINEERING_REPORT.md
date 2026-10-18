@@ -124,3 +124,9 @@ The probe now prefers `pm2 jlist`. A failed command, or a grid with no parsed ro
 `repairDaemon` writes a ledger note when a module file has no export. That note is not a repair, and it no longer increments `healings`. `processGuardian` records a failed PM2 probe as `process-probe-unknown` and an app missing from a real list as `process-absent`. Neither event is a healing, and neither starts a process.
 
 A delivery API key is created through the frontier key store and must verify in the same process. A receipt without an email gets no key. A webhook secret is created only when the receipt already has an `https` callback URL. No decorative `whsec_` value is minted.
+
+## Shelf delivery contract
+
+A backend module file is an internal organ. The filename effect on the census is not a customer delivery, and `deliversCustomer` stays false for every row. The customer advertisement is the public shelf.
+
+`SIO/1.0` checks every shelf offer. The button, the price, and the fulfillment file have to agree. Contact mode cannot open a cart. The enterprise kickoff still says it does not deliver the license, the source, or a private cloud. `POST /api/checkout/create` refuses a shelf id that fails that check. `GET /api/service-integrity` publishes the result. The Integrated Autonomy Kernel stays the only orchestrator.

@@ -894,6 +894,26 @@ async function createOrder(ctx, input) {
       status,
     };
   }
+  try {
+    const integrity = require('../commerce/service-integrity');
+    const proof = integrity.proofFor(serviceId);
+    if (proof.onShelf && !proof.pass) {
+      return {
+        error: 'service_not_deliverable',
+        reason: (proof.failures && proof.failures[0]) || 'delivery_disagrees',
+        serviceId,
+        status: 409,
+      };
+    }
+  } catch (err) {
+    return {
+      error: 'service_not_deliverable',
+      reason: 'integrity_unavailable',
+      serviceId,
+      status: 503,
+      detail: String(err && err.message || err).slice(0, 160),
+    };
+  }
   // Email is optional at invoice mint time (restores one-click Buy → BTC QR).
   // Buyers can attach a delivery email on /checkout/:orderId if they skipped it.
 

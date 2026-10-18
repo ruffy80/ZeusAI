@@ -87,6 +87,8 @@ function _classifyFile(full) {
     duplicateOwnership: ownership > 1,
     effect: _effect(base),
     effectSource: 'name',
+    effectIsCustomerDelivery: false,
+    deliversCustomer: false,
   };
 }
 
@@ -122,6 +124,8 @@ function _build() {
       hasExports: true,
       effect: 'organ',
       effectSource: 'name',
+      effectIsCustomerDelivery: false,
+      deliversCustomer: false,
       aliasOf: './adaptiveEnginePool',
     });
   }
@@ -136,6 +140,8 @@ function _build() {
       hasExports: true,
       effect: 'organ',
       effectSource: 'name',
+      effectIsCustomerDelivery: false,
+      deliversCustomer: false,
       aliasOf: './adaptiveEnginePool',
     });
   }
@@ -155,6 +161,8 @@ function _build() {
         hasExports: false,
         effect: _effect(id),
         effectSource: 'name',
+        effectIsCustomerDelivery: false,
+        deliversCustomer: false,
         reason: why.reason,
       });
       continue;
@@ -168,6 +176,8 @@ function _build() {
       hasExports: false,
       effect: _effect(id),
       effectSource: 'name',
+      effectIsCustomerDelivery: false,
+      deliversCustomer: false,
       reason: 'Registry name has no file.',
     });
   }
@@ -188,7 +198,8 @@ function _build() {
     placeholders: files.filter((r) => r.placeholder).length,
     duplicateOwnership: files.filter((r) => r.duplicateOwnership).length,
     refusedNames: REFUSED.map((r) => r.id),
-    note: 'Every backend module file is listed. Effect is inferred from the name. Refused names stay unpublished as code because a file would claim a capability this process does not run.',
+    note: 'Every backend module file is listed. The effect field is a filename guess, not a customer delivery. Customer delivery is only a public shelf offer that passes SIO/1.0. Refused names stay unpublished as code because a file would claim a capability this process does not run.',
+    modulesAdvertiseCustomerDelivery: false,
     modules: all,
     generatedAt: new Date().toISOString(),
   };
@@ -223,6 +234,8 @@ function summary() {
     placeholders: d.placeholders,
     duplicateOwnership: d.duplicateOwnership,
     refusedNames: d.refusedNames,
+    modulesAdvertiseCustomerDelivery: false,
+    customerDelivery: 'public-shelf',
     generatedAt: d.generatedAt,
   };
 }
