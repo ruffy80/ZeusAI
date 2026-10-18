@@ -4275,18 +4275,30 @@ function pageFrom(params) {
 
 function pageModules() {
   let s = null;
+  let duty = null;
   try { s = require('../../../backend/modules/module-census-os').summary(); } catch (_) { s = null; }
+  try { duty = require('../../commerce/module-duty').sheet(); } catch (_) { duty = null; }
   if (!s) {
     return `<section class="hero"><h1>Module census</h1><p class="lead">The census module did not load.</p></section>`;
   }
   const refused = (s.refusedNames || []).map((id) => `<li><code>${_esc(id)}</code></li>`).join('');
+  const customer = duty && Array.isArray(duty.customer) ? duty.customer : [];
+  const support = duty && Array.isArray(duty.support) ? duty.support : [];
+  const customerList = customer.map((row) => `<li><code>${_esc(row.path)}</code> — ${_esc(row.role)}: ${_esc(row.work)}</li>`).join('');
+  const supportList = support.map((row) => `<li><code>${_esc(row.path)}</code> — ${_esc(row.work)}</li>`).join('');
   return `<section class="hero" style="padding-bottom:28px">
   <div class="hero-copy" style="max-width:860px">
     <span class="hero-eyebrow"><span class="dot"></span> MCO/1.0 · Module Census</span>
     <h1>Every module, <span class="grad">one sheet.</span></h1>
     <p class="lead">Files ${_esc(s.files)} · aliases ${_esc(s.aliases)} · virtual workers ${_esc(s.virtualWorkers)} · unregistered ${_esc(s.unregisteredFiles)} · absent ${_esc(s.absent)} · refused ${_esc(s.refused)}. inventsModules = false.</p>
+    <p class="lead">Unicorn organs ${_esc(s.unicornFiles)} · customer files ${_esc(s.customerDutyFiles)} inside the module directory, ${_esc(customer.length)} on the customer duty list. The duty sheet is <a href="/api/module-duty" data-link><code>/api/module-duty</code></a>.</p>
     <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused stays at ${_esc(s.refused)}. The five frontier engines run locally and meet in <a href="/frontier" data-link>FCO/1.0</a>.</p>
     <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">A file name is not a customer delivery. The customer contract is the public shelf. <a href="/api/service-integrity" data-link><code>/api/service-integrity</code></a> proves every shelf offer: the button, the price, and the file agree. Checkout refuses a shelf id that fails.</p>
+    <h2 style="font-size:18px;margin:22px 0 8px">Creates or delivers a customer service</h2>
+    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${customerList}</ul>
+    <h2 style="font-size:18px;margin:22px 0 8px">Called during a purchase, still an organ</h2>
+    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${supportList}</ul>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">Every other module file works for Unicorn: health, deploy, census, research, and the orchestrator. It does not create a shelf offer and it does not write the buyer file.</p>
     <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${refused}</ul>
   </div>
 </section>`;

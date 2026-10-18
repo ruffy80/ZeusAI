@@ -1004,6 +1004,15 @@ app.get('/api/service-integrity', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
+app.get('/api/module-duty', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Protocol', 'MDT/1.0');
+  try {
+    res.json(require('../src/commerce/module-duty').status());
+  } catch (e) {
+    res.status(500).json({ ok: false, protocol: 'MDT/1.0', error: e && e.message });
+  }
+});
 app.get('/api/native-desk/status', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json(require('./modules/native-capability-desk').status());

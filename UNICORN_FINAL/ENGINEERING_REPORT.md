@@ -136,3 +136,9 @@ A backend module file is an internal organ. The filename effect on the census is
 The live host has 7741 MB of RAM and no GPU. `llama3:latest` is a 4.7 GB weight and was not loaded. The site and the backend were already using about 800 MB together, with about 5666 MB available. An 8B model plus its context does not leave the headroom those processes need.
 
 `HLF/1.0` allows `llama3.2:3b-instruct-q4_K_M` (2.0 GB on disk) and refuses `llama3:latest` and `llama3.1:8b` on a host under 12 GB. A one-shot generate of the 3B model on the live host returned `ready`, then unloaded. Available memory recovered and no OOM line appeared. The running build stays the previous release until this gate is deployed. The local prompt is the public shelf. It does not invent a $29 plan, customers, or a license delivery. One Ollama request at a time is unchanged. The native shelf concierge and paid fulfillment stay on their existing paths.
+
+## Two duties
+
+`MDT/1.0` splits the tree by job. A file works for Unicorn unless it creates a public shelf offer, opens the checkout order, writes the buyer file, or proves those three agree. The census still sets `deliversCustomer` false on every row: the product is the shelf offer, not the module name.
+
+`dynamic-pricing` and `aiProviders` are called while a purchase happens. They stay organs. `GET /api/module-duty` publishes the two lists and the shelf count. The Integrated Autonomy Kernel stays the only orchestrator.
