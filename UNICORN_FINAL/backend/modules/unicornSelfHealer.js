@@ -39,6 +39,7 @@ const state = {
   startedAt: new Date().toISOString(),
   cycles: 0,
   healings: 0,
+  repairAttempts: 0,
   errors: 0,
   lastCheck: null,
   history: [],
@@ -97,17 +98,46 @@ function healerCore() {
   return fixed;
 }
 
-// repairDaemon — încearcă reparații soft (sursă: auto-repair.js)
+// repairDaemon — notes a module that failed the export check. It does not
+// rewrite source. A ledger line is not a healing.
 function repairDaemon() {
   let attempts = 0;
   Object.entries(state.modules).forEach(([f, info]) => {
     if (!info.ok) {
       attempts++;
-      appendLedger({ type: 'repair-attempt', module: f });
-      healerBus.emit('healer:repair', { module: f });
+      appendLedger({ type: 'repair-attempt', module: f, repaired: false, inventsHeal: false });
+      healerBus.emit('healer:repair', { module: f, repaired: false });
     }
   });
-  return attempts;
+  state.repairAttempts += attempts;
+  return 0;
+}
+
+// Record the auto-restart probe. A failed probe and an absent app are not heals.
+function recordProbeResult(status, restartedCount) {
+  const restarted = Number(restartedCount) || 0;
+  const health = status && status.health;
+  if (!status || health === 'unknown') {
+    appendLedger({
+      type: 'process-probe-unknown',
+      probe: status && status.probe,
+      inventsHeal: false,
+    });
+    healerBus.emit('healer:process-probe', { health: 'unknown', probe: status && status.probe });
+    return { healingsAdded: 0, kind: 'unknown' };
+  }
+  const unseen = Array.isArray(status.unseen) ? status.unseen.slice() : [];
+  if (unseen.length) {
+    appendLedger({ type: 'process-absent', unseen, inventsHeal: false });
+    healerBus.emit('healer:process-absent', { unseen });
+  }
+  if (restarted > 0) {
+    state.healings += restarted;
+    appendLedger({ type: 'process-restart', count: restarted, inventsHeal: false });
+    healerBus.emit('healer:process-restart', { count: restarted });
+    return { healingsAdded: restarted, kind: 'restart', unseen };
+  }
+  return { healingsAdded: 0, kind: unseen.length ? 'absent' : 'clear', unseen };
 }
 
 // processGuardian — real PM2 restarts for live apps (no source mutation).
@@ -118,16 +148,12 @@ function processGuardian() {
     const ar = require('./auto-restart');
     if (!ar || typeof ar.checkAndRestart !== 'function') return 0;
     Promise.resolve(ar.checkAndRestart()).then((n) => {
-      const count = Number(n) || 0;
-      if (count > 0) {
-        state.healings += count;
-        appendLedger({ type: 'process-restart', count });
-        healerBus.emit('healer:process-restart', { count });
-      }
+      const status = typeof ar.getStatus === 'function' ? ar.getStatus() : null;
+      recordProbeResult(status, n);
     }).catch((e) => {
-      appendLedger({ type: 'process-restart-error', message: e && e.message });
+      appendLedger({ type: 'process-restart-error', message: e && e.message, inventsHeal: false });
     });
-    return 1;
+    return 0;
   } catch (_) {
     return 0;
   }
@@ -410,6 +436,7 @@ function getStatus() {
     startedAt: state.startedAt,
     cycles: state.cycles,
     healings: state.healings,
+    repairAttempts: state.repairAttempts,
     errors: state.errors,
     lastCheck: state.lastCheck,
     modulesScanned: Object.keys(state.modules).length,
@@ -464,6 +491,7 @@ module.exports = {
   moduleScanner,
   healerCore,
   repairDaemon,
+  recordProbeResult,
   processGuardian,
   watchdogDaemon,
   predictiveHealer,

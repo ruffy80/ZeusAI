@@ -33,9 +33,56 @@ function publicKey(secret) {
   return String(secret || '').slice(0, 10) + '…' + String(secret || '').slice(-6);
 }
 
-function buildApiKey(receipt, serviceId) {
-  const seed = `${receipt.id}:${serviceId}:${Date.now()}:${Math.random()}`;
-  return 'zai_' + crypto.createHash('sha256').update(seed).digest('base64url').slice(0, 38);
+function buyerEmail(receipt) {
+  const email = String(receipt && receipt.email || '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+// A downloaded key must verify in this process. No email means no key.
+// A webhook secret is issued only when the buyer has a callback URL.
+function issueBuyerCredential(receipt, serviceId) {
+  const blank = {
+    apiKey: null,
+    apiKeyPreview: null,
+    keyId: null,
+    credentialsIssued: false,
+    webhookSecret: null,
+    webhookIssued: false,
+  };
+  const email = buyerEmail(receipt);
+  if (!email) return blank;
+  try {
+    const frontier = require('../../frontier-engine');
+    const created = frontier.apiKeyCreate({
+      ownerEmail: email,
+      scopes: ['read'],
+      label: `delivery:${serviceId}:${receipt.id}`,
+      rateLimit: 60,
+    });
+    const apiKey = created && created.key;
+    const verified = apiKey && frontier.apiKeyVerify(apiKey);
+    if (!apiKey || !verified || verified.ok !== true) return blank;
+    const out = {
+      apiKey,
+      apiKeyPreview: publicKey(apiKey),
+      keyId: created.meta && created.meta.id,
+      credentialsIssued: true,
+      webhookSecret: null,
+      webhookIssued: false,
+    };
+    const hook = String(receipt.webhookUrl || '').trim();
+    if (/^https:\/\//i.test(hook) && typeof frontier.webhookSubscribe === 'function') {
+      const sub = frontier.webhookSubscribe({ ownerEmail: email, url: hook, events: ['delivery'] });
+      if (sub && sub.secret) {
+        out.webhookSecret = sub.secret;
+        out.webhookId = sub.id;
+        out.webhookIssued = true;
+      }
+    }
+    return out;
+  } catch (_) {
+    return blank;
+  }
 }
 
 function classify(serviceId) {
@@ -52,14 +99,17 @@ function classify(serviceId) {
 
 function deliverableSet(receipt, serviceId) {
   const type = classify(serviceId);
-  const apiKey = buildApiKey(receipt, serviceId);
+  const credential = issueBuyerCredential(receipt, serviceId);
   const base = {
     serviceId,
-    apiKey,
-    apiKeyPreview: publicKey(apiKey),
+    apiKey: credential.apiKey,
+    apiKeyPreview: credential.apiKeyPreview,
+    keyId: credential.keyId,
+    credentialsIssued: credential.credentialsIssued,
     workspaceId: 'ws_' + crypto.createHash('sha1').update(receipt.id + serviceId).digest('hex').slice(0, 12),
     taskId: 'task_' + crypto.randomBytes(8).toString('hex'),
-    webhookSecret: 'whsec_' + crypto.randomBytes(16).toString('hex'),
+    webhookSecret: credential.webhookSecret,
+    webhookIssued: credential.webhookIssued,
     createdAt: new Date().toISOString()
   };
   const files = [
@@ -213,7 +263,17 @@ function renderPayload(delivery, format, serviceId) {
   if (!item) return null;
   if (format === 'report') return item.report;
   if (format === 'workspace') return { workspaceId: item.workspaceId, serviceId: item.serviceId, endpoints: item.endpoints, status: item.status };
-  if (format === 'api-key') return { serviceId: item.serviceId, apiKey: item.apiKey, apiKeyPreview: item.apiKeyPreview, createdAt: item.createdAt };
+  if (format === 'api-key') {
+    return {
+      serviceId: item.serviceId,
+      apiKey: item.apiKey || null,
+      apiKeyPreview: item.apiKeyPreview || null,
+      keyId: item.keyId || null,
+      credentialsIssued: item.credentialsIssued === true,
+      webhookIssued: item.webhookIssued === true,
+      createdAt: item.createdAt,
+    };
+  }
   if (format === 'onboarding') return item.onboarding;
   return item;
 }
