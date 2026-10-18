@@ -101,7 +101,7 @@ The receipt lookup now needs the email and the order id together. It answers onl
 - Governance names `self-healing-engine` and the port 3100 canary. Refunds, charges, deploys, and restarts stay proposals with `requiresHuman`.
 - Contest picks the verifier when a pack fails. Otherwise the organ with measured evidence wins. `externalModel` is false. Nothing is spent.
 
-This is not a generator of new interface, backend, documentation, or tests, and it is not a Word resume with a photo and three variants. No second orchestrator. No production self-modification. No deploy.
+This desk does not generate new interface, backend, documentation, or tests. No second orchestrator. No production self-modification. No deploy.
 
 ## Public HTML edge and the deploy sentinel
 
@@ -118,3 +118,9 @@ The sentinel unit defaults to `monitor`. A drop-in had set `ZEUS_SENTINEL_MODE=a
 `auto-restart` used to treat a missing PM2 status as healthy and clear that process's backoff. A failed `pm2 list`, or a table the parser did not read, therefore looked like both `unicorn-backend` and `unicorn-site` were online.
 
 The probe now prefers `pm2 jlist`. A failed command, or a grid with no parsed row, sets health to `unknown` and returns before any backoff clear or restart. A process that is absent from a real list is recorded and is not started. Restart still runs only for `stopped`, `errored`, `stopping`, and `waiting restart`, with the existing backoff. The Integrated Autonomy Kernel remains the only orchestrator. This change does not restart the live PM2 processes.
+
+## Healer counts and buyer credentials
+
+`repairDaemon` writes a ledger note when a module file has no export. That note is not a repair, and it no longer increments `healings`. `processGuardian` records a failed PM2 probe as `process-probe-unknown` and an app missing from a real list as `process-absent`. Neither event is a healing, and neither starts a process.
+
+A delivery API key is created through the frontier key store and must verify in the same process. A receipt without an email gets no key. A webhook secret is created only when the receipt already has an `https` callback URL. No decorative `whsec_` value is minted.
