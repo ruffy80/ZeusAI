@@ -489,8 +489,10 @@ function getMarketConditions() {
   };
 }
 
-// Update demand factor every 5 minutes
-setInterval(updateDemandFactor, 5 * 60 * 1000);
+// Update demand factor every 5 minutes. unref so a checkout proof that
+// loads this module cannot pin a one-shot test process open.
+const demandTimer = setInterval(updateDemandFactor, 5 * 60 * 1000);
+if (demandTimer && typeof demandTimer.unref === 'function') demandTimer.unref();
 updateDemandFactor(); // initial call
 
 // Health snapshot: expose fallback usage and unregistered IDs
