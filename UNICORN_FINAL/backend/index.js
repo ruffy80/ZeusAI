@@ -7955,6 +7955,11 @@ if (_aiIntelCore) {
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
+function localLlmContext() {
+  try { return require('./modules/host-llm-fit').unicornShelfContext(); }
+  catch (_) { return 'You are the local Unicorn assistant. Do not invent products, customers, or prices.'; }
+}
+
 app.post('/api/chat', authRateLimit(30, 60_000), (req, res, next) => {
   try {
     const gate = require('./modules/public-ai-spend-gate');
@@ -8059,7 +8064,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), (req, res, next) => {
     const llamaReply = await _llamaBridge.generate(
       prompt,
       _llamaBridge.PRIORITY.CHAT,
-      ZEUS_SYSTEM
+      localLlmContext()
     );
     if (llamaReply) {
       return res.json({ reply: llamaReply, model: 'llama-local' });
@@ -8070,11 +8075,11 @@ app.post('/api/chat', authRateLimit(30, 60_000), (req, res, next) => {
   const lower = cleanMessage.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
-    [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
+    [['marketplace'], 'Offers for sale are the public shelf at /pricing, /services, and /buy. Dropship is paused. Frontier is research.'],
     [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
     [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
     [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
-    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
+    [['plan', 'pricing', 'pret'], 'Prices are the public shelf at /pricing. Bitcoin is the live rail. An enterprise kickoff does not deliver the license, the source, or a private cloud.'],
     [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
     [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
   ];
@@ -8245,7 +8250,7 @@ app.post('/api/ai/use', authRateLimit(30, 60_000), async (req, res) => {
     } else if (selected === 'uaic' && _uaic && typeof _uaic.ask === 'function') {
       result = await _uaic.ask(prompt, { taskType: taskClass, history, prioritize: 'balanced' });
     } else if (selected === 'llama-local' && _llamaBridge) {
-      const reply = await _llamaBridge.generate(prompt, _llamaBridge.PRIORITY.CHAT, ZEUS_SYSTEM);
+      const reply = await _llamaBridge.generate(prompt, _llamaBridge.PRIORITY.CHAT, localLlmContext());
       result = reply ? { reply, model: 'llama-local', provider: 'local' } : null;
     } else {
       result = await _aiProviders.chat(prompt, history);

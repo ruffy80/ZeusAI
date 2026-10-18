@@ -130,3 +130,9 @@ A delivery API key is created through the frontier key store and must verify in 
 A backend module file is an internal organ. The filename effect on the census is not a customer delivery, and `deliversCustomer` stays false for every row. The customer advertisement is the public shelf.
 
 `SIO/1.0` checks every shelf offer. The button, the price, and the fulfillment file have to agree. Contact mode cannot open a cart. The enterprise kickoff still says it does not deliver the license, the source, or a private cloud. `POST /api/checkout/create` refuses a shelf id that fails that check. `GET /api/service-integrity` publishes the result. The Integrated Autonomy Kernel stays the only orchestrator. The pricing refresh timer does not keep a one-shot checkout process alive.
+
+## Local model that fits the host
+
+The live host has 7741 MB of RAM and no GPU. `llama3:latest` is a 4.7 GB weight and was not loaded. The site and the backend were already using about 800 MB together, with about 5666 MB available. An 8B model plus its context does not leave the headroom those processes need.
+
+`HLF/1.0` allows `llama3.2:3b-instruct-q4_K_M` (2.0 GB on disk) and refuses `llama3:latest` and `llama3.1:8b` on a host under 12 GB. A one-shot generate of the 3B model on the live host returned `ready`, then unloaded. Available memory recovered and no OOM line appeared. The running build stays the previous release until this gate is deployed. The local prompt is the public shelf. It does not invent a $29 plan, customers, or a license delivery. One Ollama request at a time is unchanged. The native shelf concierge and paid fulfillment stay on their existing paths.
