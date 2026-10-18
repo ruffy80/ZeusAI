@@ -34,6 +34,8 @@ const _state = {
   lastRestart:    null,
   lastError:      null,
   health:         'good',
+  probe:          'idle',
+  unseen:         [],
   restartLog:     [],
   running:        false,
   intervalHandle: null,
@@ -44,7 +46,7 @@ const _backoff = {};
 
 function _safeExecPm2(args) {
   return new Promise((resolve) => {
-    const allowed = ['restart', 'list', 'start'];
+    const allowed = ['restart', 'list', 'jlist', 'start'];
     if (!allowed.includes(args[0])) return resolve({ ok: false, out: 'forbidden' });
     execFile('pm2', args, { timeout: 20000 }, (err, stdout, stderr) => {
       resolve({ ok: !err, out: stdout || stderr || (err && err.message) || '' });
@@ -80,28 +82,91 @@ function _clearBackoff(proc) {
   delete _backoff[proc];
 }
 
-async function _getPm2List() {
-  const { ok, out } = await _safeExecPm2(['list', '--no-color']);
-  if (!ok) return {};
+function parsePm2Jlist(raw) {
+  let rows;
+  try { rows = JSON.parse(raw); } catch (_) { return null; }
+  if (!Array.isArray(rows)) return null;
   const statuses = {};
-  // Parse pm2 list output — format: │ <id> │ <name> │ ... │ <status> │ ...
-  for (const line of out.split('\n')) {
-    const m = line.match(/\│\s+\d+\s+\│\s+(\S+)\s+.*?\│\s+(online|stopped|errored|launching)\s+/i);
+  for (const row of rows) {
+    const name = row && row.name;
+    const status = row && row.pm2_env && row.pm2_env.status;
+    if (!name || !status) continue;
+    statuses[String(name)] = String(status).toLowerCase();
+  }
+  return statuses;
+}
+
+function parsePm2Table(out) {
+  const statuses = {};
+  const re = /│\s+\d+\s+│\s+(\S+)\s+.*?│\s+(online|stopped|errored|launching|stopping|waiting restart)\s+/i;
+  for (const line of String(out || '').split('\n')) {
+    const m = line.match(re);
     if (m) statuses[m[1]] = m[2].toLowerCase();
   }
   return statuses;
 }
 
+// hold: probe failed, leave backoff alone.
+// absent: pm2 answered and this app is not in the list. Do not invent a start.
+// clear: process is up.
+// restart: process is stopped or errored.
+function planRestart(statuses, proc) {
+  if (!statuses) return 'hold';
+  if (!Object.prototype.hasOwnProperty.call(statuses, proc)) return 'absent';
+  const status = String(statuses[proc] || '').toLowerCase();
+  if (status === 'online' || status === 'launching') return 'clear';
+  if (status === 'stopped' || status === 'errored' || status === 'stopping' || status === 'waiting restart') return 'restart';
+  return 'hold';
+}
+
+// jlist is authoritative. A table that still has the PM2 grid but no parsed
+// row is a failed probe: do not treat that as an empty process list.
+function probeFromCommands(jlist, table) {
+  if (jlist && jlist.ok) {
+    const parsed = parsePm2Jlist(jlist.out);
+    if (parsed) return { ok: true, statuses: parsed, source: 'jlist' };
+  }
+  if (!table || !table.ok) {
+    return { ok: false, statuses: null, source: 'unavailable', error: 'pm2 list failed' };
+  }
+  const parsed = parsePm2Table(table.out);
+  if (!Object.keys(parsed).length && /│/.test(String(table.out || ''))) {
+    return { ok: false, statuses: null, source: 'table-unparsed', error: 'pm2 table did not parse' };
+  }
+  return { ok: true, statuses: parsed, source: 'table' };
+}
+
+async function readPm2Statuses() {
+  const listed = await _safeExecPm2(['jlist']);
+  const table = listed.ok && parsePm2Jlist(listed.out)
+    ? null
+    : await _safeExecPm2(['list', '--no-color']);
+  return probeFromCommands(listed, table);
+}
+
 async function checkAndRestart() {
-  const statuses = await _getPm2List();
+  const probe = await readPm2Statuses();
+  if (!probe.ok) {
+    _state.probe = probe.source;
+    _state.health = 'unknown';
+    _state.unseen = [];
+    _state.lastError = probe.error || 'pm2 list failed';
+    return 0;
+  }
+  _state.probe = probe.source;
+  const unseen = [];
   let restarted = 0;
+  let attention = false;
 
   for (const proc of CRITICAL_PROCESSES) {
-    const status = statuses[proc];
-    const needsRestart = status === 'stopped' || status === 'errored';
-
-    if (!needsRestart) {
-      _clearBackoff(proc); // reset backoff dacă e OK
+    const plan = planRestart(probe.statuses, proc);
+    if (plan === 'clear') {
+      _clearBackoff(proc);
+      continue;
+    }
+    attention = true;
+    if (plan !== 'restart') {
+      if (plan === 'absent') unseen.push(proc);
       continue;
     }
 
@@ -119,6 +184,8 @@ async function checkAndRestart() {
     }
   }
 
+  _state.unseen = unseen;
+  _state.health = attention ? 'degraded' : 'good';
   return restarted;
 }
 
@@ -170,4 +237,15 @@ if (String(process.env.ENABLE_AUTO_RESTART || '0') === '1') {
   start();
 }
 
-module.exports = { start, stop, run, getStatus, checkAndRestart, name: 'auto-restart' };
+module.exports = {
+  start,
+  stop,
+  run,
+  getStatus,
+  checkAndRestart,
+  parsePm2Jlist,
+  parsePm2Table,
+  planRestart,
+  probeFromCommands,
+  name: 'auto-restart',
+};

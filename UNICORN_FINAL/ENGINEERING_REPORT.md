@@ -112,3 +112,9 @@ This is not a generator of new interface, backend, documentation, or tests, and 
 The bot and Aethermail restart counters are not a crash loop. Both processes are online with exit code 0. The bot logs `poll error: fetch failed` and waits 5 seconds. Aethermail is waiting for `SMTP_PASS`. No social token was added.
 
 The sentinel unit defaults to `monitor`. A drop-in had set `ZEUS_SENTINEL_MODE=act`, and the timer was disabled after it quarantined releases on 2026-07-25. Monitor logs only. It does not move the live symlink.
+
+## Restart probe integrity
+
+`auto-restart` used to treat a missing PM2 status as healthy and clear that process's backoff. A failed `pm2 list`, or a table the parser did not read, therefore looked like both `unicorn-backend` and `unicorn-site` were online.
+
+The probe now prefers `pm2 jlist`. A failed command, or a grid with no parsed row, sets health to `unknown` and returns before any backoff clear or restart. A process that is absent from a real list is recorded and is not started. Restart still runs only for `stopped`, `errored`, `stopping`, and `waiting restart`, with the existing backoff. The Integrated Autonomy Kernel remains the only orchestrator. This change does not restart the live PM2 processes.
