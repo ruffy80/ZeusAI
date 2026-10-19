@@ -50,9 +50,7 @@ function stampOrder(order, dialOrInput) {
 }
 
 function _mobdial() {
-  try { return require('../../backend/modules/telegram-mobdial-os'); } catch (_) {
-    try { return require('../backend/modules/telegram-mobdial-os'); } catch (e2) { return null; }
-  }
+  try { return require('../../backend/modules/telegram-mobdial-os'); } catch (_) { return null; }
 }
 
 /**

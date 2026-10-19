@@ -135,6 +135,15 @@ async function main() {
     assert.equal(s.claimsAbsoluteUptime, false);
   });
 
+  await check('ICP reads the never-down kernel that sits beside it', () => {
+    const s = icp.getStatus();
+    assert.ok(s.neverDown, 'commerce pressure had no kernel');
+    assert.strictEqual(s.neverDown.protocol, 'NDK/1.0');
+    assert.strictEqual(typeof s.neverDown.health, 'string');
+    assert.ok(s.commercePressure);
+    assert.strictEqual(s.commercePressure.source, 'never-down-kernel');
+  });
+
   await check('NDK envelope exposes commerceBlocked', () => {
     const ndk = require('../backend/modules/never-down-kernel');
     const e = ndk.healthEnvelope();
