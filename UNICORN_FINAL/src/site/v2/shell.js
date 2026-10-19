@@ -4279,7 +4279,7 @@ function pageModules() {
 </section>
 ${_homeAtlasHtml()}
 <section class="card" style="margin-top:18px">
-  <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">${_esc(customer.length)} files build the shelf, the order, and the buyer file. They are not extra products. Duty: <a href="/api/module-duty" data-link><code>/api/module-duty</code></a>.</p>
+  <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">${_esc(customer.length)} files build the shelf, the order, and the buyer file. They are not extra products. Duty: <a href="/api/module-duty" data-link><code>/api/module-duty</code></a>. The delivery contract is <a href="/api/service-integrity" data-link><code>/api/service-integrity</code></a>.</p>
 </section>`;
 }
 
