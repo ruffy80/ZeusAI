@@ -148,3 +148,11 @@ The live host has 7741 MB of RAM and no GPU. `llama3:latest` is a 4.7 GB weight 
 The phrases “Is this a scam?”, “low automated trust score”, and “unpaid-delivery complaint” were hardcoded in `src/site/v2/discover-trust-os.js`. They were not loaded from a complaint database or an external trust API. The same file stated that the review was not in this codebase. No internal record was deleted.
 
 The homepage section, `/faq`, the FAQ schema, and `/trust-safety` now describe the operator, the shelf delivery clock, the contact email, and the refund contract at `/refund`. The old insight URL stays so existing links do not 404. Its visible title is “How to check ZeusAI before you pay.”
+
+## Shelf copy matches the file
+
+The logo, voice, social, and naming cards promised finished image files, thirty posts, or a live domain check. Those offers are not on the fulfillment AI allowlist, so checkout writes a Service Activation Pack. The SEO, pitch, email, landing, audit, and resume descriptions now name the Markdown or HTML file that is written when a provider key is armed, and the activation pack when it is not. Prices and checkout buttons are unchanged.
+
+The concierge ranks title and id text only. Dropping “(25 names + domains)” from the naming title left “product” at a score of 7, under the match threshold, so “I need 25 product names and free domains” fell through to the website audit. The ranker now treats the silent-e gerund “naming” as the stem of “names”. The card still says the file does not check whether a domain is available.
+
+The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `plata`, `plată`, `plati`, and `plăți`.

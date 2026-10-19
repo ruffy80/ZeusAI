@@ -8080,24 +8080,10 @@ app.post('/api/chat', authRateLimit(30, 60_000), (req, res, next) => {
     }
   }
 
-  // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
-  const lower = cleanMessage.toLowerCase();
-  const KEYWORD_RESPONSES = [
-    [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
-    [['marketplace'], 'Offers for sale are the public shelf at /pricing, /services, and /buy. Dropship is paused. Frontier is research.'],
-    [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
-    [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
-    [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
-    [['plan', 'pricing', 'pret'], 'Prices are the public shelf at /pricing. Bitcoin is the live rail. An enterprise kickoff does not deliver the license, the source, or a private cloud.'],
-    [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
-    [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
-  ];
-  const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
-  const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
-  // Degraded flag tells callers (concierge, dashboards) that no live AI provider
-  // answered and we served the deterministic keyword fallback. Forward-only:
-  // the field is additive, existing clients ignore it.
-  res.json({ reply, model: 'keyword-fallback', degraded: true });
+  // Last reply when no provider and no local model answered.
+  // degraded:true stays on the JSON so existing clients can tell a keyword reply from a model.
+  const keywordReply = require('./modules/chat-keyword-fallback').replyFor(cleanMessage);
+  res.json(keywordReply);
 });
 
 // ==================== UAIC STATUS + ADMIN ====================

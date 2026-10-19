@@ -381,6 +381,13 @@ function fitQuestion(buyer, door, lang, count, limitNote) {
   return (who + replace + ' ' + doorLine + (limitNote || '')).replace(/\s+/g, ' ').trim();
 }
 
+function wordMatchesStem(word, stem) {
+  if (!word || stem.length < 4) return false;
+  if (word.startsWith(stem) && word.length - stem.length <= 4) return true;
+  // "names" stems to "name"; the shelf word is "naming" (silent e before -ing).
+  return stem.endsWith('e') && word === stem.slice(0, -1) + 'ing';
+}
+
 function rankShelf(text, shelf) {
   const tokens = fold(text).split(/[^a-z0-9]+/).filter((tok) => tok.length >= 4 && !SHELF_STOP.has(tok));
   const ranked = [];
@@ -390,7 +397,7 @@ function rankShelf(text, shelf) {
     let score = 0;
     for (const tok of tokens) {
       const stem = tok.endsWith('s') && tok.length >= 5 ? tok.slice(0, -1) : tok;
-      const hit = hay.includes(tok) || (stem.length >= 4 && words.some((word) => word.startsWith(stem) && word.length - stem.length <= 4));
+      const hit = hay.includes(tok) || words.some((word) => wordMatchesStem(word, stem));
       if (hit) score += tok.length;
     }
     if (score >= 8) ranked.push({ item, score });

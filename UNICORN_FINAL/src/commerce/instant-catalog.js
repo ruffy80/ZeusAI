@@ -15,7 +15,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 49,
     deliveryMinutes: 5,
-    description: 'Full SEO + performance + accessibility audit, AI-generated, delivered in under 5 minutes.',
+    description: 'When a provider key is armed, the file is a Markdown audit: scorecard, SEO, performance, accessibility, and a 30-day plan. Without that key, the file is a Service Activation Pack.',
     inputs: [
       { key: 'url', label: 'Website URL', required: true, type: 'url' },
       { key: 'email', label: 'Delivery Email', required: true, type: 'email' }
@@ -27,7 +27,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 99,
     deliveryMinutes: 10,
-    description: 'AI-generated logo + 5 variants + favicon + brand-color palette.',
+    description: 'The checkout file is a Service Activation Pack. It records the order and the next steps. It does not include logo image files, a favicon, or visual variants.',
     inputs: [
       { key: 'brandName', label: 'Brand Name', required: true, type: 'text' },
       { key: 'industry', label: 'Industry', required: true, type: 'text' },
@@ -36,11 +36,11 @@ const SEED = [
   },
   {
     id: 'instant-pitch-deck',
-    title: 'Instant Pitch Deck (10 slides)',
+    title: 'Instant Pitch Deck',
     tier: 'instant',
     priceUSD: 149,
     deliveryMinutes: 8,
-    description: 'Investor-ready 10-slide deck generated from your one-paragraph idea.',
+    description: 'When a provider key is armed, the file is Markdown slide copy: problem, solution, market, product, and ask. Without that key, the file is a Service Activation Pack. It is not a designed slide deck.',
     inputs: [
       { key: 'idea', label: 'Startup Idea (1 paragraph)', required: true, type: 'textarea' },
       { key: 'email', label: 'Delivery Email', required: true, type: 'email' }
@@ -48,11 +48,11 @@ const SEED = [
   },
   {
     id: 'instant-seo-content-pack',
-    title: 'Instant SEO Content Pack (10 articles)',
+    title: 'Instant SEO Content Pack',
     tier: 'instant',
     priceUSD: 79,
     deliveryMinutes: 12,
-    description: 'Ten SEO-optimised long-form articles (1,500+ words each) on the topics you choose, ready to publish.',
+    description: 'When a provider key is armed, the file is one Markdown article with keywords, a title, a meta description, and internal-link ideas. Without that key, the file is a Service Activation Pack.',
     inputs: [
       { key: 'niche', label: 'Niche / Industry', required: true, type: 'text' },
       { key: 'keywords', label: 'Target keywords (comma-separated)', required: true, type: 'textarea' },
@@ -65,7 +65,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 199,
     deliveryMinutes: 15,
-    description: 'Conversion-optimised single-page site (responsive HTML/CSS) with hero, features, FAQ, CTA — yours to host anywhere.',
+    description: 'When a provider key is armed, the file is one self-contained HTML page: hero, benefits, FAQ, and a call to action. Without that key, the file is a Service Activation Pack.',
     inputs: [
       { key: 'productName', label: 'Product / Service Name', required: true, type: 'text' },
       { key: 'valueProp', label: 'Value proposition (1–2 sentences)', required: true, type: 'textarea' },
@@ -78,7 +78,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 129,
     deliveryMinutes: 10,
-    description: 'Tone-of-voice guide, key messages, taglines, do/don\'t list — calibrated to your audience and competitors.',
+    description: 'The checkout file is a Service Activation Pack. It records the order and the next steps. It is not a finished voice guide.',
     inputs: [
       { key: 'brandName', label: 'Brand Name', required: true, type: 'text' },
       { key: 'audience', label: 'Target audience', required: true, type: 'text' },
@@ -87,11 +87,11 @@ const SEED = [
   },
   {
     id: 'instant-social-media-kit',
-    title: 'Instant Social Media Kit (30 posts)',
+    title: 'Instant Social Media Kit',
     tier: 'instant',
     priceUSD: 89,
     deliveryMinutes: 12,
-    description: 'Thirty channel-ready social posts (Twitter/X, LinkedIn, Instagram) with hooks, copy and image briefs for one month.',
+    description: 'The checkout file is a Service Activation Pack. It records the order and the next steps. It is not thirty finished posts or image files.',
     inputs: [
       { key: 'brand', label: 'Brand / Company', required: true, type: 'text' },
       { key: 'channels', label: 'Primary channels', required: true, type: 'text' },
@@ -100,11 +100,11 @@ const SEED = [
   },
   {
     id: 'instant-email-sequence',
-    title: 'Instant 7-Email Onboarding Sequence',
+    title: 'Instant Email Onboarding Sequence',
     tier: 'instant',
     priceUSD: 119,
     deliveryMinutes: 12,
-    description: 'Seven-step lifecycle email sequence (welcome → activation → upgrade) tailored to your product and tone.',
+    description: 'When a provider key is armed, the file is five emails with a subject, preview, body, send timing, and a call to action. Without that key, the file is a Service Activation Pack.',
     inputs: [
       { key: 'product', label: 'Product description', required: true, type: 'textarea' },
       { key: 'goal', label: 'Primary goal (activation, upsell, retention…)', required: true, type: 'text' },
@@ -113,11 +113,11 @@ const SEED = [
   },
   {
     id: 'instant-product-naming',
-    title: 'Instant Product Naming Sprint (25 names + domains)',
+    title: 'Instant Product Naming Sprint',
     tier: 'instant',
     priceUSD: 59,
     deliveryMinutes: 8,
-    description: '25 brandable name candidates with available .com / .ai / .io domains shortlisted, plus rationale for each.',
+    description: 'The checkout file is a Service Activation Pack. It records the order and the next steps. It does not check whether a domain is available.',
     inputs: [
       { key: 'concept', label: 'Concept (1 paragraph)', required: true, type: 'textarea' },
       { key: 'tlds', label: 'Preferred TLDs', required: false, type: 'text' },
@@ -130,7 +130,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 39,
     deliveryMinutes: 10,
-    description: 'AI-rewritten one-page resume + matching LinkedIn About / headline tuned to your target role.',
+    description: 'When a provider key is armed, the file is a Markdown resume plus a LinkedIn headline and About section. Without that key, the file is a Service Activation Pack. It is not a Word file and it has no photo.',
     inputs: [
       { key: 'currentResume', label: 'Current resume text', required: true, type: 'textarea' },
       { key: 'targetRole', label: 'Target role / industry', required: true, type: 'text' },
