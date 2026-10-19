@@ -22,7 +22,7 @@ const state = {
 
 function _ndkEnvelope() {
   try {
-    const ndk = require('../never-down-kernel');
+    const ndk = require('./never-down-kernel');
     return typeof ndk.healthEnvelope === 'function' ? ndk.healthEnvelope() : null;
   } catch (_) {
     return null;

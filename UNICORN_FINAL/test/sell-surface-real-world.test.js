@@ -45,6 +45,11 @@ check('buyable catalog includes instant BTC SKUs with real recipes', () => {
   assert.ok(seo, 'SEO pack must be buyable');
   assert.equal(seo.mode, 'btc');
   assert.ok(seo.buyable);
+  const upr = require('../src/commerce/universal-payment-rails');
+  assert.equal(seo.ctaLabel, upr.ctaLabel('checkout'));
+  const build = items.find((p) => p.id === 'professional-ai-chatbot');
+  assert.ok(build, 'chatbot build must stay on the shelf');
+  assert.equal(build.ctaLabel, upr.ctaLabel('reserve'));
   assert.ok(String(seo.ctaHref).includes('instant-seo-content-pack'));
   const html = ss.pageBuy();
   assert.ok(html.includes('Buy what we actually deliver'));

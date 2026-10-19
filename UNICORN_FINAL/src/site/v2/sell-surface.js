@@ -62,7 +62,7 @@ function _loadBuyable() {
       ctaLabel = a.ctaLabel || ctaLabel;
     }
     try {
-      const upr = require('../commerce/universal-payment-rails');
+      const upr = require('../../commerce/universal-payment-rails');
       if (buyable && upr && typeof upr.ctaLabel === 'function') {
         ctaLabel = upr.ctaLabel(mode === 'reserve' ? 'reserve' : 'checkout');
       }

@@ -160,3 +160,8 @@ The chat keyword fallback, used only when no provider and no local model answer,
 ## Shelf on the site, organs on the server
 
 `/services/:id` used to build a product page, a price, and a buy button from the module registry when the id was not on the public shelf. A server organ is not a product. That URL now says the id stays on the server, omits checkout and product schema, and is `noindex`. The service sitemap lists shelf ids only. `/module-census` shows the shelf a customer can buy. The full file sheet stays on `/api/module-census`. The public menu no longer links that sheet as a store.
+The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `paypal`, `pay`, `plata`, `plată`, `plati`, and `plăți`.
+
+## Module joins
+
+The immortality protocol required `../never-down-kernel` from `backend/modules/`, so the kernel file next to it never loaded and commerce pressure stayed empty. The path is now `./never-down-kernel`. The attestation chain one folder down still uses `../never-down-kernel`. The sell-surface fallback, the fulfillment engine, and dial attribution keep a single require that resolves. `src/commerce/module-bond.js` checks those joins. It does not turn an internal organ into a product.
