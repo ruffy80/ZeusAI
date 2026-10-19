@@ -59,9 +59,20 @@ check('the census page shows the shelf and keeps server files off the product gr
   assert.ok(!html.includes('data-sovereign-buy="never-down-kernel"'));
 });
 
+check('an unknown id is not found and a module file stays on the server', () => {
+  const missing = shell.getHtml('/services/definitely-not-a-real-service-id-xyz-123');
+  assert.ok(missing.includes('Service not found.'));
+  assert.ok(missing.includes('data-missing-service="1"'));
+  assert.ok(!missing.includes('This stays on the server.'));
+  assert.ok(!missing.includes('data-sovereign-buy="definitely-not-a-real-service-id-xyz-123"'));
+  assert.ok(!missing.includes('"@type":"Product"'));
+  assert.ok(missing.includes('name="robots" content="noindex, nofollow"'));
+});
+
 check('hydration leaves a server-only page alone', () => {
   const client = fs.readFileSync(path.join(__dirname, '../src/site/v2/client.js'), 'utf8');
   assert.ok(client.includes("getAttribute('data-server-module') === '1'"));
+  assert.ok(client.includes("getAttribute('data-missing-service') === '1'"));
 });
 
 console.log('shelf-server-split: ' + passed + ' checks passed');

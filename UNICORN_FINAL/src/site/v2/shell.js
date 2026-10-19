@@ -72,6 +72,21 @@ function _serverOnlyService(route) {
   } catch (_) { return true; }
 }
 
+function _isServerModuleFile(id) {
+  const safe = String(id || '');
+  if (!/^[a-zA-Z0-9_.:-]{1,120}$/.test(safe) || safe.indexOf('..') !== -1) return false;
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const base = path.join(__dirname, '../../../backend/modules');
+    const root = path.resolve(base) + path.sep;
+    const file = path.resolve(base, safe + '.js');
+    const index = path.resolve(base, safe, 'index.js');
+    if (file.indexOf(root) !== 0 || index.indexOf(root) !== 0) return false;
+    return fs.existsSync(file) || fs.existsSync(index);
+  } catch (_) { return false; }
+}
+
 function _loadCatalog() {
   try {
     if (_catalogMemo.items && (Date.now() - _catalogMemo.ts) < _CATALOG_MEMO_MS) {
@@ -1824,15 +1839,8 @@ function pageServices() {
 }
 
 function pageService(id) {
-  // SSR the full product card on the first paint (no "Loading…" stub).
-  // We look up the service in the unified catalog / serviceMarketplace with
-  // live-priced enrichment already baked in by _loadCatalog(). If the id is
-  // not in the catalog (e.g. one of the many marketplace-only modules), we
-  // still SSR a real card sourced from the module registry so the URL is
-  // never a dead placeholder. The v2 client-side hydration (hydratePage in
-  // client.js) still runs on top and refreshes the price / narrative UI.
-  //
-  // RO: prima pictura contine deja detaliile produsului — fara "Loading…".
+  // First paint is the shelf card. A real module file stays on the server.
+  // An id that is neither a shelf offer nor a module file is not found.
   const safeId = String(id || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 120);
   if (!safeId) return `<section style="padding-top:140px"><div class="card"><p>Missing service id.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div></section>`;
 
@@ -1841,6 +1849,15 @@ function pageService(id) {
     const shelfItem = require('../../commerce/public-shelf').byId(safeId);
     if (shelfItem) s = Object.assign({}, shelfItem, { priceUSD: shelfItem.priceUsd, category: shelfItem.clock || shelfItem.tier });
   } catch (_) { s = null; }
+
+  if (!s && !_isServerModuleFile(safeId)) {
+    return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}" data-missing-service="1">
+  <div class="card" style="max-width:720px;margin:24px auto">
+    <p>Service not found.</p>
+    <a class="btn" href="/services" data-link>Back to marketplace</a>
+  </div>
+</section>`;
+  }
 
   if (!s) {
     return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}" data-server-module="1">
