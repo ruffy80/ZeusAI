@@ -155,6 +155,11 @@ The logo, voice, social, and naming cards promised finished image files, thirty 
 
 The concierge ranks title and id text only. Dropping “(25 names + domains)” from the naming title left “product” at a score of 7, under the match threshold, so “I need 25 product names and free domains” fell through to the website audit. The ranker now treats the silent-e gerund “naming” as the stem of “names”. The card still says the file does not check whether a domain is available.
 
+The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `plata`, `plată`, `plati`, and `plăți`.
+
+## Shelf on the site, organs on the server
+
+`/services/:id` used to build a product page, a price, and a buy button from the module registry when the id was not on the public shelf. A server organ is not a product. That URL now says the id stays on the server, omits checkout and product schema, and is `noindex`. The service sitemap lists shelf ids only. `/module-census` shows the shelf a customer can buy. The full file sheet stays on `/api/module-census`. The public menu no longer links that sheet as a store.
 The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `paypal`, `pay`, `plata`, `plată`, `plati`, and `plăți`.
 
 ## Module joins
