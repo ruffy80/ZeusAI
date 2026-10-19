@@ -155,4 +155,8 @@ The logo, voice, social, and naming cards promised finished image files, thirty 
 
 The concierge ranks title and id text only. Dropping “(25 names + domains)” from the naming title left “product” at a score of 7, under the match threshold, so “I need 25 product names and free domains” fell through to the website audit. The ranker now treats the silent-e gerund “naming” as the stem of “names”. The card still says the file does not check whether a domain is available.
 
-The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `plata`, `plată`, `plati`, and `plăți`.
+The chat keyword fallback, used only when no provider and no local model answer, no longer says “10+ metode”, “HIPAA, SOX și 25+ standarde”, or that an engine generates deals 24/7. The short key `plat` also matched the word “platform”, so payment words are now `payment`, `paypal`, `pay`, `plata`, `plată`, `plati`, and `plăți`.
+
+## Module joins
+
+The immortality protocol required `../never-down-kernel` from `backend/modules/`, so the kernel file next to it never loaded and commerce pressure stayed empty. The path is now `./never-down-kernel`. The attestation chain one folder down still uses `../never-down-kernel`. The sell-surface fallback, the fulfillment engine, and dial attribution keep a single require that resolves. `src/commerce/module-bond.js` checks those joins. It does not turn an internal organ into a product.

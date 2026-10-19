@@ -24,13 +24,9 @@
 // ===========================================================================
 
 let aiProviders = null;
-try { aiProviders = require('../../../backend/modules/aiProviders'); } catch (e) {
-  try { aiProviders = require('../../backend/modules/aiProviders'); } catch (_) { aiProviders = null; }
-}
+try { aiProviders = require('../../../backend/modules/aiProviders'); } catch (_) { aiProviders = null; }
 let fulfillmentAiOs = null;
-try { fulfillmentAiOs = require('../../../backend/modules/fulfillment-ai-os'); } catch (e) {
-  try { fulfillmentAiOs = require('../../backend/modules/fulfillment-ai-os'); } catch (_) { fulfillmentAiOs = null; }
-}
+try { fulfillmentAiOs = require('../../../backend/modules/fulfillment-ai-os'); } catch (_) { fulfillmentAiOs = null; }
 let deliveryRegistry = null;
 try { deliveryRegistry = require('./delivery-registry'); } catch (_) { deliveryRegistry = null; }
 
