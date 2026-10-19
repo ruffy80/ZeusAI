@@ -152,3 +152,5 @@ The homepage section, `/faq`, the FAQ schema, and `/trust-safety` now describe t
 ## Shelf copy matches the file
 
 The logo, voice, social, and naming cards promised finished image files, thirty posts, or a live domain check. Those offers are not on the fulfillment AI allowlist, so checkout writes a Service Activation Pack. The SEO, pitch, email, landing, audit, and resume descriptions now name the Markdown or HTML file that is written when a provider key is armed, and the activation pack when it is not. Prices and checkout buttons are unchanged.
+
+The concierge ranks title and id text only. Dropping “(25 names + domains)” from the naming title left “product” at a score of 7, under the match threshold, so “I need 25 product names and free domains” fell through to the website audit. The ranker now treats the silent-e gerund “naming” as the stem of “names”. The card still says the file does not check whether a domain is available.

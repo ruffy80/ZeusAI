@@ -195,6 +195,9 @@ check('advise finds a naming file from the whole shelf when the lane words are a
   const advice = shelf.advise('I need 25 product names and free domains');
   const ids = new Set(shelf.publicShelf().map((p) => p.id));
   assert.strictEqual(advice.primary.id, 'instant-product-naming');
+  assert.strictEqual(advice.primary.title, 'Instant Product Naming Sprint');
+  assert.ok(String(advice.primary.description).includes('does not check whether a domain is available'));
+  assert.ok(!/25 names|available \.com/.test(advice.primary.title + ' ' + advice.primary.description));
   assert.strictEqual(advice.knownOffers, ids.size);
   assert.ok(advice.also.some((x) => x.role === 'unasked'));
   assert.ok(advice.question.includes(String(ids.size)));
