@@ -64,6 +64,14 @@ function _toBtc(usd) {
 let _catalogMemo = { ts: 0, items: null };
 const _CATALOG_MEMO_MS = Math.max(1000, Number(process.env.SITE_SSR_CATALOG_CACHE_MS || 15000));
 
+function _serverOnlyService(route) {
+  const path = String(route || '');
+  if (path.indexOf('/services/') !== 0) return false;
+  try {
+    return !require('../../commerce/public-shelf').byId(path.slice('/services/'.length));
+  } catch (_) { return true; }
+}
+
 function _loadCatalog() {
   try {
     if (_catalogMemo.items && (Date.now() - _catalogMemo.ts) < _CATALOG_MEMO_MS) {
@@ -502,7 +510,7 @@ ${hreflangs}
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
 ${discoverTrust.headExtras()}
-${(route === '/outreach-desk' || ((String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) && !discoverTrust.article(route))) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
+${(route === '/outreach-desk' || ((String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) && !discoverTrust.article(route)) || _serverOnlyService(route)) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
@@ -629,7 +637,6 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
     ${L('/status', 'Autonomy OS')}
-    ${L('/module-census', 'Modules')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
@@ -1834,36 +1841,16 @@ function pageService(id) {
     const shelfItem = require('../../commerce/public-shelf').byId(safeId);
     if (shelfItem) s = Object.assign({}, shelfItem, { priceUSD: shelfItem.priceUsd, category: shelfItem.clock || shelfItem.tier });
   } catch (_) { s = null; }
-  if (!s) {
-    try {
-      const catalog = _loadCatalog() || [];
-      s = catalog.find((p) => String(p.id) === safeId) || null;
-    } catch (_) { s = null; }
-  }
-  if (!s) {
-    // Fallback: pull straight from the module registry if the id isn't
-    // in the canonical unified catalog. Keeps every module URL alive.
-    try {
-      const marketplace = require('../../../backend/modules/serviceMarketplace');
-      if (marketplace && typeof marketplace.getService === 'function') {
-        const m = marketplace.getService(safeId);
-        if (m) {
-          s = {
-            id: String(m.id || safeId),
-            title: String(m.name || safeId),
-            description: String(m.description || ''),
-            priceUSD: Number(m.price || m.basePrice || 0),
-            category: String(m.category || 'core'),
-            tier: 'professional',
-          };
-        }
-      }
-    } catch (_) { /* module not loadable in split-process mode */ }
-  }
 
   if (!s) {
-    return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}">
-  <div id="serviceMain"><div class="card" style="max-width:640px;margin:24px auto"><h1 style="margin:0 0 10px">Service not found</h1><p style="color:var(--ink-dim)">The id <code>${_esc(safeId)}</code> is not in the live catalog. Browse the marketplace to find a matching product.</p><a class="btn btn-primary" href="/services" data-link style="margin-top:14px">← All services</a></div></div>
+    return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}" data-server-module="1">
+  <div class="card" style="max-width:720px;margin:24px auto">
+    <span class="kicker">Server only</span>
+    <h1 style="margin:8px 0 10px">This stays on the server.</h1>
+    <p style="color:var(--ink-dim);line-height:1.65">The id <code>${_esc(safeId)}</code> keeps ZeusAI running. It is not a product. It has no price and no checkout.</p>
+    <p style="color:var(--ink-dim);line-height:1.65">What a customer can buy is the public shelf. Each card names the file, the kickoff, or the proposal, and the button matches that offer.</p>
+    <p style="margin-top:14px"><a class="btn btn-primary" href="/services" data-link>See what is for sale</a></p>
+  </div>
 </section>`;
   }
 
@@ -4279,28 +4266,20 @@ function pageModules() {
   try { s = require('../../../backend/modules/module-census-os').summary(); } catch (_) { s = null; }
   try { duty = require('../../commerce/module-duty').sheet(); } catch (_) { duty = null; }
   if (!s) {
-    return `<section class="hero"><h1>Module census</h1><p class="lead">The census module did not load.</p></section>`;
+    return `<section class="hero"><h1>What is for sale</h1><p class="lead">The shelf did not load.</p></section>`;
   }
-  const refused = (s.refusedNames || []).map((id) => `<li><code>${_esc(id)}</code></li>`).join('');
   const customer = duty && Array.isArray(duty.customer) ? duty.customer : [];
-  const support = duty && Array.isArray(duty.support) ? duty.support : [];
-  const customerList = customer.map((row) => `<li><code>${_esc(row.path)}</code> — ${_esc(row.role)}: ${_esc(row.work)}</li>`).join('');
-  const supportList = support.map((row) => `<li><code>${_esc(row.path)}</code> — ${_esc(row.work)}</li>`).join('');
-  return `<section class="hero" style="padding-bottom:28px">
+  return `<section class="hero" style="padding-bottom:12px">
   <div class="hero-copy" style="max-width:860px">
-    <span class="hero-eyebrow"><span class="dot"></span> MCO/1.0 · Module Census</span>
-    <h1>Every module, <span class="grad">one sheet.</span></h1>
-    <p class="lead">Files ${_esc(s.files)} · aliases ${_esc(s.aliases)} · virtual workers ${_esc(s.virtualWorkers)} · unregistered ${_esc(s.unregisteredFiles)} · absent ${_esc(s.absent)} · refused ${_esc(s.refused)}. inventsModules = false.</p>
-    <p class="lead">Unicorn organs ${_esc(s.unicornFiles)} · customer files ${_esc(s.customerDutyFiles)} inside the module directory, ${_esc(customer.length)} on the customer duty list. The duty sheet is <a href="/api/module-duty" data-link><code>/api/module-duty</code></a>.</p>
-    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">The full sheet is <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>. Refused stays at ${_esc(s.refused)}. The five frontier engines run locally and meet in <a href="/frontier" data-link>FCO/1.0</a>.</p>
-    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">A file name is not a customer delivery. The customer contract is the public shelf. <a href="/api/service-integrity" data-link><code>/api/service-integrity</code></a> proves every shelf offer: the button, the price, and the file agree. Checkout refuses a shelf id that fails.</p>
-    <h2 style="font-size:18px;margin:22px 0 8px">Creates or delivers a customer service</h2>
-    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${customerList}</ul>
-    <h2 style="font-size:18px;margin:22px 0 8px">Called during a purchase, still an organ</h2>
-    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${supportList}</ul>
-    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">Every other module file works for Unicorn: health, deploy, census, research, and the orchestrator. It does not create a shelf offer and it does not write the buyer file.</p>
-    <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7">${refused}</ul>
+    <span class="hero-eyebrow"><span class="dot"></span> Public shelf</span>
+    <h1>What you can buy. <span class="grad">The rest stays on the server.</span></h1>
+    <p class="lead">A file name is not a customer delivery. The customer contract is the public shelf. Each card below is an offer: the price, the button, and the file agree.</p>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.6">Creates or delivers a customer service only through that shelf. Every other module file works for Unicorn on the server: health, deploy, census, research, and the orchestrator. It does not create a shelf offer and it does not write the buyer file. The operator sheet lists ${_esc(s.files)} files and ${_esc(s.unicornFiles)} organs at <a href="/api/module-census?full=1" data-link><code>/api/module-census?full=1</code></a>.</p>
   </div>
+</section>
+${_homeAtlasHtml()}
+<section class="card" style="margin-top:18px">
+  <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">${_esc(customer.length)} files build the shelf, the order, and the buyer file. They are not extra products. Duty: <a href="/api/module-duty" data-link><code>/api/module-duty</code></a>.</p>
 </section>`;
 }
 
@@ -7449,11 +7428,16 @@ function routeTitle(route) {
     return 'Offer guide';
   }
   if (route.startsWith('/services/')) {
+    const id = route.slice('/services/'.length);
     try {
-      const meta = require('../../../backend/modules/discovery-seven').serviceMeta(route.slice('/services/'.length));
-      if (meta && meta.title) return meta.title;
-    } catch (_) { /* keep fallback */ }
-    return 'Service';
+      const item = require('../../commerce/public-shelf').byId(id);
+      if (item && item.title) return item.title;
+      if (item) {
+        const meta = require('../../../backend/modules/discovery-seven').serviceMeta(id);
+        if (meta && meta.title) return meta.title;
+      }
+    } catch (_) { /* not a product */ }
+    return 'Not for sale';
   }
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
@@ -7545,10 +7529,16 @@ function routeDescription(route) {
     return 'ZeusAI offer guide. Price and checkout match the public shelf.';
   }
   if (route.startsWith('/services/')) {
+    const id = route.slice('/services/'.length);
     try {
-      const meta = require('../../../backend/modules/discovery-seven').serviceMeta(route.slice('/services/'.length));
-      if (meta && meta.description) return meta.description;
-    } catch (_) { /* generic */ }
+      const item = require('../../commerce/public-shelf').byId(id);
+      if (item && item.description) return item.description;
+      if (item) {
+        const meta = require('../../../backend/modules/discovery-seven').serviceMeta(id);
+        if (meta && meta.description) return meta.description;
+      }
+    } catch (_) { /* not a product */ }
+    return 'This id runs on the server. It is not a product and it is not for sale.';
   }
   if (route.startsWith('/order/')) return 'Digital order passport with signed receipt, BTC payment status and delivery credentials.';
   if (route.startsWith('/twin/')) return 'Portable buyer commerce twin with offline-verifiable export bundle.';

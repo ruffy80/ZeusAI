@@ -3472,6 +3472,8 @@ async function hydrateLiveSales(gridEl){
 }
 
 async function hydrateServiceDetail(id){
+  const marked = document.getElementById('servicePage');
+  if (marked && marked.getAttribute('data-server-module') === '1') return;
   // Try master catalog first (covers frontier/verticals too), then legacy services
   let s = null;
   if (STATE.masterCatalog && Array.isArray(STATE.masterCatalog.items)) {

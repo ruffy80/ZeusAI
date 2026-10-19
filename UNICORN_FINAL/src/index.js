@@ -9600,7 +9600,11 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
       const seo = require('./seo/sitemap-helpers');
       const cat = await getCachedMasterCatalog();
       const base = APP_URL.replace(/\/+$/, '');
-      const items = (cat.items || []).filter((it) => it && it.id);
+      let shelfIds = null;
+      try {
+        shelfIds = new Set(require('./commerce/public-shelf').publicShelf().map((row) => String(row.id)));
+      } catch (_) { shelfIds = null; }
+      const items = (cat.items || []).filter((it) => it && it.id && (!shelfIds || shelfIds.has(String(it.id))));
       const paths = items.map((it) => `/services/${encodeURIComponent(it.id)}`);
       const xml = seo.buildUrlsetXml(base, paths, {
         lastmod: (cat.updatedAt || new Date().toISOString()).slice(0, 10),
