@@ -142,3 +142,9 @@ The live host has 7741 MB of RAM and no GPU. `llama3:latest` is a 4.7 GB weight 
 `MDT/1.0` splits the tree by job. A file works for Unicorn unless it creates a public shelf offer, opens the checkout order, writes the buyer file, or proves those three agree. The census still sets `deliversCustomer` false on every row: the product is the shelf offer, not the module name.
 
 `dynamic-pricing` and `aiProviders` are called while a purchase happens. They stay organs. `GET /api/module-duty` publishes the two lists and the shelf count. The Integrated Autonomy Kernel stays the only orchestrator.
+
+## Public trust copy
+
+The phrases “Is this a scam?”, “low automated trust score”, and “unpaid-delivery complaint” were hardcoded in `src/site/v2/discover-trust-os.js`. They were not loaded from a complaint database or an external trust API. The same file stated that the review was not in this codebase. No internal record was deleted.
+
+The homepage section, `/faq`, the FAQ schema, and `/trust-safety` now describe the operator, the shelf delivery clock, the contact email, and the refund contract at `/refund`. The old insight URL stays so existing links do not 404. Its visible title is “How to check ZeusAI before you pay.”

@@ -103,7 +103,7 @@ const ARTICLES = [
     paragraphs: [
       'A Bitcoin checkout on ZeusAI is a quote plus an address. The server locks a dollar price, converts it with the spot rate it is using, and shows a BIP-21 payment URI for the owner wallet. You send that amount from your own wallet. No custodian in this flow holds the coins.',
       'The server watches for a matching payment. When it sees settlement, it marks the order paid and issues the signed receipt and the delivery credential. Until that match exists, the order is unpaid. A screenshot of a sent transaction is not the same record as a confirmed match.',
-      'If you pay and nothing is delivered, do not argue with a trust-score website first. Open /refund, keep the transaction id, and email the owner at the address on /contact. The refund page is the contract. The owner is a named person, not a ticket queue.',
+      'If a payment is not matched to the order, open /refund, keep the transaction id, and email the owner at the address on /contact. The refund page is the contract. The owner is a named person, not a ticket queue.',
       'Shared hosting and a privacy-protected WHOIS record do not move coins. The wallet address published on /trust is the destination you can check in a block explorer. Compare it with the address on your invoice before you send funds.',
       'Other rails exist in the codebase as optional adapters. They are live only when their keys are present. The honest checkout is the one that shows the rail you can actually use.',
     ],
@@ -123,15 +123,15 @@ const ARTICLES = [
   },
   {
     slug: 'reading-a-low-trust-score',
-    title: 'How to read a low trust score on a young Bitcoin checkout',
-    description: 'What a low Scamadviser-style score usually measures, and which ZeusAI pages answer those checks without invented reviews.',
-    keywords: 'website trust score Bitcoin checkout',
+    title: 'How to check ZeusAI before you pay',
+    description: 'Operator identity, the Bitcoin wallet, the delivery clock, and the refund contract. No invented reviews.',
+    keywords: 'ZeusAI trust transparency support',
     paragraphs: [
-      'A low automated trust score usually means the domain is young, the WHOIS record is private, the IP is shared with other sites, and a complaint exists. Those are real inputs. They are not a proof that a specific unpaid invoice happened, and they are not a proof that it did not.',
-      'ZeusAI cannot unmask WHOIS from application code. The operator name and email are public on /about and /contact. A street address, phone number, and company registration number are not published, because they have not been supplied for publication. Inventing them would make the trust problem worse.',
-      'The site runs on a single VPS. A shared address with unrelated neighbors is how many small servers look to a reputation feed. The remedy a buyer can use is narrower: check the wallet, the refund page, the owner email, and whether the deliverable is described specifically enough to reject.',
-      'A negative review about Bitcoin paid and nothing delivered is a serious claim. This codebase does not contain that review and does not deny it. If you are the person who paid, write to the owner with the transaction id and the order id. If you are a prospect, treat the claim as unresolved until you see a public correction or a refund receipt.',
-      'The pages that answer the check are /trust-safety, /refund, /trust, and /origin. The buyer count on /origin is allowed to be zero. A zero you can see is more trustworthy than a testimonial you cannot verify.',
+      'Check three public facts before you pay. The operator is named on /about and /contact. The Bitcoin address is published on /trust and must match the invoice. The refund contract is at /refund.',
+      'ZeusAI does not publish a street address, a phone number, or a company registration number. Those values stay off the site until the owner supplies them for publication. A placeholder would be a false trust signal.',
+      'The site runs on a single VPS behind nginx. The check a buyer can do is the wallet, the refund page, the owner email, and whether the shelf card names a deliverable you can reject.',
+      'Delivery follows a matched payment. Minute files quote a clock in minutes. Engagements open a kickoff pack, then the operator delivers on the stated window. If the file is missing or wrong, email the owner with the order id and the transaction id and use /refund.',
+      'The pages for that check are /trust-safety, /refund, /trust, and /origin. ZeusAI does not publish invented testimonials. Confirmed buyers are counted on /origin.',
     ],
   },
   {
@@ -203,8 +203,8 @@ const ARTICLES = [
 
 const OBJECTIONS = [
   {
-    q: 'Is this a scam?',
-    a: 'Check the operator, the wallet, and the refund contract before you pay. The operator is Vladoi Ionut, reachable at the email on /contact. ZeusAI does not publish invented testimonials. A low automated trust score and any unpaid-delivery complaint are addressed on /trust-safety, not waved away.',
+    q: 'Who operates ZeusAI, and how does support work?',
+    a: 'Vladoi Ionut operates ZeusAI. Email the address on /contact. Before you pay, compare the Bitcoin address with /trust and read the deliverable on the shelf card. Delivery follows a matched payment. The refund contract at /refund states a 30-day window and a signed refund intent when a service promise is breached.',
   },
   {
     q: 'How does the refund work?',
@@ -571,14 +571,14 @@ function discovery() {
 function pageTrustSafety() {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Trust and safety · DTO/1.0</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">What a buyer can <span class="grad">check before paying.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:760px">This page answers the checks that automated trust scores raise. It does not invent a street address, a phone number, a company registration, or customer reviews.</p>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Trust, Transparency <span class="grad">&amp; Support.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:760px">ZeusAI sells the offers on the public shelf. You can check the operator, the wallet, the delivery clock, and the refund contract before you pay. This page does not invent a street address, a phone number, a company registration, or customer reviews.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:22px">
     <div class="card"><span class="tag">Operator</span><h3 style="margin:8px 0">Named person</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">${esc(OWNER.name)} operates ZeusAI. Email <a href="mailto:${esc(OWNER.email)}">${esc(OWNER.email)}</a>. The same identity is on <a href="/about" data-link>/about</a> and <a href="/contact" data-link>/contact</a>.</p></div>
     <div class="card"><span class="tag">WHOIS</span><h3 style="margin:8px 0">Privacy is still on</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Application code cannot make a registrar publish WHOIS. Until the owner turns privacy off at the registrar, the public identity is the name and email above.</p></div>
     <div class="card"><span class="tag">Address and phone</span><h3 style="margin:8px 0">Not published</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">No street address, phone number, or registration number is printed here. Those values are omitted until the owner supplies them. A placeholder would be a false trust signal.</p></div>
     <div class="card"><span class="tag">Server</span><h3 style="margin:8px 0">One VPS</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">zeusai.pro is a single VPS behind nginx, with the site and API managed by PM2. A shared IP can sit next to unrelated sites. That is a property of the host, not a claim about those neighbors.</p></div>
-    <div class="card"><span class="tag">Low score and reviews</span><h3 style="margin:8px 0">Not denied</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">A score near zero usually flags hidden WHOIS, a young domain, a shared address, and a complaint. A report of Bitcoin paid with no delivery is a serious claim. This site does not contain that review and does not call it false. If you paid, email the owner with the transaction id and use <a href="/refund" data-link>/refund</a>.</p></div>
+    <div class="card"><span class="tag">Support</span><h3 style="margin:8px 0">Delivery and contact</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Minute files quote a delivery clock that starts at settlement. Engagements open a kickoff, then the operator delivers on the stated window. Email <a href="mailto:${esc(OWNER.email)}">${esc(OWNER.email)}</a> or use <a href="/contact" data-link>/contact</a>. The refund contract is <a href="/refund" data-link>/refund</a>.</p></div>
     <div class="card"><span class="tag">Payment</span><h3 style="margin:8px 0">Settlement, then delivery</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Bitcoin is paid to the owner wallet published on <a href="/trust" data-link>/trust</a>. Match that address to the invoice before you send. A signed receipt follows a matched settlement. The refund contract is <a href="/refund" data-link>/refund</a>.</p></div>
     <div class="card"><span class="tag">Data</span><h3 style="margin:8px 0">No training on your text</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Order email, the brief you submit, and the receipt are the data. The privacy policy and DPA forbid resale and model training on personal data. See <a href="/privacy" data-link>/privacy</a> and <a href="/dpa" data-link>/dpa</a>.</p></div>
     <div class="card"><span class="tag">Buyers</span><h3 style="margin:8px 0">Counted in public</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">paidHumans moves only after a confirmed settlement. The homepage no longer leads with a giant zero, and the number remains on <a href="/origin" data-link>/origin</a>.</p></div>
@@ -662,7 +662,7 @@ function howBuyerHtml() {
     <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Say what you do, or pick a named shelf item. Minute files are paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. None of them is a finished company in a download.</p></div>
     <div class="card"><span class="tag">2 · Quote</span><p style="color:var(--ink-dim);line-height:1.65">Checkout locks one dollar price. Bitcoin is the primary rail and shows the owner wallet. Other rails appear only when configured.</p></div>
     <div class="card"><span class="tag">3 · Settle</span><p style="color:var(--ink-dim);line-height:1.65">Delivery follows a matched payment. Instant SKUs quote minutes (resume about 10, website audit about 5). Engagements quote days. A signed receipt is the record.</p></div>
-    <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">If the deliverable is missing or wrong, use <a href="/refund" data-link>/refund</a> and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. The 30-day window and the breach path are written on that page. Questions about the trust score are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
+    <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">If the deliverable is missing or wrong, use <a href="/refund" data-link>/refund</a> and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. The 30-day window and the breach path are written on that page. Operator, wallet, and delivery notes are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
   </div>
 </section>`;
 }
@@ -692,8 +692,8 @@ ${objectionHtml()}`;
 
 function objectionHtml() {
   const rows = OBJECTIONS.map((f) => `<details class="card" style="padding:14px 16px"><summary style="cursor:pointer;font-weight:650">${esc(f.q)}</summary><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:10px 0 0">${esc(f.a)}</p></details>`).join('');
-  return `<section id="homeObjections" style="margin:28px 0 0">
-  <div class="section-title"><div><span class="kicker">Before you pay</span><h2>Three questions, <span class="grad">answered in public.</span></h2></div></div>
+  return `<section id="homeObjections" style="margin:28px 0 0" aria-label="Trust, Transparency and Support">
+  <div class="section-title"><div><span class="kicker">Trust, Transparency &amp; Support</span><h2>Who operates it, <span class="grad">how delivery works, how to get help.</span></h2></div></div>
   <div style="display:grid;gap:10px">${rows}</div>
   <p style="margin-top:12px"><a href="/faq" data-link>Full FAQ</a> · <a href="/trust-safety" data-link>Trust and safety</a> · <a href="/refund" data-link>Refund contract</a></p>
 </section>`;
