@@ -68,5 +68,28 @@ check('the shelf names the file on every card and drops the false three-pack cla
   assert.ok(sell.includes('Buy what we actually deliver'));
 });
 
+check('the public shelf does not promise a file the checkout will not write', () => {
+  const shelf = require('../src/commerce/public-shelf').publicShelf();
+  const byId = {};
+  shelf.forEach((row) => { byId[row.id] = row; });
+  function text(id) {
+    const row = byId[id];
+    assert.ok(row, id);
+    return row.title + ' ' + row.description;
+  }
+  assert.ok(!/AI-generated logo \+ 5 variants/i.test(text('instant-logo-kit')));
+  assert.ok(/does not include logo image files/.test(text('instant-logo-kit')));
+  assert.ok(/Service Activation Pack/.test(text('instant-logo-kit')));
+  assert.ok(!/Thirty channel-ready|30 posts/i.test(text('instant-social-media-kit')));
+  assert.ok(/not thirty finished posts/.test(text('instant-social-media-kit')));
+  assert.ok(!/available \.com \/ \.ai|25 brandable/i.test(text('instant-product-naming')));
+  assert.ok(/does not check whether a domain is available/.test(text('instant-product-naming')));
+  assert.ok(/not a finished voice guide/.test(text('instant-brand-voice')));
+  assert.ok(!/10 articles|1,500\+ words/.test(text('instant-seo-content-pack')));
+  assert.ok(/Instant SEO Content Pack/.test(text('instant-seo-content-pack')));
+  assert.ok(!/\(10 slides\)|seven-step|7-Email/i.test(text('instant-pitch-deck') + text('instant-email-sequence')));
+  assert.ok(/not a Word file/.test(text('instant-resume-makeover')));
+});
+
 console.log('\n✅ offer-preview:', passed, 'tests passed');
 process.exit(0);
