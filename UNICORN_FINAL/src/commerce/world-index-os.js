@@ -221,7 +221,7 @@ function whyZeroVisitors(opts) {
   }
   return {
     code: 'no_distribution_surface',
-    message: 'Zero visitors is the honest state: the storefront is crawlable, but nobody is being sent here. Facebook/X/TikTok/Instagram stay dark without tokens in GitHub → PM2. IndexNow is not traffic. Google ranking needs Search Console ownership, a submitted sitemap, time, and real backlinks. Modules do not invent users.',
+      message: 'This protocol has no visitor count to report. The shelf, offer guides, sitemap, and llms.txt are public without Facebook, TikTok, Instagram, or X. IndexNow is not traffic. Google impressions need Search Console. Modules do not invent users.',
   };
 }
 
@@ -253,7 +253,7 @@ function operatorChecklist(opts) {
     {
       id: 'relay-graft',
       ready: true,
-      action: 'Open /relay and send the $39 offer to one person on WhatsApp or SMS. The send is not a visitor and not a user.',
+      action: 'Open /pricing for the live shelf. /relay can carry one offer when a person chooses to send it. The send is not a visitor and not a user. A social network is not required.',
     },
     {
       id: 'indexnow-key',
@@ -283,7 +283,7 @@ function operatorChecklist(opts) {
       ready: gazeLit.length > 0,
       action: gazeLit.length > 0
         ? ('Public gaze permalinks exist: ' + gazeLit.join(', '))
-        : 'Put FACEBOOK_PAGE_TOKEN / X user-context keys / INSTAGRAM_ACCESS_TOKEN in GitHub Actions secrets (sync-all-secrets.yml writes /etc/zeusai/social.env) or POST them to /api/visible-social/arm. Telegram/Discord are operator rails, not public posts. Tokenless one-tap: /share.',
+        : 'Facebook, X, and Instagram tokens are optional. Visitors can open /guides, /pricing, /sitemap.xml, and /llms.txt with no social account. Tokenless hop: /share.',
     },
     {
       id: 'traffic-engine',
@@ -297,7 +297,7 @@ function operatorChecklist(opts) {
       ready: adsArmed,
       action: adsArmed
         ? 'An ads account env is present. Spend still requires a human budget.'
-        : 'No ads account is armed. Organic code cannot buy clicks. Optional: Google Ads / Meta Ads / TikTok Ads with a real budget.',
+        : 'No ads account is armed. Ads are optional. The public shelf does not buy clicks.',
     },
     {
       id: 'human-share',
@@ -423,7 +423,7 @@ function discovery(opts) {
       relayWellKnown: '/.well-known/relay-graft.json',
     },
     priorityPaths: PRIORITY_PATHS.slice(),
-    nextHumanAction: 'Add BING_WEBMASTER_API_KEY and GOOGLE_SERVICE_ACCOUNT_JSON so ownership + sitemap submission run themselves, then open /relay and send the offer to one person. Code makes URLs discoverable; it does not mint users.',
+    nextHumanAction: 'Add BING_WEBMASTER_API_KEY and GOOGLE_SERVICE_ACCOUNT_JSON when sitemap submission should run. Offer guides and /llms.txt are already public. A social network is not required. Code does not mint users.',
     generatedAt: new Date().toISOString(),
     ...(opts && typeof opts === 'object' ? opts : {}),
   };

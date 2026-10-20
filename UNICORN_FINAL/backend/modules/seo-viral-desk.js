@@ -41,8 +41,8 @@ function desk() {
     : []);
 
   const nextHumanAction = missing.length
-    ? ('Add ' + missing.map((m) => m.secret).join(' and ') + ', then open /relay and send the $39 offer to one person.')
-    : 'Open /relay and send the $39 offer to one person. Engines are already being notified; a ping is not a visitor.';
+    ? ('Add ' + missing.map((m) => m.secret).join(' and ') + '. The public shelf is /pricing. /relay is a human hop and does not send by itself.')
+    : 'Open /pricing for the live shelf. /relay is a human hop. A search ping is not a visitor.';
 
   return {
     ok: true,
@@ -76,7 +76,7 @@ function desk() {
       visible: '/.well-known/visible-social.json',
     },
     nextHumanAction,
-    note: 'IndexNow notifies engines. Bing 403 means the host is not verified yet. Telegram/Discord are operator rails. Facebook/X/TikTok stay dark without their tokens. A module does not mint users.',
+    note: 'IndexNow notifies engines. Bing 403 means the host is not verified yet. A visitor does not need Facebook, TikTok, or any social token. Guides, the sitemap, and /llms.txt stay public. A module does not mint users.',
     searchConsole,
     traffic: traffic
       ? {

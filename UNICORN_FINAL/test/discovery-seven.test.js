@@ -138,6 +138,23 @@ check('tick remembers the guide set and still does not close Google', () => {
   assert.ok(second.points.find((p) => p.key === 'findability').closed);
 });
 
+check('llms lines list every shelf guide and do not require a social network', () => {
+  const lines = d7.llmsOfferLines('https://zeusai.pro');
+  assert.ok(lines.includes('without a social network'));
+  assert.ok(lines.includes('https://zeusai.pro/guides'));
+  assert.ok(lines.includes('https://zeusai.pro/llms.txt'));
+  assert.ok(!/facebook\.com|tiktok\.com/i.test(lines));
+  shelf.publicShelf().forEach((item) => {
+    assert.ok(lines.includes('/guides/' + encodeURIComponent(item.id)), item.id);
+    assert.ok(lines.includes(item.title), item.id);
+  });
+  const promo = d7.audit().points.find((p) => p.key === 'promotion');
+  assert.strictEqual(promo.closed, false);
+  assert.ok(promo.whyOpen.includes('optional'));
+  const src = fs.readFileSync(path.join(__dirname, '../src/site/sovereign-extensions.js'), 'utf8');
+  assert.ok(src.includes('llmsOfferLines'));
+});
+
 check('test chain includes this file', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
   assert.ok(String(pkg.scripts['test:chain']).includes('discovery-seven.test.js'));
