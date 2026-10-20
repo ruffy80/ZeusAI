@@ -176,6 +176,13 @@ try {
     require('dotenv').config({ path: '/var/www/unicorn/shared/.env', override: false });
   }
 } catch (_) { /* non-fatal */ }
+// Search Console key lives in its own file so nobody edits the main .env by hand.
+// override:false fills the slot only when the process does not already have it.
+try {
+  if (require('fs').existsSync('/var/www/unicorn/shared/search-console.env')) {
+    require('dotenv').config({ path: '/var/www/unicorn/shared/search-console.env', override: false });
+  }
+} catch (_) { /* non-fatal */ }
 
 const QIS_PROCESS_ALIASES = {
   unicorn: 'unicorn-backend',
