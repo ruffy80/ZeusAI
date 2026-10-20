@@ -126,6 +126,125 @@ check('armed Google dry-run plans the full verify → property → sitemap chain
   });
 });
 
+function jsonResponse(status, body) {
+  const text = JSON.stringify(body);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => text,
+  };
+}
+
+check('performance stays unavailable without a secret and does not call Google', async () => {
+  clearSecrets();
+  bridge._resetForTests();
+  let called = 0;
+  const prev = global.fetch;
+  global.fetch = async () => { called += 1; return jsonResponse(500, {}); };
+  return bridge.readPerformance({}).then((r) => {
+    assert.strictEqual(called, 0);
+    assert.strictEqual(r.blocked, true);
+    assert.strictEqual(r.reason, 'no_service_account');
+    assert.strictEqual(r.secret, 'GOOGLE_SERVICE_ACCOUNT_JSON');
+    assert.strictEqual(r.metrics.clicks.status, 'unavailable');
+    assert.strictEqual(r.metrics.clicks.value, null);
+    assert.strictEqual(r.metrics.impressions.value, null);
+    assert.strictEqual(r.metrics.ctr.value, null);
+    assert.strictEqual(r.metrics.position.value, null);
+    assert.strictEqual(r.sitemap.status, 'unavailable');
+    assert.strictEqual(r.sitemap.errors, null);
+    const status = bridge.getStatus();
+    assert.strictEqual(status.performance.reason, 'no_service_account');
+    assert.strictEqual(status.performance.metrics.clicks.value, null);
+    global.fetch = prev;
+  });
+});
+
+check('performance read uses the domain property and keeps the key out of the result', async () => {
+  clearSecrets();
+  const account = fakeServiceAccount();
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON = account;
+  const prev = global.fetch;
+  const urls = [];
+  global.fetch = async (url) => {
+    const u = String(url);
+    urls.push(u);
+    if (u.includes('oauth2.googleapis.com/token')) return jsonResponse(200, { access_token: 'ya29.test-token' });
+    if (u.includes('sc-domain%3Azeusai.pro') && u.includes('searchAnalytics/query')) {
+      return jsonResponse(200, { rows: [{ clicks: 3, impressions: 40, ctr: 0.075, position: 8.5, keys: ['https://zeusai.pro/guides'] }] });
+    }
+    if (u.includes('sc-domain%3Azeusai.pro') && u.includes('/sitemaps')) {
+      return jsonResponse(200, { sitemap: [{ path: 'https://zeusai.pro/sitemap.xml', errors: 2, warnings: 1, isPending: false }] });
+    }
+    return jsonResponse(403, { error: { message: 'forbidden' } });
+  };
+  return bridge.readPerformance({}).then((r) => {
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.siteUrl, 'sc-domain:zeusai.pro');
+    assert.strictEqual(r.metrics.clicks.status, 'measured');
+    assert.strictEqual(r.metrics.clicks.value, 3);
+    assert.strictEqual(r.metrics.impressions.value, 40);
+    assert.strictEqual(r.metrics.ctr.value, 0.075);
+    assert.strictEqual(r.metrics.position.value, 8.5);
+    assert.strictEqual(r.sitemap.status, 'errors');
+    assert.strictEqual(r.sitemap.errors, 2);
+    assert.strictEqual(r.sitemap.warnings, 1);
+    assert.ok(urls.some((u) => u.includes('sc-domain%3Azeusai.pro')));
+    assert.ok(!urls.some((u) => u.includes('https%3A%2F%2Fzeusai.pro%2F')));
+    const packed = JSON.stringify(r);
+    assert.ok(!packed.includes('PRIVATE KEY'));
+    assert.ok(!packed.includes('ya29.test-token'));
+    assert.ok(!packed.includes(account));
+    global.fetch = prev;
+    clearSecrets();
+  });
+});
+
+check('an empty Search Console response is a measured zero, not a hidden failure', async () => {
+  clearSecrets();
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON = fakeServiceAccount();
+  const prev = global.fetch;
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('oauth2.googleapis.com/token')) return jsonResponse(200, { access_token: 'ya29.empty' });
+    if (u.includes('searchAnalytics/query')) return jsonResponse(200, { rows: [] });
+    if (u.includes('/sitemaps')) return jsonResponse(200, { sitemap: [] });
+    return jsonResponse(404, {});
+  };
+  return bridge.readPerformance({}).then((r) => {
+    assert.strictEqual(r.reason, 'search_console_empty');
+    assert.strictEqual(r.metrics.clicks.status, 'measured');
+    assert.strictEqual(r.metrics.clicks.value, 0);
+    assert.strictEqual(r.metrics.impressions.value, 0);
+    assert.strictEqual(r.metrics.ctr.status, 'unavailable');
+    assert.strictEqual(r.metrics.position.value, null);
+    assert.strictEqual(r.sitemap.status, 'missing');
+    global.fetch = prev;
+    clearSecrets();
+  });
+});
+
+check('a rejected property stays unavailable and names no invented clicks', async () => {
+  clearSecrets();
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON = fakeServiceAccount();
+  const prev = global.fetch;
+  global.fetch = async (url) => {
+    if (String(url).includes('oauth2.googleapis.com/token')) return jsonResponse(200, { access_token: 'ya29.nope' });
+    return jsonResponse(403, { error: { message: 'User does not have sufficient permission' } });
+  };
+  return bridge.readPerformance({}).then((r) => {
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.blocked, true);
+    assert.strictEqual(r.reason, 'property_rejected');
+    assert.strictEqual(r.metrics.clicks.status, 'unavailable');
+    assert.strictEqual(r.metrics.clicks.value, null);
+    assert.ok(r.attempts.length >= 2);
+    assert.ok(!JSON.stringify(r).includes('ya29.nope'));
+    global.fetch = prev;
+    clearSecrets();
+  });
+});
+
 check('base64 service account is accepted (multi-line .env transport)', () => {
   clearSecrets();
   process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = Buffer.from(fakeServiceAccount(), 'utf8').toString('base64');

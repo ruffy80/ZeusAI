@@ -11,7 +11,10 @@
 // Both run only when the owner supplies ONE secret per engine. Without the
 // secret this module reports `blocked` with the exact secret name — it never
 // claims a submission happened, never invents crawl counts, impressions,
-// clicks, or visitors.
+// clicks, or visitors. A performance read reports those four numbers only
+// when Search Console returns them. A domain property is `sc-domain:zeusai.pro`;
+// a URL-prefix property is `https://zeusai.pro/`. The read tries the domain
+// property first because that is how a verified "zeusai.pro" property is named.
 //
 // Google chain (fully automatic once GOOGLE_SERVICE_ACCOUNT_JSON exists):
 //   getToken(FILE) → persist token so the site serves /google<hash>.html
@@ -59,6 +62,7 @@ const state = {
   runs: 0,
   bing: null,
   google: null,
+  performance: null,
 };
 
 function _ensureDir() {
@@ -399,6 +403,200 @@ async function runGoogle(opts) {
   };
 }
 
+function _blankMetrics() {
+  return {
+    clicks: { status: 'unavailable', value: null },
+    impressions: { status: 'unavailable', value: null },
+    ctr: { status: 'unavailable', value: null },
+    position: { status: 'unavailable', value: null },
+  };
+}
+
+function propertyCandidates() {
+  const list = [];
+  const add = (value) => {
+    const v = String(value || '').trim();
+    if (v && list.indexOf(v) === -1) list.push(v);
+  };
+  add(process.env.SEARCH_CONSOLE_SITE_URL);
+  add('sc-domain:' + HOST);
+  add(SITE_URL);
+  return list;
+}
+
+function _ymd(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function _range() {
+  const end = new Date();
+  end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end.getTime());
+  start.setUTCDate(start.getUTCDate() - 27);
+  return { startDate: _ymd(start), endDate: _ymd(end) };
+}
+
+function _redact(detail) {
+  return String(detail || '')
+    .replace(/-----BEGIN[\s\S]*?-----END [^-]+-----/g, '[redacted]')
+    .replace(/"private_key"\s*:\s*"[^"]*"/g, '"private_key":"[redacted]"')
+    .replace(/ya29\.[A-Za-z0-9._-]+/g, '[redacted]')
+    .slice(0, 240);
+}
+
+function _measured(n) {
+  const value = Number(n);
+  if (!Number.isFinite(value)) return { status: 'unavailable', value: null };
+  return { status: 'measured', value };
+}
+
+/**
+ * Read clicks, impressions, CTR, and average position for the verified
+ * property. Empty Search Console rows are a measured zero for clicks and
+ * impressions. CTR and position stay unavailable when Google returned no row,
+ * because an average does not exist. This function never returns the key or
+ * the access token.
+ */
+async function readPerformance(opts) {
+  const o = opts || {};
+  const report = {
+    ok: false,
+    protocol: PROTOCOL,
+    host: HOST,
+    inventsClicks: false,
+    inventsImpressions: false,
+    inventsCtr: false,
+    inventsPosition: false,
+    range: _range(),
+    candidates: propertyCandidates(),
+    siteUrl: null,
+    metrics: _blankMetrics(),
+    pages: { status: 'unavailable', value: null },
+    sitemap: { status: 'unavailable', path: SITEMAP_URL, errors: null, warnings: null, pending: null },
+    attempts: [],
+  };
+  const sa = _serviceAccount();
+  if (!sa) {
+    report.blocked = true;
+    report.reason = 'no_service_account';
+    report.secret = SECRET_HINTS.google;
+    return report;
+  }
+  report.armed = true;
+  if (o.dryRun) {
+    report.ok = true;
+    report.dryRun = true;
+    report.reason = 'dry_run';
+    return report;
+  }
+  const auth = await _googleAccessToken(sa);
+  if (!auth.ok) {
+    report.blocked = true;
+    report.reason = 'token_exchange_failed';
+    report.error = auth.error || 'token_exchange_failed';
+    report.status = auth.status || 0;
+    report.detail = _redact(auth.detail);
+    return report;
+  }
+  const bearer = { Authorization: 'Bearer ' + auth.accessToken };
+  const range = report.range;
+  for (const siteUrl of report.candidates) {
+    const encoded = encodeURIComponent(siteUrl);
+    const analytics = await _request(
+      'https://www.googleapis.com/webmasters/v3/sites/' + encoded + '/searchAnalytics/query',
+      {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, bearer),
+        body: JSON.stringify({ startDate: range.startDate, endDate: range.endDate, type: 'web', rowLimit: 1 }),
+      }
+    );
+    report.attempts.push({ siteUrl, call: 'searchAnalytics', status: analytics.status, ok: analytics.ok });
+    if (!analytics.ok) continue;
+    const row = analytics.json && Array.isArray(analytics.json.rows) ? analytics.json.rows[0] : null;
+    if (row) {
+      report.metrics.clicks = _measured(row.clicks);
+      report.metrics.impressions = _measured(row.impressions);
+      report.metrics.ctr = _measured(row.ctr);
+      report.metrics.position = _measured(row.position);
+    } else {
+      report.metrics.clicks = { status: 'measured', value: 0 };
+      report.metrics.impressions = { status: 'measured', value: 0 };
+      report.metrics.ctr = { status: 'unavailable', value: null };
+      report.metrics.position = { status: 'unavailable', value: null };
+    }
+    const pages = await _request(
+      'https://www.googleapis.com/webmasters/v3/sites/' + encoded + '/searchAnalytics/query',
+      {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, bearer),
+        body: JSON.stringify({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          type: 'web',
+          dimensions: ['page'],
+          rowLimit: 5,
+        }),
+      }
+    );
+    report.attempts.push({ siteUrl, call: 'pages', status: pages.status, ok: pages.ok });
+    if (pages.ok) {
+      const list = pages.json && Array.isArray(pages.json.rows) ? pages.json.rows : [];
+      report.pages = {
+        status: 'measured',
+        value: list.map((item) => ({
+          page: item && item.keys ? item.keys[0] : null,
+          clicks: Number.isFinite(Number(item && item.clicks)) ? Number(item.clicks) : null,
+          impressions: Number.isFinite(Number(item && item.impressions)) ? Number(item.impressions) : null,
+          ctr: Number.isFinite(Number(item && item.ctr)) ? Number(item.ctr) : null,
+          position: Number.isFinite(Number(item && item.position)) ? Number(item.position) : null,
+        })),
+      };
+    }
+    const maps = await _request(
+      'https://www.googleapis.com/webmasters/v3/sites/' + encoded + '/sitemaps',
+      { headers: bearer }
+    );
+    report.attempts.push({ siteUrl, call: 'sitemaps', status: maps.status, ok: maps.ok });
+    if (maps.ok) {
+      const all = maps.json && Array.isArray(maps.json.sitemap) ? maps.json.sitemap : [];
+      const match = all.find((item) => item && item.path === SITEMAP_URL) || all[0] || null;
+      if (!match) {
+        report.sitemap = { status: 'missing', path: SITEMAP_URL, errors: null, warnings: null, pending: null, listed: all.length };
+      } else {
+        const errors = Number(match.errors);
+        const warnings = Number(match.warnings);
+        report.sitemap = {
+          status: Number.isFinite(errors) && errors > 0 ? 'errors' : 'ok',
+          path: match.path || SITEMAP_URL,
+          errors: Number.isFinite(errors) ? errors : null,
+          warnings: Number.isFinite(warnings) ? warnings : null,
+          pending: typeof match.isPending === 'boolean' ? match.isPending : null,
+          listed: all.length,
+        };
+      }
+    } else {
+      report.sitemap = {
+        status: 'error',
+        path: SITEMAP_URL,
+        errors: null,
+        warnings: null,
+        pending: null,
+        httpStatus: maps.status || 0,
+        detail: _redact(maps.detail || maps.error),
+      };
+    }
+    report.ok = true;
+    report.siteUrl = siteUrl;
+    report.reason = row ? 'search_console_row' : 'search_console_empty';
+    report.blocked = false;
+    return report;
+  }
+  report.blocked = true;
+  report.reason = 'property_rejected';
+  report.detail = 'Search Console did not accept a property candidate. Set SEARCH_CONSOLE_SITE_URL to the exact property id if it is neither sc-domain:' + HOST + ' nor ' + SITE_URL + '.';
+  return report;
+}
+
 // ── Cycle ────────────────────────────────────────────────────────────
 async function runCycle(opts) {
   const o = opts || {};
@@ -407,12 +605,16 @@ async function runCycle(opts) {
   }
   const bing = await runBing(o);
   const google = await runGoogle(o);
+  const performance = await readPerformance(o);
   state.lastRunAt = new Date().toISOString();
   state.runs += 1;
   state.bing = bing;
   state.google = google;
-  if (!o.dryRun) _saveState();
-  return { protocol: PROTOCOL, ok: true, at: state.lastRunAt, bing, google };
+  if (!o.dryRun) {
+    state.performance = performance;
+    _saveState();
+  }
+  return { protocol: PROTOCOL, ok: true, at: state.lastRunAt, bing, google, performance };
 }
 
 function armedEngines() {
@@ -448,7 +650,19 @@ function getStatus() {
     inventsVisitors: false,
     inventsCrawlCounts: false,
     inventsRankings: false,
-    note: 'Ownership + sitemap submission only. This module never reports impressions, clicks, or visitors.',
+    performance: state.performance || {
+      ok: false,
+      blocked: !_serviceAccount(),
+      reason: _serviceAccount() ? 'not_read_yet' : 'no_service_account',
+      secret: _serviceAccount() ? null : SECRET_HINTS.google,
+      metrics: _blankMetrics(),
+      sitemap: { status: 'unavailable', path: SITEMAP_URL, errors: null, warnings: null, pending: null },
+      inventsClicks: false,
+      inventsImpressions: false,
+      inventsCtr: false,
+      inventsPosition: false,
+    },
+    note: 'Clicks, impressions, CTR, and average position appear only after Search Console returns them. Until that read succeeds they stay unavailable. A sitemap submission is not a ranking and not a visitor.',
   };
 }
 
@@ -457,6 +671,7 @@ function _resetForTests() {
   state.runs = 0;
   state.bing = null;
   state.google = null;
+  state.performance = null;
   try { fs.rmSync(STATE_FILE, { force: true }); } catch (_) { /* ignore */ }
   try { fs.rmSync(GOOGLE_VERIFY_FILE, { force: true }); } catch (_) { /* ignore */ }
 }
@@ -471,6 +686,8 @@ module.exports = {
   bingApiKey,
   runBing,
   runGoogle,
+  readPerformance,
+  propertyCandidates,
   runCycle,
   armedEngines,
   missingSecrets,
