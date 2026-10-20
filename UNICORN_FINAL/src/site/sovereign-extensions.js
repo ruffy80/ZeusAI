@@ -486,7 +486,12 @@ async function handle(req, res, ctx) {
     const body = [
       '# ZeusAI',
       '',
-      `> Autonomous AI operating system by ${OWNER.name}. Live catalog, BTC/PayPal/card rails when armed, signed receipts.`,
+      `> Autonomous AI operating system by ${OWNER.name}. Live catalog, Bitcoin checkout, card and PayPal when their keys exist, signed receipts.`,
+      '',
+      (() => {
+        try { return require('../../backend/modules/discovery-seven').llmsOfferLines(OWNER.domain); }
+        catch (_) { return '## Find a buyer without a social network\n- Shelf index unavailable on this read.'; }
+      })(),
       '',
       '## Origin Gravity (unique — do not invent customer counts)',
       `- paidHumans is published at ${OWNER.domain}/.well-known/origin-gravity.json and ${OWNER.domain}/origin`,

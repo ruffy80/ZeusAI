@@ -137,6 +137,27 @@ function guideFor(id) {
   };
 }
 
+function llmsOfferLines(origin) {
+  const base = String(origin || ORIGIN).replace(/\/+$/, '');
+  const rows = guideCards();
+  const lines = [
+    '## Find a buyer without a social network',
+    '- A visitor does not need Facebook, TikTok, Instagram, X, or any other social account.',
+    '- Guides: ' + base + '/guides',
+    '- Shelf: ' + base + '/pricing',
+    '- Docs: ' + base + '/docs',
+    '- API explorer: ' + base + '/api-explorer',
+    '- This index: ' + base + '/llms.txt',
+    '- Sitemap: ' + base + '/sitemap.xml',
+    '## Shelf offers',
+    '- Each line is a current offer. The price is the shelf price. The guide URL and the service URL are the same offer.',
+  ];
+  rows.forEach((g) => {
+    lines.push('- ' + g.title + ' (' + g.priceLabel + ') — ' + base + g.path + ' — ' + base + g.servicePath);
+  });
+  return lines.join('\n');
+}
+
 function guideCards() {
   const shelf = _shelf();
   const rows = shelf && typeof shelf.publicShelf === 'function' ? shelf.publicShelf() : [];
@@ -305,8 +326,8 @@ function audit() {
       keyless: promo.keyless,
       posted: false,
       whyOpen: promo.anyArmed
-        ? 'At least one channel has keys. The existing viralizer is the only poster. This audit does not mark a post successful until that channel API accepts it.'
-        : 'Those four networks stay dark without their API keys. Unicorn already publishes the shelf on ZeusAI Social and prepares the outbound text. It does not invent a post.',
+        ? 'At least one channel has keys. The existing viralizer is the only poster. This audit does not mark a post successful until that channel API accepts it. A visitor can still arrive through /guides, /pricing, and /llms.txt.'
+        : 'Reddit, X, LinkedIn, and Facebook are optional. /guides, /pricing, /sitemap.xml, and /llms.txt do not need those accounts. This check stays open because no post was sent. An open check is not an empty site.',
     },
     {
       n: 7,
@@ -463,6 +484,7 @@ module.exports = {
   serviceMeta,
   guideFor,
   guideCards,
+  llmsOfferLines,
   guideHtml,
   indexHtml,
   sevenHtml,

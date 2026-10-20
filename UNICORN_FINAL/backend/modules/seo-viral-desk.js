@@ -76,7 +76,7 @@ function desk() {
       visible: '/.well-known/visible-social.json',
     },
     nextHumanAction,
-    note: 'IndexNow notifies engines. Bing 403 means the host is not verified yet. Telegram/Discord are operator rails. Facebook/X/TikTok stay dark without their tokens. A module does not mint users.',
+    note: 'IndexNow notifies engines. Bing 403 means the host is not verified yet. A visitor does not need Facebook, TikTok, or any social token. Guides, the sitemap, and /llms.txt stay public. A module does not mint users.',
     searchConsole,
     traffic: traffic
       ? {

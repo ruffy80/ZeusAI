@@ -128,13 +128,11 @@ function observe() {
 function think(s) {
   const h = {};
 
-  // TRAFFIC: do we have a live discovery pipeline + a second channel?
-  // URL inventory submitted to search engines is real organic traffic seed.
+  // TRAFFIC: organic inventory is enough. A social token does not raise this score.
   let traffic = 0;
-  if (s.traffic.urlInventory > 0) traffic += 45;
+  if (s.traffic.urlInventory > 0) traffic += 70;
   if (s.traffic.running) traffic += 20;
   if (s.traffic.lastRunAt) traffic += 10;
-  if (s.traffic.social) traffic += 25; // second channel armed
   h.traffic = _clamp(traffic);
 
   // CAPTURE: is inbound working and flowing? (form is fixed; reward volume.)
@@ -196,10 +194,10 @@ function plan(s, health) {
     title: 'Save one unpublished draft from a page that already exists',
     detail: 'growth-agent writes a draft file. It does not publish, email, or ping a search engine. Public status reads do not write.',
   });
-  if (!s.traffic.social) add({
-    id: 'arm-social-channel', stage: 'traffic', mode: 'owner', impact: 30, effort: 'low',
-    title: 'Social posting stays optional', envVars: ['TELEGRAM_BOT_TOKEN', 'X_BEARER_TOKEN'],
-    detail: 'Discovery does not require a social network. A token arms the existing poster. It does not create visitors.',
+  add({
+    id: 'organic-discovery', stage: 'traffic', mode: 'auto', impact: 55, effort: 'low',
+    title: 'Serve the shelf through search, guides, and llms.txt',
+    detail: 'A visitor does not need Facebook, TikTok, Instagram, or X. /guides, /pricing, /docs, /sitemap.xml, and /llms.txt stay public. This action does not publish or ping.',
   });
 
   // QUALIFY: if leads exist, keep scoring fresh so follow-up stays ranked.
@@ -247,6 +245,14 @@ async function execute(actions) {
         performed.push({ id: a.id, ok: true, result: { coverage: st.coverage, catalogSize: st.catalogSize } });
       } else if (a.id === 'rotate-offer' && deps.offer && typeof deps.offer.rotate === 'function') {
         performed.push({ id: a.id, ok: true, result: _safe(() => deps.offer.rotate(), 'rotated') });
+      } else if (a.id === 'organic-discovery') {
+        let paths = [];
+        try { paths = require('./discovery-seven').publicPaths(); } catch (_) { paths = []; }
+        performed.push({
+          id: a.id,
+          ok: Array.isArray(paths) && paths.length > 2,
+          result: { paths: Array.isArray(paths) ? paths.length : 0, socialRequired: false, published: false },
+        });
       } else if (a.id === 'record-growth-drafts') {
         const agent = require('./growth-agent');
         const saved = agent.runScheduled({ source: 'growth-brain' });

@@ -162,10 +162,12 @@ check('operator copy no longer sends people to a single $39 offer', () => {
   const actions = brain.plan(state, brain.think(state));
   const text = JSON.stringify(actions);
   assert.ok(actions.some((a) => a.id === 'record-growth-drafts' && a.mode === 'auto'));
+  assert.ok(actions.some((a) => a.id === 'organic-discovery' && a.mode === 'auto'));
+  assert.ok(!actions.some((a) => a.id === 'arm-social-channel'));
   assert.ok(!text.includes('300+'));
   assert.ok(!text.includes('loses most buyers'));
   assert.ok(!text.includes('$39'));
-  assert.ok(text.includes('Social posting stays optional'));
+  assert.ok(text.includes('does not need Facebook'));
 });
 
 async function brainCycle() {
@@ -173,6 +175,10 @@ async function brainCycle() {
   process.env.GROWTH_DRAFT_DIR = dir;
   const cycle = await brain.runCycle();
   const draft = cycle.autoPerformed.find((row) => row.id === 'record-growth-drafts');
+  const organic = cycle.autoPerformed.find((row) => row.id === 'organic-discovery');
+  assert.ok(organic, 'growth brain checked organic discovery');
+  assert.strictEqual(organic.result.socialRequired, false);
+  assert.ok(organic.result.paths > 2);
   assert.ok(draft, 'growth brain performed the draft task');
   assert.strictEqual(draft.result.published, false);
   assert.strictEqual(draft.result.saved, true);
