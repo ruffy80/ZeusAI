@@ -275,8 +275,8 @@ function operatorChecklist(opts) {
       action: bridge.googleArmed
         ? 'GOOGLE_SERVICE_ACCOUNT_JSON is armed — search-console-bridge negotiates the FILE token, serves it, verifies ownership, adds the property and submits /sitemap.xml with no console clicks.'
         : (gscMeta || gscHtml
-          ? 'A manual verification token is armed, so ownership can be confirmed — but the sitemap still has to be submitted by hand. Add GOOGLE_SERVICE_ACCOUNT_JSON (Site Verification API + Search Console API enabled) to automate the whole chain.'
-          : 'One secret ends the manual step: Google Cloud → service account → JSON key → enable Site Verification API + Search Console API → add GitHub secret GOOGLE_SERVICE_ACCOUNT_JSON. Ownership, property and sitemap submission then happen without you.'),
+          ? 'A manual verification token is armed, so ownership can be confirmed — but the sitemap still has to be submitted by hand. Do not paste GOOGLE_SERVICE_ACCOUNT_JSON into chat or a raw .env line. Place the JSON file at /var/www/unicorn/shared/search-console-key.json and run node scripts/search-console-key-install.js.'
+          : 'Do not paste GOOGLE_SERVICE_ACCOUNT_JSON into chat or a raw .env line. Place the JSON file at /var/www/unicorn/shared/search-console-key.json and run node scripts/search-console-key-install.js after Site Verification API and Search Console API are enabled.'),
     },
     {
       id: 'gaze-tokens',

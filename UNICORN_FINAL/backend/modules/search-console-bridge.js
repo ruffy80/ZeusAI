@@ -312,7 +312,7 @@ async function runGoogle(opts) {
       armed: false,
       blocked: 'no_service_account',
       secret: SECRET_HINTS.google,
-      action: 'Google Cloud → IAM → Service Accounts → create key (JSON) → enable "Site Verification API" + "Search Console API" → paste the whole JSON as the GitHub secret GOOGLE_SERVICE_ACCOUNT_JSON. Then this bridge verifies ownership and submits the sitemap on its own.',
+      action: 'Do not paste the JSON into chat, GitHub, or a raw .env line. Place the service-account file at /var/www/unicorn/shared/search-console-key.json and run node scripts/search-console-key-install.js. It probes Search Console, writes only GOOGLE_SERVICE_ACCOUNT_JSON_B64, and does not restart PM2.',
       manualFallback: 'Until then: Search Console → add https://zeusai.pro → verify → submit https://zeusai.pro/sitemap.xml (Google retired the ping API in 2023).',
       invented: false,
     };
@@ -627,7 +627,7 @@ function armedEngines() {
 function missingSecrets() {
   const out = [];
   if (!bingApiKey()) out.push({ engine: 'bing', secret: SECRET_HINTS.bing, unlocks: 'Bing/Yandex site ownership + sitemap + URL batch submission' });
-  if (!_serviceAccount()) out.push({ engine: 'google', secret: SECRET_HINTS.google, unlocks: 'Google ownership verification + Search Console property + sitemap submission' });
+  if (!_serviceAccount()) out.push({ engine: 'google', secret: SECRET_HINTS.google, unlocks: 'Google ownership, sitemap submission, and Search Console reads after scripts/search-console-key-install.js writes GOOGLE_SERVICE_ACCOUNT_JSON_B64' });
   return out;
 }
 
@@ -640,6 +640,9 @@ function getStatus() {
     host: HOST,
     siteUrl: SITE_URL,
     sitemap: SITEMAP_URL,
+    searchConsoleSiteUrlRequired: false,
+    propertyCandidates: propertyCandidates(),
+    keyInstall: 'node scripts/search-console-key-install.js',
     armedEngines: armed,
     missingSecrets: missingSecrets(),
     googleVerificationFile: (() => { const v = readGoogleVerification(); return v ? v.path : null; })(),
