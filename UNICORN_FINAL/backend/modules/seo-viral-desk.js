@@ -41,8 +41,8 @@ function desk() {
     : []);
 
   const nextHumanAction = missing.length
-    ? ('Add ' + missing.map((m) => m.secret).join(' and ') + ', then open /relay and send the $39 offer to one person.')
-    : 'Open /relay and send the $39 offer to one person. Engines are already being notified; a ping is not a visitor.';
+    ? ('Add ' + missing.map((m) => m.secret).join(' and ') + '. The public shelf is /pricing. /relay is a human hop and does not send by itself.')
+    : 'Open /pricing for the live shelf. /relay is a human hop. A search ping is not a visitor.';
 
   return {
     ok: true,

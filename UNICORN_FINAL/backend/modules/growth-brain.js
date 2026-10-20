@@ -173,12 +173,11 @@ function plan(s, health) {
   const actions = [];
   const add = (a) => actions.push(a);
 
-  // MONETIZE gaps are the highest-leverage: a captured, qualified lead that
-  // cannot pay by card is a lost sale. Surface exactly the missing key.
+  // MONETIZE: name the payment keys that are absent. Do not invent a lost-sale rate.
   if (!s.monetize.card) add({
     id: 'arm-card-checkout', stage: 'monetize', mode: 'owner', impact: 100, effort: 'low',
-    title: 'Arm card / 300-crypto checkout', envVars: ['NOWPAYMENTS_API_KEY'],
-    detail: 'BTC-only checkout loses most buyers. One free NOWPayments key lets cards/bank/300+ coins pay (auto-settles to your BTC).',
+    title: 'Card and PayPal stay off until their keys exist', envVars: ['NOWPAYMENTS_API_KEY', 'STRIPE_SECRET_KEY', 'PAYPAL_CLIENT_ID'],
+    detail: 'Bitcoin is the live payment rail. Card and PayPal appear on checkout only when NOWPAYMENTS_API_KEY, STRIPE_SECRET_KEY, or PAYPAL_CLIENT_ID is set. This action does not claim a conversion change.',
   });
   if (!s.monetize.email) add({
     id: 'arm-email-delivery', stage: 'monetize', mode: 'owner', impact: 95, effort: 'low',
@@ -189,13 +188,18 @@ function plan(s, health) {
   // TRAFFIC: the front of the funnel. Auto-push SEO; ask owner for a channel.
   if (s.traffic.urlInventory > 0) add({
     id: 'seo-index-push', stage: 'traffic', mode: 'auto', impact: 60, effort: 'low',
-    title: 'Push URL inventory to search engines (IndexNow)',
-    detail: `Submit ${s.traffic.urlInventory} canonical URLs so organic discovery compounds. Runs now, no key needed.`,
+    title: 'Submit the URL inventory through IndexNow',
+    detail: `The traffic engine can submit ${s.traffic.urlInventory} canonical URLs. A submission is not a visitor and not a ranking.`,
+  });
+  add({
+    id: 'record-growth-drafts', stage: 'traffic', mode: 'auto', impact: 22, effort: 'low',
+    title: 'Save one unpublished draft from a page that already exists',
+    detail: 'growth-agent writes a draft file. It does not publish, email, or ping a search engine. Public status reads do not write.',
   });
   if (!s.traffic.social) add({
-    id: 'arm-social-channel', stage: 'traffic', mode: 'owner', impact: 60, effort: 'low',
-    title: 'Arm one autonomous social channel', envVars: ['TELEGRAM_BOT_TOKEN', 'X_BEARER_TOKEN'],
-    detail: 'A single token lets the viralizer post daily value content → free top-of-funnel. Fastest: a Telegram bot token.',
+    id: 'arm-social-channel', stage: 'traffic', mode: 'owner', impact: 30, effort: 'low',
+    title: 'Social posting stays optional', envVars: ['TELEGRAM_BOT_TOKEN', 'X_BEARER_TOKEN'],
+    detail: 'Discovery does not require a social network. A token arms the existing poster. It does not create visitors.',
   });
 
   // QUALIFY: if leads exist, keep scoring fresh so follow-up stays ranked.
@@ -209,7 +213,7 @@ function plan(s, health) {
   if (health.stages.expand < 70) add({
     id: 'enable-checkout-upsell', stage: 'expand', mode: 'auto', impact: 50, effort: 'low',
     title: 'Serve next-best-offer + bundle at checkout',
-    detail: 'The upsell engine is live (/api/upsell). Presenting a bundle on every order lifts average order value with zero new traffic.',
+    detail: 'The upsell route is /api/upsell. This action does not by itself change a measured order value.',
   });
 
   // AI: cheap intelligence upgrade if a key exists but outreach is templated.
@@ -243,6 +247,20 @@ async function execute(actions) {
         performed.push({ id: a.id, ok: true, result: { coverage: st.coverage, catalogSize: st.catalogSize } });
       } else if (a.id === 'rotate-offer' && deps.offer && typeof deps.offer.rotate === 'function') {
         performed.push({ id: a.id, ok: true, result: _safe(() => deps.offer.rotate(), 'rotated') });
+      } else if (a.id === 'record-growth-drafts') {
+        const agent = require('./growth-agent');
+        const saved = agent.runScheduled({ source: 'growth-brain' });
+        performed.push({
+          id: a.id,
+          ok: !!(saved && saved.saved && saved.published === false),
+          result: {
+            executed: !!(saved && saved.executed),
+            saved: !!(saved && saved.saved),
+            published: false,
+            reason: saved && saved.reason,
+            slug: saved && saved.slug,
+          },
+        });
       } else {
         performed.push({ id: a.id, ok: true, result: 'noted' });
       }
