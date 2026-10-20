@@ -128,13 +128,11 @@ function observe() {
 function think(s) {
   const h = {};
 
-  // TRAFFIC: do we have a live discovery pipeline + a second channel?
-  // URL inventory submitted to search engines is real organic traffic seed.
+  // TRAFFIC: organic inventory is enough. A social token does not raise this score.
   let traffic = 0;
-  if (s.traffic.urlInventory > 0) traffic += 45;
+  if (s.traffic.urlInventory > 0) traffic += 70;
   if (s.traffic.running) traffic += 20;
   if (s.traffic.lastRunAt) traffic += 10;
-  if (s.traffic.social) traffic += 25; // second channel armed
   h.traffic = _clamp(traffic);
 
   // CAPTURE: is inbound working and flowing? (form is fixed; reward volume.)
@@ -173,12 +171,11 @@ function plan(s, health) {
   const actions = [];
   const add = (a) => actions.push(a);
 
-  // MONETIZE gaps are the highest-leverage: a captured, qualified lead that
-  // cannot pay by card is a lost sale. Surface exactly the missing key.
+  // MONETIZE: name the payment keys that are absent. Do not invent a lost-sale rate.
   if (!s.monetize.card) add({
     id: 'arm-card-checkout', stage: 'monetize', mode: 'owner', impact: 100, effort: 'low',
-    title: 'Arm card / 300-crypto checkout', envVars: ['NOWPAYMENTS_API_KEY'],
-    detail: 'BTC-only checkout loses most buyers. One free NOWPayments key lets cards/bank/300+ coins pay (auto-settles to your BTC).',
+    title: 'Card and PayPal stay off until their keys exist', envVars: ['NOWPAYMENTS_API_KEY', 'STRIPE_SECRET_KEY', 'PAYPAL_CLIENT_ID'],
+    detail: 'Bitcoin is the live payment rail. Card and PayPal appear on checkout only when NOWPAYMENTS_API_KEY, STRIPE_SECRET_KEY, or PAYPAL_CLIENT_ID is set. This action does not claim a conversion change.',
   });
   if (!s.monetize.email) add({
     id: 'arm-email-delivery', stage: 'monetize', mode: 'owner', impact: 95, effort: 'low',
@@ -189,13 +186,18 @@ function plan(s, health) {
   // TRAFFIC: the front of the funnel. Auto-push SEO; ask owner for a channel.
   if (s.traffic.urlInventory > 0) add({
     id: 'seo-index-push', stage: 'traffic', mode: 'auto', impact: 60, effort: 'low',
-    title: 'Push URL inventory to search engines (IndexNow)',
-    detail: `Submit ${s.traffic.urlInventory} canonical URLs so organic discovery compounds. Runs now, no key needed.`,
+    title: 'Submit the URL inventory through IndexNow',
+    detail: `The traffic engine can submit ${s.traffic.urlInventory} canonical URLs. A submission is not a visitor and not a ranking.`,
   });
-  if (!s.traffic.social) add({
-    id: 'arm-social-channel', stage: 'traffic', mode: 'owner', impact: 60, effort: 'low',
-    title: 'Arm one autonomous social channel', envVars: ['TELEGRAM_BOT_TOKEN', 'X_BEARER_TOKEN'],
-    detail: 'A single token lets the viralizer post daily value content → free top-of-funnel. Fastest: a Telegram bot token.',
+  add({
+    id: 'record-growth-drafts', stage: 'traffic', mode: 'auto', impact: 22, effort: 'low',
+    title: 'Save one unpublished draft from a page that already exists',
+    detail: 'growth-agent writes a draft file. It does not publish, email, or ping a search engine. Public status reads do not write.',
+  });
+  add({
+    id: 'organic-discovery', stage: 'traffic', mode: 'auto', impact: 55, effort: 'low',
+    title: 'Serve the shelf through search, guides, and llms.txt',
+    detail: 'A visitor does not need Facebook, TikTok, Instagram, or X. /guides, /pricing, /docs, /sitemap.xml, and /llms.txt stay public. This action does not publish or ping.',
   });
 
   // QUALIFY: if leads exist, keep scoring fresh so follow-up stays ranked.
@@ -209,7 +211,7 @@ function plan(s, health) {
   if (health.stages.expand < 70) add({
     id: 'enable-checkout-upsell', stage: 'expand', mode: 'auto', impact: 50, effort: 'low',
     title: 'Serve next-best-offer + bundle at checkout',
-    detail: 'The upsell engine is live (/api/upsell). Presenting a bundle on every order lifts average order value with zero new traffic.',
+    detail: 'The upsell route is /api/upsell. This action does not by itself change a measured order value.',
   });
 
   // AI: cheap intelligence upgrade if a key exists but outreach is templated.
@@ -243,6 +245,28 @@ async function execute(actions) {
         performed.push({ id: a.id, ok: true, result: { coverage: st.coverage, catalogSize: st.catalogSize } });
       } else if (a.id === 'rotate-offer' && deps.offer && typeof deps.offer.rotate === 'function') {
         performed.push({ id: a.id, ok: true, result: _safe(() => deps.offer.rotate(), 'rotated') });
+      } else if (a.id === 'organic-discovery') {
+        let paths = [];
+        try { paths = require('./discovery-seven').publicPaths(); } catch (_) { paths = []; }
+        performed.push({
+          id: a.id,
+          ok: Array.isArray(paths) && paths.length > 2,
+          result: { paths: Array.isArray(paths) ? paths.length : 0, socialRequired: false, published: false },
+        });
+      } else if (a.id === 'record-growth-drafts') {
+        const agent = require('./growth-agent');
+        const saved = agent.runScheduled({ source: 'growth-brain' });
+        performed.push({
+          id: a.id,
+          ok: !!(saved && saved.saved && saved.published === false),
+          result: {
+            executed: !!(saved && saved.executed),
+            saved: !!(saved && saved.saved),
+            published: false,
+            reason: saved && saved.reason,
+            slug: saved && saved.slug,
+          },
+        });
       } else {
         performed.push({ id: a.id, ok: true, result: 'noted' });
       }
