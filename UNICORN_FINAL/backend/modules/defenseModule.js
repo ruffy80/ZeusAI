@@ -246,6 +246,11 @@ class DefenseModule {
       remediationPlan: ['patch edge gateways', 'rotate privileged credentials', 'enable continuous monitoring']
     };
   }
+
+  edgeRefusal() {
+    const edge = require('../../src/security/request-edge');
+    return edge.snapshot();
+  }
 }
 
 module.exports = new DefenseModule();

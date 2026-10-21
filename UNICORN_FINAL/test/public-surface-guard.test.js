@@ -33,6 +33,7 @@ process.env.MARKETING_INNOVATION_LOOP_DISABLED = '1';
 const sensitiveProbePaths = [
   '/.env', '/.git/config', '/wp-config.php', '/package-lock.json',
   '/%2eenv', '/%252eenv', '/%2egit/config', '/%77p-config.php', '/package%2dlock.json',
+  '/index.php', '/wp-login.php', '/xmlrpc.php', '/shell.php.jpg', '/%69ndex.php',
 ];
 
 function sleep(ms) {

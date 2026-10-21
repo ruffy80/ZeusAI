@@ -244,6 +244,20 @@ location = /.well-known/merchant.json {
 # exact-match location is missing from the installed snippet.
 _REQUIRED_LOCATIONS = [
     {
+        "match": "location ~* \\.(?:php[3-8]?|phtml|phar|pht|asp|aspx|asmx|ashx|jsp|jspx|cgi)(?:\\.[a-z0-9]+)?(?:/|$)",
+        "block": (
+            "\n"
+            "# Dead runtimes. This host executes Node, not PHP, ASP, or JSP.\n"
+            "location ~* \\.(?:php[3-8]?|phtml|phar|pht|asp|aspx|asmx|ashx|jsp|jspx|cgi)(?:\\.[a-z0-9]+)?(?:/|$) {\n"
+            "    access_log off;\n"
+            "    types { }\n"
+            "    default_type application/json;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
+            "    return 404 '{\"error\":\"not_found\"}';\n"
+            "}\n"
+        ),
+    },
+    {
         "match": "location = /.well-known/autonomy.json",
         "block": (
             "\n"
