@@ -97,6 +97,8 @@ process.on('unhandledRejection', (reason) => {
 
 const express = require('express');
 const app = express();
+app.disable('x-powered-by');
+const requestEdge = require('./security/request-edge');
 
 // Phoenix Continuity OS — site heartbeat lease (PCOS/1.0). Witnessed by
 // unicorn-phoenix so a frozen site event loop is distinguishable from death.
@@ -2166,17 +2168,7 @@ function createServer() {
 }
 
 function __continueDispatch(req, res, method, earlyPath) {
-    let securityPath = earlyPath;
-    for (let pass = 0; pass < 2; pass += 1) {
-      try {
-        const decoded = decodeURIComponent(securityPath);
-        if (decoded === securityPath) break;
-        securityPath = decoded;
-      } catch (_) {
-        break;
-      }
-    }
-    if (/(?:^|\/)\.(?:env|git|aws|ssh|svn|hg)(?:$|\/|\.)|(?:^|\/)(?:wp-config\.php|composer\.(?:json|lock)|package-lock\.json)(?:$|\/)/i.test(securityPath)) {
+    if (requestEdge.refused(earlyPath)) {
       res.statusCode = 404;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');

@@ -340,6 +340,7 @@ const routeCache = require('./modules/route-cache');
 
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 // nginx terminates TLS and sets X-Forwarded-For. Without trust proxy,
 // express-rate-limit v7 throws ValidationError on every proxied request
@@ -396,18 +397,9 @@ try {
   }
 })();
 
+const requestEdge = require('../src/security/request-edge');
 app.use((req, res, next) => {
-  let requestPath = String(req.path || req.url || '/');
-  for (let pass = 0; pass < 2; pass += 1) {
-    try {
-      const decoded = decodeURIComponent(requestPath);
-      if (decoded === requestPath) break;
-      requestPath = decoded;
-    } catch (_) {
-      break;
-    }
-  }
-  if (/(?:^|\/)\.(?:env|git|aws|ssh|svn|hg)(?:$|\/|\.)|(?:^|\/)(?:wp-config\.php|composer\.(?:json|lock)|package-lock\.json)(?:$|\/)/i.test(requestPath)) {
+  if (requestEdge.refused(req.path || req.url || '/')) {
     res.set('Cache-Control', 'no-store');
     return res.status(404).json({ error: 'not_found' });
   }
