@@ -155,6 +155,39 @@ check('llms lines list every shelf guide and do not require a social network', (
   assert.ok(src.includes('llmsOfferLines'));
 });
 
+check('guides in the sitemap are shelf offers, and aliases do not share a title', () => {
+  const { getHtml } = require('../src/site/v2/shell');
+  const paths = d7.publicPaths().filter((p) => p.startsWith('/guides/'));
+  const ids = shelf.publicShelf().map((item) => item.id);
+  assert.strictEqual(paths.length, ids.length);
+  ids.forEach((id) => {
+    assert.ok(paths.includes('/guides/' + encodeURIComponent(id)), id);
+    assert.ok(d7.guideFor(id), id);
+  });
+  const xml = seo.buildUrlsetXml('https://zeusai.pro', seo.corePublicPaths());
+  assert.ok(!xml.includes('/checkout</loc>'));
+  assert.ok(!xml.includes('/marketplace</loc>'));
+  const bare = getHtml('/checkout');
+  assert.match(bare, /name="robots" content="noindex"/);
+  assert.match(bare, /rel="canonical" href="https:\/\/zeusai\.pro\/checkout"/);
+  const priced = getHtml('/checkout', { plan: 'instant-resume-makeover' });
+  assert.match(priced, /rel="canonical" href="https:\/\/zeusai\.pro\/services\/instant-resume-makeover"/);
+  assert.match(priced, /name="robots" content="noindex"/);
+  const missing = getHtml('/guides/not-a-real-offer');
+  assert.match(missing, /name="robots" content="noindex"/);
+  assert.match(missing, /Guide not on the shelf/);
+  const x = (getHtml('/from/x').match(/<title>([^<]+)<\/title>/) || [])[1];
+  const facebook = (getHtml('/from/facebook').match(/<title>([^<]+)<\/title>/) || [])[1];
+  assert.notStrictEqual(x, facebook);
+  assert.match(x, /from X/);
+  assert.match(facebook, /from Facebook/);
+  const live = getHtml('/live-actions');
+  assert.doesNotMatch(live, /<title>ZeusAI — ZEUSAI<\/title>/);
+  assert.match(getHtml('/autonomy'), /rel="canonical" href="https:\/\/zeusai\.pro\/live-actions"/);
+  assert.match(getHtml('/marketplace'), /rel="canonical" href="https:\/\/zeusai\.pro\/services"/);
+  assert.doesNotMatch(getHtml('/'), /hreflang=/);
+});
+
 check('test chain includes this file', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
   assert.ok(String(pkg.scripts['test:chain']).includes('discovery-seven.test.js'));

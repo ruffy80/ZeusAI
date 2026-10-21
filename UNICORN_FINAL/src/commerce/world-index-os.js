@@ -81,9 +81,6 @@ function shareHead(opts) {
   <title>${_esc(title)}</title>
   <meta name="description" content="${_esc(description)}"/>
   <link rel="canonical" href="${_esc(canonical)}"/>
-  <link rel="alternate" hreflang="en" href="${_esc(canonical)}?lang=en"/>
-  <link rel="alternate" hreflang="ro" href="${_esc(canonical)}?lang=ro"/>
-  <link rel="alternate" hreflang="x-default" href="${_esc(canonical)}"/>
   <meta name="robots" content="index,follow,max-image-preview:large"/>
   <meta property="og:site_name" content="ZeusAI"/>
   <meta property="og:type" content="website"/>

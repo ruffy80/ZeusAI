@@ -245,11 +245,15 @@ async function handle(req, res, ctx) {
         const snap = ctx.buildSnapshot();
         const items = [].concat(snap.marketplace || [], snap.services || []);
         const seen = new Set();
+        let shelfById = null;
+        try { shelfById = require('../commerce/public-shelf').byId; } catch (_) { shelfById = null; }
         for (const s of items) {
           const id = s && (s.id || s.serviceId);
           if (!id || seen.has(id)) continue;
           // Skip synthetic/demo catalog noise from the public index
           if (/^synthetic[_-]/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)) continue;
+          // A snapshot id that is not on the shelf renders noindex. Do not submit it.
+          if (typeof shelfById === 'function' && !shelfById(id)) continue;
           seen.add(id);
           serviceUrls.push(`/services/${encodeURIComponent(id)}`);
         }
