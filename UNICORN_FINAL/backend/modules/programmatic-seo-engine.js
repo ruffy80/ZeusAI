@@ -56,21 +56,14 @@ function getVertical(slug) {
 function _esc(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 function _buildJsonLd(v, baseUrl) {
+  // These ids are not on the public shelf. Checkout sends an unknown plan
+  // back to /services. Do not publish an in-stock product for them.
   return {
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'WebPage',
     name: v.title,
-    description: `${v.title} — turn-key vertical AI OS. KPI focus: ${v.kpi}. BTC-settled, signed-outcome billing.`,
-    sku: v.id,
-    brand: { '@type': 'Brand', name: 'ZeusAI / Unicorn' },
+    description: `${v.title} — industry architecture page. KPI focus: ${v.kpi}. The payable start is the engagement kickoff, not this page.`,
     url: `${baseUrl}/vertical/${v.id}`,
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'USD',
-      price: String(v.priceUsd),
-      availability: 'https://schema.org/InStock',
-      url: `${baseUrl}/checkout?serviceId=${v.id}&amount=${v.priceUsd}&plan=${v.id}`
-    }
   };
 }
 
@@ -93,7 +86,6 @@ function renderLandingHtml(slug, opts) {
   const btcWallet = String((opts && opts.btcWallet) || process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
   const usdPerBtc = Math.max(1, Number(opts && opts.btcSpotUsd) || 95000);
   const btcAmount = +(v.priceUsd / usdPerBtc).toFixed(8);
-  const checkoutUrl = `${baseUrl}/checkout?serviceId=${v.id}&amount=${v.priceUsd}&plan=${v.id}`;
   const ldProduct = _buildJsonLd(v, baseUrl);
   const ldFaq = _buildFaqLd(v);
   const ldBreadcrumb = {
@@ -113,7 +105,7 @@ function renderLandingHtml(slug, opts) {
 <link rel="canonical" href="${baseUrl}/vertical/${v.id}">
 <meta property="og:title" content="${_esc(v.title)} — ZeusAI Vertical OS">
 <meta property="og:description" content="Vertical AI OS focused on ${_esc(v.kpi)}. BTC-settled.">
-<meta property="og:type" content="product">
+<meta property="og:type" content="website">
 <meta property="og:url" content="${baseUrl}/vertical/${v.id}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${_esc(v.title)} — ZeusAI">
@@ -153,7 +145,7 @@ function renderLandingHtml(slug, opts) {
 <section>
   <div class="price">$${v.priceUsd} <span style="font-size:.6em;color:#666;">USD / workspace</span></div>
   <div class="btc">≈ ${btcAmount} BTC → <code>${_esc(btcWallet)}</code></div>
-  <p style="margin-top:1rem;"><a class="cta" href="${_esc(checkoutUrl)}">Buy ${_esc(v.title)} →</a></p>
+  <p style="margin-top:1rem;"><a class="cta" href="/vom">Industry packs are a kickoff, not a cart</a></p>
 </section>
 
 <section>

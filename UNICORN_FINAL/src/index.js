@@ -9498,27 +9498,32 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 <link rel="apple-touch-icon" sizes="180x180" href="${assetPath('/assets/icons/apple-touch-icon.png')}">
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}">
 <link rel="manifest" href="/manifest.webmanifest">
-<script type="application/ld+json">${JSON.stringify({
-  '@context': 'https://schema.org',
-  '@type': 'Product',
-  name: item.title || item.name || item.id,
-  description: item.description || '',
-  brand: { '@type': 'Brand', name: 'ZeusAI / Unicorn' },
-  category: item.segment || item.group || 'AI Services',
-  image: `${APP_URL}${assetPath('/assets/icons/og-default.png')}`,
-  offers: {
-    '@type': 'Offer',
-    priceCurrency: 'USD',
-    price: priceUsd,
-    availability: 'https://schema.org/InStock',
-    url: `${APP_URL}/services/${item.id}`,
-    priceValidUntil: new Date(Date.now() + 30*24*3600*1000).toISOString().slice(0,10),
-    seller: { '@type': 'Organization', name: 'ZeusAI' }
-  }
+<script type="application/ld+json">${JSON.stringify((() => {
   // NOTE: aggregateRating intentionally omitted — Google Search Console flags
   // placeholder/fabricated review counts. Add it back only when real
   // verifiable review data is wired through (e.g. from /api/reviews).
-})}</script>
+  try {
+    const merchantOffer = require('./seo/merchant-offer');
+    const assessed = require('./commerce/commerce-buyability').assessBuyability(Object.assign({}, item, { priceUsd }));
+    const record = Object.assign({}, item, { priceUsd, mode: assessed.mode, buyable: assessed.buyable === true });
+    if (merchantOffer.isMerchantOffer(record)) {
+      return merchantOffer.productJson({
+        item: record,
+        url: `${APP_URL}/services/${item.id}`,
+        image: `${APP_URL}${assetPath('/assets/icons/og-default.png')}`,
+        description: item.description || '',
+        origin: APP_URL,
+      });
+    }
+  } catch (_) { /* proposal, not a cart */ }
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name: item.title || item.name || item.id,
+    description: item.description || '',
+    url: `${APP_URL}/services/${item.id}`,
+  };
+})())}</script>
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
