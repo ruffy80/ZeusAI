@@ -1,6 +1,6 @@
 // Polish-pack tests — additive site polish layer.
 // Verifies: /.well-known/security.txt, /humans.txt, /offline.html,
-// shell SEO/PWA enrichments (hreflang, JSON-LD blocks, apple-touch, mask-icon),
+// shell SEO/PWA enrichments (canonical, JSON-LD blocks, apple-touch, mask-icon),
 // manifest icons (PNG + maskable + svg) and second sitemap line in robots.txt.
 'use strict';
 
@@ -55,10 +55,9 @@ const assert = require('assert');
   // --- shell.js: head() enrichments ---
   {
     const html = v2.getHtml('/', { lang: 'en', nonce: 'n1' });
-    assert.match(html, /hreflang="en"/, 'hreflang en');
-    assert.match(html, /hreflang="ro"/, 'hreflang ro');
-    assert.match(html, /hreflang="es"/, 'hreflang es');
-    assert.match(html, /hreflang="x-default"/, 'hreflang x-default');
+    assert.match(html, /rel="canonical" href="https:\/\/zeusai\.pro\/"/, 'canonical home');
+    assert.doesNotMatch(html, /hreflang=/, 'english SSR is not a set of language URLs');
+    assert.doesNotMatch(html, /\?lang=/, 'query language is not advertised to crawlers');
     assert.match(html, /apple-touch-icon/, 'apple-touch-icon link');
     assert.match(html, /mask-icon/, 'mask-icon link');
     assert.match(html, /og:image" content="https:\/\/zeusai\.pro\/assets\/icons\/og-default\.[a-z0-9]+\.png/, 'og image dedicated');

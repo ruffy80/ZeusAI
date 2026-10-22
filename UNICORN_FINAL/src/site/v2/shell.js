@@ -19,9 +19,6 @@ const OWNER = {
   domain: process.env.PUBLIC_APP_URL || 'https://zeusai.pro'
 };
 
-// Languages with first-class UI translations + a default sitewide fallback.
-const HREFLANGS = ['en', 'ro', 'es'];
-
 // ── SSR catalogue helpers ───────────────────────────────────────────────
 // The previous build rendered all marketplace/pricing/store pages purely
 // client-side — when JS was slow or disabled, users saw "Loading…" stubs
@@ -468,25 +465,63 @@ function zeusPageBgSSR(route) {
   return `<div class="zeus-page-bg is-active" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a is-on" style="background-image:${css}"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
 }
 
+function _shelfCanonical(base, plan) {
+  const id = String(plan || '').trim();
+  if (!id) return '';
+  try {
+    const item = require('../../commerce/public-shelf').byId(id);
+    if (item && item.id) return base + '/services/' + encodeURIComponent(item.id);
+  } catch (_) { /* unknown plan keeps the page canonical */ }
+  return '';
+}
+
+function _canonicalUrl(base, route, opts) {
+  const path = String(route || '/');
+  if (path === '/marketplace') return base + '/services';
+  if (path === '/autonomy' || path === '/innovation-log') return base + '/live-actions';
+  if (path === '/checkout') {
+    const offer = _shelfCanonical(base, opts && opts.plan);
+    if (offer) return offer;
+  }
+  if (path.indexOf('/blog/') === 0) {
+    const alias = discoverTrust.article(path);
+    if (alias) return base + '/insights/' + alias.slug;
+  }
+  return base + path;
+}
+
+function _robotsMeta(route) {
+  const path = String(route || '');
+  if (path === '/outreach-desk') return 'noindex, nofollow';
+  if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
+  if (_serverOnlyService(path)) return 'noindex, nofollow';
+  // Invoice checkout and the empty chooser stay out of the index. A plan
+  // still canonicalizes to the shelf page above.
+  if (path === '/checkout' || path.indexOf('/checkout/') === 0) return 'noindex';
+  if (path.indexOf('/guides/') === 0) {
+    try {
+      const found = require('../../../backend/modules/discovery-seven').guideFor(path.slice('/guides/'.length));
+      if (!found) return 'noindex';
+    } catch (_) { return 'noindex'; }
+  }
+  return '';
+}
+
 function head(title, route, opts) {
   opts = opts || {};
   const lang = opts.lang || 'en';
   const nonce = opts.nonce || '';
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   const base = OWNER.domain.replace(/\/$/, '');
-  let canonical = base + (route || '/');
-  if (String(route || '').indexOf('/blog/') === 0) {
-    const alias = discoverTrust.article(route);
-    if (alias) canonical = base + '/insights/' + alias.slug;
-  }
+  const canonical = _canonicalUrl(base, route, opts);
+  const robots = _robotsMeta(route);
   // Per-route OG image: dedicated 1200x630 banner with safe fallback.
   const ogImage = base + assetPath('/assets/icons/og-default.png');
   const desc = routeDescription(route);
   const jsonLdBlocks = buildJsonLd(title, route, canonical, desc, opts)
     .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
-  // hreflang alternates — keep simple: same path across languages via ?lang=
-  const hreflangs = HREFLANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${canonical}${route.indexOf('?') >= 0 ? '&' : '?'}lang=${l}"/>`).join('\n')
-    + `\n<link rel="alternate" hreflang="x-default" href="${canonical}"/>`;
+  // SSR is English. ?lang= only sets a translate cookie, so those URLs are
+  // not separate language documents and must not be advertised as hreflang.
   // Auto-translate priming: when the visitor's effective language is not
   // English we set the `googtrans` cookie BEFORE loading the Google Translate
   // widget so the page is translated in-place into the country's language
@@ -509,7 +544,7 @@ function head(title, route, opts) {
 <title>${title} — ZEUSAI</title>
 <meta name="description" content="${desc}"/>
 <link rel="canonical" href="${canonical}"/>
-${hreflangs}
+${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${title} — ZeusAI"/>
 <meta property="og:description" content="${desc}"/>
@@ -525,7 +560,6 @@ ${hreflangs}
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
 ${discoverTrust.headExtras()}
-${(route === '/outreach-desk' || ((String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) && !discoverTrust.article(route)) || _serverOnlyService(route)) ? '<meta name="robots" content="noindex, nofollow"/>' : ''}
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
@@ -7435,7 +7469,13 @@ function routeTitle(route) {
   if (topicTitle && topicTitle.title) return topicTitle.title;
   if (route === '/module-census') return 'Module census';
   if (route === '/origin' || route.startsWith('/origin/')) return 'Origin Gravity';
-  if (route === '/from' || route.startsWith('/from/')) return 'Social Gravity landing';
+  if (route === '/live-actions' || route === '/autonomy' || route === '/innovation-log') return 'Live actions';
+  if (route === '/from' || route.startsWith('/from/')) {
+    const channel = route === '/from' ? '' : route.slice('/from/'.length).split('/')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
+    if (!channel || channel === 'web') return 'Social Gravity';
+    const label = channel === 'x' ? 'X' : (channel.charAt(0).toUpperCase() + channel.slice(1));
+    return 'Social Gravity from ' + label;
+  }
   if (route === '/guides') return 'Offer guides';
   if (route.startsWith('/guides/')) {
     try {

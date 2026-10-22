@@ -78,7 +78,12 @@ function guidePath(id) {
 
 function publicPaths() {
   const out = ['/guides', '/seo'];
-  for (const raw of catalogOffers()) out.push(guidePath(raw.id));
+  const shelf = _shelf();
+  const rows = shelf && typeof shelf.publicShelf === 'function' ? shelf.publicShelf() : [];
+  for (const raw of rows) {
+    if (!raw || !raw.id || !liveOffer(raw.id)) continue;
+    out.push(guidePath(raw.id));
+  }
   return out;
 }
 

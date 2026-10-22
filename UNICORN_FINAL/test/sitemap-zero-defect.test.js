@@ -82,6 +82,21 @@ async function main() {
     assert.ok(body.includes('/continuity</loc>'));
     assert.ok(body.includes('/services/instant-website-audit</loc>'));
     assert.ok(!body.includes('/dashboard</loc>'));
+    assert.ok(!body.includes('/checkout</loc>'));
+  });
+
+  await check('sitemap omits noindex module urls that are not shelf offers', async () => {
+    const sov = require('../src/site/sovereign-extensions');
+    let body = '';
+    const res = { writeHead: () => {}, end: (b) => { body = b; }, setHeader: () => {} };
+    const handled = await sov.handle(
+      { url: '/sitemap.xml', method: 'GET', headers: {} },
+      res,
+      { buildSnapshot: () => ({ marketplace: [{ id: 'instant-website-audit' }, { id: 'never-down-kernel' }], services: [] }) }
+    );
+    assert.equal(handled, true);
+    assert.ok(body.includes('/services/instant-website-audit</loc>'));
+    assert.ok(!body.includes('never-down-kernel'));
   });
 
   await check('site wires /seo desk + XSL route + footer sitemap', () => {

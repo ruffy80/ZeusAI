@@ -62,6 +62,8 @@ check('shareHead includes canonical og:image', () => {
   assert.ok(head.includes('property="og:image"'));
   assert.ok(head.includes('/visible-world'));
   assert.ok(wivp.ogImageUrl().includes('og-default'));
+  assert.ok(!head.includes('hreflang='));
+  assert.ok(!head.includes('?lang='));
 });
 
 check('owner Google file is served and an env token still wins the default', () => {
