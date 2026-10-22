@@ -159,6 +159,36 @@ async function handle(req, res, ctx) {
   res.__pathForMetric = urlPath;
   const lang = detectLang(req);
 
+  // Retired matrix: a generated sitemap listed these URLs and no page exists.
+  // 410 lets a crawler drop them. /indexing.json is the ledger, not a count.
+  try {
+    const indexLedger = require('../seo/index-ledger');
+    if (urlPath === '/indexing.json') {
+      const body = JSON.stringify(indexLedger.document());
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'X-Robots-Tag': 'noindex',
+        'X-Unicorn-Index': 'ledger',
+      });
+      res.end(body);
+      recordMetric(urlPath, 200, body.length);
+      return true;
+    }
+    if (indexLedger.isGhost(urlPath)) {
+      const body = indexLedger.goneHtml(urlPath);
+      res.writeHead(410, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+        'X-Robots-Tag': 'noindex',
+        'X-Unicorn-Index': 'gone',
+      });
+      res.end(body);
+      recordMetric(urlPath, 410, body.length);
+      return true;
+    }
+  } catch (_) { /* ledger optional */ }
+
   // Inject green score header on every sovereign route
   res.setHeader('X-Green-GCO2', METRICS.gco2.toFixed(6));
   res.setHeader('X-Unicorn-Lang', lang);

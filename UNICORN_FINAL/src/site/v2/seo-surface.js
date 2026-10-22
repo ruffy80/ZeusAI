@@ -54,6 +54,7 @@ ${seven}
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>
     <li>Google ranking needs <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> so Search Console gets the sitemap. Google retired the ping API in 2023. This desk does not claim the site is indexed.</li>
     <li>Every shelf offer has a guide at <a href="/guides" data-link>/guides</a>. The price on the article is the shelf price. The same list is in <a href="/llms.txt" data-allow-raw="1">/llms.txt</a>.</li>
+    <li>A generated matrix of <code>/solutions/&#123;vertical&#125;/for/&#123;industry&#125;</code> had no page. Those addresses return 410 and are absent from every sitemap. The ledger is <a href="/indexing.json" data-allow-raw="1">/indexing.json</a>. It does not report how many URLs a search engine has indexed.</li>
     <li>A visitor does not need Facebook, TikTok, Instagram, or X. Search, guides, docs, and llms.txt stay up with no social token.</li>
     <li>Those networks stay optional. Tokenless hop: <a href="/relay" data-link>/relay</a> and <a href="/share" data-link>/share</a>.</li>
   </ul>

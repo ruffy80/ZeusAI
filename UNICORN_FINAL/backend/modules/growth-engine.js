@@ -441,62 +441,21 @@ function buildSoc2Snapshot() {
 }
 
 // =====================================================================
-// 6. PROGRAMMATIC SEO SITEMAP
+// 6. SITEMAP — the same public inventory as the site. The old
+// vertical × industry matrix had no page and is not listed.
 // =====================================================================
 
-// Verticals × industries → ~500 stable indexable URLs.
-const _SEO_VERTICALS = [
-  'ai-revenue-os', 'sovereign-ai-os', 'autonomous-saas', 'ai-self-healing',
-  'btc-native-checkout', 'revenue-autopilot', 'ai-orchestrator',
-  'compliance-snapshot', 'ai-cost-optimizer', 'multi-llm-router',
-];
-const _SEO_INDUSTRIES = [
-  'fintech', 'healthcare', 'e-commerce', 'logistics', 'legal', 'real-estate',
-  'manufacturing', 'edtech', 'martech', 'media', 'travel', 'energy',
-  'agritech', 'gaming', 'devtools', 'climate', 'biotech', 'insurance',
-  'aerospace', 'security', 'crypto', 'consumer', 'b2b-saas', 'government',
-  'nonprofit', 'sports', 'hr', 'sales', 'support', 'finance', 'iot',
-  'cybersecurity', 'food', 'fashion', 'mobility', 'pharma', 'telecom',
-  'construction', 'retail', 'social', 'streaming', 'ar-vr', 'web3',
-  'quantum', 'space', 'robotics', 'climate-tech', 'sustainability',
-  'workplace', 'community',
-];
-
 function listProgrammaticRoutes() {
-  const out = [];
-  for (const v of _SEO_VERTICALS) {
-    for (const i of _SEO_INDUSTRIES) {
-      out.push(`/solutions/${v}/for/${i}`);
-    }
-  }
-  return out;
+  return [];
 }
 
 function buildSitemap() {
+  const seo = require('../../src/seo/sitemap-helpers');
   const base = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
-  const staticRoutes = [
-    '/', '/services', '/pricing', '/cockpit', '/dashboard', '/store',
-    '/innovations', '/about', '/docs', '/security', '/trust', '/transparency',
-    '/responsible-ai', '/how', '/wizard', '/frontier', '/enterprise',
-    '/aura', '/account', '/legal', '/privacy', '/terms', '/dpa',
-    '/refund', '/sla', '/pledge', '/changelog', '/api-explorer',
-    '/proof', '/revenue-share', '/soc2', '/status', '/observability',
-    '/revenue-command-center',
-  ];
-  const programmatic = listProgrammaticRoutes();
-  const allUrls = [...staticRoutes, ...programmatic];
-  const now = new Date().toISOString();
-  const xmlUrls = allUrls.map(u => {
-    const priority = u === '/' ? '1.0'
-                   : staticRoutes.includes(u) ? '0.8'
-                   : '0.5';
-    return `  <url><loc>${base}${u}</loc><lastmod>${now}</lastmod><priority>${priority}</priority></url>`;
-  }).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${xmlUrls}
-</urlset>
-`;
+  return seo.buildUrlsetXml(base, seo.corePublicPaths(), {
+    lastmod: seo.todayDate(),
+    changefreq: 'daily',
+  });
 }
 
 function buildRobots() {
