@@ -149,6 +149,9 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(!vertical.includes('"@type":"Product"'));
   assert.ok(!vertical.includes('schema.org/InStock'));
   assert.ok(!vertical.includes('/checkout?serviceId='));
+  assert.ok(vertical.includes('/api/shelf/proposal/fintech-os'));
+  assert.ok(vertical.includes('Download the industry brief'));
+  assert.ok(!/Deploys in hours/i.test(vertical));
   assert.strictEqual(merchant.DELIVERY_COUNTRIES.length <= 50, true);
   assert.ok(merchant.shippingDetails({ deliveryDays: 7 }).shippingDestination.addressCountry.includes('RO'));
 });

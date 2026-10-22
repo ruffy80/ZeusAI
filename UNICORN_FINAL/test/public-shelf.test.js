@@ -46,6 +46,9 @@ check('homepage renders the same ids and the same buttons as the shelf', () => {
   }
   assert.ok(html.includes('id="concierge"'));
   assert.ok(!html.includes('Get My $39 Resume Makeover'));
+  assert.ok(html.includes('/api/shelf/proposal/ent-acquisition-pack'));
+  assert.ok(html.includes('Download the proposal'));
+  assert.ok(!html.includes('/checkout/?plan=ent-acquisition-pack'));
 });
 
 check('advise prices a website ask and adds an unasked neighbor', () => {
@@ -76,6 +79,8 @@ check('checkout uses the shelf price and refuses a self-serve cart for a proposa
   assert.ok(pay.includes('id="coSkipForm"'));
   const proposal = shell.getHtml('/checkout', { plan: 'ent-acquisition-pack' });
   assert.ok(proposal.includes('Request a proposal →'));
+  assert.ok(proposal.includes('/api/shelf/proposal/ent-acquisition-pack'));
+  assert.ok(proposal.includes('Download the proposal'));
   assert.ok(proposal.includes('hidden'));
   assert.ok(!proposal.includes('id="coSkipForm"'));
   assert.ok(pay.includes('It does not deliver the license, the source, or a private cloud.'));

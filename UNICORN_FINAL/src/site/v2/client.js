@@ -2859,6 +2859,7 @@ function cardHtml(s){
     <h3>${escapeHtml(s.title || s.id)}</h3>
     <p>${escapeHtml(s.description || ('Outcome: ' + (s.kpi || 'automation')))}</p>
     <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b data-live-price="${tag}">${price}</b></div>
+    ${cta.mode === 'contact' ? `<p style="margin:8px 0 0"><a href="/api/shelf/proposal/${encodeURIComponent(sid)}" download>Download the proposal</a></p>` : ''}
     <div style="display:flex;gap:8px;margin-top:12px">
       <a class="btn btn-ghost" href="/services/${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Details</a>
       ${buyBtn}
@@ -3021,6 +3022,7 @@ function masterCardHtml(it){
     + '</div>'
     + '<h3 style="margin:4px 0 0;font-size:18px;line-height:1.25">' + title + '</h3>'
     + '<p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1">' + desc + '</p>'
+    + (cta.mode === 'contact' ? '<p style="margin:8px 0 0"><a href="/api/shelf/proposal/' + encodeURIComponent(id) + '" download>Download the proposal</a></p>' : '')
     + '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'
     + buyBtn
     + (preorderBtn ? ' ' + preorderBtn : '')

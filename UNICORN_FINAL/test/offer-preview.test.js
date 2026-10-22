@@ -16,12 +16,26 @@ function check(name, fn) {
   console.log('✓', name);
 }
 
-check('a proposal figure has no checkout file', () => {
+check('a proposal figure downloads an engagement proposal and does not open a cart', () => {
   const preview = engine.offerPreview('ent-platform-license', { mode: 'contact', clock: 'contract', tier: 'enterprise' });
   assert.equal(preview.kind, 'proposal');
-  assert.equal(preview.fileTitle, 'No checkout file');
-  assert.equal(preview.sections.length, 0);
-  assert.ok(/proposal/i.test(preview.note));
+  assert.equal(preview.fileTitle, 'Engagement Proposal');
+  assert.ok(preview.sections.length >= 4);
+  assert.ok(/does not deliver the license/i.test(preview.note));
+  assert.ok(preview.downloadHref.includes('/api/shelf/proposal/ent-platform-license'));
+  const doc = engine.proposalDocument('ent-platform-license');
+  assert.ok(doc && doc.content.includes('# Engagement Proposal'));
+  assert.ok(/does not deliver the license/i.test(doc.content));
+  assert.ok(!/already delivered the license/i.test(doc.content));
+  const vertical = engine.proposalDocument('fintech-os');
+  assert.equal(vertical.kind, 'industry-brief');
+  assert.ok(/does not install an operating system/i.test(vertical.content));
+  assert.equal(engine.proposalDocument('instant-resume-makeover'), null);
+  assert.equal(engine.proposalDocument('ent-engagement-kickoff'), null);
+  assert.equal(engine.proposalDocument('../etc/passwd'), null);
+  const closed = engine.offerPreview('not-for-sale', { mode: 'unavailable' });
+  assert.equal(closed.kind, 'proposal');
+  assert.equal(closed.downloadHref, undefined);
 });
 
 check('a day engagement unlocks a kickoff pack, not the finished build', () => {

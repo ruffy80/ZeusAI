@@ -99,10 +99,14 @@ function _buyFile(p) {
   if (!preview || !preview.fileTitle) return '';
   const sections = (preview.sections || []).slice(0, 5).map((line) => `<li>${_esc(line)}</li>`).join('');
   const list = sections ? `<ul style="margin:6px 0 0;padding-left:16px;color:var(--ink-dim);font-size:12px">${sections}</ul>` : '';
+  const download = preview.downloadHref
+    ? `<p style="margin:8px 0 0"><a href="${_esc(preview.downloadHref)}" download>Download the proposal</a></p>`
+    : '';
   return `<div class="atlas-file" style="padding:10px 12px;border:1px dashed var(--stroke);border-radius:10px">
     <span class="kicker">File today</span>
     <b style="display:block;margin-top:4px;font-size:14px">${_esc(preview.fileTitle)}</b>
     ${list}
+    ${download}
     <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
   </div>`;
 }
