@@ -13123,7 +13123,7 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;

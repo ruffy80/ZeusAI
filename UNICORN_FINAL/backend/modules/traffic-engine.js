@@ -137,13 +137,12 @@ function urlsToSubmit() {
     const instant = require('../../src/commerce/instant-catalog');
     const all = instant && typeof instant.all === 'function' ? instant.all() : [];
     for (const p of all || []) {
-      if (p && p.id) {
-        urls.add(APP_URL + '/services/' + encodeURIComponent(p.id));
-        urls.add(APP_URL + '/checkout/?plan=' + encodeURIComponent(p.id));
-      }
+      if (p && p.id) urls.add(APP_URL + '/services/' + encodeURIComponent(p.id));
     }
   } catch (_) { /* optional */ }
-  return Array.from(urls).slice(0, MAX_URLS);
+  return Array.from(urls)
+    .filter((u) => u.indexOf('/checkout') === -1 && u.indexOf('/for/') === -1)
+    .slice(0, MAX_URLS);
 }
 
 // ── Search-engine submission (IndexNow) ─────────────────────────────
