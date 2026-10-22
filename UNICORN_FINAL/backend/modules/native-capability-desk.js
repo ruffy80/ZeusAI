@@ -87,7 +87,7 @@ function demand(text) {
   const risks = [];
   if (!spy.armed) risks.push('Competition is unmeasured. SERPAPI_KEY is not set, so no competitor list is invented.');
   risks.push('Acquisition cost is unmeasured.');
-  if (!aiArmed()) risks.push('No billable model key is armed. Minute files stay on the activation pack unless a key exists for that SKU.');
+  if (!aiArmed()) risks.push('No billable model key is armed. Minute files still ship as the activation pack, and that pack includes the written brief. An allowlisted SKU uses a model only when a key exists.');
   if (advice && Array.isArray(advice.limits) && advice.limits.length) {
     risks.push(advice.limits[0].title || 'A shelf limit applies.');
   }

@@ -65,6 +65,28 @@ function fulfillBadge(p) {
   return { label: 'DESK-FULFIL', cls: '' };
 }
 
+function listingSheet(p) {
+  if (!p || !p.id) return null;
+  const id = String(p.id).replace(/[^a-z0-9._-]/gi, '').slice(0, 160);
+  if (!id) return null;
+  const mode = sourceMode(p);
+  const ships = p.demoOnly !== true && p.dispatchable === true && mode.live === true;
+  const content = [
+    '# Listing sheet',
+    '',
+    'Title: ' + String(p.title || id),
+    'ID: ' + id,
+    'Listed price: ' + money(p.priceUsd),
+    'Description: ' + String(p.description || '').slice(0, 800),
+    '',
+    ships
+      ? 'A live supplier rail is marked on this row. This file is the listing copy. It is not a tracking number and it does not mean the parcel has shipped.'
+      : 'This file is the listing. The parcel does not ship. The supplier rail is paused until credentials exist.',
+    '',
+  ].join('\n');
+  return { filename: id + '-listing.md', content };
+}
+
 function productCardHtml(p) {
   const mode = sourceMode(p);
   const fulfil = fulfillBadge(p);
@@ -194,6 +216,7 @@ function productPdpHtml(p, compare, related) {
           '<div class="ds-proof-row ds-proof-net"><span>Net margin</span><strong>' + moneyMaybe(profit) + '</strong></div>' +
         '</div>' +
         compareBlock +
+        '<p style="margin:12px 0"><a href="/api/dropship/listing/' + encodeURIComponent(p.id) + '" download>Download the listing sheet</a></p>' +
         (p.demoOnly === true || p.dispatchable === false
           ? ('<button class="ds-pdp-buy" type="button" disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed">' +
               'Preview \u00b7 not for sale</button>' +
@@ -247,6 +270,7 @@ function categoryOptionsHtml(categories, selected) {
 module.exports = {
   escapeHtml,
   money,
+  listingSheet,
   productCardHtml,
   productGridHtml,
   productPdpHtml,

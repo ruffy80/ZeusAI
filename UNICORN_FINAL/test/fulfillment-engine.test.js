@@ -41,7 +41,48 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.strictEqual(det.fulfillmentStatus, 'deterministic');
     assert.strictEqual(det.delivered, 1);
     assert.ok(/Service Activation Pack/.test(det.artifacts[0].content));
+    assert.ok(/## Article/.test(det.artifacts[0].content));
     assert.strictEqual(det.artifacts[0].fulfillmentMode, 'deterministic');
+  });
+
+  const logo = await engine.fulfillReceipt({
+    id: 'r_logo',
+    email: 't@example.com',
+    services: ['instant-logo-kit'],
+    meta: { inputs: { brandName: 'Northwind', industry: 'tools' } },
+  });
+  check('a logo order writes the brand kit and does not invent an image file', () => {
+    const text = logo.artifacts[0].content;
+    assert.ok(/Service Activation Pack/.test(text));
+    assert.ok(/Name candidates/.test(text));
+    assert.ok(/does not include logo image files/.test(text));
+    assert.ok(/does not check whether a domain is available/.test(text));
+    assert.ok(!/\.svg|<svg|data:image/i.test(text));
+  });
+
+  const mail = await engine.fulfillReceipt({
+    id: 'r_mail',
+    email: 't@example.com',
+    services: ['instant-email-sequence'],
+    meta: { inputs: { product: 'A shelf audit', goal: 'activation' } },
+  });
+  check('an email order writes five emails', () => {
+    const text = mail.artifacts[0].content;
+    assert.ok(/## Email 1/.test(text));
+    assert.ok(/## Email 5/.test(text));
+  });
+
+  const kick = await engine.fulfillReceipt({
+    id: 'r_kick',
+    email: 't@example.com',
+    services: ['professional-saas-mvp'],
+    amount: 1999,
+  });
+  check('a professional order writes the kickoff and not the finished build', () => {
+    const text = kick.artifacts[0].content;
+    assert.ok(/# Project Kickoff Pack/.test(text));
+    assert.ok(/The finished build is not in this file/.test(text));
+    assert.strictEqual(kick.requiresHumanFulfillment, true);
   });
 
   process.env.FULFILLMENT_AI_ENABLED = '1';
