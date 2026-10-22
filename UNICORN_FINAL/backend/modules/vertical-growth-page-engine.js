@@ -57,7 +57,6 @@ function renderGrowthHtml(slug, opts) {
   const v = seo.getVertical(slug);
   if (!v) return null;
   const baseUrl = String((opts && opts.baseUrl) || 'https://zeusai-unicorn.com').replace(/\/+$/, '');
-  const checkoutUrl = `${baseUrl}/checkout?serviceId=${v.id}&amount=${v.priceUsd}&plan=${v.id}`;
   const roi = calcRoi(opts && opts.roi);
   const paybackMonths = roi.totalAnnualValueUsd > 0 ? Math.max(0.1, +(v.priceUsd / (roi.totalAnnualValueUsd / 12)).toFixed(1)) : null;
   return `<!DOCTYPE html>
@@ -122,7 +121,7 @@ function renderGrowthHtml(slug, opts) {
 </div>
 
 <p style="margin-top:2rem; text-align:center;">
-  <a class="cta" href="${_esc(checkoutUrl)}">Buy ${_esc(v.title)} — $${v.priceUsd} →</a>
+  <a class="cta" href="/vom">Industry packs are a kickoff, not a cart</a>
 </p>
 
 <p class="small" style="margin-top:2rem;">

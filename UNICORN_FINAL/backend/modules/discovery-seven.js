@@ -403,13 +403,15 @@ function _jsonLd(guide) {
   };
   if (guide.buyable && guide.priceUsd > 0 && guide.ctaHref) {
     const href = /^https?:/i.test(guide.ctaHref) ? guide.ctaHref : origin + guide.ctaHref;
-    body.about.offers = {
+    let offerExtra = {};
+    try { offerExtra = require('../../src/seo/merchant-offer').offerFields(guide, origin); } catch (_) { offerExtra = {}; }
+    body.about.offers = Object.assign({
       '@type': 'Offer',
       priceCurrency: 'USD',
       price: Number(guide.priceUsd).toFixed(2),
       url: href,
       availability: 'https://schema.org/InStock',
-    };
+    }, offerExtra);
   }
   return body;
 }

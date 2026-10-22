@@ -120,6 +120,8 @@ run('SSR PDP includes Proof-of-Margin + JSON-LD', () => {
   assert.ok(ld.includes('application/ld+json'));
   assert.ok(ld.includes('Margin Lamp'));
   assert.ok(ld.includes('"@type":"Product"') || ld.includes('"@type": "Product"'));
+  assert.ok(!ld.includes('schema.org/InStock'), 'a demo dropship product is not in stock');
+  assert.ok(!ld.includes('"offers"'), 'a paused physical good does not publish an offer');
 });
 
 run('site source wires SSR + single-product API + Margin OS', () => {

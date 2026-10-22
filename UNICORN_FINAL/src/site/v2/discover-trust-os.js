@@ -476,7 +476,7 @@ function _liveService(id, fallbackPrice, fallbackPath) {
     const shelf = require('../../commerce/public-shelf');
     const item = shelf && typeof shelf.byId === 'function' ? shelf.byId(id) : null;
     if (item && item.ctaHref && Number(item.priceUsd) > 0) {
-      return { price: Number(item.priceUsd), path: item.ctaHref };
+      return { price: Number(item.priceUsd), path: item.ctaHref, deliveryDays: item.deliveryDays };
     }
   } catch (_) { /* seed figures */ }
   return { price: fallbackPrice, path: fallbackPath };
@@ -502,13 +502,16 @@ function serviceListJsonLd(base) {
           description: s.description,
           url: abs,
           provider: { '@type': 'Organization', name: 'ZeusAI', email: OWNER.email },
-          offers: {
+          offers: Object.assign({
             '@type': 'Offer',
             price: Number(live.price).toFixed(2),
             priceCurrency: 'USD',
             availability: 'https://schema.org/InStock',
             url: abs,
-          },
+          }, (() => {
+            try { return require('../../seo/merchant-offer').offerFields({ deliveryDays: live.deliveryDays }, origin); }
+            catch (_) { return {}; }
+          })()),
         },
       };
     }),

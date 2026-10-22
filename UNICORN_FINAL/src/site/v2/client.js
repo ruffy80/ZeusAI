@@ -599,6 +599,12 @@ function openPricingStream(){
           const firstText = Array.prototype.find.call(node.childNodes, function(n){ return n.nodeType === 3; });
           if (firstText) firstText.nodeValue = formatted; else node.textContent = formatted;
         }
+        if (node.getAttribute && node.getAttribute('itemprop') === 'price') node.setAttribute('content', usd.toFixed(2));
+        const offer = node.closest ? node.closest('[itemprop="offers"]') : null;
+        if (offer) {
+          const meta = offer.querySelector('meta[itemprop="price"]');
+          if (meta) meta.setAttribute('content', usd.toFixed(2));
+        }
         updated++;
       });
       // Companion BTC line (≈ 0.00045 BTC) — keeps the Bitcoin amount that
@@ -2949,12 +2955,9 @@ async function hydratePricingPage(){
 // ============================================================
 function masterCardHtml(it){
   // Mirror the SSR `_catalogCard` structure from shell.js so hydration does
-  // not visually degrade the marketplace grid. The previous implementation
-  // dropped the tier badge, the schema.org Product/Offer markup, the
-  // [data-product-id] hook (used by hydrateMasterCatalog's SSR-preserve
-  // guard) and the [data-pricing-value] hook (used by openPricingStream to
-  // push live AI-negotiated price updates non-stop). All of those need to
-  // round-trip identically between SSR and client renders.
+  // not visually degrade the marketplace grid. Product/Offer microdata is
+  // not rebuilt here: a comma-formatted price without shipping or a return
+  // policy is an invalid merchant listing. The SSR shelf cards own that.
   const tierMeta = {
     instant:      { label: '⚡ Instant',      color: '#8a5cff', bg: 'rgba(138,92,255,.15)' },
     professional: { label: '💼 Professional', color: '#3ea0ff', bg: 'rgba(62,160,255,.15)' },
@@ -3004,18 +3007,20 @@ function masterCardHtml(it){
   const preorderBtn = (isPreorderEligible && cta.buyable === true)
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
     : '';
-  return '<article class="card" data-tier="' + escapeHtml(tier) + '" data-group="' + escapeHtml(it.group || '') + '" data-product-id="' + idAttr + '" data-price-source="' + escapeHtml(it.livePriceSource || 'static') + '" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">'
+  // Schema.org Product/Offer stays on the SSR shelf cards. Rebuilding it here
+  // with a thousands-separator price, and without shipping or a return policy,
+  // is what Search Console counts as an invalid merchant listing.
+  return '<article class="card" data-tier="' + escapeHtml(tier) + '" data-group="' + escapeHtml(it.group || '') + '" data-product-id="' + idAttr + '" data-price-source="' + escapeHtml(it.livePriceSource || 'static') + '" style="display:flex;flex-direction:column;gap:10px">'
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
     + tierBadge
-    + '<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
-    + '<meta itemprop="priceCurrency" content="' + escapeHtml(it.currency || 'USD') + '"/>'
-    + '<span itemprop="price" data-pricing-value="' + idAttr + '">' + escapeHtml(priceTxt) + '</span>'
+    + '<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right">'
+    + '<span data-pricing-value="' + idAttr + '">' + escapeHtml(priceTxt) + '</span>'
     + billing + liveBadge
     + '<span class="btc-line" data-price-btc-value="' + idAttr + '" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">' + escapeHtml(btcTxt) + '</span>'
     + '</span>'
     + '</div>'
-    + '<h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">' + title + '</h3>'
-    + '<p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">' + desc + '</p>'
+    + '<h3 style="margin:4px 0 0;font-size:18px;line-height:1.25">' + title + '</h3>'
+    + '<p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1">' + desc + '</p>'
     + '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'
     + buyBtn
     + (preorderBtn ? ' ' + preorderBtn : '')
@@ -5644,6 +5649,11 @@ function applyLivePriceToDom(moduleId, priceUsd){
   });
   document.querySelectorAll('[data-pricing-value="' + safe + '"]').forEach(el => {
     el.innerHTML = fmt + '<small>/mo</small>';
+    const offer = el.closest ? el.closest('[itemprop="offers"]') : null;
+    if (offer) {
+      const meta = offer.querySelector('meta[itemprop="price"]');
+      if (meta) meta.setAttribute('content', Number(priceUsd || 0).toFixed(2));
+    }
   });
 }
 

@@ -10,6 +10,7 @@ const continuityAttestation = require('./continuity-attestation');
 const merchantStandardSurface = require('./merchant-standard-surface');
 const seoSurface = require('./seo-surface');
 const discoverTrust = require('./discover-trust-os');
+const merchantOffer = require('../../seo/merchant-offer');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -228,6 +229,34 @@ function _ctaForProduct(p) {
   }
 }
 
+function _merchantItem(p) {
+  const priceUsd = Number(p && (p.priceUsd != null ? p.priceUsd : (p.priceUSD != null ? p.priceUSD : p.price)) || 0);
+  let mode = p && p.mode;
+  let buyable = p && p.buyable;
+  if (mode == null || typeof buyable !== 'boolean') {
+    const cta = _ctaForProduct(p);
+    mode = cta.mode;
+    buyable = cta.buyable === true;
+  }
+  return Object.assign({}, p, { priceUsd, mode, buyable: buyable === true });
+}
+
+function _merchantSchema(p) {
+  const item = _merchantItem(p);
+  const base = OWNER.domain.replace(/\/$/, '');
+  if (!merchantOffer.isMerchantOffer(item)) {
+    return { item, merchant: false, offerHtml: '', image: '', url: '' };
+  }
+  const id = encodeURIComponent(String(item.id || ''));
+  return {
+    item,
+    merchant: true,
+    image: base + assetPath('/assets/icons/og-default.png'),
+    url: base + '/services/' + id,
+    offerHtml: merchantOffer.offerMicrodataHtml(item, { origin: base }),
+  };
+}
+
 function _primaryCtaHtml(p, opts) {
   const o = opts || {};
   const id = String((p && p.id) || '');
@@ -261,13 +290,13 @@ function _libraryCard(p) {
     : '';
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
-  return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" data-not-for-sale="1" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
+  return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" data-not-for-sale="1" style="display:flex;flex-direction:column;gap:8px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <span class="tag" style="background:rgba(138,92,255,.12);color:#bda4ff;border:1px solid rgba(138,92,255,.30);font-size:10px">${cat}</span>
-      <span style="font-family:var(--mono);font-size:14px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:10.5px;color:#f7a13b;font-weight:600;margin-top:2px">${btcTxt}</span></span>
+      <span style="font-family:var(--mono);font-size:14px;color:var(--gold);text-align:right"><span data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:10.5px;color:#f7a13b;font-weight:600;margin-top:2px">${btcTxt}</span></span>
     </div>
-    <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
+    <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3">${title}</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1">${desc}</p>
     <a class="btn btn-ghost" href="/services/${encodeURIComponent(String(p.id || ''))}" data-link aria-label="View ${title} module mirror" style="font-size:12px;padding:6px 10px">Module mirror · not for sale</a>
   </article>`;
 }
@@ -311,10 +340,21 @@ function _catalogCard(p) {
   const liveBadge = p.livePriceSource && p.livePriceSource !== 'static-fallback'
     ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(p.livePriceSource)}${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${p.surgeActive ? ' · surge' : ''}</span>`
     : '';
-  return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span>${btcDiscountNote}</span></div>
-    <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
+  const schema = _merchantSchema(p);
+  const productAttrs = schema.merchant
+    ? ` itemscope itemtype="https://schema.org/Product"`
+    : '';
+  const offerAttrs = schema.merchant
+    ? ' itemprop="offers" itemscope itemtype="https://schema.org/Offer"'
+    : '';
+  const identity = schema.merchant
+    ? `<link itemprop="image" href="${_esc(schema.image)}"><meta itemprop="sku" content="${_esc(schema.item.id)}"><link itemprop="url" href="${_esc(schema.url)}">`
+    : '';
+  return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}"${productAttrs} style="display:flex;flex-direction:column;gap:10px">
+    ${identity}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right"${offerAttrs}>${schema.offerHtml}<span data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25"${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1"${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
     <div style="display:flex;gap:8px;margin-top:6px">${price > 0
       ? _primaryCtaHtml(p, { flex: true })
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="Activate ${title}" style="flex:1;justify-content:center">Activate free</a>`
@@ -334,10 +374,17 @@ function _ssrCatalogGrid(items, opts) {
 function buildJsonLd(title, route, canonical, desc, opts) {
   const base = OWNER.domain.replace(/\/$/, '');
   const blocks = [];
-  // 1) Primary entity — SoftwareApplication / Product depending on route.
-  blocks.push({
+  // A catalog route is a list of offers, not one product named ZeusAI.
+  const isCatalog = route === '/pricing' || route === '/services';
+  blocks.push(isCatalog ? {
     '@context': 'https://schema.org',
-    '@type': route === '/pricing' || route === '/services' ? 'Product' : 'SoftwareApplication',
+    '@type': 'CollectionPage',
+    name: title || 'ZeusAI',
+    url: canonical,
+    description: desc,
+  } : {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
     name: 'ZeusAI',
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
@@ -354,7 +401,8 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     logo: base + assetPath('/assets/icons/icon-512.png'),
     email: OWNER.email,
     sameAs: [base + '/about', base + '/trust', base + '/security'],
-    founder: { '@type': 'Person', name: OWNER.name }
+    founder: { '@type': 'Person', name: OWNER.name },
+    hasMerchantReturnPolicy: merchantOffer.returnPolicy(base),
   });
   // 3) WebSite with SearchAction (sitelinks search box).
   blocks.push({
@@ -1318,11 +1366,18 @@ function _atlasCard(p) {
     : (price > 0
       ? `<a class="btn btn-primary" href="${_esc(href)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
-  return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}" itemscope itemtype="https://schema.org/Product">
+  const schema = _merchantSchema(p);
+  const productAttrs = schema.merchant ? ' itemscope itemtype="https://schema.org/Product"' : '';
+  const offerAttrs = schema.merchant ? ' itemprop="offers" itemscope itemtype="https://schema.org/Offer"' : '';
+  const identity = schema.merchant
+    ? `<link itemprop="image" href="${_esc(schema.image)}"><meta itemprop="sku" content="${_esc(schema.item.id)}"><link itemprop="url" href="${_esc(schema.url)}">`
+    : '';
+  return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}"${productAttrs}>
+    ${identity}
     <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
-    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
-    <h3 itemprop="name">${title}</h3>
-    <p itemprop="description">${desc}</p>
+    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price"${offerAttrs}>${schema.offerHtml}<span data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <h3${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
+    <p${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
     ${_atlasFile(p)}
     <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
@@ -1921,35 +1976,41 @@ function pageService(id) {
   const category = _esc(s.category || s.segment || 'core');
   const encId = encodeURIComponent(safeId);
   const canonical = OWNER.domain.replace(/\/$/, '') + '/services/' + encId;
-
-  // JSON-LD Product markup so the URL is a real, indexable product page —
-  // not a client-hydrated shell.
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: title,
-    description: desc.slice(0, 400),
-    url: canonical,
-    brand: { '@type': 'Brand', name: 'ZeusAI' },
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'USD',
-      price: price > 0 ? price.toFixed(2) : undefined,
-      availability: 'https://schema.org/InStock',
-      url: OWNER.domain.replace(/\/$/, '') + '/checkout/?plan=' + encId,
-    },
-  };
+  const ctaForSchema = _ctaForProduct(s);
+  const merchantItem = _merchantItem(Object.assign({}, s, {
+    priceUsd: price,
+    mode: ctaForSchema.mode,
+    buyable: ctaForSchema.buyable === true,
+  }));
+  const image = OWNER.domain.replace(/\/$/, '') + assetPath('/assets/icons/og-default.png');
+  // Buyable shelf files are products. A proposal is a service, not an in-stock offer.
+  const jsonLd = merchantOffer.isMerchantOffer(merchantItem)
+    ? merchantOffer.productJson({
+      item: merchantItem,
+      url: canonical,
+      image,
+      description: desc,
+      origin: OWNER.domain,
+    })
+    : {
+      '@context': 'https://schema.org',
+      '@type': 'Service',
+      name: title,
+      description: desc.slice(0, 400),
+      url: canonical,
+      provider: { '@type': 'Organization', name: 'ZeusAI' },
+    };
 
   return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}">
-<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
 <div id="serviceMain">
   <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
-    <div class="svc-cine-card" data-tilt itemscope itemtype="https://schema.org/Product">
+    <div class="svc-cine-card" data-tilt>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         ${tierBadge}<span class="kicker">${category}</span>${liveBadge}
       </div>
-      <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05" itemprop="name">${_esc(title)}</h1>
-      <p style="color:var(--ink-dim);font-size:17px;line-height:1.7" itemprop="description">${_esc(desc)}</p>
+      <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${_esc(title)}</h1>
+      <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${_esc(desc)}</p>
       ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
@@ -1962,12 +2023,11 @@ function pageService(id) {
         <div class="panel"><div class="ic">💎</div><p class="card-title">Outcome pricing</p><p>Enterprise plans bill a share of measured value delivered.</p></div>
       </div>
     </div>
-    <aside class="co-box" itemprop="offers" itemscope itemtype="https://schema.org/Offer">
-      <meta itemprop="priceCurrency" content="USD"/>
+    <aside class="co-box">
       <span class="kicker">Pricing</span>
       <h3 style="margin:6px 0 10px">${_esc(title)}</h3>
       <div class="price" id="svcLivePrice" data-pricing-value="${_esc(safeId)}" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">
-        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span>${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
+        ${priceTxt}${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
       ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
@@ -1992,7 +2052,6 @@ function pageService(id) {
       })()}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
-      <link itemprop="availability" href="https://schema.org/InStock"/>
     </aside>
   </div>
 </div>

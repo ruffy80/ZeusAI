@@ -210,6 +210,9 @@ function productPdpHtml(p, compare, related) {
 
 function jsonLdProduct(p) {
   if (!p || !p.id) return '';
+  // A paused or demo physical good is not an in-stock merchant offer.
+  // Digital-file shipping must not be copied onto a parcel.
+  const sellable = p.demoOnly !== true && p.dispatchable === true && sourceMode(p).live === true;
   const data = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -218,14 +221,16 @@ function jsonLdProduct(p) {
     image: p.image || undefined,
     sku: p.id,
     category: p.category || undefined,
-    offers: {
+  };
+  if (sellable) {
+    data.offers = {
       '@type': 'Offer',
       priceCurrency: 'USD',
       price: String(Number(p.priceUsd) || 0),
       availability: 'https://schema.org/InStock',
       url: 'https://zeusai.pro/dropship/product/' + encodeURIComponent(p.id),
-    },
-  };
+    };
+  }
   return '<script type="application/ld+json">' +
     JSON.stringify(data).replace(/</g, '\\u003c') + '</script>';
 }

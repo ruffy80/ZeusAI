@@ -112,6 +112,47 @@ check('/order/:id sanitises the id and rejects malicious tokens', () => {
   assert.ok(!/<script>evil/.test(html.split('<script')[0]), 'raw <script> not reflected pre-hydration');
 });
 
+check('a buyable service is a merchant listing and a proposal is not', () => {
+  const merchant = require('../src/seo/merchant-offer');
+  const buy = shell.getHtml('/services/instant-resume-makeover');
+  assert.ok(buy.includes('"@type":"Product"'), 'buyable detail keeps Product JSON-LD');
+  assert.ok(buy.includes('"shippingDetails"'), 'offer names shipping');
+  assert.ok(buy.includes('"value":0'), 'digital delivery is a zero shipping rate');
+  assert.ok(buy.includes('"merchantReturnDays":30'), 'return window matches /refund');
+  assert.ok(buy.includes('"addressCountry":["US"'), 'delivery countries are an explicit list');
+  assert.ok(buy.includes('https://zeusai.pro/refund'), 'return policy points at the public refund page');
+  assert.ok(!buy.includes('ReturnByMail'), 'a file is not returned by mail');
+  assert.ok(!/"price":"[^"]*,/.test(buy), 'JSON-LD price has no thousands comma');
+  const proposal = shell.getHtml('/services/ent-acquisition-pack');
+  assert.ok(proposal.includes('"@type":"Service"'), 'a proposal is a service');
+  assert.ok(!proposal.includes('https://schema.org/InStock'), 'a proposal is not in stock');
+  assert.ok(!proposal.includes('/checkout/?plan=ent-acquisition-pack'), 'a proposal has no checkout offer');
+  const listing = shell.getHtml('/services');
+  const articleOf = (id) => {
+    const m = listing.match(new RegExp('<article[^>]*data-product-id="' + id + '"[\\s\\S]*?</article>'));
+    return m ? m[0] : '';
+  };
+  assert.ok(listing.includes('"@type":"CollectionPage"'), 'the shelf page is a collection');
+  assert.ok(!listing.includes('"@type":"Product"'), 'the shelf page is not one product named ZeusAI');
+  assert.ok(listing.includes('itemtype="https://schema.org/Product"'), 'buyable cards stay products');
+  assert.ok(listing.includes('itemprop="shippingDetails"'), 'card offers carry shipping');
+  assert.ok(listing.includes('content="0"'), 'card shipping rate is zero');
+  assert.ok(listing.includes('merchantReturnDays'), 'card offers carry the return window');
+  const buyCard = articleOf('instant-resume-makeover');
+  assert.ok(/content="\d+\.\d{2}"/.test(buyCard), 'visible price is backed by a dotted number');
+  const proposalCard = articleOf('ent-acquisition-pack');
+  assert.ok(proposalCard, 'proposal card is rendered');
+  assert.ok(!proposalCard.includes('itemtype="https://schema.org/Offer"'), 'proposal card has no offer');
+  assert.ok(!proposalCard.includes('InStock'), 'proposal card is not in stock');
+  const vertical = require('../backend/modules/programmatic-seo-engine').renderLandingHtml('fintech-os', { baseUrl: 'https://zeusai.pro' });
+  assert.ok(vertical && vertical.includes('"@type":"WebPage"'));
+  assert.ok(!vertical.includes('"@type":"Product"'));
+  assert.ok(!vertical.includes('schema.org/InStock'));
+  assert.ok(!vertical.includes('/checkout?serviceId='));
+  assert.strictEqual(merchant.DELIVERY_COUNTRIES.length <= 50, true);
+  assert.ok(merchant.shippingDetails({ deliveryDays: 7 }).shippingDestination.addressCountry.includes('RO'));
+});
+
 check('routeTitle and routeDescription cover the new routes', () => {
   // These helpers are used by SEO/OG tags — they must have real strings
   // for both /agents and /order/:id, not just "ZeusAI" fallbacks.
