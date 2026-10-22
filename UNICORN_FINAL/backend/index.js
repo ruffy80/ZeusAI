@@ -5467,6 +5467,16 @@ app.get('/api/catalog', async (req, res) => {
   }
 });
 
+app.get('/api/shelf/proposal/:id', (req, res) => {
+  try {
+    const http = require('../src/site/v2/fulfillment-engine').proposalHttp(req.params.id);
+    res.status(http.status);
+    Object.keys(http.headers).forEach((name) => res.set(name, http.headers[name]));
+    return res.send(http.body);
+  } catch (err) {
+    return res.status(503).json({ ok: false, error: 'proposal_unavailable' });
+  }
+});
 app.get('/api/shelf', (req, res) => {
   try {
     const shelf = require('../src/commerce/public-shelf');

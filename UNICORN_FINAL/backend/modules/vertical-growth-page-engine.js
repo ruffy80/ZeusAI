@@ -64,7 +64,7 @@ function renderGrowthHtml(slug, opts) {
 <head>
 <meta charset="utf-8">
 <title>${_esc(v.title)} — Growth Page · ZeusAI</title>
-<meta name="description" content="${_esc(v.title)} growth page. ROI calculator, lead capture, signed KPI proof. ${_esc(v.kpi)}.">
+<meta name="description" content="${_esc(v.title)} growth page. The industry brief downloads now. ${_esc(v.kpi)}.">
 <link rel="canonical" href="${baseUrl}/grow/${v.id}">
 <meta name="robots" content="index,follow">
 <style>
@@ -90,13 +90,13 @@ function renderGrowthHtml(slug, opts) {
 </style>
 </head>
 <body>
-<h1>${_esc(v.title)} — turn KPI into signed revenue</h1>
-<p class="lede">Pre-tuned vertical OS for <strong>${_esc(v.kpi)}</strong>. Deploys in hours. Every outcome ships with a cryptographic signed receipt.</p>
+<h1>${_esc(v.title)} — industry brief</h1>
+<p class="lede">Industry brief for <strong>${_esc(v.kpi)}</strong>. The file downloads now. A deployed system is a signed engagement, not this page.</p>
 <div class="ticker" id="ticker">📈 Live KPI ticker connecting…</div>
 
 <div class="grid">
   <div class="card">
-    <h2>ROI estimate</h2>
+    <h2>Illustrative calculator · not a measured result</h2>
     <p class="small">Baseline annual revenue: <strong>$${roi.baselineUsd.toLocaleString()}</strong></p>
     <p class="small">Expected uplift: <strong>${roi.upliftPct}%</strong></p>
     <p>Annual uplift value: <span class="big">$${roi.annualUpliftUsd.toLocaleString()}</span></p>
@@ -121,7 +121,10 @@ function renderGrowthHtml(slug, opts) {
 </div>
 
 <p style="margin-top:2rem; text-align:center;">
-  <a class="cta" href="/vom">Industry packs are a kickoff, not a cart</a>
+  <a class="cta" href="/api/shelf/proposal/${_esc(v.id)}" download>Download the industry brief</a>
+</p>
+<p style="margin-top:1rem; text-align:center;">
+  <a href="/vom">Industry packs are a kickoff, not a cart</a>
 </p>
 
 <p class="small" style="margin-top:2rem;">

@@ -68,7 +68,7 @@ check('a contact-mode enterprise card does not open a cart', () => {
   const pack = desk.productPack(contact.id);
   assert.strictEqual(pack.parts.interface.mode, 'contact');
   assert.ok(!String(pack.parts.interface.ctaHref || '').includes('/checkout'));
-  assert.strictEqual(pack.parts.documentation.fileTitle, 'No checkout file');
+  assert.strictEqual(pack.parts.documentation.fileTitle, 'Engagement Proposal');
   assert.strictEqual(pack.verdict.pass, true);
   assert.strictEqual(pack.verdict.launch, false);
 });

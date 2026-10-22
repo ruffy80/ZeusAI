@@ -225,15 +225,166 @@ const RECIPE_OUTLINE = {
 
 const PACK_SECTIONS = ['Order Summary', 'What Is Included', 'Next Steps', 'Receipt references', 'Download links'];
 
+function proposalPath(serviceId) {
+  return '/api/shelf/proposal/' + encodeURIComponent(String(serviceId || ''));
+}
+
+function figureLabel(item) {
+  const price = Number(item && item.priceUsd) || 0;
+  const text = price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const per = item && item.billing === 'annual' ? '/yr' : '';
+  return '$' + text + per;
+}
+
+function buildEngagementProposal(item) {
+  const figure = figureLabel(item);
+  const title = item.title || item.id;
+  return [
+    '# Engagement Proposal',
+    '',
+    `Service: ${title}`,
+    `Service ID: ${item.id}`,
+    `Listed figure: ${figure}`,
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    'This file is the proposal for the listed figure. Downloading it does not open a cart and does not collect payment.',
+    'It does not deliver the license, the source, or a private cloud.',
+    '',
+    '## Outcomes',
+    item.description || title,
+    '',
+    '## Architecture',
+    'A signed engagement would scope the architecture from the description above. This file does not deploy it.',
+    '',
+    '## Scope phases',
+    '1. Read this proposal.',
+    '2. Pay the engagement kickoff if you want the discovery brief and a draft statement of work. That payment is credited toward a signed engagement.',
+    '3. The kickoff is https://zeusai.pro/checkout/?plan=ent-engagement-kickoff',
+    '4. Or send the request at https://zeusai.pro/enterprise#enterprise-contact',
+    '5. Milestone delivery of the named engagement happens only after a signed statement of work.',
+    '',
+    '## Milestones',
+    `The listed figure is ${figure}. It is not charged by this download. The payable start is the engagement kickoff.`,
+    '',
+    '## Next steps',
+    '1. Keep this file.',
+    '2. Use the kickoff checkout for the paid start, or the contact form to ask for the engagement.',
+    '3. Do not treat this download as delivery of the product named above.',
+    '',
+    'This document is your engagement proposal. Delivery of the license, the source, or a private cloud is executed only after a signed engagement.',
+    '',
+  ].join('\n');
+}
+
+function buildIndustryBrief(vertical) {
+  const figure = '$' + Number(vertical.priceUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return [
+    '# Industry Architecture Brief',
+    '',
+    `Industry: ${vertical.title}`,
+    `Page ID: ${vertical.id}`,
+    `Listed workspace figure: ${figure}`,
+    `KPI focus named on the page: ${vertical.kpi}`,
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    'This file is the industry brief. Downloading it does not install an operating system, does not deploy agents, and does not open a cart.',
+    'The payable start is the engagement kickoff. The listed figure is a proposal for a signed engagement, not a product in stock.',
+    '',
+    '## Outcomes',
+    `The page names a focus of ${vertical.kpi}. A signed engagement would turn that focus into a scoped milestone plan. This file does not report a measured result.`,
+    '',
+    '## Architecture',
+    `${vertical.title} is an architecture brief for that industry. It is not a finished system.`,
+    '',
+    '## Scope phases',
+    '1. Read this brief.',
+    '2. Pay the engagement kickoff at https://zeusai.pro/services/ent-engagement-kickoff',
+    '3. The kickoff file is the discovery brief, the commercial proposal, and a draft statement of work.',
+    '4. The industry system, if commissioned, follows the signed statement of work.',
+    '',
+    '## Next steps',
+    '1. The download stays free.',
+    '2. The kickoff is the self-serve payment for an industry pack.',
+    '3. A paused dropship parcel and a private cloud are separate offers and are not included.',
+    '',
+    'This document is the industry brief. It does not deliver a deployed operating system.',
+    '',
+  ].join('\n');
+}
+
+function proposalDocument(serviceId) {
+  const id = String(serviceId || '').trim();
+  if (!id || id.length > 80 || !/^[a-z0-9-]+$/i.test(id)) return null;
+  let item = null;
+  try { item = require('../../commerce/public-shelf').byId(id); } catch (_) { item = null; }
+  if (item && item.mode === 'contact') {
+    const content = buildEngagementProposal(item);
+    return {
+      ok: true,
+      id,
+      kind: 'proposal',
+      filename: id + '-engagement-proposal.md',
+      contentType: 'text/markdown; charset=utf-8',
+      bytes: Buffer.byteLength(content, 'utf8'),
+      content,
+    };
+  }
+  let vertical = null;
+  try { vertical = require('../../../backend/modules/programmatic-seo-engine').getVertical(id); } catch (_) { vertical = null; }
+  if (vertical) {
+    const content = buildIndustryBrief(vertical);
+    return {
+      ok: true,
+      id,
+      kind: 'industry-brief',
+      filename: id + '-industry-brief.md',
+      contentType: 'text/markdown; charset=utf-8',
+      bytes: Buffer.byteLength(content, 'utf8'),
+      content,
+    };
+  }
+  return null;
+}
+
+function proposalHttp(serviceId) {
+  const doc = proposalDocument(serviceId);
+  if (!doc) {
+    return {
+      status: 404,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ ok: false, error: 'no_proposal_file' }),
+    };
+  }
+  return {
+    status: 200,
+    headers: {
+      'Content-Type': doc.contentType,
+      'Content-Disposition': 'attachment; filename="' + doc.filename + '"',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+    body: doc.content,
+  };
+}
+
 function offerPreview(serviceId, opts) {
   const mode = opts && opts.mode;
   const clock = opts && opts.clock;
-  if (mode === 'contact' || mode === 'unavailable') {
+  if (mode === 'unavailable') {
     return {
       kind: 'proposal',
-      fileTitle: 'No checkout file',
+      fileTitle: 'Engagement Proposal',
       sections: [],
-      note: 'This figure is a proposal. The button asks for it. Nothing is downloaded.',
+      note: 'This offer is not for sale. Nothing is downloaded.',
+    };
+  }
+  if (mode === 'contact') {
+    return {
+      kind: 'proposal',
+      fileTitle: 'Engagement Proposal',
+      sections: (RECIPE_OUTLINE['enterprise-engagement'] || []).slice(),
+      downloadHref: proposalPath(serviceId),
+      note: 'Download this proposal now. It states the listed figure and the work a signed engagement would cover. It does not deliver the license, the source, or a private cloud, and it does not open a cart.',
     };
   }
   const human = mode === 'reserve' || clock === 'days' || clock === 'contract';
@@ -575,7 +726,7 @@ async function fulfillReceipt(receipt, opts = {}) {
 }
 
 module.exports = {
-  fulfillReceipt, fulfillService, pickRecipe, offerPreview, isEnterprise, needsHumanFulfillment,
+  fulfillReceipt, fulfillService, pickRecipe, offerPreview, proposalDocument, proposalHttp, isEnterprise, needsHumanFulfillment,
   shouldUseAiForSku, aiSkuAllowlist,
   fulfillmentAiOs,
   RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,

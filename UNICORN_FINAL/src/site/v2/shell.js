@@ -1284,7 +1284,7 @@ function _atlasWhen(p) {
   const id = String((p && p.id) || '');
   if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
   const tier = String((p && p.tier) || '');
-  if (tier === 'enterprise' || /^ent-/i.test(id)) return 'Request a proposal · not an instant download';
+  if (tier === 'enterprise' || /^ent-/i.test(id)) return 'Proposal file now · the listed figure is not a cart';
   const mins = Number(p && p.deliveryMinutes);
   if (mins > 0) return 'About ' + mins + ' min after payment settles';
   const days = Number(p && p.deliveryDays);
@@ -1335,10 +1335,14 @@ function _atlasFile(p) {
   if (!preview || !preview.fileTitle) return '';
   const sections = (preview.sections || []).slice(0, 5).map((line) => `<li>${_esc(line)}</li>`).join('');
   const list = sections ? `<ul class="atlas-file-list" style="margin:6px 0 0;padding-left:16px;color:var(--ink-dim);font-size:12px">${sections}</ul>` : '';
+  const download = preview.downloadHref
+    ? `<p style="margin:8px 0 0"><a href="${_esc(preview.downloadHref)}" download>Download the proposal</a></p>`
+    : '';
   return `<div class="atlas-file" style="margin:8px 0 0;padding:10px 12px;border:1px dashed var(--stroke);border-radius:10px">
     <span class="kicker">File today</span>
     <b style="display:block;margin-top:4px;font-size:14px">${_esc(preview.fileTitle)}</b>
     ${list}
+    ${download}
     <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
   </div>`;
 }
@@ -1414,7 +1418,7 @@ function _homeAtlasHtml() {
   </div>
   <div id="atlasContract" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Contract</span><h2>One payable start. The other prices are proposals.</h2></div>
-    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock is the price a proposal would name — the button asks for that proposal.</p></div>
+    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock downloads an engagement proposal now. The button still requests the engagement and does not open a cart for that figure.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
   </div>
   <p class="atlas-footnote">This is the public shelf. Dropship stays paused until supplier credentials exist. The frontier desk is research you can read; it does not sell orbital compute, a neural implant, or a quantum channel. Industry architecture packs are kickoff engagements, listed on <a href="/vom" data-link>/vom</a>.</p>
@@ -2036,7 +2040,8 @@ function pageService(id) {
         const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
         const label = cta.mode === 'contact' ? 'Request a proposal →' : (cta.ctaLabel || 'Buy → choose payment');
         if (cta.mode === 'contact') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart.</p>
+          return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart. The proposal file downloads now.</p>
+      <a class="btn btn-primary" href="/api/shelf/proposal/${encId}" download>Download the proposal</a>
       <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(href)}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
         }
         const note = safeId === 'ent-engagement-kickoff'
@@ -2140,11 +2145,11 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (contactOnly ? 'Request a proposal. This figure is not a cart.' : _esc(shelfItem.description))}</p>` : ''}
+        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))}</p>` : ''}
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
-      ${contactOnly ? `<a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a>` : railBtns}
+      ${contactOnly ? `<a class="btn btn-primary" href="/api/shelf/proposal/${encodeURIComponent(shelfItem.id)}" download>Download the proposal</a> <a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a>` : railBtns}
     </div>
     <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
   </div>
