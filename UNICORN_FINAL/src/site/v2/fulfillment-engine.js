@@ -236,9 +236,23 @@ function figureLabel(item) {
   return '$' + text + per;
 }
 
+function catalogFacts(id) {
+  try {
+    const row = require('../../commerce/enterprise-catalog').byId(id);
+    if (!row) return { sla: '', inputs: [] };
+    const inputs = Array.isArray(row.inputs)
+      ? row.inputs.map((field) => (field && (field.label || field.key)) || '').filter(Boolean)
+      : [];
+    return { sla: row.sla ? String(row.sla) : '', inputs };
+  } catch (_) {
+    return { sla: '', inputs: [] };
+  }
+}
+
 function buildEngagementProposal(item) {
   const figure = figureLabel(item);
   const title = item.title || item.id;
+  const catalog = catalogFacts(item.id);
   return [
     '# Engagement Proposal',
     '',
@@ -252,6 +266,8 @@ function buildEngagementProposal(item) {
     '',
     '## Outcomes',
     item.description || title,
+    catalog.sla ? ('Published timing on the catalog row: ' + catalog.sla) : '',
+    catalog.inputs.length ? ('The signed engagement asks for: ' + catalog.inputs.join(', ') + '.') : '',
     '',
     '## Architecture',
     'A signed engagement would scope the architecture from the description above. This file does not deploy it.',
@@ -295,6 +311,10 @@ function buildIndustryBrief(vertical) {
     '',
     '## Architecture',
     `${vertical.title} is an architecture brief for that industry. It is not a finished system.`,
+    '1. Intake — the buyer states the KPI focus named above.',
+    '2. Workflow — the signed engagement turns that focus into milestones.',
+    '3. Proof — only a measured result that the engagement later records.',
+    '4. Handoff — the kickoff file, then the statement of work.',
     '',
     '## Scope phases',
     '1. Read this brief.',
@@ -324,6 +344,38 @@ function proposalDocument(serviceId) {
       id,
       kind: 'proposal',
       filename: id + '-engagement-proposal.md',
+      contentType: 'text/markdown; charset=utf-8',
+      bytes: Buffer.byteLength(content, 'utf8'),
+      content,
+    };
+  }
+  if (id === 'frontier-desk') {
+    const content = [
+      '# Frontier Desk Brief',
+      '',
+      'Generated: ' + new Date().toISOString(),
+      '',
+      'This file lists the frontier tools that already have a page. It does not sell orbital compute, a neural implant, or a quantum channel.',
+      '',
+      '## Tools',
+      '- F1 Crypto refund guarantee: /refund. A signed intent. Settlement is owner-processed.',
+      '- F2 Live conversion aura: /aura.',
+      '- F3 Outcome list: /api/outcome/list, opened in the page inspector.',
+      '- F4 Checkout cascade probe: /checkout/.',
+      '- F5 Time-locked discount, F6 receipt lookup, F7 email proof, F12 carbon estimate: the workshop on /frontier.',
+      '- F8 Gift: /gift.',
+      '- F9 Pledge: /pledge.',
+      '- F10 Cancel: /cancel.',
+      '- F11 Bandit transparency: /transparency.',
+      '',
+      'A listed research price is not a sale. The payable shelf is /services.',
+      '',
+    ].join('\n');
+    return {
+      ok: true,
+      id,
+      kind: 'research-brief',
+      filename: 'frontier-desk-brief.md',
       contentType: 'text/markdown; charset=utf-8',
       bytes: Buffer.byteLength(content, 'utf8'),
       content,
@@ -393,13 +445,14 @@ function offerPreview(serviceId, opts) {
     : pickRecipe(serviceId);
   const armed = !human && shouldUseAiForSku(serviceId);
   if (!armed) {
+    const outline = RECIPE_OUTLINE[recipe.id] || PACK_SECTIONS;
     return {
       kind: human ? 'kickoff' : 'activation',
       fileTitle: human ? 'Project Kickoff Pack' : 'Service Activation Pack',
-      sections: PACK_SECTIONS.slice(),
+      sections: human ? PACK_SECTIONS.slice() : outline.slice(),
       note: human
-        ? 'Payment unlocks this kickoff file now. The finished build follows on the stated window. It is not an instant download.'
-        : 'Payment unlocks this activation file. A model key is not armed for this offer, so the file is the record, not a generated finished work.',
+        ? 'Payment unlocks this kickoff file now. The scope and the milestone plan are in the file. The finished build follows on the stated window. It is not an instant download.'
+        : 'Payment unlocks this activation file. The written work is inside it, from your brief. A model key is not required for that copy.',
     };
   }
   const sections = RECIPE_OUTLINE[recipe.id] || PACK_SECTIONS;
@@ -513,6 +566,251 @@ function downloadInstructions(receipt, serviceId) {
   ];
 }
 
+function clipText(value, max) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, max || 400);
+}
+
+function buyerLines(receipt) {
+  const inputs = (receipt && receipt.meta && receipt.meta.inputs)
+    || (receipt && receipt.buyer && receipt.buyer.inputs)
+    || {};
+  const lines = [];
+  if (inputs && typeof inputs === 'object' && !Array.isArray(inputs)) {
+    Object.keys(inputs).forEach((key) => {
+      if (String(key).toLowerCase() === 'email') return;
+      const value = clipText(inputs[key], 500);
+      if (value) lines.push(key + ': ' + value);
+    });
+  }
+  const brief = receipt && receipt.meta && receipt.meta.brief ? clipText(receipt.meta.brief, 800) : '';
+  if (brief) lines.push('brief: ' + brief);
+  return lines;
+}
+
+function seedText(receipt, serviceId) {
+  const joined = buyerLines(receipt).join(' ');
+  return joined.slice(0, 240) || String(serviceId || 'the offer');
+}
+
+function nameCandidates(seed) {
+  const word = String(seed || 'Atlas').replace(/[^a-z0-9]+/gi, ' ').trim().split(/\s+/)[0] || 'Atlas';
+  const stem = word.slice(0, 16);
+  return [stem, stem + 'ly', stem + 'os', stem + 'lab', 'North' + stem, stem + 'line', stem + 'kit', stem + 'works'];
+}
+
+function writtenDeliverable(serviceId, receipt, recipe, opts) {
+  const recipeId = recipe && recipe.id;
+  const seed = seedText(receipt, serviceId);
+  const quoted = buyerLines(receipt);
+  const briefBlock = quoted.length
+    ? quoted.map((line) => '- ' + line).join('\n')
+    : '- No extra brief was on the order. The copy below uses the service id.';
+  if (opts && (opts.enterprise || opts.professional || opts.requiresHuman)) {
+    return [
+      '## Scope',
+      briefBlock,
+      '',
+      '## Architecture sketch',
+      'The engagement names the components for ' + clipText(serviceId, 80) + '. This file is the kickoff. The finished build is not in this file.',
+      '',
+      '## Milestones',
+      '1. Accept this kickoff pack.',
+      '2. Confirm the owner, the window, and the inputs above.',
+      '3. The ZeusAI team delivers the build across the stated window.',
+      '4. Acceptance is per milestone. This download is not that acceptance.',
+      '',
+      'The finished system is not an instant download.',
+    ].join('\n');
+  }
+  if (recipeId === 'website-audit') {
+    return [
+      '## Scorecard',
+      'Subject: ' + seed,
+      'No score is filled in. This copy did not fetch the page.',
+      '',
+      '## SEO findings',
+      '- Check the title, the meta description, one H1, and the canonical on that URL.',
+      '- Check whether the URL is in the sitemap.',
+      '',
+      '## Performance',
+      '- Check the largest image, render-blocking scripts, and cache headers.',
+      '',
+      '## Accessibility',
+      '- Check contrast, labels on form fields, and keyboard focus.',
+      '',
+      '## 30-day fix plan',
+      '1. Week 1: title, meta, and canonical.',
+      '2. Week 2: the largest image and cache headers.',
+      '3. Week 3: labels and focus.',
+      '4. Week 4: repeat the same checks. Do not invent a score.',
+    ].join('\n');
+  }
+  if (recipeId === 'seo-content-pack') {
+    return [
+      '## Keywords',
+      seed,
+      '',
+      '## Title and meta',
+      'Title: A practical guide to ' + clipText(seed, 80),
+      'Meta: A single article for the words above. It does not claim a ranking.',
+      '',
+      '## Article',
+      clipText(seed, 180) + ' is the subject of this article. Start by naming the reader and the job they are trying to finish. Then list the three steps they can do this week: write the offer in one sentence, point one internal link at that offer, and check the title tag against the same sentence.',
+      '',
+      'The second section explains what to leave out. Do not add a customer quote, a traffic number, or a ranking. Those are not in this order.',
+      '',
+      'The close asks for one action: publish the page, then measure it with the site\'s own logs.',
+      '',
+      '## Internal links',
+      '- Link the article to the service page that sells the offer.',
+      '- Link once to the contact or checkout path that matches that offer.',
+    ].join('\n');
+  }
+  if (recipeId === 'landing-page') {
+    const headline = clipText(seed, 90) || 'The offer';
+    const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>' + headline.replace(/</g, '') + '</title><style>body{font:16px/1.5 sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem}a{background:#111;color:#fff;padding:.7rem 1rem;text-decoration:none}</style></head><body><h1>' + headline.replace(/</g, '') + '</h1><p>The benefits are the ones named in the order brief.</p><h2>FAQ</h2><p>This file is the page. It is not a hosted site.</p><a href="#buy">Continue</a></body></html>';
+    return [
+      '## Hero',
+      headline,
+      '',
+      '## Benefits',
+      briefBlock,
+      '',
+      '## FAQ',
+      'This page is one self-contained HTML file. It is not a hosted site and it has no external images.',
+      '',
+      '## Call to action',
+      'Continue to the shelf checkout for this offer.',
+      '',
+      '```html',
+      html,
+      '```',
+    ].join('\n');
+  }
+  if (recipeId === 'brand-kit') {
+    const names = nameCandidates(seed);
+    return [
+      '## Name candidates',
+      names.map((name, index) => (index + 1) + '. ' + name).join('\n'),
+      'These are spelling candidates. This file does not check whether a domain is available.',
+      '',
+      '## Positioning',
+      clipText(seed, 200) + ' — one offer, one reader, one next step.',
+      '',
+      '## Taglines',
+      '1. Start with the work.',
+      '2. The file is the first delivery.',
+      '3. Say the offer in one line.',
+      '4. Keep the next step visible.',
+      '5. Leave out a claim you cannot show.',
+      '',
+      '## Voice',
+      'Short sentences. Name the file. Do not invent a customer. This is written voice, not a designed brand book, and it is not a finished voice guide as a PDF.',
+      '',
+      '## Color and type',
+      'Ink #111111, paper #f7f4ef, accent #0b8a3e. A neutral sans for the interface and a serif for the name.',
+      'This file does not include logo image files, a favicon, or visual variants.',
+    ].join('\n');
+  }
+  if (recipeId === 'pitch-deck') {
+    return [
+      '## Problem',
+      seed,
+      '',
+      '## Solution',
+      'The offer named in the brief, stated in one paragraph.',
+      '',
+      '## Market',
+      'Name the buyer who already has the problem. Do not invent a market size.',
+      '',
+      '## Product',
+      'What the file and the later build include, taken from the brief above.',
+      '',
+      '## Ask',
+      'The listed shelf price for this offer. This markdown is the slide copy. It is not a designed slide deck.',
+    ].join('\n');
+  }
+  if (recipeId === 'email-sequence') {
+    const emails = [1, 2, 3, 4, 5].map((n) => [
+      '## Email ' + n,
+      'Subject: ' + clipText(seed, 60) + ' — step ' + n,
+      'Preview: The next step is in the first line.',
+      'Body: Email ' + n + ' of 5. Restate the offer, give one action, and stop.',
+      'Send timing: day ' + (n - 1),
+      'Call to action: Open the shelf page for this offer.',
+      '',
+    ].join('\n'));
+    return emails.join('\n');
+  }
+  if (recipeId === 'social-kit') {
+    const posts = [1, 2, 3, 4, 5, 6, 7].map((n) => (
+      n + '. Hook: ' + clipText(seed, 50) + '. Caption: Post ' + n + ' of seven. One idea, one next step. Hashtags: #' + clipText(serviceId, 24).replace(/[^a-z0-9]/gi, '')
+    ));
+    return [
+      '## Weekly theme',
+      'Seven text posts for the channels named in the brief.',
+      '',
+      '## Hooks, captions, hashtags',
+      posts.join('\n'),
+      '',
+      'This file is not thirty finished posts and it has no image files.',
+    ].join('\n');
+  }
+  if (recipeId === 'resume') {
+    return [
+      '## Resume',
+      briefBlock,
+      'Use only the jobs and dates that are in the source text above. This file does not invent an employer.',
+      '',
+      '## LinkedIn headline',
+      clipText(seed, 80) || 'Role from the order brief',
+      '',
+      '## About section',
+      'Three lines: the role, the kind of work, and the next step. No photo.',
+      'This is not a Word file.',
+    ].join('\n');
+  }
+  if (recipeId === 'code-scaffold') {
+    return [
+      '## Architecture',
+      'One web entry, one API, one data store. Named for ' + clipText(serviceId, 80) + '.',
+      '',
+      '## Stack',
+      'The public site is Node. Keep the new module in that runtime.',
+      '',
+      '## Build plan',
+      '1. Confirm the brief.',
+      '2. Name the routes.',
+      '3. The running build follows the kickoff window when this id is a professional engagement.',
+      '',
+      '## Starter code',
+      'This activation copy is the plan. It is not a running application.',
+      '',
+      '## Deploy checklist',
+      '- Health check returns.',
+      '- The buyer file matches the brief.',
+    ].join('\n');
+  }
+  return [
+    '## Objectives',
+    briefBlock,
+    '',
+    '## Execution plan',
+    '1. Restate the offer ' + clipText(serviceId, 80) + '.',
+    '2. Do the next concrete step named in the brief.',
+    '3. Record what was delivered in this file.',
+    '',
+    '## Templates',
+    'Use the headings in this pack as the working document.',
+    '',
+    '## KPIs',
+    'Count only what the order can show. Do not invent a reach number.',
+    '',
+    '## 30-day timeline',
+    'Week 1 confirm the brief. Week 2 produce the file. Week 3 review it. Week 4 close the open questions.',
+  ].join('\n');
+}
+
 function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
   const human = !!(opts.enterprise || opts.professional || opts.requiresHuman);
   const enterprise = !!opts.enterprise;
@@ -527,14 +825,15 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     : [
         'Download the signed receipt and license token from the links below.',
         'Open the onboarding payload and provide any missing business inputs.',
-        'Check the fulfillment artifact endpoint for the SKU-specific deliverable (or regenerated AI pack when enabled).',
-        'If this pack is a deterministic fallback, treat it as your activation record — full AI generation runs when Fulfillment AI Eternal OS is armed (FULFILLMENT_AI_ENABLED=auto|1 + a real provider key).'
+        'Read the written deliverable in this same file. It was produced from the order brief.',
+        'A model replaces that written section only when a provider key is armed for an allowlisted SKU.'
       ];
   const track = enterprise
     ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
     : (opts.professional
       ? 'Track: professional build kickoff (human fulfillment follows across stated milestones).'
-      : 'Track: digital activation pack (deterministic fallback because AI fulfillment was unavailable or disabled).');
+      : 'Track: digital activation pack. The written deliverable in this file was produced without a model.');
+  const work = writtenDeliverable(serviceId, receipt, recipe, opts);
   const content = compactLines([
     human ? '# Project Kickoff Pack' : '# Service Activation Pack',
     '',
@@ -554,7 +853,10 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     '## What Is Included',
     human
       ? `This pack is the immediate, honest deliverable for "${recipe.title}". It captures commercial kickoff, milestone coordination, and download references while the ZeusAI team executes the actual engagement. It is NOT a claim that the finished product is already shipped.`
-      : `This pack is the immediate activation deliverable for "${recipe.title}". It gives the buyer concrete next steps, receipt references, and download locations. When AI fulfillment is enabled, a SKU-specific generated artifact replaces or supplements this pack.`,
+      : `This pack is the immediate activation deliverable for "${recipe.title}". The written work is in this file. It was produced from the order brief by the deterministic engine. It is not a model reply. When a provider key is armed for an allowlisted SKU, a model reply can replace that written section.`,
+    '',
+    '## Written deliverable',
+    work,
     '',
     '## Next Steps',
     ...nextSteps.map((step, index) => `${index + 1}. ${step}`),

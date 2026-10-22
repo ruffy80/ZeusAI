@@ -116,6 +116,13 @@ run('SSR PDP includes Proof-of-Margin + JSON-LD', () => {
   assert.ok(html.includes('Proof-of-Margin'));
   assert.ok(html.includes('Margin OS'));
   assert.ok(html.includes('id="dp-buy"'));
+  assert.ok(html.includes('/api/dropship/listing/dropship-demo-2'));
+  assert.ok(html.includes('download'));
+  const paused = ssr.listingSheet({ id: 'dropship-demo-2', title: 'Margin Lamp', description: 'Bright autonomous light.', priceUsd: 49, demoOnly: true });
+  assert.ok(/parcel does not ship/.test(paused.content));
+  const live = ssr.listingSheet({ id: 'supplier-1', title: 'Live cup', priceUsd: 12, dispatchable: true, source: 'cj', supplier: 'cj' });
+  assert.ok(/not a tracking number/.test(live.content));
+  assert.ok(!/parcel does not ship/.test(live.content));
   const ld = ssr.jsonLdProduct(p);
   assert.ok(ld.includes('application/ld+json'));
   assert.ok(ld.includes('Margin Lamp'));
