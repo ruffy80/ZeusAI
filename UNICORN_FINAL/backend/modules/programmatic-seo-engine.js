@@ -72,9 +72,9 @@ function _buildFaqLd(v) {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: [
-      { '@type': 'Question', name: `What is ${v.title}?`, acceptedAnswer: { '@type': 'Answer', text: `${v.title} is a vertical AI operating system pre-tuned for ${v.kpi}. Deploys in hours, not months, and ships signed KPI receipts.` } },
-      { '@type': 'Question', name: 'How is it priced?',   acceptedAnswer: { '@type': 'Answer', text: `Flat $${v.priceUsd} USD per workspace, settleable in BTC. No seat tax. Outcome-anchored upgrades available.` } },
-      { '@type': 'Question', name: 'How fast can I launch?', acceptedAnswer: { '@type': 'Answer', text: 'Same-day onboarding via /me/services. First signed KPI win typically within 7 days.' } }
+      { '@type': 'Question', name: `What is ${v.title}?`, acceptedAnswer: { '@type': 'Answer', text: `${v.title} is an industry architecture brief focused on ${v.kpi}. The brief downloads now. It does not install an operating system.` } },
+      { '@type': 'Question', name: 'How is it priced?',   acceptedAnswer: { '@type': 'Answer', text: `The listed workspace figure is $${v.priceUsd} USD. It is not a cart. The payable start is the engagement kickoff.` } },
+      { '@type': 'Question', name: 'How fast can I launch?', acceptedAnswer: { '@type': 'Answer', text: 'The industry brief downloads now. A deployed system is a later signed engagement, not this page.' } }
     ]
   };
 }
@@ -83,9 +83,6 @@ function renderLandingHtml(slug, opts) {
   const v = getVertical(slug);
   if (!v) return null;
   const baseUrl = String((opts && opts.baseUrl) || 'https://zeusai-unicorn.com').replace(/\/+$/, '');
-  const btcWallet = String((opts && opts.btcWallet) || process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
-  const usdPerBtc = Math.max(1, Number(opts && opts.btcSpotUsd) || 95000);
-  const btcAmount = +(v.priceUsd / usdPerBtc).toFixed(8);
   const ldProduct = _buildJsonLd(v, baseUrl);
   const ldFaq = _buildFaqLd(v);
   const ldBreadcrumb = {
@@ -101,15 +98,15 @@ function renderLandingHtml(slug, opts) {
 <head>
 <meta charset="utf-8">
 <title>${_esc(v.title)} — Vertical AI OS by ZeusAI</title>
-<meta name="description" content="${_esc(v.title)} — turn-key vertical AI OS focused on ${_esc(v.kpi)}. BTC-settled, signed-outcome billing. Deploy in hours.">
+<meta name="description" content="${_esc(v.title)} — industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now. The payable start is the engagement kickoff.">
 <link rel="canonical" href="${baseUrl}/vertical/${v.id}">
 <meta property="og:title" content="${_esc(v.title)} — ZeusAI Vertical OS">
-<meta property="og:description" content="Vertical AI OS focused on ${_esc(v.kpi)}. BTC-settled.">
+<meta property="og:description" content="Industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${baseUrl}/vertical/${v.id}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${_esc(v.title)} — ZeusAI">
-<meta name="twitter:description" content="Vertical AI OS — ${_esc(v.kpi)}.">
+<meta name="twitter:description" content="Industry architecture brief — ${_esc(v.kpi)}.">
 <script type="application/ld+json">${JSON.stringify(ldProduct)}</script>
 <script type="application/ld+json">${JSON.stringify(ldFaq)}</script>
 <script type="application/ld+json">${JSON.stringify(ldBreadcrumb)}</script>
@@ -139,34 +136,33 @@ function renderLandingHtml(slug, opts) {
 <header>
   <span class="kpi">KPI: ${_esc(v.kpi)}</span>
   <h1>${_esc(v.title)}</h1>
-  <p>Turn-key vertical AI OS — pre-tuned for <strong>${_esc(v.kpi)}</strong>. Signed KPI receipts on every outcome. BTC-settled, no seat tax.</p>
+  <p>Industry architecture brief for <strong>${_esc(v.kpi)}</strong>. The file downloads now. It does not install an operating system.</p>
 </header>
 
 <section>
-  <div class="price">$${v.priceUsd} <span style="font-size:.6em;color:#666;">USD / workspace</span></div>
-  <div class="btc">≈ ${btcAmount} BTC → <code>${_esc(btcWallet)}</code></div>
-  <p style="margin-top:1rem;"><a class="cta" href="/vom">Industry packs are a kickoff, not a cart</a></p>
+  <div class="price">$${v.priceUsd} <span style="font-size:.6em;color:#666;">listed figure · not a cart</span></div>
+  <p style="margin-top:1rem;"><a class="cta" href="/api/shelf/proposal/${_esc(v.id)}" download>Download the industry brief</a></p>
+  <p style="margin-top:0.75rem;"><a href="/vom">Industry packs are a kickoff, not a cart</a></p>
+  <p style="margin-top:0.75rem;"><a href="/services/ent-engagement-kickoff">Pay the engagement kickoff</a></p>
 </section>
 
 <section>
   <h2>What you get</h2>
   <ul>
-    <li>Pre-configured agents for ${_esc(v.kpi)}.</li>
-    <li>Signed KPI receipts (cryptographic proof of outcome).</li>
-    <li>BTC-direct settlement to your wallet — no payment processor lock-in.</li>
-    <li>Universal 1-click cancel; GDPR data export &amp; delete.</li>
-    <li>SLA: 99.9% site uptime, 99.99% API uptime, &lt;2.5s checkout probe.</li>
+    <li>This industry brief, as a file, focused on ${_esc(v.kpi)}.</li>
+    <li>A link to the engagement kickoff, which is the payable start.</li>
+    <li>A deployed system only if a later statement of work is signed. This page does not deliver that system.</li>
   </ul>
 </section>
 
 <section>
   <h2>FAQ</h2>
   <h3>What is ${_esc(v.title)}?</h3>
-  <p>${_esc(v.title)} is a vertical AI operating system pre-tuned for ${_esc(v.kpi)}. Deploys in hours, not months, and ships signed KPI receipts.</p>
+  <p>${_esc(v.title)} is an industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now. It does not install an operating system.</p>
   <h3>How is it priced?</h3>
-  <p>Flat $${v.priceUsd} USD per workspace, settleable in BTC. No seat tax. Outcome-anchored upgrades available.</p>
+  <p>The listed workspace figure is $${v.priceUsd} USD. It is not a cart. The payable start is the engagement kickoff.</p>
   <h3>How fast can I launch?</h3>
-  <p>Same-day onboarding via <a href="/me/services">/me/services</a>. First signed KPI win typically within 7 days.</p>
+  <p>The industry brief downloads now. A deployed system is a later signed engagement, not this page.</p>
 </section>
 
 <footer>

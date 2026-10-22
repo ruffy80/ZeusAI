@@ -50,8 +50,8 @@ const LIMITS = [
     href: '/vom',
     titleEn: 'Industry packs are a kickoff',
     titleRo: 'Pachetele de industrie sunt un kickoff',
-    noteEn: 'An industry architecture pack is an engagement kickoff, not a finished system delivered on payment. The list is on /vom. It is not a separate priced product here.',
-    noteRo: 'Un pachet de arhitectură pe industrie este un kickoff de angajament, nu un sistem finit livrat la plată. Lista este pe /vom. Nu este un produs cu preț separat aici.',
+    noteEn: 'An industry architecture pack downloads as a brief from its page. It is an engagement kickoff, not a finished system delivered on payment. The list is on /vom. It is not a separate priced product here.',
+    noteRo: 'Un pachet de arhitectură pe industrie se descarcă ca brief de pe pagina lui. Este un kickoff de angajament, nu un sistem finit livrat la plată. Lista este pe /vom. Nu este un produs cu preț separat aici.',
     ctaEn: 'See the kickoff list',
     ctaRo: 'Vezi lista de kickoff',
   },
@@ -83,7 +83,7 @@ function whenOf(raw) {
   const id = String((raw && raw.id) || '');
   if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
   const clock = clockOf(raw);
-  if (clock === 'contract') return 'Request a proposal · not an instant download';
+  if (clock === 'contract') return 'Proposal file now · the listed figure is not a cart';
   const mins = Number(raw && raw.deliveryMinutes);
   if (mins > 0) return 'About ' + mins + ' min after payment settles';
   const days = Number(raw && raw.deliveryDays);
@@ -173,7 +173,7 @@ function langOf(text) {
 function whenLang(item, lang) {
   if (lang !== 'ro') return item.when;
   if (item.id === 'ent-engagement-kickoff') return 'Pachetul de propunere după plată · se creditează la un angajament semnat';
-  if (item.clock === 'contract') return 'Cere o propunere · nu este o descărcare instant';
+  if (item.clock === 'contract') return 'Fișierul de propunere acum · cifra listată nu este un coș';
   const mins = Number(item.deliveryMinutes);
   if (mins > 0) return 'Cam ' + mins + ' min după confirmarea plății';
   const days = Number(item.deliveryDays);
@@ -193,8 +193,8 @@ function strategy(item, lang) {
   }
   if (item.mode === 'contact') {
     return lang === 'ro'
-      ? `Cifra listată este ${price}${per}. Nu este un coș. Butonul cere o propunere. ${when}.`
-      : `The listed figure is ${price}${per}. It is not a cart. The button requests a proposal. ${when}.`;
+      ? `Cifra listată este ${price}${per}. Nu este un coș. Descarcă propunerea acum. Nu livrează licența, sursa sau cloud-ul. ${when}.`
+      : `The listed figure is ${price}${per}. It is not a cart. Download the engagement proposal now. It does not deliver the license, the source, or a private cloud. ${when}.`;
   }
   if (item.clock === 'days') {
     const days = Number(item.deliveryDays) || 0;
