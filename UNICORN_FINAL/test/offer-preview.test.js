@@ -30,6 +30,9 @@ check('a proposal figure downloads an engagement proposal and does not open a ca
   const vertical = engine.proposalDocument('fintech-os');
   assert.equal(vertical.kind, 'industry-brief');
   assert.ok(/does not install an operating system/i.test(vertical.content));
+  const frontier = engine.proposalDocument('frontier-desk');
+  assert.equal(frontier.kind, 'research-brief');
+  assert.ok(/does not sell orbital compute/.test(frontier.content));
   assert.equal(engine.proposalDocument('instant-resume-makeover'), null);
   assert.equal(engine.proposalDocument('ent-engagement-kickoff'), null);
   assert.equal(engine.proposalDocument('../etc/passwd'), null);

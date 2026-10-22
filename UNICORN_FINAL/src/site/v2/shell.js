@@ -6843,6 +6843,7 @@ function pageFrontier() {
   <span class="kicker">Frontier · 12 sovereign inventions</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
   <p style="color:var(--ink-dim);font-size:15px;max-width:820px;line-height:1.7">Each invention below has a live API. Cards marked <span class="tag">interactive</span> open tools on this page. Honesty: refund/cancel emit signed intents and owner-processed settlement — not automatic on-chain clawbacks.</p>
+  <p style="margin:12px 0 0"><a href="/api/shelf/proposal/frontier-desk" download>Download the frontier brief</a></p>
   ${fcoCard}
   <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Signed SLA + REFUND_INTENT audit trail.</p><a class="btn" href="/refund" data-link>Open</a></div>
