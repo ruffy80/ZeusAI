@@ -54,7 +54,7 @@ check('the local prompt is the shelf and does not invent a plan', () => {
   const text = fit.unicornShelfContext();
   assert.ok(text.includes('instant-resume-makeover'));
   assert.ok(text.includes('does not deliver the license'));
-  assert.ok(text.includes('Dropship is paused'));
+  assert.ok(text.includes('listing desk'));
   assert.ok(!text.includes('$29'));
   assert.ok(!text.includes('50+'));
 });

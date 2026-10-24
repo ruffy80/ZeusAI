@@ -663,7 +663,7 @@ function howBuyerHtml() {
   <div class="section-title"><div><span class="kicker">For buyers</span><h2>What happens after you <span class="grad">click pay.</span></h2></div>
   <p>The architecture above is the machine. This is the contract a person can use.</p></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
-    <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Say what you do, or pick a named shelf item. Minute files are paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. None of them is a finished company in a download.</p></div>
+    <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Say what you do, or pick a named shelf item. Minute files are paid now, including the listing desk, frontier tool packs, and industry architecture packs. Day engagements reserve a kickoff. Enterprise figures buy the engagement pack. None of them is a finished company in a download.</p></div>
     <div class="card"><span class="tag">2 · Quote</span><p style="color:var(--ink-dim);line-height:1.65">Checkout locks one dollar price. Bitcoin is the primary rail and shows the owner wallet. Other rails appear only when configured.</p></div>
     <div class="card"><span class="tag">3 · Settle</span><p style="color:var(--ink-dim);line-height:1.65">Delivery follows a matched payment. Instant SKUs quote minutes (resume about 10, website audit about 5). Engagements quote days. A signed receipt is the record.</p></div>
     <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">The refund closes once the file is issued. If the file was never issued, use <a href="/refund" data-link>/refund</a> within 30 days and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. Operator, wallet, and delivery notes are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
@@ -683,7 +683,7 @@ function homeLandingHtml() {
   <div class="grid how-steps">
     <article class="card glass-card"><span class="tag">1 · Say the work</span><h3>What you do, and what you want</h3><p>Write it in the box above. Romanian or English. The match uses the public shelf, not a hidden catalog.</p></article>
     <article class="card glass-card"><span class="tag">2 · Read the price</span><h3>One offer, plus one you did not ask for</h3><p>Each answer names the deliverable, the price, and when it arrives. A second card is an adjacent shelf item, labeled as something you did not request.</p></article>
-    <article class="card glass-card"><span class="tag">3 · Pay or ask</span><h3>Bitcoin is live</h3><p>Minute files and day-clock reserves open checkout. Contract figures request a proposal, except the payable kickoff. Card and PayPal show when they are configured.</p></article>
+    <article class="card glass-card"><span class="tag">3 · Pay or ask</span><h3>Bitcoin is live</h3><p>Minute files, the listing desk, frontier tool packs, industry architecture packs, and day-clock reserves open checkout. Enterprise figures buy the engagement pack. Card and PayPal show when they are configured.</p></article>
   </div>
 </section>
 <section id="earlyAccess" class="card glass-card">

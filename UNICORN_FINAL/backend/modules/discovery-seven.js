@@ -423,13 +423,20 @@ function guideHtml(id) {
   }
   const href = guide.ctaHref || guide.servicePath;
   const ld = JSON.stringify(_jsonLd(guide)).replace(/</g, '\\u003c');
+  let moneyNote = '';
+  try {
+    const money = require('../../src/commerce/money-catalog').byId(guide.id);
+    if (money && money.note) moneyNote = money.note;
+  } catch (_) { moneyNote = ''; }
   const cartNote = guide.id === 'ent-engagement-kickoff'
     ? 'Paid start only. It does not deliver the license, the source, or a private cloud.'
     : (/^ent-/i.test(guide.id) && guide.buyable
       ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.'
+      : (moneyNote
+      ? moneyNote
       : (guide.buyable
       ? 'The button uses the same checkout as the shelf card.'
-      : 'This figure is a proposal, not a cart.'));
+      : 'This figure is a proposal, not a cart.')));
   return `<section style="padding-top:140px;max-width:820px" id="offerGuide" data-product-id="${_esc(guide.id)}" data-price-usd="${_esc(guide.priceUsd)}">
   <script type="application/ld+json">${ld}</script>
   <span class="kicker">Offer guide · live shelf</span>

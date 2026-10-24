@@ -3058,6 +3058,23 @@ function clientBuyabilityCta(it) {
   if (/^ent-/i.test(id)) {
     return { mode: 'reserve', buyable: true, ctaLabel: 'Buy the engagement pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
+  if (id === 'frontier-pledge-pack') {
+    return { mode: 'unavailable', buyable: false, ctaLabel: 'Open the pledge', ctaHref: '/pledge' };
+  }
+  if (id === 'frontier-universal-cancel') {
+    return { mode: 'unavailable', buyable: false, ctaLabel: 'Open cancel', ctaHref: '/cancel' };
+  }
+  if (/^frontier-/i.test(id) && price > 0) {
+    return { mode: 'btc', buyable: true, ctaLabel: 'Buy the tool pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
+  if (id === 'dropship-listing-desk') {
+    return { mode: 'btc', buyable: true, ctaLabel: 'Buy the listing desk →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
+  if (group === 'industry' || tier === 'industry' || /^(fintech|health|retail|logistics|manufacturing|energy|agri|edu|govtech|legaltech|hospitality|media|gaming|realestate|mobility|biotech|security|climate)-os$/i.test(id)) {
+    if (price > 0) {
+      return { mode: 'btc', buyable: true, ctaLabel: 'Buy the architecture pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    }
+  }
   if (group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
     return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
   }
@@ -3512,7 +3529,19 @@ async function hydrateServiceDetail(id){
   }
   const root = $('#serviceMain');
   if (!root) return;
-  if (!s) { root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>'; return; }
+  const _svcPageEl = document.getElementById('servicePage');
+  const _svcBuyEl = document.getElementById('svcBuyBtn');
+  const _renderedId = (_svcPageEl && _svcPageEl.getAttribute('data-id'))
+    || (_svcBuyEl && _svcBuyEl.getAttribute('data-sovereign-buy'))
+    || '';
+  const _idMatches = String(_renderedId) === String(id);
+  const _ssrDetailReady = _idMatches
+    && !!(document.getElementById('svcDeliveryTimeline') && document.getElementById('svcUpsell'));
+  if (!s) {
+    if (_ssrDetailReady) return;
+    root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>';
+    return;
+  }
   const sid = String(s.id || id || 'unknown-service');
   const localPrice = (s.priceUsd != null ? Number(s.priceUsd) : (s.price != null ? Number(s.price) : null));
   const _localHasFrac = Number.isFinite(localPrice) && Math.abs(localPrice - Math.round(localPrice)) > 0.0049;
@@ -3537,15 +3566,10 @@ async function hydrateServiceDetail(id){
   // check would wrongly keep stale content. Require #servicePage[data-id] (or
   // the buy button's data-sovereign-buy) to match the requested sid; otherwise
   // rewrite the HTML.
-  const _svcPageEl = document.getElementById('servicePage');
-  const _svcBuyEl = document.getElementById('svcBuyBtn');
-  const _renderedId = (_svcPageEl && _svcPageEl.getAttribute('data-id'))
-    || (_svcBuyEl && _svcBuyEl.getAttribute('data-sovereign-buy'))
-    || '';
-  const _idMatches = String(_renderedId) === sid;
-  const _ssrDetailReady = _idMatches
+  const _sameService = String(_renderedId) === sid;
+  const _ssrKeep = _sameService
     && !!(document.getElementById('svcDeliveryTimeline') && document.getElementById('svcUpsell'));
-  if (!_ssrDetailReady) {
+  if (!_ssrKeep) {
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
       <div class="svc-cine-card" data-tilt>

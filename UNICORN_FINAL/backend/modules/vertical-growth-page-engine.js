@@ -121,10 +121,10 @@ function renderGrowthHtml(slug, opts) {
 </div>
 
 <p style="margin-top:2rem; text-align:center;">
-  <a class="cta" href="/api/shelf/proposal/${_esc(v.id)}" download>Download the industry brief</a>
+  <a class="cta" href="/checkout/?plan=${_esc(v.id)}">Buy the architecture pack →</a>
 </p>
 <p style="margin-top:1rem; text-align:center;">
-  <a href="/vom">Industry packs are a kickoff, not a cart</a>
+  <a href="/services/${_esc(v.id)}">The pack is the file. It does not install an operating system.</a>
 </p>
 
 <p class="small" style="margin-top:2rem;">

@@ -94,12 +94,22 @@ async function run() {
     assert.ok(bare.error === 'contact_required' || bare.error === 'service_not_buyable', bare.error);
   });
 
-  await check('high-ticket vertical is contact, not Buy CTA', () => {
+  await check('industry architecture pack mints an invoice', async () => {
     const a = buyability.assessBuyability({
       id: 'govtech-os', group: 'vertical', priceUsd: 5999,
     });
-    assert.strictEqual(a.buyable, false);
-    assert.strictEqual(a.mode, 'contact');
+    assert.strictEqual(a.buyable, true);
+    assert.strictEqual(a.mode, 'btc');
+    assert.ok(String(a.ctaHref).includes('govtech-os'));
+    const ctx = {
+      resolveCatalogItem: async (id) => ({
+        id, title: 'GovTech OS Architecture Pack', priceUsd: 5999, group: 'industry', tier: 'industry',
+      }),
+    };
+    const out = await commerce.createOrder(ctx, {
+      serviceId: 'govtech-os', qty: 1, email: 'buyer@example.com',
+    });
+    assert.ok(out.order, JSON.stringify(out));
   });
 
   await check('checkoutHtml exposes shareable invoice + optional email capture', () => {
