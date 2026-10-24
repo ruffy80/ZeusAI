@@ -1214,6 +1214,17 @@ function revokeOrderFromProvider(orderId, proof) {
   if (order.status !== 'paid' && order.status !== 'pending') {
     return { ok: false, error: 'order_not_revocable', status: order.status };
   }
+  const refundGate = require('../commerce/refund-consumption-gate');
+  const subject = Object.assign({}, order);
+  try {
+    const registry = require('./v2/delivery-registry');
+    const delivery = registry && typeof registry.get === 'function' ? registry.get(order.orderId) : null;
+    if (delivery) subject.delivery = delivery;
+  } catch (_) { /* delivery evidence is optional */ }
+  const verdict = refundGate.decideRevoke(subject, proof);
+  if (verdict.action === 'refuse') {
+    return { ok: false, error: verdict.decision.reason, signals: verdict.decision.signals, note: verdict.decision.note };
+  }
   const provider = String((proof && proof.provider) || 'alt-rail').toLowerCase().slice(0, 32);
   const providerRef = String((proof && (proof.providerRef || proof.paymentId || proof.paypalOrderId)) || '').slice(0, 128);
   order.status = 'refunded';
@@ -1224,6 +1235,8 @@ function revokeOrderFromProvider(orderId, proof) {
     providerRef: providerRef || null,
     reason: String((proof && proof.reason) || 'provider_refund').slice(0, 80),
     at: order.refunded_at,
+    consumption: verdict.decision.signals,
+    access: verdict.action === 'revoke_access' ? 'revoked' : 'unused',
   };
   if (order.amount_sats) AMT_INDEX.delete(order.amount_sats);
   persistOrder(order);

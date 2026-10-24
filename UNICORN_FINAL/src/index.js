@@ -5213,6 +5213,15 @@ async function unicornHandler(req, res) {
         const receipt = findReceipt(String(p.receiptId || ''));
         if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
         if (urlPath === '/api/admin/commerce/refund') {
+          const refundGate = require('./commerce/refund-consumption-gate');
+          const subject = Object.assign({}, receipt);
+          const delivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : null;
+          if (delivery && !subject.delivery) subject.delivery = delivery;
+          const decision = refundGate.assessRefund(subject);
+          if (!decision.allowed) {
+            res.writeHead(409, { 'Content-Type':'application/json' });
+            return res.end(JSON.stringify({ ok:false, error: decision.reason, signals: decision.signals, note: decision.note }));
+          }
           receipt.status = 'refunded';
           receipt.refundedAt = new Date().toISOString();
           receipt.refund = { amount: Number(p.amount || receipt.amount || 0), currency: receipt.currency || 'USD', reason: p.reason || 'admin_refund', by: 'admin', at: receipt.refundedAt };
@@ -6097,7 +6106,7 @@ async function unicornHandler(req, res) {
       // triggers the live checkout modal with re-confirmed price.
       const body =
         '<h2 style="margin:0">Pricing · Live Dynamic Prices</h2>' +
-        '<p style="color:var(--muted);margin:8px 0 16px">Every price below is computed in real-time by the Unicorn dynamic-pricing engine (USD + BTC, including demand, surge & discount factors). Sovereign-signed receipts. 30-day pre-activation money-back. Card via Stripe or self-custody BTC.</p>' +
+        '<p style="color:var(--muted);margin:8px 0 16px">Every price below is computed in real-time by the Unicorn dynamic-pricing engine (USD + BTC, including demand, surge & discount factors). Sovereign-signed receipts. The refund closes once the file is issued. Card via Stripe or self-custody BTC.</p>' +
         '<div class="card" id="pricing-status" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
           '<div><h3 style="margin:0">Live feed</h3><div class="sub" id="pricing-status-s">Subscribing to /api/pricing/live/stream …</div></div>' +
           '<div class="v" id="pricing-status-v" style="font-size:14px">⏳ connecting</div>' +
@@ -9785,9 +9794,9 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
 <h2>Your rights (GDPR)</h2><p>You can export <a href="/api/customer/export" download data-allow-raw="1">all your data</a> or <a href="/account">delete your account</a> at any time. Programmatic access: <code>GET /api/customer/export</code> · <code>DELETE /api/customer/me</code>.</p>
 <h2>Contact</h2><p>Email: <a href="mailto:${ownerEmail}">${ownerEmail}</a> · Operator: ${owner}.</p>`;
     } else if (slug.startsWith('refund')) {
-      body = `<h2>Pre-activation</h2><p>If your order is still in <code>awaiting_payment</code> state, simply do not send Bitcoin. The order auto-cancels after 60 minutes.</p>
-<h2>Post-activation</h2><p>Activation is instantaneous after payment confirmation. Refunds after activation are not available because compute and AI inference resources are consumed immediately. This is the trade-off of self-custody, no-chargeback Bitcoin payments.</p>
-<h2>Service failure</h2><p>If the service is materially broken on our end (not user error), contact <a href="mailto:${ownerEmail}">${ownerEmail}</a> within 7 days. We will investigate and credit usage.</p>`;
+      body = `<h2>Before the file is issued</h2><p>If your order is still in <code>awaiting_payment</code> state, simply do not send Bitcoin. The order auto-cancels after 60 minutes. An order whose file, license, or work was never issued can be reported within 30 days.</p>
+<h2>After the file is issued</h2><p>The refund is closed once the file is issued. Using the deliverable and then asking for the money back is refused. Bitcoin is not pulled back automatically.</p>
+<h2>Card-network dispute</h2><p>A processor chargeback is outside this site. If one forces the payment back, access to that order is revoked so the file cannot keep being used.</p>`;
     } else if (slug === 'imprint' || slug === 'legal') {
       body = `<h2>Operator</h2><p>${owner}</p>
 <h2>Contact</h2><p><a href="mailto:${ownerEmail}">${ownerEmail}</a></p>

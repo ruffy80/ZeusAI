@@ -113,6 +113,22 @@ async function main() {
     assert.strictEqual(intent.ok, true);
     assert.strictEqual(intent.intent.automaticClawback, false);
     assert.strictEqual(intent.intent.executed, false);
+    const delivered = wsi.poop.openEscrow({
+      orderId: 'ord_wsi_used',
+      serviceId: 'instant-brand-logo-kit',
+      amountUsd: 79,
+    });
+    const usedHash = crypto.createHash('sha256').update('issued-file').digest('hex');
+    assert.strictEqual(wsi.poop.attachDelivery({
+      escrowId: delivered.escrow.escrowId,
+      deliveryHash: usedHash,
+    }).ok, true);
+    const closed = wsi.poop.openRefundIntent({
+      escrowId: delivered.escrow.escrowId,
+      reason: 'changed_mind',
+    });
+    assert.strictEqual(closed.ok, false);
+    assert.strictEqual(closed.reason, 'deliverable_already_issued');
   });
 
   await check('ACE requires payment proof to fund credits', () => {

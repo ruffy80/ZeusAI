@@ -550,7 +550,7 @@ function robotsTxt(base = 'https://zeusai.pro') {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // F1. CRYPTOGRAPHIC REFUND GUARANTEE
-// Each plan ships a signed SLA promise. If breached, refund executes itself.
+// Each plan ships a signed SLA promise. An issued file is not reversed.
 // ═══════════════════════════════════════════════════════════════════════════
 function refundGuarantee() {
   const promise = {
@@ -558,12 +558,13 @@ function refundGuarantee() {
     issuedAt: nowIso(),
     publicKeyHex: publicKeyHex(),
     rules: [
-      { id:'uptime', text:'If 30-day rolling site uptime < 99.9%, full month refund auto-issued.' },
-      { id:'latency', text:'If p95 API latency > 800ms over any 24h window, 25% refund auto-issued.' },
-      { id:'satisfaction', text:'30-day money-back, no questions asked, refund in <72h, signed receipt.' },
-      { id:'sovereignty', text:'If revenue routing is ever breached, 100% historical refund + perpetual free tier.' }
+      { id:'uptime', text:'A missed uptime target is recorded. It does not refund an order whose file, license, or work was already issued.' },
+      { id:'latency', text:'A missed latency target is recorded. It does not refund an order whose file, license, or work was already issued.' },
+      { id:'satisfaction', text:'The refund closes when the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. The owner settles that case.' },
+      { id:'consumed', text:'Paying, receiving the file, and then requesting a refund is refused. The issued file stays with the buyer and the payment stays with the owner.' },
+      { id:'sovereignty', text:'A routing incident is recorded and investigated. It does not refund an order whose file, license, or work was already issued.' }
     ],
-    selfExecution: 'On breach detection, the autonomous compensator emits a signed REFUND_INTENT to the revenue router, which reverses the matching receipt within 24h.',
+    selfExecution: 'When an order has no issued file, the system can record a signed REFUND_INTENT. The owner settles it. An issued file, license, or completed delivery is not reversed.',
     auditUrl: '/api/refund/audit'
   };
   promise.hash = sha256(promise);

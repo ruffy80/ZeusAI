@@ -468,7 +468,7 @@ select.form-inp option{background:#0a0e24;}
       <button id="heroCtaDemo" class="btn btn-outline btn-lg" onclick="openOnboardingModal()" style="border-color:#00ffa3;color:#00ffa3">⚡ Try Free Demo</button>
       <a href="/proof" id="heroCtaTertiary" class="btn btn-ghost btn-lg" style="text-decoration:none">🔒 Live Proof</a>
     </div>
-    <p class="hero-sub" id="heroGuarantee" style="margin-top:14px;font-size:13px;color:#7090b0">30-day money-back · sovereign-signed receipts · cancel anytime</p>
+    <p class="hero-sub" id="heroGuarantee" style="margin-top:14px;font-size:13px;color:#7090b0">Refund closes once the file is issued · sovereign-signed receipts</p>
     <script>
       /* Hero hydration from /api/growth/offer — additive, with safe fallback. */
       (function heroHydrate(){
@@ -1626,7 +1626,7 @@ async function initHeroAbExperience(){
       var p=document.getElementById('heroCtaPrimary');
       if(t) t.innerHTML='ZEUS AI<br/>Revenue outcomes, not promises.';
       if(s) s.textContent='Activate production AI services with measurable business impact, transparent checkout and verifiable delivery evidence.';
-      if(g) g.textContent='ROI-first onboarding · sovereign-signed receipts · 30-day money-back';
+      if(g) g.textContent='ROI-first onboarding · sovereign-signed receipts · refund closes once the file is issued';
       if(p){
         p.href='/services';
         p.textContent='⚡ Explore Live Services';
@@ -6101,7 +6101,7 @@ document.addEventListener('DOMContentLoaded',function(){
         '<a href="/pricing" onclick="document.getElementById(\"onboarding-modal\").style.display=\"none\";navigate(\"pricing\")" style="display:block;padding:12px 16px;border:1px solid rgba(0,212,255,.3);border-radius:10px;color:#b0bcd4;text-align:center;text-decoration:none">💳 View Pricing Plans</a>'+
         '<a href="/proof" style="display:block;padding:12px 16px;border-radius:10px;color:#7090b0;text-align:center;text-decoration:none;font-size:13px">🔒 See Live Proof of Work →</a>'+
       '</div>'+
-      '<p style="margin-top:16px;font-size:11px;color:#58637a;text-align:center">30-day money-back · sovereign-signed receipts · cancel anytime</p>'+
+      '<p style="margin-top:16px;font-size:11px;color:#58637a;text-align:center">Refund closes once the file is issued · sovereign-signed receipts</p>'+
     '</div>';
     document.body.appendChild(m);
     m.addEventListener('click',function(e){if(e.target===m)m.style.display='none';});
