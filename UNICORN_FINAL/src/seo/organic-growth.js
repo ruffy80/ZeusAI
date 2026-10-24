@@ -426,18 +426,18 @@ function deskHtml() {
     ? search.queries.value : null;
   const queryHtml = queryRows
     ? (queryRows.length
-      ? '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
+      ? '<div style="overflow-x:auto"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
         + queryRows.map((row) => '<tr><td>' + esc(row.query) + '</td>' + rowCells(row) + '</tr>').join('')
-        + '</tbody></table>'
+        + '</tbody></table></div>'
       : '<p style="margin:8px 0 0;color:var(--ink-dim)">Google returned no queries in this window.</p>')
     : '<p style="margin:8px 0 0;color:var(--ink-dim)">Queries are unavailable until Search Console returns them.</p>';
   const pageRows = search.pages && search.pages.status === 'measured' && Array.isArray(search.pages.value)
     ? search.pages.value : null;
   const pageHtml = pageRows
     ? (pageRows.length
-      ? '<table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
+      ? '<div style="overflow-x:auto"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
         + pageRows.map((row) => '<tr><td>' + esc(row.page) + '</td>' + rowCells(row) + '</tr>').join('')
-        + '</tbody></table>'
+        + '</tbody></table></div>'
       : '<p style="margin:8px 0 0;color:var(--ink-dim)">Google returned no pages in this window.</p>')
     : '<p style="margin:8px 0 0;color:var(--ink-dim)">Pages are unavailable until Search Console returns them.</p>';
   const pageNote = pageRows
