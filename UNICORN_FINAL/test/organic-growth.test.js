@@ -91,6 +91,35 @@ check('alias, robots, 404, and script preload are in the server source', () => {
   assert.ok(chain.includes('organic-growth.test.js'));
 });
 
+check('measured queries stay residue unless a shelf word matches', () => {
+  const brand = growth.classifyQueries({
+    status: 'measured',
+    value: [
+      { query: 'zeus ia', clicks: 0, impressions: 1, position: 14 },
+      { query: 'zeus learn ai', clicks: 0, impressions: 1, position: 84 },
+      { query: 'resume makeover bitcoin', clicks: 0, impressions: 2, position: 9 },
+    ],
+  });
+  assert.deepStrictEqual(brand.residue.map((row) => row.query), ['zeus ia', 'zeus learn ai']);
+  assert.strictEqual(brand.residue[0].article, null);
+  assert.strictEqual(brand.echoes[0].href, '/services/instant-resume-makeover');
+  const leaks = growth.noindexLeaks({
+    status: 'measured',
+    value: [
+      { page: 'https://zeusai.pro/checkout', impressions: 1, clicks: 0 },
+      { page: 'https://zeusai.pro/', impressions: 9, clicks: 3 },
+    ],
+  });
+  assert.strictEqual(leaks.value.length, 1);
+  assert.ok(leaks.value[0].page.endsWith('/checkout'));
+  assert.strictEqual(growth.formatMetric({ status: 'measured', value: 0.3333333333333333 }, 'ctr'), '33.3%');
+  assert.strictEqual(growth.formatMetric({ status: 'measured', value: 11.666666666666666 }, 'position'), '11.7');
+  assert.ok(growth.sampleNote({ impressions: { status: 'measured', value: 9 } }).includes('too small'));
+  assert.strictEqual(growth.sampleNote({ impressions: { status: 'measured', value: 40 } }), null);
+  const site = read('src/index.js');
+  assert.ok(site.includes("responseHeaders['X-Robots-Tag']"));
+});
+
 check('the desk HTML shows unavailable metrics and the share bar uses this page', () => {
   const html = growth.deskHtml();
   assert.ok(html.includes('id="organicGrowth"'));

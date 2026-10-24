@@ -250,6 +250,79 @@ check('a rejected property stays unavailable and names no invented clicks', asyn
   });
 });
 
+check('sitemap submit and shown-page inspection stay empty without a measured call', async () => {
+  clearSecrets();
+  const prev = global.fetch;
+  let called = 0;
+  global.fetch = async () => { called += 1; return jsonResponse(500, {}); };
+  const missing = await bridge.submitSitemap('sc-domain:zeusai.pro');
+  assert.strictEqual(missing.reason, 'no_service_account');
+  const none = await bridge.inspectShownPages('sc-domain:zeusai.pro', [{ page: 'https://zeusai.pro/' }]);
+  assert.strictEqual(none.reason, 'no_service_account');
+  assert.strictEqual(called, 0);
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON = fakeServiceAccount();
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('oauth2.googleapis.com/token')) return jsonResponse(200, { access_token: 'ya29.inspect' });
+    if (u.includes('urlInspection/index:inspect')) {
+      return jsonResponse(200, {
+        inspectionResult: {
+          indexStatusResult: {
+            verdict: 'NEUTRAL',
+            coverageState: 'URL is unknown to Google',
+            indexingState: 'INDEXING_ALLOWED',
+            googleCanonical: 'https://zeusai.pro/',
+            userCanonical: 'https://zeusai.pro/',
+            lastCrawlTime: '2026-10-01T00:00:00Z',
+            extraSecret: 'ya29.should-not-pass',
+          },
+        },
+      });
+    }
+    if (u.includes('/sitemaps/')) return jsonResponse(204, {});
+    return jsonResponse(404, {});
+  };
+  const inspected = await bridge.inspectShownPages('sc-domain:zeusai.pro', [
+    { page: 'https://zeusai.pro/' },
+    { page: 'https://zeusai.pro/checkout' },
+    { page: 'https://zeusai.pro/' },
+  ]);
+  assert.strictEqual(inspected.status, 'measured');
+  assert.strictEqual(inspected.value.length, 2);
+  assert.strictEqual(inspected.value[0].verdict, 'NEUTRAL');
+  assert.strictEqual(inspected.value[0].googleCanonical, 'https://zeusai.pro/');
+  assert.ok(!JSON.stringify(inspected).includes('ya29.'));
+  assert.ok(!JSON.stringify(inspected).includes('extraSecret'));
+  const submitted = await bridge.submitSitemap('sc-domain:zeusai.pro');
+  assert.strictEqual(submitted.ok, true);
+  assert.strictEqual(submitted.status, 204);
+  assert.strictEqual(submitted.sitemap, 'https://zeusai.pro/sitemap.xml');
+  global.fetch = prev;
+  clearSecrets();
+});
+
+check('a credentials path is accepted only outside the repo at mode 600', () => {
+  clearSecrets();
+  const body = JSON.stringify({
+    type: 'service_account',
+    client_email: 'file-reader@example.invalid',
+    private_key: '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n',
+  });
+  const outside = path.join(TMP_DIR, 'sa.json');
+  fs.writeFileSync(outside, body, { mode: 0o600 });
+  fs.chmodSync(outside, 0o644);
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = outside;
+  assert.deepStrictEqual(bridge.armedEngines(), []);
+  fs.chmodSync(outside, 0o600);
+  assert.deepStrictEqual(bridge.armedEngines(), ['google']);
+  const inside = path.join(ROOT, 'test', '.sa-reject.json');
+  fs.writeFileSync(inside, body, { mode: 0o600 });
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = inside;
+  assert.deepStrictEqual(bridge.armedEngines(), []);
+  fs.rmSync(inside, { force: true });
+  clearSecrets();
+});
+
 check('base64 service account is accepted (multi-line .env transport)', () => {
   clearSecrets();
   process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = Buffer.from(fakeServiceAccount(), 'utf8').toString('base64');
