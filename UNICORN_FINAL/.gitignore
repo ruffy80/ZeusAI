@@ -1,5 +1,8 @@
 .DS_Store
 .env
+search-console-key.json
+search-console.env
+*search-console*.json
 node_modules/
 
 logs/

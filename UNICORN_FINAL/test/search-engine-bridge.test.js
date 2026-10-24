@@ -42,6 +42,7 @@ function clearSecrets() {
   delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
   delete process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 }
 clearSecrets();
 
@@ -459,6 +460,37 @@ check('backend boot names the blocking secret', () => {
   const src = read('backend/index.js');
   assert.ok(src.includes('search-console-bridge'));
   assert.ok(src.includes('blocked — set '));
+});
+
+check('GOOGLE_APPLICATION_CREDENTIALS reads only a mode-600 file outside the repo', async () => {
+  clearSecrets();
+  const outside = path.join(TMP_DIR, 'outside-sa.json');
+  const open = path.join(TMP_DIR, 'open-sa.json');
+  const inside = path.join(ROOT, 'search-console-key.json');
+  const body = fakeServiceAccount();
+  fs.writeFileSync(outside, body, { mode: 0o600 });
+  fs.writeFileSync(open, body, { mode: 0o644 });
+  fs.writeFileSync(inside, body, { mode: 0o600 });
+  try {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = open;
+    assert.deepStrictEqual(bridge.armedEngines(), []);
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = inside;
+    assert.deepStrictEqual(bridge.armedEngines(), []);
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = outside;
+    assert.deepStrictEqual(bridge.armedEngines(), ['google']);
+    const status = JSON.stringify(bridge.getStatus());
+    assert.ok(!status.includes('PRIVATE KEY'));
+    assert.ok(!status.includes('private_key'));
+    const plan = await bridge.runGoogle({ dryRun: true });
+    assert.strictEqual(plan.armed, true);
+    assert.strictEqual(plan.clientEmail, 'bridge@zeusai-test.iam.gserviceaccount.com');
+    assert.ok(!JSON.stringify(plan).includes('PRIVATE KEY'));
+  } finally {
+    clearSecrets();
+    fs.rmSync(inside, { force: true });
+    fs.rmSync(outside, { force: true });
+    fs.rmSync(open, { force: true });
+  }
 });
 
 check('test:chain includes search-engine-bridge.test.js', () => {

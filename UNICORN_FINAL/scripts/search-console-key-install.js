@@ -5,7 +5,8 @@
  *
  * The owner drops the JSON at /var/www/unicorn/shared/search-console-key.json
  * (mode 600). This script checks the shape, optionally probes Search Console,
- * and writes only GOOGLE_SERVICE_ACCOUNT_JSON_B64 into
+ * and writes GOOGLE_SERVICE_ACCOUNT_JSON_B64 plus the path variable
+ * GOOGLE_APPLICATION_CREDENTIALS into
  * /var/www/unicorn/shared/search-console.env. It never writes the raw JSON
  * into git or into the main .env, and it never restarts PM2.
  *
@@ -140,9 +141,14 @@ async function installFromFile(opts) {
         });
       }
     }
+    const credPath = path.resolve(keyPath);
+    if (/[\r\n\0]/.test(credPath)) {
+      return publicResult({ blocked: true, reason: 'env_unwritable', calledGoogle });
+    }
     fs.mkdirSync(path.dirname(envPath), { recursive: true });
     const tmp = envPath + '.tmp';
-    fs.writeFileSync(tmp, ENV_NAME + '=' + b64 + '\n', { mode: 0o600 });
+    fs.writeFileSync(tmp, ENV_NAME + '=' + b64 + '\n'
+      + 'GOOGLE_APPLICATION_CREDENTIALS=' + credPath + '\n', { mode: 0o600 });
     fs.renameSync(tmp, envPath);
     fs.chmodSync(envPath, 0o600);
   } catch (_) {
@@ -159,6 +165,7 @@ async function installFromFile(opts) {
     calledGoogle,
     loadsOnNextBackendStart: true,
     clientEmail: parsed.account.client_email,
+    credentialsPath: path.resolve(keyPath),
   });
 }
 
