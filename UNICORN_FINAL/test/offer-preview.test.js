@@ -31,9 +31,11 @@ check('a proposal figure downloads an engagement proposal and does not open a ca
   assert.ok(sold.sections.includes('MSA'));
   assert.ok(/not in this download/i.test(sold.note));
   assert.ok(!/source code is attached/i.test(sold.note));
-  const vertical = engine.proposalDocument('fintech-os');
-  assert.equal(vertical.kind, 'industry-brief');
-  assert.ok(/does not install an operating system/i.test(vertical.content));
+  assert.equal(engine.proposalDocument('fintech-os'), null);
+  const pack = engine.offerPreview('fintech-os', { mode: 'btc', clock: 'minutes', tier: 'industry' });
+  assert.equal(pack.kind, 'activation');
+  assert.equal(pack.fileTitle, 'Architecture Pack');
+  assert.ok(/does not install an operating system/i.test(pack.note));
   const frontier = engine.proposalDocument('frontier-desk');
   assert.equal(frontier.kind, 'research-brief');
   assert.ok(/does not sell orbital compute/.test(frontier.content));

@@ -89,15 +89,18 @@ check('checkout uses the shelf price and sells the engagement pack', () => {
   assert.ok(!proposal.includes('It does not deliver the license, the source, or a private cloud.'));
 });
 
-check('a paused power is explained without a price, then three real doors', () => {
+check('dropship buys the listing desk, and orbital compute stays unpriced', () => {
   const advice = shelf.advise('I want to dropship with Printful');
-  assert.ok(advice.limits && advice.limits.length === 1);
-  assert.strictEqual(advice.limits[0].priced, false);
-  assert.strictEqual(advice.limits[0].priceLabel, '');
-  assert.ok(advice.limits[0].ctaHref.includes('/zacc'));
-  assert.ok(advice.primary);
-  assert.strictEqual(advice.primary.role, 'start');
-  assert.ok(advice.also.length >= 1);
+  assert.strictEqual(advice.primary.id, 'dropship-listing-desk');
+  assert.strictEqual(advice.primary.buyable, true);
+  assert.ok(advice.primary.ctaHref.includes('/checkout/?plan=dropship-listing-desk'));
+  assert.ok(/does not dispatch a parcel/i.test(advice.primary.strategy));
+  const blocked = shelf.advise('I want orbital compute');
+  assert.ok(blocked.limits && blocked.limits.length === 1);
+  assert.strictEqual(blocked.limits[0].priced, false);
+  assert.strictEqual(blocked.limits[0].priceLabel, '');
+  assert.ok(blocked.limits[0].ctaHref.includes('/frontier'));
+  assert.ok(blocked.primary);
 });
 
 check('pricing, services, buy, and home share one shelf', () => {

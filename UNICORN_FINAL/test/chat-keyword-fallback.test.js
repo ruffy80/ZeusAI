@@ -56,7 +56,7 @@ check('revenue does not claim autonomous deals', () => {
 
 check('marketplace and pricing stay on the shelf contract', () => {
   const market = fallback.replyFor('Show me the marketplace');
-  assert.ok(market.reply.includes('Dropship is paused'));
+  assert.ok(market.reply.includes('listing desk'));
   const price = fallback.replyFor('What is the pricing?');
   assert.ok(price.reply.includes('does not deliver the license'));
 });

@@ -62,7 +62,7 @@ function _buildJsonLd(v, baseUrl) {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: v.title,
-    description: `${v.title} — industry architecture page. KPI focus: ${v.kpi}. The payable start is the engagement kickoff, not this page.`,
+    description: `${v.title} — architecture pack. KPI focus: ${v.kpi}. Payment issues the file. It does not install an operating system.`,
     url: `${baseUrl}/vertical/${v.id}`,
   };
 }
@@ -72,9 +72,9 @@ function _buildFaqLd(v) {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: [
-      { '@type': 'Question', name: `What is ${v.title}?`, acceptedAnswer: { '@type': 'Answer', text: `${v.title} is an industry architecture brief focused on ${v.kpi}. The brief downloads now. It does not install an operating system.` } },
-      { '@type': 'Question', name: 'How is it priced?',   acceptedAnswer: { '@type': 'Answer', text: `The listed workspace figure is $${v.priceUsd} USD. It is not a cart. The payable start is the engagement kickoff.` } },
-      { '@type': 'Question', name: 'How fast can I launch?', acceptedAnswer: { '@type': 'Answer', text: 'The industry brief downloads now. A deployed system is a later signed engagement, not this page.' } }
+      { '@type': 'Question', name: `What is ${v.title}?`, acceptedAnswer: { '@type': 'Answer', text: `${v.title} is an architecture pack focused on ${v.kpi}. Payment issues that file. It does not install an operating system and it does not certify HIPAA, SOX, or a regulator.` } },
+      { '@type': 'Question', name: 'How is it priced?',   acceptedAnswer: { '@type': 'Answer', text: `The price is $${v.priceUsd} USD. That is the price of the architecture pack file.` } },
+      { '@type': 'Question', name: 'How fast can I launch?', acceptedAnswer: { '@type': 'Answer', text: 'The architecture pack is issued after payment. A deployed system is not in the download.' } }
     ]
   };
 }
@@ -98,7 +98,7 @@ function renderLandingHtml(slug, opts) {
 <head>
 <meta charset="utf-8">
 <title>${_esc(v.title)} — Vertical AI OS by ZeusAI</title>
-<meta name="description" content="${_esc(v.title)} — industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now. The payable start is the engagement kickoff.">
+<meta name="description" content="${_esc(v.title)} — architecture pack focused on ${_esc(v.kpi)}. Payment issues the file. It does not install an operating system.">
 <link rel="canonical" href="${baseUrl}/vertical/${v.id}">
 <meta property="og:title" content="${_esc(v.title)} — ZeusAI Vertical OS">
 <meta property="og:description" content="Industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now.">
@@ -136,33 +136,32 @@ function renderLandingHtml(slug, opts) {
 <header>
   <span class="kpi">KPI: ${_esc(v.kpi)}</span>
   <h1>${_esc(v.title)}</h1>
-  <p>Industry architecture brief for <strong>${_esc(v.kpi)}</strong>. The file downloads now. It does not install an operating system.</p>
+  <p>Architecture pack for <strong>${_esc(v.kpi)}</strong>. Payment issues the file. It does not install an operating system.</p>
 </header>
 
 <section>
-  <div class="price">$${v.priceUsd} <span style="font-size:.6em;color:#666;">listed figure · not a cart</span></div>
-  <p style="margin-top:1rem;"><a class="cta" href="/api/shelf/proposal/${_esc(v.id)}" download>Download the industry brief</a></p>
-  <p style="margin-top:0.75rem;"><a href="/vom">Industry packs are a kickoff, not a cart</a></p>
-  <p style="margin-top:0.75rem;"><a href="/services/ent-engagement-kickoff">Pay the engagement kickoff</a></p>
+  <div class="price">$${v.priceUsd} <span style="font-size:.6em;color:#666;">architecture pack</span></div>
+  <p style="margin-top:1rem;"><a class="cta" href="/checkout/?plan=${_esc(v.id)}">Buy the architecture pack →</a></p>
+  <p style="margin-top:0.75rem;"><a href="/services/${_esc(v.id)}">Service page</a></p>
 </section>
 
 <section>
   <h2>What you get</h2>
   <ul>
-    <li>This industry brief, as a file, focused on ${_esc(v.kpi)}.</li>
-    <li>A link to the engagement kickoff, which is the payable start.</li>
-    <li>A deployed system only if a later statement of work is signed. This page does not deliver that system.</li>
+    <li>The architecture pack, as a file, focused on ${_esc(v.kpi)}.</li>
+    <li>Outcomes, workflow, a phase plan, and the handoff.</li>
+    <li>The pack does not install an operating system and does not certify HIPAA, SOX, or a regulator.</li>
   </ul>
 </section>
 
 <section>
   <h2>FAQ</h2>
   <h3>What is ${_esc(v.title)}?</h3>
-  <p>${_esc(v.title)} is an industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now. It does not install an operating system.</p>
+  <p>${_esc(v.title)} is an architecture pack focused on ${_esc(v.kpi)}. Payment issues that file. It does not install an operating system and it does not certify HIPAA, SOX, or a regulator.</p>
   <h3>How is it priced?</h3>
-  <p>The listed workspace figure is $${v.priceUsd} USD. It is not a cart. The payable start is the engagement kickoff.</p>
+  <p>The price is $${v.priceUsd} USD. That is the price of the architecture pack file.</p>
   <h3>How fast can I launch?</h3>
-  <p>The industry brief downloads now. A deployed system is a later signed engagement, not this page.</p>
+  <p>The architecture pack is issued after payment. A deployed system is not in the download.</p>
 </section>
 
 <footer>
