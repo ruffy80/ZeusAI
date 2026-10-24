@@ -10,6 +10,7 @@ on:
       - 'UNICORN_FINAL/backend/**'
       - 'UNICORN_FINAL/client/**'
       - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/test/**'
       - 'UNICORN_FINAL/package.json'
       - 'UNICORN_FINAL/package-lock.json'
       - 'UNICORN_FINAL/ecosystem.config.js'
