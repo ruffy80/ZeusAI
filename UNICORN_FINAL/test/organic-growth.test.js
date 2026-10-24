@@ -255,6 +255,7 @@ check('the desk prints a measured read and its recommendations', () => {
   assert.ok(html.includes('zeus ia'));
   assert.ok(html.includes('Do not create an article for'));
   assert.ok(html.includes('https://zeusai.pro/docs'));
+  assert.ok(html.includes('not added into the property totals'));
   assert.ok(html.includes('2026-09-26'));
   assert.ok(!/estimated traffic is 9|1,200 visits/i.test(html));
   const pub = growth.publicReport();

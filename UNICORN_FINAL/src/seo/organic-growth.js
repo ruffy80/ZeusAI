@@ -440,6 +440,9 @@ function deskHtml() {
         + '</tbody></table>'
       : '<p style="margin:8px 0 0;color:var(--ink-dim)">Google returned no pages in this window.</p>')
     : '<p style="margin:8px 0 0;color:var(--ink-dim)">Pages are unavailable until Search Console returns them.</p>';
+  const pageNote = pageRows
+    ? '<p style="margin:8px 0 0;color:var(--ink-dim);font-size:13px">These are the page rows Google returned. They are not added into the property totals above.</p>'
+    : '';
   const recs = search.recommendations;
   const recHtml = recs && recs.status === 'measured' && Array.isArray(recs.value)
     ? (recs.value.length
@@ -508,7 +511,7 @@ function deskHtml() {
     + '<div id="searchConsoleDashboard">'
     + '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px">' + cells + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Queries Google returned</span>' + queryHtml + '</div>'
-    + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Pages Google returned</span>' + pageHtml + '</div>'
+    + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Pages Google returned</span>' + pageHtml + pageNote + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Recommendations from this read</span>' + recHtml + '</div>'
     + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Measured demand</span>' + demandHtml + '</div>'
