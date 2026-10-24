@@ -227,7 +227,7 @@ function policyFactsHtml(origin) {
     + '<div class="card" style="padding:14px"><dt class="kicker">Method</dt><dd style="margin:6px 0 0">You keep the file</dd></div>'
     + '<div class="card" style="padding:14px"><dt class="kicker">Fee</dt><dd style="margin:6px 0 0">None</dd></div>'
     + '<div class="card" style="padding:14px"><dt class="kicker">Refund</dt><dd style="margin:6px 0 0">Full amount, settled by the owner</dd></div>'
-    + '<div class="card" style="padding:14px"><dt class="kicker">Policy</dt><dd style="margin:6px 0 0"><a href="' + _esc(base + RETURN_PATH) + '" data-link>' + _esc(base + RETURN_PATH) + '</a></dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Policy</dt><dd style="margin:6px 0 0;overflow-wrap:anywhere"><a href="' + _esc(base + RETURN_PATH) + '" data-link>' + _esc(base + RETURN_PATH) + '</a></dd></div>'
     + '</dl>';
 }
 
