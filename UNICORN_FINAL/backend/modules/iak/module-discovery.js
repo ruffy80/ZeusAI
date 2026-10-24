@@ -144,6 +144,8 @@ const STABLE_START_ALLOW = new Set([
   'innovationShipGate',
   'live-honesty-os',
   'liveHonestyOs',
+  'research-pipeline',
+  'researchPipeline',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

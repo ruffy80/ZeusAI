@@ -547,6 +547,40 @@ function _getOrderedProviders(taskType) {
   return head.concat(tail);
 }
 
+function _keyConfigured(provider) {
+  const key = process.env[provider.envKey];
+  return Boolean(key && String(key).length >= 8 && !String(key).includes('your_'));
+}
+
+/**
+ * Pick one provider for a task by catalog cost and speed.
+ * Configured keys win over a cheaper provider that has no key.
+ * With no keys, the cheapest/fastest catalog match is still returned
+ * so the caller can record the choice without pretending an API call ran.
+ */
+function chooseProvider(taskType = 'simple') {
+  const type = TASK_ROUTING[taskType] ? taskType : 'simple';
+  const ordered = _getOrderedProviders(type);
+  const pool = ordered.filter((p) => Array.isArray(p.taskTypes) && p.taskTypes.includes(type));
+  const candidates = pool.length ? pool : ordered;
+  const score = (p) => p.costPer1KTokens + (1 - p.speedScore) * 0.001;
+  const ranked = candidates.slice().sort((a, b) => score(a) - score(b));
+  const configured = ranked.filter(_keyConfigured);
+  const winner = (configured.length ? configured : ranked)[0] || null;
+  if (!winner) return null;
+  return {
+    provider: winner.name,
+    model: winner.model,
+    taskType: type,
+    costPer1KTokens: winner.costPer1KTokens,
+    speedScore: winner.speedScore,
+    configured: _keyConfigured(winner),
+    reason: configured.length
+      ? 'lowest cost then highest speed among providers with a configured key'
+      : 'lowest cost then highest speed in the catalog; no provider key is configured',
+  };
+}
+
 // ─── API principal: ask() ──────────────────────────────────────────────────────
 /**
  * Trimite un mesaj la cel mai bun provider disponibil cu fallback automat.
@@ -785,6 +819,7 @@ function resetStats() {
 // ─── Export ────────────────────────────────────────────────────────────────────
 module.exports = {
   ask,
+  chooseProvider,
   getStatus,
   getPerformanceReport,
   resetStats,
