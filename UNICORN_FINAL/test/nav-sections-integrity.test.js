@@ -43,9 +43,11 @@ check('footer Product/Developers/Trust/Company columns exist', () => {
   }
 });
 
-check('TRUST Live Status points at /status (not 404 unicorn-status.html)', () => {
+check('footer does not link crawlers to /status', () => {
   const f = footerBlock();
-  assert.ok(f.includes('href="/status"'), 'footer must link Live Status to /status');
+  assert.ok(!f.includes('href="/status"'), 'footer must not link Live Status');
+  assert.ok(!f.includes('href="/origin"') && !f.includes('href="/dashboard"') && !f.includes('href="/operator"'));
+  assert.ok(!/href="\/api\//.test(f), 'footer must not link /api/');
   assert.ok(!f.includes('/unicorn-status.html'), 'legacy unicorn-status.html must be gone from footer');
   assert.ok(indexJs.includes("urlPath === '/unicorn-status.html'") && indexJs.includes("Location: '/status'"),
     'site must 301 /unicorn-status.html → /status');

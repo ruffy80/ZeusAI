@@ -39,7 +39,7 @@ function pageSeo() {
   <div class="card" style="padding:16px">
     <span class="kicker">/robots.txt</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Crawl policy</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /status, /health, /origin, /admin, /dashboard, and the other internal prefixes. Public pages stay allowed.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /status, /health, /origin, /admin, /dashboard, /metrics, and /internal/. HTML that is not a public marketing page sends noindex. The homepage, about, pricing, contact, insight articles, and shelf services stay allowed.</p>
   </div>
 </section>
 

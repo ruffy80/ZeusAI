@@ -2189,8 +2189,45 @@ function __continueDispatch(req, res, method, earlyPath) {
     try {
       if (!res.__zeusAttestPatched) {
         res.__zeusAttestPatched = true;
+        const __seoNoindex = (status, contentType) => {
+          const code = Number(status) || 200;
+          if (code === 410) return false;
+          if (!/text\/html/i.test(String(contentType || ''))) return false;
+          try {
+            if (require('./seo/index-ledger').isGhost(earlyPath)) return false;
+          } catch (_) { /* ledger miss still follows the marketing allowlist */ }
+          try {
+            if (require('./seo/sitemap-helpers').isIndexablePath(earlyPath)) return false;
+          } catch (_) { return true; }
+          return true;
+        };
+        const __origWriteHead = res.writeHead.bind(res);
+        res.writeHead = function (status, reason, headers) {
+          try {
+            let code = status;
+            let hdrs = reason;
+            if (typeof reason === 'string') hdrs = headers;
+            else if (typeof status !== 'number') { code = res.statusCode || 200; hdrs = status; }
+            const ct = (hdrs && (hdrs['Content-Type'] || hdrs['content-type'])) || res.getHeader('Content-Type') || '';
+            if (__seoNoindex(code, ct)) {
+              if (hdrs && typeof hdrs === 'object' && !Array.isArray(hdrs)) {
+                if (!hdrs['X-Robots-Tag'] && !hdrs['x-robots-tag']) hdrs['X-Robots-Tag'] = 'noindex, nofollow';
+              } else if (!res.getHeader('X-Robots-Tag')) {
+                res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+              }
+            }
+          } catch (_) { /* a header miss must not drop the response */ }
+          return __origWriteHead.apply(res, arguments);
+        };
         const __origEnd = res.end.bind(res);
         res.end = function (chunk, encoding, cb) {
+          try {
+            const ct = String(res.getHeader('Content-Type') || '');
+            const sc = res.statusCode || 200;
+            if (__seoNoindex(sc, ct) && !res.headersSent && !res.getHeader('X-Robots-Tag')) {
+              res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+            }
+          } catch (_) { /* headers already flushed */ }
           try {
             const ct = String(res.getHeader('Content-Type') || '').toLowerCase();
             const sc = res.statusCode || 200;
@@ -13421,15 +13458,12 @@ a{color:#8a5cff;text-decoration:none}
       // connections. Opt-in per W3C Client Hints — entirely advisory.
       responseHeaders['Accept-CH'] = 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink';
     }
-    const __noindexRoute = route === '/checkout' || route.indexOf('/checkout/') === 0
-      || route === '/dashboard' || route === '/account'
-      || route === '/admin' || route.indexOf('/admin/') === 0
-      || route === '/login' || route === '/signup' || route === '/auth'
-      || route === '/outreach-desk';
-    if (__noindexRoute) {
-      responseHeaders['X-Robots-Tag'] = (route === '/checkout' || route.indexOf('/checkout/') === 0)
-        ? 'noindex'
-        : 'noindex, nofollow';
+    try {
+      if (!require('./seo/sitemap-helpers').isIndexablePath(route)) {
+        responseHeaders['X-Robots-Tag'] = 'noindex, nofollow';
+      }
+    } catch (_) {
+      responseHeaders['X-Robots-Tag'] = 'noindex, nofollow';
     }
     res.writeHead(200, responseHeaders);
     // ─── HTML BUILD-ATTESTATION (per-response cryptographic proof) ────────

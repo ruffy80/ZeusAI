@@ -110,11 +110,11 @@ async function main() {
     const handled = await sov.handle({ url: '/robots.txt', method: 'GET', headers: {} }, res, {});
     assert.equal(handled, true);
     assert.equal(status, 200);
-    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /admin', 'Disallow: /dashboard']) {
+    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /admin', 'Disallow: /dashboard', 'Disallow: /metrics', 'Disallow: /internal/']) {
       assert.ok(body.includes(line), line);
     }
     assert.ok(body.includes('User-agent: Googlebot'));
-    assert.ok(body.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
+    assert.ok(body.trimEnd().endsWith('Sitemap: https://zeusai.pro/sitemap.xml'));
   });
 
   await check('site wires /seo desk + XSL route + footer sitemap', () => {
@@ -128,6 +128,26 @@ async function main() {
     // Root /sitemap.xml must NOT be served as frontier index anymore
     assert.ok(!/fu === '\/sitemap\.xml' \|\| fu === '\/seo\/sitemap\.xml'/.test(indexJs));
     assert.ok(indexJs.includes("'/seo'"));
+  });
+
+  await check('public pages canonicalize to themselves and internal HTML is noindex', () => {
+    const shell = require('../src/site/v2/shell');
+    const home = shell.getHtml('/');
+    const about = shell.getHtml('/about');
+    const service = shell.getHtml('/services/instant-resume-makeover');
+    const status = shell.getHtml('/status');
+    assert.ok(home.includes('rel="canonical" href="https://zeusai.pro/"'));
+    assert.ok(!home.includes('name="robots" content="noindex'));
+    assert.ok(about.includes('rel="canonical" href="https://zeusai.pro/about"'));
+    assert.ok(service.includes('rel="canonical" href="https://zeusai.pro/services/instant-resume-makeover"'));
+    assert.ok(status.includes('name="robots" content="noindex, nofollow"'));
+    const footer = home.slice(home.indexOf('<footer>'));
+    for (const href of ['href="/status"', 'href="/origin"', 'href="/dashboard"', 'href="/admin"', 'href="/operator"', 'href="/health"', 'href="/metrics"']) {
+      assert.ok(!footer.includes(href), href);
+    }
+    assert.ok(!/href="\/api\//.test(home.slice(0, home.indexOf('<footer>'))));
+    assert.ok(!home.includes('href="/origin"'));
+    assert.ok(!home.includes('href="/status"'));
   });
 
   await check('nginx self-heal requires ICP/CAC/MTS well-known exact matches', () => {

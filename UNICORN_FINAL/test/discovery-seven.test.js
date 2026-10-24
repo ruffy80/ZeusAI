@@ -176,13 +176,13 @@ check('guides in the sitemap are shelf offers, and aliases do not share a title'
   assert.ok(!xml.includes('/marketplace</loc>'));
   assert.ok(!xml.includes('/guides/'));
   const bare = getHtml('/checkout');
-  assert.match(bare, /name="robots" content="noindex"/);
+  assert.match(bare, /name="robots" content="noindex, nofollow"/);
   assert.match(bare, /rel="canonical" href="https:\/\/zeusai\.pro\/checkout"/);
   const priced = getHtml('/checkout', { plan: 'instant-resume-makeover' });
   assert.match(priced, /rel="canonical" href="https:\/\/zeusai\.pro\/services\/instant-resume-makeover"/);
-  assert.match(priced, /name="robots" content="noindex"/);
+  assert.match(priced, /name="robots" content="noindex, nofollow"/);
   const missing = getHtml('/guides/not-a-real-offer');
-  assert.match(missing, /name="robots" content="noindex"/);
+  assert.match(missing, /name="robots" content="noindex, nofollow"/);
   assert.match(missing, /Guide not on the shelf/);
   const x = (getHtml('/from/x').match(/<title>([^<]+)<\/title>/) || [])[1];
   const facebook = (getHtml('/from/facebook').match(/<title>([^<]+)<\/title>/) || [])[1];

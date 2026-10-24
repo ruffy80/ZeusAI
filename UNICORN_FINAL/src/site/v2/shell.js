@@ -570,21 +570,10 @@ function _canonicalUrl(base, route, opts) {
 function _robotsMeta(route) {
   const path = String(route || '');
   if (path === '/__not-found__') return 'noindex, nofollow';
-  if (path === '/dashboard' || path === '/account' || path === '/admin' || path.indexOf('/admin/') === 0) return 'noindex, nofollow';
-  if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
-  if (path === '/outreach-desk') return 'noindex, nofollow';
-  if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
-  if (_serverOnlyService(path)) return 'noindex, nofollow';
-  // Invoice checkout and the empty chooser stay out of the index. A plan
-  // still canonicalizes to the shelf page above.
-  if (path === '/checkout' || path.indexOf('/checkout/') === 0) return 'noindex';
-  if (path.indexOf('/guides/') === 0) {
-    try {
-      const found = require('../../../backend/modules/discovery-seven').guideFor(path.slice('/guides/'.length));
-      if (!found) return 'noindex';
-    } catch (_) { return 'noindex'; }
-  }
-  return '';
+  try {
+    if (require('../../seo/sitemap-helpers').isIndexablePath(path)) return '';
+  } catch (_) { /* unknown inventory stays out of the index */ }
+  return 'noindex, nofollow';
 }
 
 function head(title, route, opts) {
@@ -767,7 +756,6 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
     ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
-    ${L('/status', 'Autonomy OS')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
@@ -794,7 +782,6 @@ function footer(route, opts) {
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
       <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
-      <li><a href="/origin" data-link><strong style="color:#00ffa3">Origin Gravity</strong></a></li>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
       <li><a href="/social-network" data-link><strong style="color:#7cf7c0">ZeusAI Social</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
@@ -804,19 +791,16 @@ function footer(route, opts) {
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
       <li><a href="/how" data-link>How it works</a></li>
-      <li><a href="/dashboard" data-link>Dashboard</a></li>
       <li><a href="/store" data-link>Instant Store</a></li>
       <li><a href="/gift" data-link>Gift</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
-      <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">OpenAPI 3.1</button></li>
       <li><a href="/seo" data-link>SEO desk</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
       <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
-      <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
@@ -833,7 +817,6 @@ function footer(route, opts) {
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
       <li><a href="/aura" data-link>Live Aura</a></li>
-      <li><a href="/status" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
     </ul></div>
@@ -853,7 +836,6 @@ function footer(route, opts) {
       <li><a href="/privacy" data-link>Privacy</a></li>
       <li><a href="/dpa" data-link>DPA</a></li>
       <li><a href="/payment-terms" data-link>Payment Terms</a></li>
-      <li><a href="/operator" data-link>Operator Console</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
     </ul></div>
   </div>
@@ -1578,7 +1560,6 @@ ${sellSurface.homeBuyStripHtml(_all.length)}
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
       <a class="btn btn-primary" href="/buy" data-link id="ogpBannerCta">Claim Origin #1 →</a>
-      <a class="btn btn-ghost" href="/origin" data-link>Read the public ledger</a>
     </div>
   </div>
 </section>
@@ -1666,8 +1647,7 @@ ${_zaccBanner}
     <div class="card" style="border-color:rgba(255,120,160,.42)">
       <span class="tag" style="background:rgba(255,120,160,.16);color:#ff9cbe">Admin Commerce</span>
       <h3 id="commerceProofAdmin">Refund protected</h3>
-      <p>Admin endpoints cover receipts, paid/unpaid, manual confirm, refund, resend license and retry delivery.</p>
-      <a class="btn btn-ghost" href="/admin" data-link>Admin login →</a>
+      <p>Admin endpoints cover receipts, paid/unpaid, manual confirm, refund, resend license and retry delivery. That cockpit is not linked from this page.</p>
     </div>
     <div class="card" style="border-color:rgba(62,160,255,.42)">
       <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>

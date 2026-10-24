@@ -38,6 +38,7 @@ const BLOCKED_EXACT = new Set([
   '/metrics',
   '/outreach-desk',
   '/api',
+  '/internal',
 ]);
 
 const BLOCKED_PREFIXES = [
@@ -54,6 +55,7 @@ const BLOCKED_PREFIXES = [
   '/auth/',
   '/operator/',
   '/metrics/',
+  '/internal/',
   '/.well-known/',
 ];
 
@@ -77,6 +79,7 @@ const ROBOTS_DISALLOW_LINES = Object.freeze([
   'Disallow: /operator',
   'Disallow: /outreach-desk',
   'Disallow: /metrics',
+  'Disallow: /internal/',
 ]);
 
 /** Kept so older callers can skip private paths. */
@@ -93,6 +96,7 @@ const ROBOTS_DISALLOW = new Set([
   '/checkout',
   '/metrics',
   '/operator',
+  '/internal',
 ]);
 
 const SOURCE_FILES = {
@@ -360,6 +364,22 @@ function buildSitemapIndexXml(base, children) {
   );
 }
 
+let _indexableCache = { at: 0, paths: null };
+
+function indexablePaths() {
+  const now = Date.now();
+  if (_indexableCache.paths && (now - _indexableCache.at) < 30000) return _indexableCache.paths;
+  const paths = new Set(marketingEntries().map((entry) => entry.path));
+  _indexableCache = { at: now, paths };
+  return paths;
+}
+
+function isIndexablePath(pathname) {
+  const p = normalizePath(pathname);
+  if (!p) return false;
+  return indexablePaths().has(p);
+}
+
 function corePublicPaths() {
   return marketingEntries().map((entry) => entry.path);
 }
@@ -390,8 +410,8 @@ function robotsTxt(base) {
   const google = ['User-agent: Googlebot', 'Allow: /'].concat(ROBOTS_DISALLOW_LINES);
   return block.concat([''], google, [
     '',
-    'Sitemap: ' + b + '/sitemap.xml',
     'Sitemap: ' + b + '/seo/sitemap-services.xml',
+    'Sitemap: ' + b + '/sitemap.xml',
     '',
   ]).join('\n');
 }
@@ -410,6 +430,7 @@ module.exports = {
   publicBlogEntries,
   publicServiceEntries,
   marketingEntries,
+  isIndexablePath,
   buildUrlsetXml,
   buildSitemapIndexXml,
   corePublicPaths,
