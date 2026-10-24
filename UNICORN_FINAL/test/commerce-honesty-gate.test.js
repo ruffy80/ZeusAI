@@ -36,15 +36,19 @@ function check(name, fn) {
 }
 
 async function run() {
-  await check('enterprise SKUs are contact-only (not self-serve buyable)', () => {
+  await check('named enterprise rows sell the engagement pack', () => {
     const a = buyability.assessBuyability({ id: 'ent-platform-license', tier: 'enterprise', priceUSD: 250000 });
-    assert.strictEqual(a.buyable, false);
-    assert.strictEqual(a.mode, 'contact');
-    assert.ok(/autonomous deal|proposal|contact/i.test(a.ctaLabel));
+    assert.strictEqual(a.buyable, true);
+    assert.strictEqual(a.mode, 'reserve');
+    assert.strictEqual(a.reason, 'enterprise_pack');
+    assert.ok(a.ctaHref.includes('/checkout/?plan=ent-platform-license'));
     const kick = buyability.assessBuyability({ id: 'ent-engagement-kickoff', tier: 'enterprise', group: 'enterprise-kickoff', priceUSD: 2500 });
     assert.strictEqual(kick.buyable, true);
     assert.strictEqual(kick.mode, 'reserve');
-    assert.ok(/autonomous deal|kickoff|Reserve/i.test(kick.ctaLabel));
+    assert.strictEqual(kick.reason, 'enterprise_kickoff');
+    const bare = buyability.assessBuyability({ id: 'enterprise', tier: 'enterprise', priceUSD: 0 });
+    assert.strictEqual(bare.buyable, false);
+    assert.strictEqual(bare.mode, 'contact');
   });
 
   await check('instant SKUs are self-serve BTC', () => {
@@ -113,7 +117,7 @@ async function run() {
     assert.strictEqual(String(noEmail.order.buyer && noEmail.order.buyer.email || ''), '');
   });
 
-  await check('createOrder rejects enterprise self-serve', async () => {
+  await check('createOrder sells the enterprise engagement pack', async () => {
     const ctx = {
       resolveCatalogItem: async (id) => ({
         id, title: 'Enterprise License', priceUsd: 250000, group: 'enterprise', tier: 'enterprise',
@@ -122,7 +126,9 @@ async function run() {
     const ent = await commerce.createOrder(ctx, {
       serviceId: 'ent-platform-license', qty: 1, email: 'ceo@corp.com',
     });
-    assert.ok(ent.error === 'contact_required' || ent.error === 'service_not_buyable', ent.error);
+    assert.ok(ent.order, JSON.stringify(ent));
+    assert.strictEqual(ent.order.buy_mode, 'reserve');
+    assert.ok(ent.order.orderId);
   });
 
   await check('createOrder accepts instant SKU with email', async () => {
@@ -140,17 +146,22 @@ async function run() {
     assert.strictEqual(out.order.buy_mode, 'btc');
   });
 
-  await check('store SSR: enterprise cards use autonomous deal / contact, not Buy with BTC', () => {
+  await check('store SSR: enterprise cards sell the engagement pack', () => {
     const html = shell.getHtml('/store');
     assert.ok(html, 'store page renders');
-    assert.ok(/Start autonomous deal|Request proposal|enterprise#enterprise-contact/i.test(html),
-      'enterprise CTA should be autonomous deal / contact');
+    assert.ok(/Start autonomous deal|Buy the engagement pack/i.test(html),
+      'enterprise CTA should sell the kickoff or the engagement pack');
+    assert.ok(/They are not in the download/i.test(html), 'store names the pack, not the source');
     assert.ok(/Real products\. Real BTC settlement/i.test(html), 'honest store hero');
     assert.ok(/not for sale/i.test(html) || /Module mirror/i.test(html), 'library marked not for sale');
-    // Full ACV ent-* must not be sovereign-buy; engagement kickoff is the only exception.
     const sovereignEnt = [...html.matchAll(/data-sovereign-buy="(ent-[^"]+)"/gi)].map((m) => m[1]);
-    assert.ok(sovereignEnt.every((id) => id === 'ent-engagement-kickoff'),
-      'only ent-engagement-kickoff may be sovereign-buy, got: ' + sovereignEnt.join(','));
+    const packs = [
+      'ent-platform-license', 'ent-acquisition-pack', 'ent-revenue-share', 'ent-private-cloud',
+      'ent-ai-transformation', 'ent-white-label', 'ent-sovereign-deployment',
+    ];
+    for (const id of packs) assert.ok(sovereignEnt.includes(id), id);
+    assert.ok(sovereignEnt.every((id) => packs.includes(id)),
+      'store sovereign enterprise rows are the engagement packs, got: ' + sovereignEnt.join(','));
   });
 
   await check('zacc singleton createDropshipOrder rejects demoOnly', async () => {

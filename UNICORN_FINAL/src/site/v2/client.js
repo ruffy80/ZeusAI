@@ -3055,7 +3055,10 @@ function clientBuyabilityCta(it) {
   if (id === 'ent-engagement-kickoff' || group === 'enterprise-kickoff') {
     return { mode: 'reserve', buyable: true, ctaLabel: 'Start autonomous deal →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
-  if (/^ent-/i.test(id) || group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
+  if (/^ent-/i.test(id)) {
+    return { mode: 'reserve', buyable: true, ctaLabel: 'Buy the engagement pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
+  if (group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
     return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
   }
   if (price >= 5000 || group === 'billion-scale-package' || group === 'billion-scale-activation' || group === 'strategic-package') {
@@ -3082,10 +3085,9 @@ async function sovereignBuy(serviceId, opts){
   const prevBtnDisabled = el ? el.disabled : null;
   const prevBtnText = el && el.tagName === 'BUTTON' ? el.textContent : null;
   try {
-    // Enterprise / contact-only SKUs must never mint a self-serve invoice.
-    // Exception: engagement kickoff is the honest self-serve cash-close SKU.
+    // Bare enterprise plan is not a product. Named ent-* rows mint the engagement pack.
     const sid = String(serviceId || '');
-    if (sid !== 'ent-engagement-kickoff' && (/^ent-/i.test(sid) || sid.toLowerCase() === 'enterprise')) {
+    if (sid.toLowerCase() === 'enterprise') {
       window.location.href = '/enterprise#enterprise-contact';
       return;
     }
@@ -3516,9 +3518,11 @@ async function hydrateServiceDetail(id){
   const _localHasFrac = Number.isFinite(localPrice) && Math.abs(localPrice - Math.round(localPrice)) > 0.0049;
   const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { minimumFractionDigits: _localHasFrac ? 2 : 0, maximumFractionDigits: 2 })) : '—';
   const billing = String(s.billing || '').toLowerCase();
-  const tier = String(s.tier || s.group || s.segment || '').toLowerCase();
-  const showMo = billing === 'monthly' || tier === 'enterprise' || /^(starter|pro|growth)$/.test(sid);
-  const moSuffix = showMo ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : '';
+  const period = billing === 'monthly' ? '/mo'
+    : (billing === 'annual' ? '/yr' : ((!billing && /^(starter|pro|growth)$/.test(sid)) ? '/mo' : ''));
+  const moSuffix = period
+    ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">' + period + '</small>'
+    : '';
   const discountLine = Number.isFinite(localPrice) && localPrice > 0
     ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>'
     : '';
@@ -4921,9 +4925,10 @@ async function hydrateEnterprise(){
   if (grid) {
     grid.innerHTML = cat.products.map(p => {
       const isKickoff = p.id === 'ent-engagement-kickoff' || p.tier === 'kickoff';
+      const isPack = /^ent-/i.test(String(p.id || ''));
       const accounts = Array.isArray(p.accounts) ? p.accounts : [];
-      const ctaHref = p.ctaHref || (isKickoff ? '/checkout/?plan=ent-engagement-kickoff' : '/enterprise#enterprise-contact');
-      const ctaLabel = p.ctaLabel || (isKickoff ? 'Pay engagement kickoff →' : 'Start autonomous deal →');
+      const ctaHref = p.ctaHref || (isPack ? ('/checkout/?plan=' + encodeURIComponent(p.id)) : '/enterprise#enterprise-contact');
+      const ctaLabel = p.ctaLabel || (isKickoff ? 'Pay engagement kickoff →' : (isPack ? 'Buy the engagement pack →' : 'Start autonomous deal →'));
       const border = isKickoff ? 'rgba(163,255,206,.35)' : 'rgba(255,255,255,.08)';
       return `
       <div class="card" style="padding:26px;display:flex;flex-direction:column;gap:14px;border:1px solid ${border};background:linear-gradient(180deg,rgba(20,12,40,.6),rgba(8,6,18,.6));position:relative;overflow:hidden">
@@ -4940,7 +4945,7 @@ async function hydrateEnterprise(){
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Value captured:</b> ${p.valueCaptured || p.sla || 'SOW delivery'}</div>
         ${accounts.length ? `<div style="font-size:12px;color:var(--ink-dim);line-height:1.55"><b style="color:#fff">Target accounts:</b> ${accounts.slice(0,4).join(' · ')}${accounts.length>4?' …':''}</div>` : ''}
         ${p.honesty ? `<div style="font-size:11px;color:#a3ffce;line-height:1.45">${p.honesty}</div>` : ''}
-        <a class="btn btn-gold" href="${ctaHref}" data-link data-pid="${p.id}" data-kickoff="${isKickoff ? '1' : '0'}" style="margin-top:auto;justify-content:center">${ctaLabel}</a>
+        <a class="btn btn-gold" href="${ctaHref}" data-link data-pid="${p.id}" data-kickoff="${isPack ? '1' : '0'}" style="margin-top:auto;justify-content:center">${ctaLabel}</a>
       </div>`;
     }).join('');
     grid.querySelectorAll('a[data-pid]').forEach(btn => {
@@ -5943,19 +5948,23 @@ function renderStoreGrid(products, grid){
                    : p.tier === 'professional' ? '<span style="background:linear-gradient(135deg,#8a5cff,#5b21b6);color:#fff;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">PRO</span>'
                    : '<span style="background:rgba(124,255,184,.15);color:#7cffb8;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">INSTANT</span>';
     const isKickoff = String(p.id || '') === 'ent-engagement-kickoff';
-    const isEnt = !isKickoff && (p.tier === 'enterprise' || /^ent-/i.test(String(p.id || '')));
+    const isPack = !isKickoff && /^ent-/i.test(String(p.id || ''));
+    const isEnt = !isKickoff && !isPack && (p.tier === 'enterprise' || String(p.id || '') === 'enterprise');
     const isPro = isKickoff || p.tier === 'professional' || /^professional-/i.test(String(p.id || ''));
     const ctaLabel = isKickoff ? 'Start autonomous deal →'
-                   : isEnt ? 'Start autonomous deal →'
+                   : isPack ? 'Buy the engagement pack →'
+                   : isEnt ? 'Request a proposal →'
                    : isPro ? 'Reserve → choose payment'
                    : 'Buy → choose payment';
-    const ctaClass = (isEnt || isKickoff) ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
+    const ctaClass = (isEnt || isKickoff || isPack) ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
     const features = p.features ? `<ul style="margin:10px 0;padding-left:18px;color:var(--ink-dim);font-size:12px">${p.features.slice(0,4).map(f => '<li>' + escStore(f) + '</li>').join('')}</ul>` : '';
     const accounts = p.targetAccounts ? `<div style="font-size:11px;color:var(--ink-dim);margin-top:8px"><b>Target:</b> ${p.targetAccounts.slice(0,3).map(escStore).join(', ')}${p.targetAccounts.length>3?'…':''}</div>` : '';
     const deliverableNote = isKickoff
-      ? 'Engagement kickoff — proposal pack after payment; full ACV under SOW'
+      ? 'Paid start. It does not deliver the license, the source, or a private cloud.'
+      : isPack
+      ? 'Engagement pack after payment. The license, source, and cloud stay milestones in the pack.'
       : isEnt
-      ? 'SOW engagement — autonomous deal desk (not self-serve full license)'
+      ? 'Proposal only. This figure is not a cart.'
       : isPro
         ? 'Kickoff pack now · human milestone delivery for the build'
         : escStore(p.deliverable || 'Signed digital deliverable');
@@ -5971,7 +5980,7 @@ function renderStoreGrid(products, grid){
       ${features}
       <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${deliverableNote}</div>
       ${accounts}
-      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isKickoff ? 'reserve' : (isEnt ? 'contact' : (isPro ? 'reserve' : 'checkout'))}" style="margin-top:auto">${ctaLabel}</button>
+      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isEnt ? 'contact' : ((isKickoff || isPack || isPro) ? 'reserve' : 'checkout')}" style="margin-top:auto">${ctaLabel}</button>
     </div>`;
   }).join('');
   if (grid.dataset.storeWired !== '1') {
@@ -5993,11 +6002,11 @@ function renderStoreGrid(products, grid){
 function openStoreCheckout(product){
   if (!product) return;
   const pid = String(product.id || '');
-  if (pid === 'ent-engagement-kickoff') {
+  if (/^ent-/i.test(pid)) {
     goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(pid));
     return;
   }
-  if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(pid)) {
+  if (pid === 'enterprise' || String(product.tier || '').toLowerCase() === 'enterprise') {
     window.location.href = '/enterprise#enterprise-contact';
     return;
   }

@@ -196,14 +196,25 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
-  // Self-serve enterprise kickoff — only ent-* SKU that is buyable.
-  // Full ACV packages stay contact/negotiate; cash closes via this deposit.
+  // Paid start. The kickoff file is a brief, a proposal, and a draft SOW.
   if (id === 'ent-engagement-kickoff' || group === 'enterprise-kickoff') {
     return {
       mode: 'reserve',
       buyable: true,
       reason: 'enterprise_kickoff',
       ctaLabel: 'Start autonomous deal →',
+      ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
+    };
+  }
+
+  // Named ent-* rows sell the engagement pack at the listed figure.
+  // The download is that pack. License, source, and cloud are milestones in it.
+  if (/^ent-/i.test(id)) {
+    return {
+      mode: 'reserve',
+      buyable: true,
+      reason: 'enterprise_pack',
+      ctaLabel: 'Buy the engagement pack →',
       ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
     };
   }

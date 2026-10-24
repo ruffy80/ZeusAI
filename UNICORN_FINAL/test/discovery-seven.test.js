@@ -77,13 +77,14 @@ check('buyable guide matches shelf price and checkout', () => {
   assert.ok(meta.description.includes(meta.title.slice(0, 24)));
 });
 
-check('contact guide is not a cart and kickoff stays a paid start', () => {
+check('the acquisition guide sells the pack and kickoff stays a paid start', () => {
   const contact = shelf.byId('ent-acquisition-pack');
   assert.ok(contact);
-  assert.notStrictEqual(contact.buyable, true);
+  assert.strictEqual(contact.buyable, true);
   const html = d7.guideHtml(contact.id);
-  assert.ok(/not a cart/i.test(html));
-  assert.ok(!html.includes('/checkout/?plan=' + contact.id));
+  assert.ok(/not in this download/i.test(html));
+  assert.ok(html.includes('/checkout/?plan=' + contact.id));
+  assert.ok(!/not a cart/i.test(html));
   const kick = d7.guideHtml('ent-engagement-kickoff');
   assert.ok(kick.includes('does not deliver the license'));
   const kickItem = shelf.byId('ent-engagement-kickoff');

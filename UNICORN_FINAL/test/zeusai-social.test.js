@@ -88,9 +88,9 @@ assert.equal(withOffer.post.offer.ctaLabel, seo.ctaLabel);
 
 const contact = shelf.byId('ent-acquisition-pack');
 if (contact) {
-  const blocked = surface.compose({ authorId: uid, text: 'Proposal is not a cart', offerId: contact.id });
-  assert.equal(blocked.ok, false);
-  assert.equal(blocked.error, 'offer_not_on_shelf');
+  const posted = surface.compose({ authorId: uid, text: 'The engagement pack is the download', offerId: contact.id });
+  assert.equal(posted.ok, true);
+  assert.ok(String(posted.post.offer.ctaHref).includes('/checkout/?plan=ent-acquisition-pack'));
 }
 
 const feedHtml = surface.renderSsrFeed(8);

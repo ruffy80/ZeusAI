@@ -42,7 +42,7 @@ check('enterprise catalog includes kickoff', () => {
   assert.equal(Number(p.priceUSD), 2500);
 });
 
-check('kickoff is self-serve reserve; full ACV is contact', () => {
+check('kickoff stays a paid start and the license sells the engagement pack', () => {
   const kick = buyability.assessBuyability({
     id: 'ent-engagement-kickoff',
     tier: 'enterprise',
@@ -51,15 +51,17 @@ check('kickoff is self-serve reserve; full ACV is contact', () => {
   });
   assert.equal(kick.buyable, true);
   assert.equal(kick.mode, 'reserve');
+  assert.equal(kick.reason, 'enterprise_kickoff');
 
   const full = buyability.assessBuyability({
     id: 'ent-platform-license',
     tier: 'enterprise',
     priceUSD: 250000,
   });
-  assert.equal(full.buyable, false);
-  assert.equal(full.mode, 'contact');
-  assert.ok(/autonomous deal/i.test(full.ctaLabel));
+  assert.equal(full.buyable, true);
+  assert.equal(full.mode, 'reserve');
+  assert.equal(full.reason, 'enterprise_pack');
+  assert.ok(String(full.ctaHref).includes('ent-platform-license'));
 });
 
 check('closeFromContact returns dynamic kickoff quote + checkoutHref', () => {

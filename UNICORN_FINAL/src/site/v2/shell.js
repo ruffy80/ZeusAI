@@ -219,7 +219,13 @@ function _ctaForProduct(p) {
   } catch (_) {
     const tier = String((p && (p.tier || p.group)) || '').toLowerCase();
     const id = String((p && p.id) || '');
-    if (/^ent-/i.test(id) || tier === 'enterprise') {
+    if (/^ent-/i.test(id) && id !== 'ent-engagement-kickoff') {
+      return { mode: 'reserve', buyable: true, ctaLabel: 'Buy the engagement pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    }
+    if (id === 'ent-engagement-kickoff') {
+      return { mode: 'reserve', buyable: true, ctaLabel: 'Start autonomous deal →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    }
+    if (tier === 'enterprise') {
       return { mode: 'contact', buyable: false, ctaLabel: 'Start autonomous deal →', ctaHref: '/enterprise#enterprise-contact' };
     }
     if (/^professional-/i.test(id) || tier === 'professional') {
@@ -1312,7 +1318,8 @@ function _atlasWhen(p) {
   const id = String((p && p.id) || '');
   if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
   const tier = String((p && p.tier) || '');
-  if (tier === 'enterprise' || /^ent-/i.test(id)) return 'Proposal file now · the listed figure is not a cart';
+  if (/^ent-/i.test(id)) return 'Engagement pack after payment · the license, source, and cloud stay milestones in the pack';
+  if (tier === 'enterprise') return 'Proposal file now · the listed figure is not a cart';
   const mins = Number(p && p.deliveryMinutes);
   if (mins > 0) return 'About ' + mins + ' min after payment settles';
   const days = Number(p && p.deliveryDays);
@@ -1427,7 +1434,7 @@ function _homeAtlasHtml() {
   return `<section id="homeAtlas">
   <div class="section-title">
     <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
-    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day-clock engagement unlocks a kickoff pack now and a human-built system on the window shown. A contract is a proposal — one of them you can pay today.</p>
+    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day-clock engagement unlocks a kickoff pack now and a human-built system on the window shown. A contract figure can be paid. The download is the engagement pack.</p>
   </div>
   <nav class="atlas-clocks" aria-label="Delivery clocks">
     <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
@@ -1445,8 +1452,8 @@ function _homeAtlasHtml() {
     <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
   </div>
   <div id="atlasContract" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Contract</span><h2>One payable start. The other prices are proposals.</h2></div>
-    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock downloads an engagement proposal now. The button still requests the engagement and does not open a cart for that figure.</p></div>
+    <div class="section-title"><div><span class="kicker">Contract</span><h2>Pay the listed figure. The download is the engagement pack.</h2></div>
+    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock buys the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The license, the source, and a private cloud are milestones in that pack. They are not in the download.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
   </div>
   <p class="atlas-footnote">This is the public shelf. Dropship stays paused until supplier credentials exist. The frontier desk is research you can read; it does not sell orbital compute, a neural implant, or a quantum channel. Industry architecture packs are kickoff engagements, listed on <a href="/vom" data-link>/vom</a>.</p>
@@ -2074,9 +2081,11 @@ function pageService(id) {
         }
         const note = safeId === 'ent-engagement-kickoff'
           ? 'Paid start only. It does not deliver the license, the source, or a private cloud.'
-          : (cta.mode === 'reserve'
+          : (/^ent-/i.test(safeId)
+            ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.'
+            : (cta.mode === 'reserve'
             ? 'Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.'
-            : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.');
+            : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.'));
         return `<p style="color:var(--ink-dim);font-size:13.5px">${note}</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
@@ -2135,6 +2144,7 @@ function pageCheckout(params) {
   try { shelfItem = require('../../commerce/public-shelf').byId(ssrPlan); } catch (_) { shelfItem = null; }
   const contactOnly = !!(shelfItem && shelfItem.mode === 'contact');
   const kickoffOnly = !!(shelfItem && shelfItem.id === 'ent-engagement-kickoff');
+  const packOnly = !!(shelfItem && /^ent-/i.test(shelfItem.id) && !kickoffOnly);
   let ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   if (shelfItem && Number(shelfItem.priceUsd) > 0) ssrUsd = Number(shelfItem.priceUsd);
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
@@ -2173,7 +2183,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))}</p>` : ''}
+        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description)))}</p>` : ''}
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
@@ -2842,7 +2852,7 @@ function pageStore() {
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} curated products · honest checkout · $${totalUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} listed catalogue value</span>
     <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Real products. Real BTC settlement. Real delivery.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver digital packs after on-chain payment. Professional builds are BTC reserves with a signed kickoff pack now and human milestone delivery after. Enterprise licenses start as SOW proposals — not a self-serve cart. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver digital packs after on-chain payment. Professional builds are BTC reserves with a signed kickoff pack now and human milestone delivery after. Enterprise figures buy the engagement pack at the listed price. The license, the source, and a private cloud are milestones in that pack. They are not in the download. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
@@ -2861,7 +2871,7 @@ function pageStore() {
     <div id="storeGrid" style="margin:20px 0 40px">
       ${renderTierSection('instant', '⚡ Instant digital deliverables', byTier.instant)}
       ${renderTierSection('professional', '💼 Professional build engagements (BTC reserve + human delivery)', byTier.professional)}
-      ${renderTierSection('enterprise', '👑 Enterprise licenses (request proposal)', byTier.enterprise)}
+      ${renderTierSection('enterprise', '👑 Enterprise engagement packs', byTier.enterprise)}
     </div>
 
     ${libCount > 0 ? `<div id="autoLibrary" style="margin:50px 0 80px">

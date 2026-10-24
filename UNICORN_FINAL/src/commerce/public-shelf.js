@@ -82,6 +82,10 @@ function clockOf(raw) {
 function whenOf(raw) {
   const id = String((raw && raw.id) || '');
   if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
+  if (/^ent-/i.test(id)) {
+    try { return require('./enterprise-catalog').ENGAGEMENT_PACK_WHEN; } catch (_) { /* seed copy below */ }
+    return 'Engagement pack after payment · the license, source, and cloud stay milestones in the pack';
+  }
   const clock = clockOf(raw);
   if (clock === 'contract') return 'Proposal file now · the listed figure is not a cart';
   const mins = Number(raw && raw.deliveryMinutes);
@@ -173,6 +177,7 @@ function langOf(text) {
 function whenLang(item, lang) {
   if (lang !== 'ro') return item.when;
   if (item.id === 'ent-engagement-kickoff') return 'Pachetul de propunere după plată · se creditează la un angajament semnat';
+  if (/^ent-/i.test(item.id)) return 'Pachetul de angajament după plată · licența, sursa și cloud-ul rămân etape în pachet';
   if (item.clock === 'contract') return 'Fișierul de propunere acum · cifra listată nu este un coș';
   const mins = Number(item.deliveryMinutes);
   if (mins > 0) return 'Cam ' + mins + ' min după confirmarea plății';
@@ -190,6 +195,11 @@ function strategy(item, lang) {
     return lang === 'ro'
       ? `Plătești ${price}. Primești brief-ul, propunerea comercială și draftul de contract. Suma se creditează la un angajament semnat. Nu livrează licența, sursa sau cloud-ul.`
       : `Pay ${price}. You receive the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement. It does not deliver the license, the source, or a private cloud.`;
+  }
+  if (/^ent-/i.test(item.id) && item.mode !== 'contact') {
+    return lang === 'ro'
+      ? `Plătești ${price}${per}. Primești pachetul de angajament: MSA, contractul, anexa tehnică, pachetul de securitate, calendarul și graficul de plată. Cifra listată este valoarea contractului din pachet. Licența, sursa și cloud-ul privat sunt etape în pachet. Nu sunt în descărcare.`
+      : `Pay ${price}${per}. You receive the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The listed figure is the contract value named in that pack. The license, the source, and a private cloud are milestones in the pack. They are not in the download.`;
   }
   if (item.mode === 'contact') {
     return lang === 'ro'
@@ -363,8 +373,8 @@ function fitQuestion(buyer, door, lang, count, limitNote) {
   let doorLine;
   if (door === 'platform') {
     doorLine = lang === 'ro'
-      ? ('Am citit toate cele ' + n + ' oferte publice.' + (org ? '' : ' Unicorn nu înlocuiește un cloud mare.') + ' Ușa care se plătește acum este kickoff-ul. Licența, sursa și cloud-ul privat rămân propuneri.')
-      : ('I read all ' + n + ' public offers.' + (org ? '' : ' Unicorn does not replace that cloud.') + ' The payable start is the engagement kickoff. The license, the source, and a private cloud stay proposals.');
+      ? ('Am citit toate cele ' + n + ' oferte publice.' + (org ? '' : ' Unicorn nu înlocuiește un cloud mare.') + ' Începutul mic este kickoff-ul de angajament. Celelalte cifre cumpără pachetul de angajament. Licența, sursa și cloud-ul privat sunt etape în pachet, nu fișierul descărcat.')
+      : ('I read all ' + n + ' public offers.' + (org ? '' : ' Unicorn does not replace that cloud.') + ' The payable start is the engagement kickoff. The other contract figures buy the engagement pack. The license, the source, and a private cloud are milestones in that pack, not the download.');
   } else if (door === 'build') {
     doorLine = lang === 'ro'
       ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este o construcție, așa că ușa este rezervarea pe zile, nu un fișier de minute și nu licența.')

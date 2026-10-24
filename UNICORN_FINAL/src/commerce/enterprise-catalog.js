@@ -10,6 +10,10 @@ const path = require('path');
 const DATA_DIR = process.env.UNICORN_COMMERCE_DIR || path.join(__dirname, '..', '..', 'data', 'commerce');
 const FILE = path.join(DATA_DIR, 'enterprise-products.json');
 
+const ENGAGEMENT_PACK_NOTE = 'The license, the source, and a private cloud are milestones in the pack. They are not in the download.';
+const ENGAGEMENT_PACK_WHEN = 'Engagement pack after payment · the license, source, and cloud stay milestones in the pack';
+const ENGAGEMENT_PACK_LINE = 'Payment buys the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The listed figure is the contract value named in that pack. ' + ENGAGEMENT_PACK_NOTE + ' The refund closes once the pack is issued.';
+
 const SEED = [
   {
     id: 'ent-platform-license',
@@ -18,7 +22,7 @@ const SEED = [
     priceUSD: 250000,
     billing: 'annual',
     currency: 'USD',
-    description: 'SOW engagement (not self-serve checkout): annual enterprise license — full platform, multi-tenant, SLAs, on-prem option. Contact Enterprise Sales to start.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: '99.99% / 1h response',
     seats: 'unlimited',
     inputs: [
@@ -29,12 +33,12 @@ const SEED = [
   },
   {
     id: 'ent-acquisition-pack',
-    title: 'Unicorn Acquisition Pack — Source Code + IP',
+    title: 'Unicorn Acquisition Pack',
     tier: 'enterprise',
     priceUSD: 4000000,
     billing: 'one-time',
     currency: 'USD',
-    description: 'SOW / M&A engagement only: full source transfer, brand assets, IP assignment, 12-month transition. Not available via instant BTC checkout — request a proposal.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: 'priority engineering',
     inputs: [
       { key: 'legalEntity', label: 'Acquirer Legal Entity', required: true },
@@ -51,7 +55,7 @@ const SEED = [
     billing: 'one-time-setup',
     revenueShare: 0.20,
     currency: 'USD',
-    description: 'Partnership SOW: setup fee + 20% net revenue share, co-branded deployment, joint GTM. Contact sales — not a self-serve cart item.',
+    description: ENGAGEMENT_PACK_LINE,
     inputs: [
       { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
       { key: 'contactEmail', label: 'Partner Contact Email', required: true }
@@ -64,7 +68,7 @@ const SEED = [
     priceUSD: 150000,
     billing: 'annual',
     currency: 'USD',
-    description: 'Enterprise SOW: dedicated single-tenant cloud, isolated data plane, dedicated keys, 99.99% SLA, 24/7 support. Proposal via Enterprise Sales.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: '99.99% / 30min response',
     seats: 'unlimited',
     inputs: [
@@ -80,7 +84,7 @@ const SEED = [
     priceUSD: 500000,
     billing: 'project',
     currency: 'USD',
-    description: '12-month transformation programme under a signed SOW: discovery, roadmap, custom agents, copilots, change management. Contact Enterprise Sales.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: 'dedicated programme team',
     inputs: [
       { key: 'legalEntity', label: 'Legal Entity', required: true },
@@ -96,7 +100,7 @@ const SEED = [
     priceUSD: 350000,
     billing: 'annual',
     currency: 'USD',
-    description: 'White-label partner SOW: your branding/domain, segregated catalog, partner revenue dashboard. Not self-serve — request a proposal.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: '99.95% / 2h response',
     inputs: [
       { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
@@ -111,7 +115,7 @@ const SEED = [
     priceUSD: 1200000,
     billing: 'one-time',
     currency: 'USD',
-    description: 'On-prem sovereign SOW: compliance audit suite, key custody, encrypted backups, 12-month onboarding. Contact Enterprise Sales to engage.',
+    description: ENGAGEMENT_PACK_LINE,
     sla: 'on-prem dedicated SRE',
     inputs: [
       { key: 'legalEntity', label: 'Legal Entity', required: true },
@@ -140,6 +144,12 @@ const SEED = [
   }
 ];
 
+function honestRow(row) {
+  if (!row || row.id === 'ent-engagement-kickoff' || !/^ent-/.test(String(row.id || ''))) return row;
+  const title = row.id === 'ent-acquisition-pack' ? 'Unicorn Acquisition Pack' : row.title;
+  return Object.assign({}, row, { title, description: ENGAGEMENT_PACK_LINE });
+}
+
 function _ensureKickoff(list) {
   const arr = Array.isArray(list) ? list.slice() : [];
   if (!arr.some((p) => p && p.id === 'ent-engagement-kickoff')) {
@@ -164,10 +174,13 @@ function loadAll() {
 
 let _all = loadAll();
 
-function all() { return _all.slice(); }
-function byId(id) { return _all.find(p => p.id === id) || null; }
+function all() { return _all.map(honestRow); }
+function byId(id) {
+  const row = _all.find(p => p.id === id) || null;
+  return row ? honestRow(row) : null;
+}
 function publicView() {
-  return _all.map(p => ({
+  return all().map(p => ({
     id: p.id, title: p.title, tier: p.tier || 'enterprise',
     priceUSD: p.priceUSD, billing: p.billing, currency: p.currency || 'USD',
     description: p.description, sla: p.sla, seats: p.seats,
@@ -183,4 +196,7 @@ function summarize() {
   return { products: total, totalListedValueUSD: tvUSD, tiers };
 }
 
-module.exports = { all, byId, publicView, summarize };
+module.exports = {
+  all, byId, publicView, summarize,
+  ENGAGEMENT_PACK_NOTE, ENGAGEMENT_PACK_WHEN, ENGAGEMENT_PACK_LINE,
+};

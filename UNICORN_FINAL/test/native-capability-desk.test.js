@@ -62,13 +62,14 @@ check('an unknown id fails verification and does not launch', () => {
   assert.strictEqual(pack.verdict.launch, false);
 });
 
-check('a contact-mode enterprise card does not open a cart', () => {
-  const contact = shelf.publicShelf().find((item) => item.mode === 'contact');
-  assert.ok(contact, 'expected a contact-mode shelf offer');
-  const pack = desk.productPack(contact.id);
-  assert.strictEqual(pack.parts.interface.mode, 'contact');
-  assert.ok(!String(pack.parts.interface.ctaHref || '').includes('/checkout'));
-  assert.strictEqual(pack.parts.documentation.fileTitle, 'Engagement Proposal');
+check('an enterprise pack opens checkout and names the pack file', () => {
+  const offer = shelf.byId('ent-acquisition-pack');
+  assert.ok(offer, 'expected the acquisition pack on the shelf');
+  assert.strictEqual(offer.mode, 'reserve');
+  const pack = desk.productPack(offer.id);
+  assert.strictEqual(pack.parts.interface.mode, 'reserve');
+  assert.ok(String(pack.parts.interface.ctaHref || '').includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.strictEqual(pack.parts.documentation.fileTitle, 'Engagement Pack');
   assert.strictEqual(pack.verdict.pass, true);
   assert.strictEqual(pack.verdict.launch, false);
 });
