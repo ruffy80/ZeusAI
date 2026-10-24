@@ -158,12 +158,11 @@ check('nginx pins relay-graft.json to the site in conf, snippet and self-heal', 
   assert.ok(patch.slice(k, k + 500).includes('127.0.0.1:3001'));
 });
 
-check('sitemap, IndexNow inventory and llms.txt advertise /relay', () => {
-  const seo = read('src/seo/sitemap-helpers.js');
-  assert.ok(seo.includes("'/relay'"));
-  const te = read('backend/modules/traffic-engine.js');
-  assert.ok(te.includes("'/relay'"));
-  assert.ok(te.includes('relay-graft.json'));
+check('llms.txt still describes /relay; sitemap and IndexNow omit it', () => {
+  const seo = require('../src/seo/sitemap-helpers');
+  assert.ok(!seo.corePublicPaths().includes('/relay'));
+  const submitted = require('../backend/modules/traffic-engine').urlsToSubmit();
+  assert.ok(!submitted.some((u) => new URL(u).pathname === '/relay'));
   const sov = read('src/site/sovereign-extensions.js');
   assert.ok(sov.includes('/relay'));
   assert.ok(sov.includes('relay-graft.json'));

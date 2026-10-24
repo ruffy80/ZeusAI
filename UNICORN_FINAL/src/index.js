@@ -9621,32 +9621,19 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     }
   }
 
-  // /seo/sitemap-services.xml — XML sitemap of every service detail page.
-  // Additive: /sitemap.xml continues to be served by frontier-engine; this
-  // is a separate file dedicated to the auto-generated /services/:id pages
-  // so search engines can index every current AND future Unicorn deliverable.
+  // /seo/sitemap-services.xml — public shelf service pages only.
+  // Root /sitemap.xml is the marketing urlset from sovereign-extensions.
   if (urlPath === '/seo/sitemap-services.xml' && req.method === 'GET') {
+    const seo = require('./seo/sitemap-helpers');
+    const base = APP_URL.replace(/\/+$/, '');
+    let xml = '';
     try {
-      const seo = require('./seo/sitemap-helpers');
-      const cat = await getCachedMasterCatalog();
-      const base = APP_URL.replace(/\/+$/, '');
-      let shelfIds = null;
-      try {
-        shelfIds = new Set(require('./commerce/public-shelf').publicShelf().map((row) => String(row.id)));
-      } catch (_) { shelfIds = null; }
-      const items = (cat.items || []).filter((it) => it && it.id && (!shelfIds || shelfIds.has(String(it.id))));
-      const paths = items.map((it) => `/services/${encodeURIComponent(it.id)}`);
-      const xml = seo.buildUrlsetXml(base, paths, {
-        lastmod: (cat.updatedAt || new Date().toISOString()).slice(0, 10),
-        changefreq: 'weekly',
-        priority: '0.7',
-      });
-      res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
-      return res.end(xml);
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/xml; charset=utf-8' });
-      return res.end('<?xml version="1.0"?><error>'+ String(e && e.message || e).replace(/[<>&]/g,'') +'</error>');
+      xml = seo.serviceUrlset(base);
+    } catch (_) {
+      xml = seo.buildUrlsetXml(base, []);
     }
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    return res.end(xml);
   }
 
   // ============================================================

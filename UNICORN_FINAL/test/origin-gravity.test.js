@@ -21,7 +21,6 @@ const SHELL = path.join(ROOT, 'src', 'site', 'v2', 'shell.js');
 const CLIENT = path.join(ROOT, 'src', 'site', 'v2', 'client.js');
 const NGINX = path.join(ROOT, 'scripts', 'nginx-unicorn.conf');
 const SOV = path.join(ROOT, 'src', 'site', 'sovereign-extensions.js');
-const SEO = path.join(ROOT, 'src', 'seo', 'sitemap-helpers.js');
 const TRAFFIC = path.join(ROOT, 'backend', 'modules', 'traffic-engine.js');
 const IAK_DISC = path.join(ROOT, 'backend', 'modules', 'iak', 'module-discovery.js');
 const PKG = path.join(ROOT, 'package.json');
@@ -215,12 +214,12 @@ check('llms.txt tells agents Origin #1 is open and not to invent counts', () => 
   assert.ok(src.includes('Origin #1'));
 });
 
-check('sitemap + IndexNow inventory include /origin', () => {
-  const seo = fs.readFileSync(SEO, 'utf8');
-  assert.ok(seo.includes("'/origin'"));
-  const te = fs.readFileSync(TRAFFIC, 'utf8');
-  assert.ok(te.includes("'/origin'"));
-  assert.ok(te.includes('origin-gravity.json') || te.includes('/llms.txt'));
+check('sitemap and IndexNow omit /origin', () => {
+  const seo = require('../src/seo/sitemap-helpers');
+  assert.ok(!seo.corePublicPaths().includes('/origin'));
+  assert.ok(seo.robotsTxt('https://zeusai.pro').includes('Disallow: /origin'));
+  const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
+  assert.ok(!urls.some((u) => /\/origin$/.test(u)));
 });
 
 check('nginx pins origin-gravity.json to backend', () => {

@@ -452,22 +452,13 @@ function listProgrammaticRoutes() {
 function buildSitemap() {
   const seo = require('../../src/seo/sitemap-helpers');
   const base = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
-  return seo.buildUrlsetXml(base, seo.corePublicPaths(), {
-    lastmod: seo.todayDate(),
-    changefreq: 'daily',
-  });
+  return seo.marketingUrlset(base);
 }
 
 function buildRobots() {
+  const seo = require('../../src/seo/sitemap-helpers');
   const base = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
-  return `User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /api/admin
-Disallow: /account
-Disallow: /checkout
-Sitemap: ${base}/sitemap.xml
-`;
+  return seo.robotsTxt(base);
 }
 
 function buildSecurityTxt() {

@@ -224,43 +224,8 @@ async function handle(req, res, ctx) {
   // standard `Allow:` / `Disallow:` / `Sitemap:` directives, comments in
   // ASCII only, blank lines between groups for clarity.
   if (urlPath === '/robots.txt') {
-    const body = [
-      'User-agent: *',
-      'Allow: /',
-      'Disallow: /api/admin/',
-      'Disallow: /dashboard',
-      'Disallow: /account',
-      'Disallow: /admin',
-      'Disallow: /admin/',
-      'Disallow: /login',
-      'Disallow: /signup',
-      'Disallow: /auth',
-      'Disallow: /outreach-desk',
-      '',
-      '# IndexNow key file lives at /{32-hex}.txt — notifications, not visitors',
-      '# World index: /.well-known/world-index.json',
-      '# One-tap human share (no API tokens): /share',
-      '',
-      '# AI agents -- we welcome indexing and autonomous purchase',
-      'User-agent: GPTBot',
-      'Allow: /',
-      '',
-      'User-agent: ClaudeBot',
-      'Allow: /',
-      '',
-      'User-agent: PerplexityBot',
-      'Allow: /',
-      '',
-      'User-agent: CCBot',
-      'Allow: /',
-      '',
-      'User-agent: Google-Extended',
-      'Allow: /',
-      '',
-      `Sitemap: ${OWNER.domain}/sitemap.xml`,
-      `Sitemap: ${OWNER.domain}/seo/sitemap-services.xml`,
-      `Sitemap: ${OWNER.domain}/seo/sitemap-index.xml`,
-    ].join('\n');
+    const seo = require('../seo/sitemap-helpers');
+    const body = seo.robotsTxt(OWNER.domain);
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);
@@ -270,33 +235,7 @@ async function handle(req, res, ctx) {
   // ── /sitemap.xml ───────────────────────────────────────────────────────
   if (urlPath === '/sitemap.xml') {
     const seo = require('../seo/sitemap-helpers');
-    const baseUrls = seo.corePublicPaths();
-    // Auto-discover all services from live snapshot so every current AND future
-    // service is indexed by Google/Bing the moment it appears in /snapshot.
-    let serviceUrls = [];
-    try {
-      if (ctx && typeof ctx.buildSnapshot === 'function') {
-        const snap = ctx.buildSnapshot();
-        const items = [].concat(snap.marketplace || [], snap.services || []);
-        const seen = new Set();
-        let shelfById = null;
-        try { shelfById = require('../commerce/public-shelf').byId; } catch (_) { shelfById = null; }
-        for (const s of items) {
-          const id = s && (s.id || s.serviceId);
-          if (!id || seen.has(id)) continue;
-          // Skip synthetic/demo catalog noise from the public index
-          if (/^synthetic[_-]/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)) continue;
-          // A snapshot id that is not on the shelf renders noindex. Do not submit it.
-          if (typeof shelfById === 'function' && !shelfById(id)) continue;
-          seen.add(id);
-          serviceUrls.push(`/services/${encodeURIComponent(id)}`);
-        }
-      }
-    } catch (_) { /* ok */ }
-    const xml = seo.buildUrlsetXml(OWNER.domain, baseUrls.concat(serviceUrls), {
-      lastmod: seo.todayDate(),
-      changefreq: 'daily',
-    });
+    const xml = seo.marketingUrlset(OWNER.domain);
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(xml);
     recordMetric(urlPath, 200, xml.length);

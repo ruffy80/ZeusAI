@@ -62,9 +62,11 @@ async function run() {
   assert.equal(key1, key2, 'IndexNow key must be deterministic');
   assert.ok(/^[0-9a-f]{32}$/.test(key1), 'key must be 32 hex chars (got ' + key1 + ')');
   const urls = traffic.urlsToSubmit();
-  assert.ok(urls.length >= 10, 'URL inventory should include core + services + verticals (got ' + urls.length + ')');
-  assert.ok(urls.some((u) => u.endsWith('/services')), 'inventory must include /services');
-  assert.ok(urls.some((u) => u.includes('/vertical/')), 'inventory must include vertical landing pages');
+  assert.ok(urls.length >= 10, 'URL inventory should include marketing pages, articles, and services (got ' + urls.length + ')');
+  assert.ok(urls.some((u) => u.endsWith('/pricing')), 'inventory must include /pricing');
+  assert.ok(urls.some((u) => u.includes('/services/instant-resume-makeover')), 'inventory must include the public resume service');
+  assert.ok(!urls.some((u) => u.includes('/vertical/')), 'inventory must not include vertical system routes');
+  assert.ok(!urls.some((u) => u.includes('/api/')), 'inventory must not include API routes');
   const sub = await traffic.pingAll({ dryRun: true });
   assert.equal(sub.dryRun, true, 'dry-run flag must be honored');
   assert.ok(sub.engines.length >= 3, 'plan must cover indexnow + bing + google note');

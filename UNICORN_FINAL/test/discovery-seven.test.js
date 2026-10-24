@@ -91,15 +91,21 @@ check('the acquisition guide sells the pack and kickoff stays a paid start', () 
   assert.ok(kick.includes(kickItem.ctaHref));
 });
 
-check('sitemap and IndexNow inventory include the guides', () => {
-  const xml = seo.buildUrlsetXml('https://zeusai.pro', seo.corePublicPaths());
-  assert.ok(xml.includes('https://zeusai.pro/guides</loc>'));
-  assert.ok(xml.includes('https://zeusai.pro/guides/instant-seo-content-pack</loc>'));
-  assert.ok(xml.includes('https://zeusai.pro/seo</loc>'));
+check('sitemap and IndexNow list the service page and omit guides and internal routes', () => {
+  const xml = seo.marketingUrlset('https://zeusai.pro');
+  assert.ok(xml.includes('https://zeusai.pro/services/instant-seo-content-pack</loc>'));
+  assert.ok(xml.includes('<lastmod>'));
+  assert.ok(!xml.includes('/guides'));
+  assert.ok(!xml.includes('/seo</loc>'));
+  assert.ok(!xml.includes('/origin</loc>'));
+  assert.ok(!xml.includes('/api/'));
   const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
-  const joined = urls.join('\n');
-  assert.ok(joined.includes('/guides/instant-seo-content-pack'));
-  assert.ok(joined.includes('/guides'));
+  const paths = urls.map((u) => new URL(u).pathname);
+  assert.ok(paths.includes('/services/instant-seo-content-pack'));
+  assert.ok(!paths.some((p) => p === '/guides' || p.startsWith('/guides/')));
+  assert.ok(!paths.includes('/origin'));
+  assert.ok(!paths.some((p) => p.startsWith('/api/')));
+  assert.ok(!paths.includes('/status'));
 });
 
 check('shell and SEO desk render the seven checks and unique service titles', () => {
@@ -165,9 +171,10 @@ check('guides in the sitemap are shelf offers, and aliases do not share a title'
     assert.ok(paths.includes('/guides/' + encodeURIComponent(id)), id);
     assert.ok(d7.guideFor(id), id);
   });
-  const xml = seo.buildUrlsetXml('https://zeusai.pro', seo.corePublicPaths());
+  const xml = seo.marketingUrlset('https://zeusai.pro');
   assert.ok(!xml.includes('/checkout</loc>'));
   assert.ok(!xml.includes('/marketplace</loc>'));
+  assert.ok(!xml.includes('/guides/'));
   const bare = getHtml('/checkout');
   assert.match(bare, /name="robots" content="noindex"/);
   assert.match(bare, /rel="canonical" href="https:\/\/zeusai\.pro\/checkout"/);

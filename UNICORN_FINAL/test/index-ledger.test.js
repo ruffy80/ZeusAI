@@ -47,7 +47,10 @@ async function main() {
   await check('the api sitemap no longer lists the matrix or private paths', () => {
     const xml = require('../backend/modules/growth-engine').buildSitemap();
     assert.ok(xml.includes('<urlset'));
-    assert.ok(xml.includes('/services</loc>'));
+    assert.ok(xml.includes('/services/instant-resume-makeover</loc>'));
+    assert.ok(!xml.includes('/origin</loc>'));
+    assert.ok(!xml.includes('/status</loc>'));
+    assert.ok(!xml.includes('/api/'));
     assert.ok(!xml.includes('/for/'));
     assert.ok(!xml.includes('/dashboard</loc>'));
     assert.ok(!xml.includes('/account</loc>'));
@@ -70,9 +73,11 @@ async function main() {
 
   await check('IndexNow does not submit a checkout or a ghost', () => {
     const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
-    assert.ok(urls.some((u) => u.endsWith('/services')));
+    assert.ok(urls.some((u) => u.includes('/services/instant-resume-makeover')));
+    assert.ok(!urls.some((u) => u.endsWith('/services')));
     assert.ok(!urls.some((u) => u.includes('/checkout')));
     assert.ok(!urls.some((u) => u.includes('/for/')));
+    assert.ok(!urls.some((u) => u.includes('/api/')));
   });
 
   console.log('index-ledger: ' + passed + ' checks passed');

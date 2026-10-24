@@ -341,7 +341,7 @@ function audit() {
       questionRo: 'Există un mecanism prin care utilizatorii găsesc produsul?',
       closed: guides.length > 0 && paths.indexOf('/guides') >= 0,
       mechanisms: [
-        { id: 'sitemap', path: '/sitemap.xml', note: 'robots.txt points crawlers here, including every offer guide.' },
+        { id: 'sitemap', path: '/sitemap.xml', note: 'Homepage, about, pricing, contact, insight articles, and public service pages. Guides and internal routes are not listed.' },
         { id: 'indexnow', path: '/api/traffic/status', note: 'IndexNow notifies Bing and Yandex. It does not create visitors. Google discovers the sitemap.' },
         { id: 'guides', path: '/guides', note: 'One article per shelf offer, price and checkout read live.' },
         { id: 'share', path: '/share', note: 'Tokenless hop into Reddit, X, LinkedIn, Facebook, and others.' },
@@ -373,7 +373,7 @@ function audit() {
     innovations: [
       { id: 'live-guides', note: 'Every shelf offer grows a /guides/:id article. A new offer is indexed on the next cycle without a hand-written page.' },
       { id: 'live-price', note: 'Title, description, price, and checkout href are read from the public shelf on each request, so the article cannot drift from the card.' },
-      { id: 'sitemap-indexnow', note: 'Guide URLs join /sitemap.xml and the IndexNow inventory. Google still needs Search Console to confirm indexing.' },
+      { id: 'sitemap-indexnow', note: 'Public service pages and insight articles join /sitemap.xml and the IndexNow inventory. Guide URLs do not. Google still needs Search Console to confirm indexing.' },
       { id: 'unique-service-head', note: '/services/:id uses the offer title and a description that names the price and the delivery clock.' },
       { id: 'promo-waits', note: 'Reddit, X, LinkedIn, and Facebook drafts ride the existing viralizer. Missing keys stay keys_missing.' },
     ],
@@ -450,7 +450,7 @@ function guideHtml(id) {
   <div class="card" style="padding:18px;margin-top:18px">
     <span class="kicker">How someone finds this</span>
     <ul style="color:var(--ink-dim);font-size:14.5px;line-height:1.7;margin:10px 0 0;padding-left:18px">
-      <li>This URL is listed in <a href="/sitemap.xml" data-allow-raw="1">/sitemap.xml</a>, and robots.txt points at that file.</li>
+      <li>The service page for this offer is listed in <a href="/sitemap.xml" data-allow-raw="1">/sitemap.xml</a>. This guide address is not submitted.</li>
       <li>IndexNow can notify Bing and Yandex. That notification is not a visitor and not a Google index confirmation.</li>
       <li>The same offer is on <a href="/social-network" data-link>ZeusAI Social</a> and can be opened from <a href="/share" data-link>/share</a> into Reddit, X, LinkedIn, or Facebook when a person taps.</li>
     </ul>

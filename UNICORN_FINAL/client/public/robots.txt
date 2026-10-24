@@ -1,8 +1,43 @@
 User-agent: *
 Allow: /
-Disallow: /api/admin/
+Disallow: /api/
+Disallow: /admin
+Disallow: /admin/
 Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /account
+Disallow: /status
+Disallow: /health
+Disallow: /origin
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /login
+Disallow: /signup
+Disallow: /auth
+Disallow: /operator
+Disallow: /outreach-desk
+Disallow: /metrics
 
-# Canonical live host is https://zeusai.pro — do not advertise a stale domain.
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /account
+Disallow: /status
+Disallow: /health
+Disallow: /origin
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /login
+Disallow: /signup
+Disallow: /auth
+Disallow: /operator
+Disallow: /outreach-desk
+Disallow: /metrics
+
+# Canonical live host is https://zeusai.pro. The site process serves the same rules.
 Sitemap: https://zeusai.pro/sitemap.xml
+Sitemap: https://zeusai.pro/seo/sitemap-services.xml
