@@ -434,6 +434,21 @@ function buildJsonLd(title, route, canonical, desc, opts) {
       const articleBlock = discoverTrust.articleJsonLd(route, base);
       if (articleBlock) blocks.push(articleBlock);
     }
+    if (String(route || '').indexOf('/guides/') === 0) {
+      const guide = require('../../../backend/modules/discovery-seven').guideFor(route);
+      if (guide && guide.title) {
+        blocks.push({
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: guide.title,
+          description: String(guide.metaDescription || guide.description || '').slice(0, 300),
+          mainEntityOfPage: base + guide.path,
+          url: base + guide.path,
+          author: { '@type': 'Person', name: OWNER.name },
+          publisher: { '@type': 'Organization', name: 'ZeusAI', url: base + '/' },
+        });
+      }
+    }
     const topic = discoverTrust.landing(route);
     if (topic) {
       blocks.push({
@@ -525,6 +540,13 @@ function _shelfCanonical(base, plan) {
 
 function _canonicalUrl(base, route, opts) {
   const path = String(route || '/');
+  if (path === '/__not-found__') {
+    const missing = String((opts && opts.missingPath) || '');
+    if (missing.startsWith('/') && missing.indexOf('//') !== 0 && missing.indexOf('\\') === -1 && !/[\s<>"]/.test(missing)) {
+      return base + missing.split('?')[0];
+    }
+    return base + '/';
+  }
   if (path === '/marketplace') return base + '/services';
   if (path === '/autonomy' || path === '/innovation-log') return base + '/live-actions';
   if (path === '/checkout') {
@@ -540,6 +562,9 @@ function _canonicalUrl(base, route, opts) {
 
 function _robotsMeta(route) {
   const path = String(route || '');
+  if (path === '/__not-found__') return 'noindex, nofollow';
+  if (path === '/dashboard' || path === '/account' || path === '/admin' || path.indexOf('/admin/') === 0) return 'noindex, nofollow';
+  if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
   if (path === '/outreach-desk') return 'noindex, nofollow';
   if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
   if (_serverOnlyService(path)) return 'noindex, nofollow';
@@ -563,6 +588,8 @@ function head(title, route, opts) {
   const base = OWNER.domain.replace(/\/$/, '');
   const canonical = _canonicalUrl(base, route, opts);
   const robots = _robotsMeta(route);
+  const ogType = (String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/guides/') === 0)
+    ? 'article' : 'website';
   // Per-route OG image: dedicated 1200x630 banner with safe fallback.
   const ogImage = base + assetPath('/assets/icons/og-default.png');
   const desc = routeDescription(route);
@@ -596,7 +623,7 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${title} — ZeusAI"/>
 <meta property="og:description" content="${desc}"/>
-<meta property="og:type" content="website"/>
+<meta property="og:type" content="${ogType}"/>
 <meta property="og:url" content="${canonical}"/>
 <meta property="og:image" content="${ogImage}"/>
 <meta property="og:image:width" content="1200"/>
@@ -7088,7 +7115,14 @@ function pageGuides() {
 
 function pageGuide(id) {
   try {
-    return require('../../../backend/modules/discovery-seven').guideHtml(id);
+    const html = require('../../../backend/modules/discovery-seven').guideHtml(id);
+    const guide = require('../../../backend/modules/discovery-seven').guideFor(id);
+    const share = require('../../commerce/share-surface').pageShareHtml({
+      path: (guide && guide.path) || ('/guides/' + id),
+      title: (guide && guide.title) || 'Offer guide',
+      text: (guide && guide.metaDescription) || (guide && guide.description) || '',
+    });
+    return html + share;
   } catch (_) {
     return `<section style="padding-top:140px"><h1>Offer guide</h1><p>The discovery desk is offline.</p></section>`;
   }

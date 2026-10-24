@@ -248,6 +248,33 @@ ${head}
 </html>`;
 }
 
+/**
+ * Share the current page. The landing URL is this page, so Open Graph on
+ * that URL is the preview. A click opens a composer; it is not a post.
+ */
+function pageShareHtml(opts) {
+  const o = opts || {};
+  const pathName = String(o.path || '/').split('?')[0];
+  if (!pathName.startsWith('/') || pathName.indexOf('//') !== -1) return '';
+  const title = String(o.title || TITLE).replace(/\s+/g, ' ').slice(0, 140);
+  const url = PUBLIC_URL + pathName;
+  const text = String(o.text || title).replace(/\s+/g, ' ').slice(0, 180);
+  const enc = encodeURIComponent;
+  const links = [
+    ['Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' + enc(url)],
+    ['X', 'https://twitter.com/intent/tweet?text=' + enc(text) + '&url=' + enc(url)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + enc(url)],
+    ['WhatsApp', 'https://wa.me/?text=' + enc(text + ' ' + url)],
+  ];
+  const anchors = links.map(([label, href]) => (
+    '<a class="btn" href="' + _esc(href) + '" rel="noopener noreferrer" target="_blank">' + _esc(label) + '</a>'
+  )).join('');
+  return '<section class="card" id="pageShare" style="padding:16px;margin-top:22px">'
+    + '<span class="kicker">Share</span>'
+    + '<p style="color:var(--ink-dim);font-size:13.5px;margin:8px 0 12px">Opens the network composer with this page. A click is not a post, and a post is not a visitor.</p>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px">' + anchors + '</div></section>';
+}
+
 module.exports = {
   PROTOCOL,
   NAME,
@@ -256,4 +283,5 @@ module.exports = {
   shareTargets,
   discovery,
   shareHtml,
+  pageShareHtml,
 };

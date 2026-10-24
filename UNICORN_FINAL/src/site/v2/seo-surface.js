@@ -44,6 +44,7 @@ function pageSeo() {
 </section>
 
 ${seven}
+${require('../../seo/organic-growth').deskHtml()}
 <section class="card" style="padding:20px;margin-bottom:48px">
   <span class="kicker">Honesty</span>
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
@@ -64,7 +65,8 @@ ${seven}
     <a href="/visible-world" data-link>/visible-world</a> ·
     <a href="/relay" data-link>/relay</a>
   </p>
-</section>`;
+</section>
+${require('../../commerce/share-surface').pageShareHtml({ path: '/seo', title: 'ZeusAI SEO desk', text: 'Sitemap, Search Console numbers when Google returns them, and 50 unpublished article proposals.' })}`;
 }
 
 module.exports = { pageSeo };

@@ -12700,6 +12700,24 @@ app.get(['/api/ab-test-engine', '/.well-known/ab-test-engine.json'], (req, res) 
   }
 });
 
+app.get('/api/seo/growth', (req, res) => {
+  try {
+    const growth = require('../src/seo/organic-growth').publicReport();
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'OGD/1.0');
+    res.set('X-Robots-Tag', 'noindex');
+    return res.json(growth);
+  } catch (e) {
+    return res.status(503).json({
+      ok: false,
+      protocol: 'OGD/1.0',
+      inventsClicks: false,
+      estimatedSessions: null,
+      error: e && e.message,
+    });
+  }
+});
+
 app.get('/api/seo/status', (req, res) => {
   try {
     const desk = require('./modules/seo-viral-desk').desk();
