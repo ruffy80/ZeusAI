@@ -179,6 +179,84 @@ function formatMetric(row, kind) {
   return String(value);
 }
 
+function recommendations(view) {
+  const metrics = view && view.metrics;
+  const needed = ['clicks', 'impressions', 'ctr', 'position'];
+  const missing = !metrics || needed.some((key) => !metrics[key] || metrics[key].status !== 'measured' || metrics[key].value == null);
+  if (missing) {
+    return {
+      status: 'unavailable',
+      value: null,
+      note: 'A recommendation is written only after clicks, impressions, CTR, and average position are all measured.',
+    };
+  }
+  const items = [];
+  const impressions = Number(metrics.impressions.value);
+  if (impressions < 30) {
+    items.push({
+      id: 'small-sample',
+      action: 'Do not change titles or publish new URLs from this CTR.',
+      because: 'Google measured ' + Math.round(impressions) + ' impressions. The CTR is real and too small to treat as a stable rate.',
+    });
+  }
+  const leaks = view.leaks && view.leaks.status === 'measured' && Array.isArray(view.leaks.value) ? view.leaks.value : [];
+  leaks.forEach((row) => {
+    items.push({
+      id: 'noindex-shown',
+      action: 'Keep ' + pagePath(row.page) + ' on noindex and wait for Google to recrawl it.',
+      because: 'Search Console showed that URL with ' + row.impressions + ' impression(s).',
+    });
+  });
+  const demand = view.demand && view.demand.status === 'measured' ? view.demand : null;
+  (demand && demand.residue || []).forEach((row) => {
+    items.push({
+      id: 'brand-residue',
+      action: 'Do not create an article for "' + row.query + '".',
+      because: 'Google measured the query and it does not match a shelf offer.',
+    });
+  });
+  (demand && demand.echoes || []).forEach((row) => {
+    items.push({
+      id: 'offer-echo',
+      action: 'Point "' + row.query + '" at the existing page ' + row.href + '.',
+      because: 'The query shares a shelf word. A new URL is not required.',
+    });
+  });
+  const pages = view.pages && view.pages.status === 'measured' && Array.isArray(view.pages.value) ? view.pages.value : [];
+  pages.forEach((row) => {
+    const pathName = pagePath(row.page);
+    if (!pathName || NOINDEX_EXACT.has(pathName) || pathName.startsWith('/checkout/') || pathName.startsWith('/admin/')) return;
+    if (Number(row.impressions) > 0 && Number(row.clicks) === 0 && Number(row.impressions) < 30) {
+      items.push({
+        id: 'shown-not-clicked',
+        action: 'Leave ' + pathName + ' unchanged until it gathers more impressions.',
+        because: 'Google showed it ' + row.impressions + ' time(s) and recorded 0 clicks.',
+      });
+    }
+  });
+  const inspections = view.inspections && view.inspections.status === 'measured' && Array.isArray(view.inspections.value)
+    ? view.inspections.value : [];
+  inspections.forEach((row) => {
+    const pathName = pagePath(row.inspectionUrl);
+    const noindex = NOINDEX_EXACT.has(pathName) || pathName.startsWith('/checkout/') || pathName.startsWith('/admin/');
+    if (row.status === 'measured' && row.verdict === 'PASS' && noindex) {
+      items.push({
+        id: 'indexed-noindex',
+        action: 'The noindex header is already on ' + pathName + '. Google still has that URL indexed from its last crawl.',
+        because: row.coverageState ? String(row.coverageState) : 'URL Inspection returned PASS.',
+      });
+    }
+    if (row.googleCanonical && row.userCanonical && row.googleCanonical !== row.userCanonical) {
+      items.push({
+        id: 'canonical-split',
+        action: 'Compare the page canonical with the canonical Google chose for ' + pathName + '.',
+        because: 'Google canonical is ' + row.googleCanonical + '.',
+      });
+    }
+  });
+  return { status: 'measured', value: items, inventsTraffic: false };
+}
+
 function sampleNote(metrics) {
   const impressions = metrics && metrics.impressions;
   if (!impressions || impressions.status !== 'measured' || impressions.value == null) return null;
@@ -210,12 +288,18 @@ function consoleView() {
     ctr: pick('ctr'),
     position: pick('position'),
   };
-  return {
+  const view = {
     armed: !!(status && Array.isArray(status.armedEngines) && status.armedEngines.indexOf('google') !== -1),
     reason: perf.reason || 'not_read_yet',
     siteUrl: perf.siteUrl || null,
     range: perf.range || null,
     metrics,
+    access: {
+      impressions: metrics.impressions.status === 'measured',
+      clicks: metrics.clicks.status === 'measured',
+      position: metrics.position.status === 'measured',
+      ctr: metrics.ctr.status === 'measured',
+    },
     queries,
     pages,
     leaks: noindexLeaks(pages),
@@ -232,7 +316,10 @@ function consoleView() {
     inventsCtr: false,
     inventsPosition: false,
     inventsQueries: false,
+    inventsTraffic: false,
   };
+  view.recommendations = recommendations(view);
+  return view;
 }
 
 function findings() {
@@ -319,14 +406,51 @@ function deskHtml() {
   const search = body.search || {};
   const metrics = search.metrics || {};
   const cells = [
-    ['Clicks', formatMetric(metrics.clicks, 'clicks')],
-    ['Impressions', formatMetric(metrics.impressions, 'impressions')],
-    ['CTR', formatMetric(metrics.ctr, 'ctr')],
-    ['Average position', formatMetric(metrics.position, 'position')],
-  ].map(([label, value]) => (
+    ['Clicks', formatMetric(metrics.clicks, 'clicks'), 'clicks'],
+    ['Impressions', formatMetric(metrics.impressions, 'impressions'), 'impressions'],
+    ['CTR', formatMetric(metrics.ctr, 'ctr'), 'ctr'],
+    ['Average position', formatMetric(metrics.position, 'position'), 'position'],
+  ].map(([label, value, key]) => (
     '<div class="card" style="padding:14px"><span class="kicker">' + esc(label) + '</span>'
-    + '<p style="margin:8px 0 0;font-size:22px">' + esc(value) + '</p></div>'
+    + '<p style="margin:8px 0 0;font-size:22px">' + esc(value) + '</p>'
+    + '<p style="margin:4px 0 0;font-size:12px;color:var(--ink-dim)">'
+    + (search.access && search.access[key] ? 'Accessible' : 'Not read') + '</p></div>'
   )).join('');
+  const rowCells = (row) => (
+    '<td>' + esc(formatMetric({ status: row.clicks == null ? 'unavailable' : 'measured', value: row.clicks }, 'clicks')) + '</td>'
+    + '<td>' + esc(formatMetric({ status: row.impressions == null ? 'unavailable' : 'measured', value: row.impressions }, 'impressions')) + '</td>'
+    + '<td>' + esc(formatMetric({ status: row.ctr == null ? 'unavailable' : 'measured', value: row.ctr }, 'ctr')) + '</td>'
+    + '<td>' + esc(formatMetric({ status: row.position == null ? 'unavailable' : 'measured', value: row.position }, 'position')) + '</td>'
+  );
+  const queryRows = search.queries && search.queries.status === 'measured' && Array.isArray(search.queries.value)
+    ? search.queries.value : null;
+  const queryHtml = queryRows
+    ? (queryRows.length
+      ? '<div style="overflow-x:auto"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
+        + queryRows.map((row) => '<tr><td>' + esc(row.query) + '</td>' + rowCells(row) + '</tr>').join('')
+        + '</tbody></table></div>'
+      : '<p style="margin:8px 0 0;color:var(--ink-dim)">Google returned no queries in this window.</p>')
+    : '<p style="margin:8px 0 0;color:var(--ink-dim)">Queries are unavailable until Search Console returns them.</p>';
+  const pageRows = search.pages && search.pages.status === 'measured' && Array.isArray(search.pages.value)
+    ? search.pages.value : null;
+  const pageHtml = pageRows
+    ? (pageRows.length
+      ? '<div style="overflow-x:auto"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:14px;margin-top:8px"><thead><tr><th style="text-align:left">Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'
+        + pageRows.map((row) => '<tr><td>' + esc(row.page) + '</td>' + rowCells(row) + '</tr>').join('')
+        + '</tbody></table></div>'
+      : '<p style="margin:8px 0 0;color:var(--ink-dim)">Google returned no pages in this window.</p>')
+    : '<p style="margin:8px 0 0;color:var(--ink-dim)">Pages are unavailable until Search Console returns them.</p>';
+  const pageNote = pageRows
+    ? '<p style="margin:8px 0 0;color:var(--ink-dim);font-size:13px">These are the page rows Google returned. They are not added into the property totals above.</p>'
+    : '';
+  const recs = search.recommendations;
+  const recHtml = recs && recs.status === 'measured' && Array.isArray(recs.value)
+    ? (recs.value.length
+      ? '<ol style="margin:8px 0 0;padding-left:18px;font-size:14px;line-height:1.55">'
+        + recs.value.map((item) => '<li style="margin:0 0 8px"><strong>' + esc(item.action) + '</strong> ' + esc(item.because) + '</li>').join('')
+        + '</ol>'
+      : '<p style="margin:8px 0 0;color:var(--ink-dim)">The four metrics are measured. No rule fired for this window.</p>')
+    : '<p style="margin:8px 0 0;color:var(--ink-dim)">' + esc((recs && recs.note) || 'Recommendations stay unwritten until the four metrics are measured.') + '</p>';
   const range = search.range && search.range.startDate
     ? (search.range.startDate + ' → ' + search.range.endDate)
     : '';
@@ -384,7 +508,12 @@ function deskHtml() {
     + (range ? ' · ' + esc(range) : '')
     + '. A number appears only when Google measured it. Estimated traffic is not available. Lighthouse is unmeasured.</p>'
     + sample
+    + '<div id="searchConsoleDashboard">'
     + '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px">' + cells + '</div>'
+    + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Queries Google returned</span>' + queryHtml + '</div>'
+    + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Pages Google returned</span>' + pageHtml + pageNote + '</div>'
+    + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Recommendations from this read</span>' + recHtml + '</div>'
+    + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Measured demand</span>' + demandHtml + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Noindex URLs Google showed</span>' + leakHtml + '</div>'
     + '<div class="card" style="padding:16px;margin-top:12px"><span class="kicker">Shown-page inspection</span>' + inspectionHtml + '<p style="margin:8px 0 0;color:var(--ink-dim);font-size:13px">' + sitemapLine + '</p></div>'
@@ -411,4 +540,5 @@ module.exports = {
   classifyQueries,
   formatMetric,
   sampleNote,
+  recommendations,
 };

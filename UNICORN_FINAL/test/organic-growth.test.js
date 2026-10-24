@@ -138,5 +138,131 @@ check('the desk HTML shows unavailable metrics and the share bar uses this page'
   assert.strictEqual(require('../src/commerce/share-surface').pageShareHtml({ path: 'https://evil.example' }), '');
 });
 
+check('recommendations stay unwritten until all four metrics are measured', () => {
+  const blocked = growth.recommendations({
+    metrics: {
+      clicks: { status: 'measured', value: 3 },
+      impressions: { status: 'measured', value: 9 },
+      ctr: { status: 'unavailable', value: null },
+      position: { status: 'measured', value: 11.7 },
+    },
+  });
+  assert.strictEqual(blocked.status, 'unavailable');
+  assert.strictEqual(blocked.value, null);
+  const view = {
+    metrics: {
+      clicks: { status: 'measured', value: 3 },
+      impressions: { status: 'measured', value: 9 },
+      ctr: { status: 'measured', value: 1 / 3 },
+      position: { status: 'measured', value: 11.666666666666666 },
+    },
+    queries: {
+      status: 'measured',
+      value: [
+        { query: 'zeus ia', clicks: 0, impressions: 1, ctr: 0, position: 14 },
+        { query: 'zeus learn ai', clicks: 0, impressions: 1, ctr: 0, position: 84 },
+      ],
+    },
+    pages: {
+      status: 'measured',
+      value: [
+        { page: 'https://zeusai.pro/', clicks: 3, impressions: 9, ctr: 1 / 3, position: 11.67 },
+        { page: 'https://zeusai.pro/checkout', clicks: 0, impressions: 1, ctr: 0, position: 5 },
+        { page: 'https://zeusai.pro/docs', clicks: 0, impressions: 1, ctr: 0, position: 1 },
+        { page: 'https://zeusai.pro/frontier', clicks: 0, impressions: 1, ctr: 0, position: 4 },
+        { page: 'https://zeusai.pro/gift', clicks: 0, impressions: 1, ctr: 0, position: 1 },
+      ],
+    },
+    inspections: {
+      status: 'measured',
+      value: [{
+        inspectionUrl: 'https://zeusai.pro/checkout',
+        status: 'measured',
+        verdict: 'PASS',
+        coverageState: 'Submitted and indexed',
+        googleCanonical: 'https://zeusai.pro/checkout',
+        userCanonical: 'https://zeusai.pro/checkout',
+      }],
+    },
+  };
+  view.leaks = growth.noindexLeaks(view.pages);
+  view.demand = growth.classifyQueries(view.queries);
+  const recs = growth.recommendations(view);
+  assert.strictEqual(recs.status, 'measured');
+  assert.strictEqual(recs.inventsTraffic, false);
+  const ids = recs.value.map((item) => item.id);
+  assert.ok(ids.includes('small-sample'));
+  assert.strictEqual(ids.filter((id) => id === 'brand-residue').length, 2);
+  assert.ok(ids.includes('noindex-shown'));
+  assert.ok(ids.includes('indexed-noindex'));
+  assert.deepStrictEqual(
+    recs.value.filter((item) => item.id === 'shown-not-clicked').map((item) => item.action),
+    [
+      'Leave /docs unchanged until it gathers more impressions.',
+      'Leave /frontier unchanged until it gathers more impressions.',
+      'Leave /gift unchanged until it gathers more impressions.',
+    ]
+  );
+  assert.ok(!ids.includes('offer-echo'));
+  const text = JSON.stringify(recs);
+  assert.ok(!/estimatedSessions|visits|sessions/.test(text));
+  assert.ok(recs.value.some((item) => item.action.includes('zeus ia')));
+});
+
+check('the desk prints a measured read and its recommendations', () => {
+  const bridgeDir = process.env.SEO_BRIDGE_DIR;
+  fs.writeFileSync(path.join(bridgeDir, 'search-console-bridge.json'), JSON.stringify({
+    performance: {
+      ok: true,
+      reason: 'search_console_row',
+      siteUrl: 'sc-domain:zeusai.pro',
+      range: { startDate: '2026-09-26', endDate: '2026-10-23' },
+      metrics: {
+        clicks: { status: 'measured', value: 3 },
+        impressions: { status: 'measured', value: 9 },
+        ctr: { status: 'measured', value: 1 / 3 },
+        position: { status: 'measured', value: 11.666666666666666 },
+      },
+      queries: {
+        status: 'measured',
+        value: [
+          { query: 'zeus ia', clicks: 0, impressions: 1, ctr: 0, position: 14 },
+          { query: 'zeus learn ai', clicks: 0, impressions: 1, ctr: 0, position: 84 },
+        ],
+      },
+      pages: {
+        status: 'measured',
+        value: [
+          { page: 'https://zeusai.pro/', clicks: 3, impressions: 9, ctr: 1 / 3, position: 11.67 },
+          { page: 'https://zeusai.pro/checkout', clicks: 0, impressions: 1, ctr: 0, position: 5 },
+          { page: 'https://zeusai.pro/docs', clicks: 0, impressions: 1, ctr: 0, position: 1 },
+        ],
+      },
+    },
+  }));
+  const view = growth.consoleView();
+  assert.strictEqual(view.access.impressions, true);
+  assert.strictEqual(view.access.clicks, true);
+  assert.strictEqual(view.access.position, true);
+  assert.strictEqual(view.access.ctr, true);
+  assert.strictEqual(view.recommendations.status, 'measured');
+  assert.strictEqual(view.inventsTraffic, false);
+  const html = growth.deskHtml();
+  assert.ok(html.includes('id="searchConsoleDashboard"'));
+  assert.ok(html.includes('Accessible'));
+  assert.ok(html.includes('33.3%'));
+  assert.ok(html.includes('11.7'));
+  assert.ok(html.includes('zeus ia'));
+  assert.ok(html.includes('Do not create an article for'));
+  assert.ok(html.includes('https://zeusai.pro/docs'));
+  assert.ok(html.includes('not added into the property totals'));
+  assert.ok(html.includes('overflow-x:auto'));
+  assert.ok(html.includes('2026-09-26'));
+  assert.ok(!/estimated traffic is 9|1,200 visits/i.test(html));
+  const pub = growth.publicReport();
+  assert.strictEqual(pub.search.recommendations.inventsTraffic, false);
+  assert.ok(!/private_key|ya29\./.test(JSON.stringify(pub)));
+});
+
 console.log('\n✅ organic-growth: ' + passed + ' tests passed');
 process.exit(0);

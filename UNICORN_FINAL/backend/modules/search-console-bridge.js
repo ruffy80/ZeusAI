@@ -588,7 +588,7 @@ async function readPerformance(opts) {
           endDate: range.endDate,
           type: 'web',
           dimensions: ['page'],
-          rowLimit: 5,
+          rowLimit: 25,
         }),
       }
     );
