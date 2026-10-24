@@ -1,10 +1,11 @@
 // Polish-pack tests — additive site polish layer.
 // Verifies: /.well-known/security.txt, /humans.txt, /offline.html,
 // shell SEO/PWA enrichments (canonical, JSON-LD blocks, apple-touch, mask-icon),
-// manifest icons (PNG + maskable + svg) and second sitemap line in robots.txt.
+// manifest icons (PNG + maskable + svg) and robots.txt from sitemap-helpers.
 'use strict';
 
 const assert = require('assert');
+const seo = require('../src/seo/sitemap-helpers');
 
 (async function main() {
   const pp = require('../backend/modules/polish-pack');
@@ -79,15 +80,14 @@ const assert = require('assert');
     assert.match(how, /"@type":"FAQPage"/, 'FAQPage on /how');
   }
 
-  // --- sovereign-extensions: robots.txt has both sitemap lines ---
+  // --- sovereign-extensions: robots.txt is the sitemap-helpers policy ---
   {
     let body = '';
     const res = { setHeader: () => {}, writeHead: () => {}, end: b => body = b };
     const handled = await sov.handle({ url: '/robots.txt', headers: {} }, res, { buildSnapshot: () => ({}) });
     assert.strictEqual(handled, true);
-    assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/sitemap\.xml/);
-    assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/seo\/sitemap-services\.xml/);
-    assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/seo\/sitemap-index\.xml/);
+    const base = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
+    assert.strictEqual(body, seo.robotsTxt(base));
   }
 
   // --- sovereign-extensions: manifest has PNG + maskable + shortcuts + share_target ---
