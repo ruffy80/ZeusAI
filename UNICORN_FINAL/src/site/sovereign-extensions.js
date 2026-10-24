@@ -180,7 +180,6 @@ async function handle(req, res, ctx) {
       res.writeHead(410, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=86400',
-        'X-Robots-Tag': 'noindex',
         'X-Unicorn-Index': 'gone',
       });
       res.end(body);

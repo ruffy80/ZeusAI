@@ -34,11 +34,12 @@ async function main() {
     const doc = ledger.document();
     assert.strictEqual(doc.inventsGoogleCounts, false);
     assert.strictEqual(doc.retired.http, 410);
+    assert.strictEqual(doc.retired.robots, null);
     assert.strictEqual(doc.retired.urls, 500);
     const text = JSON.stringify(doc);
     assert.ok(!/417|indexed count|pages indexed/i.test(text));
     const html = ledger.goneHtml('/solutions/ai-revenue-os/for/fintech');
-    assert.ok(html.includes('noindex'));
+    assert.ok(!/noindex/i.test(html));
     assert.ok(html.includes('has no page'));
     assert.ok(html.includes('/services'));
   });
@@ -57,7 +58,8 @@ async function main() {
     const sov = require('../src/site/sovereign-extensions');
     const gone = await capture(sov, '/solutions/ai-revenue-os/for/fintech');
     assert.strictEqual(gone.status, 410);
-    assert.ok(/noindex/i.test(gone.headers['X-Robots-Tag']));
+    assert.ok(!gone.headers['X-Robots-Tag']);
+    assert.ok(!/noindex/i.test(gone.body));
     assert.ok(gone.body.includes('has no page'));
     const live = await capture(sov, '/indexing.json');
     assert.strictEqual(live.status, 200);
