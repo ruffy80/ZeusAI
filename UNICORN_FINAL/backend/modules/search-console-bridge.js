@@ -69,11 +69,23 @@ function _ensureDir() {
   try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) { /* ignore */ }
 }
 
+let _stateMtime = 0;
+
 function _loadState() {
   try {
     if (!fs.existsSync(STATE_FILE)) return;
+    const st = fs.statSync(STATE_FILE);
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     if (raw && typeof raw === 'object') Object.assign(state, raw);
+    _stateMtime = Number(st.mtimeMs) || 0;
+  } catch (_) { /* ignore */ }
+}
+
+function _reloadIfNewer() {
+  try {
+    if (!fs.existsSync(STATE_FILE)) return;
+    const st = fs.statSync(STATE_FILE);
+    if ((Number(st.mtimeMs) || 0) > _stateMtime) _loadState();
   } catch (_) { /* ignore */ }
 }
 
@@ -208,10 +220,49 @@ async function runBing(opts) {
 }
 
 // ── Google service account ───────────────────────────────────────────
+function _credentialRoots() {
+  return [
+    path.resolve(__dirname, '..', '..', '..'),
+    path.resolve(__dirname, '..', '..'),
+  ];
+}
+
+function _pathInsideRepo(filePath) {
+  let resolved = path.resolve(String(filePath || ''));
+  try { resolved = fs.realpathSync(resolved); } catch (_) { /* unresolved path */ }
+  return _credentialRoots().some((root) => {
+    const rel = path.relative(root, resolved);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  });
+}
+
+/**
+ * GOOGLE_APPLICATION_CREDENTIALS is a filesystem path, never the JSON body.
+ * The file must sit outside this repository and be readable only by its owner.
+ */
+function _accountFromCredentialsFile() {
+  const rawPath = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+  if (!rawPath || rawPath.includes('\0') || /[\r\n]/.test(rawPath)) return null;
+  let resolved;
+  try { resolved = fs.realpathSync(rawPath); } catch (_) { return null; }
+  if (_pathInsideRepo(resolved)) return null;
+  let st;
+  try { st = fs.statSync(resolved); } catch (_) { return null; }
+  if (!st.isFile() || (st.mode & 0o077) !== 0) return null;
+  let text = '';
+  try { text = fs.readFileSync(resolved, 'utf8'); } catch (_) { return null; }
+  try {
+    const sa = JSON.parse(text);
+    if (sa && sa.client_email && sa.private_key && (!sa.type || sa.type === 'service_account')) return sa;
+  } catch (_) { /* not a service-account file */ }
+  return null;
+}
+
 /**
  * A service-account key is multi-line, which a raw .env line cannot carry
  * losslessly, so the base64 form is tried first and is what sync-all-secrets
- * ships. Either form is accepted.
+ * ships. A JSON string is next. GOOGLE_APPLICATION_CREDENTIALS is only a path
+ * to a mode-600 file outside the repository.
  */
 function _serviceAccount() {
   const candidates = [];
@@ -228,7 +279,7 @@ function _serviceAccount() {
       if (sa && sa.client_email && sa.private_key) return sa;
     } catch (_) { /* try the next form */ }
   }
-  return null;
+  return _accountFromCredentialsFile();
 }
 
 function _b64url(input) {
@@ -636,6 +687,13 @@ async function runCycle(opts) {
   const bing = await runBing(o);
   const google = await runGoogle(o);
   const performance = await readPerformance(o);
+  if (!o.dryRun && performance && performance.ok && performance.siteUrl) {
+    if (performance.sitemap && performance.sitemap.status === 'missing') {
+      performance.sitemapSubmit = await submitSitemap(performance.siteUrl);
+    }
+    const shown = performance.pages && performance.pages.status === 'measured' ? performance.pages.value : [];
+    performance.inspections = await inspectShownPages(performance.siteUrl, shown);
+  }
   state.lastRunAt = new Date().toISOString();
   state.runs += 1;
   state.bing = bing;
@@ -661,7 +719,91 @@ function missingSecrets() {
   return out;
 }
 
+function _indexOf(result) {
+  const idx = result && result.inspectionResult && result.inspectionResult.indexStatusResult;
+  return idx && typeof idx === 'object' ? idx : {};
+}
+
+async function submitSitemap(siteUrl) {
+  const target = String(siteUrl || '').trim();
+  if (!target) return { ok: false, status: 0, reason: 'no_site', sitemap: SITEMAP_URL };
+  const sa = _serviceAccount();
+  if (!sa) return { ok: false, status: 0, reason: 'no_service_account', secret: SECRET_HINTS.google, sitemap: SITEMAP_URL };
+  const auth = await _googleAccessToken(sa);
+  if (!auth.ok) {
+    return { ok: false, status: auth.status || 0, reason: 'token_exchange_failed', sitemap: SITEMAP_URL, detail: _redact(auth.detail || auth.error) };
+  }
+  const url = 'https://www.googleapis.com/webmasters/v3/sites/'
+    + encodeURIComponent(target) + '/sitemaps/' + encodeURIComponent(SITEMAP_URL);
+  const res = await _request(url, { method: 'PUT', headers: { Authorization: 'Bearer ' + auth.accessToken } });
+  return {
+    ok: res.ok,
+    status: res.status,
+    siteUrl: target,
+    sitemap: SITEMAP_URL,
+    reason: res.ok ? 'submitted' : 'submit_failed',
+    detail: res.ok ? null : _redact(res.detail || res.error),
+  };
+}
+
+async function inspectShownPages(siteUrl, pages) {
+  const target = String(siteUrl || '').trim();
+  const urls = [];
+  for (const row of pages || []) {
+    const page = row && row.page ? String(row.page) : '';
+    if (!page || urls.indexOf(page) !== -1) continue;
+    urls.push(page);
+    if (urls.length >= 5) break;
+  }
+  if (!target || !urls.length) return { status: 'unavailable', value: null, reason: 'nothing_shown' };
+  const sa = _serviceAccount();
+  if (!sa) return { status: 'unavailable', value: null, reason: 'no_service_account' };
+  const auth = await _googleAccessToken(sa);
+  if (!auth.ok) {
+    return { status: 'unavailable', value: null, reason: 'token_exchange_failed', httpStatus: auth.status || 0 };
+  }
+  const bearer = { Authorization: 'Bearer ' + auth.accessToken };
+  const value = [];
+  for (const inspectionUrl of urls) {
+    const res = await _postJson('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+      inspectionUrl,
+      siteUrl: target,
+      languageCode: 'en-US',
+    }, bearer);
+    if (!res.ok) {
+      value.push({
+        inspectionUrl,
+        status: 'error',
+        httpStatus: res.status || 0,
+        verdict: null,
+        coverageState: null,
+        indexingState: null,
+        pageFetchState: null,
+        googleCanonical: null,
+        userCanonical: null,
+        lastCrawlTime: null,
+      });
+      continue;
+    }
+    const idx = _indexOf(res.json);
+    value.push({
+      inspectionUrl,
+      status: 'measured',
+      httpStatus: res.status,
+      verdict: idx.verdict || null,
+      coverageState: idx.coverageState || null,
+      indexingState: idx.indexingState || null,
+      pageFetchState: idx.pageFetchState || null,
+      googleCanonical: idx.googleCanonical || null,
+      userCanonical: idx.userCanonical || null,
+      lastCrawlTime: idx.lastCrawlTime || null,
+    });
+  }
+  return { status: 'measured', value, reason: 'shown_pages_only' };
+}
+
 function getStatus() {
+  _reloadIfNewer();
   const armed = armedEngines();
   return {
     protocol: PROTOCOL,
@@ -720,6 +862,8 @@ module.exports = {
   runBing,
   runGoogle,
   readPerformance,
+  submitSitemap,
+  inspectShownPages,
   propertyCandidates,
   runCycle,
   armedEngines,

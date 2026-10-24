@@ -13434,6 +13434,16 @@ a{color:#8a5cff;text-decoration:none}
       // connections. Opt-in per W3C Client Hints — entirely advisory.
       responseHeaders['Accept-CH'] = 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink';
     }
+    const __noindexRoute = route === '/checkout' || route.indexOf('/checkout/') === 0
+      || route === '/dashboard' || route === '/account'
+      || route === '/admin' || route.indexOf('/admin/') === 0
+      || route === '/login' || route === '/signup' || route === '/auth'
+      || route === '/outreach-desk';
+    if (__noindexRoute) {
+      responseHeaders['X-Robots-Tag'] = (route === '/checkout' || route.indexOf('/checkout/') === 0)
+        ? 'noindex'
+        : 'noindex, nofollow';
+    }
     res.writeHead(200, responseHeaders);
     // ─── HTML BUILD-ATTESTATION (per-response cryptographic proof) ────────
     // Sign the HTML right before it leaves. Verifiers strip the meta tag,
