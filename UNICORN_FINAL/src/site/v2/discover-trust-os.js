@@ -630,6 +630,7 @@ function pageArticle(slug) {
   <p style="color:var(--ink-dim);font-size:14px">By ${esc(OWNER.name)} · ${PUBLISHED} · <a href="/insights" data-link>All insights</a></p>
   ${body}
   <p style="margin-top:22px"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn" href="/trust-safety" data-link>Trust and safety</a></p>
+  ${require('../../commerce/share-surface').pageShareHtml({ path: '/insights/' + found.slug, title: found.title, text: found.description })}
 </article>`;
 }
 

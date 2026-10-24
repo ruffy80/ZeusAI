@@ -190,6 +190,8 @@ check('performance read uses the domain property and keeps the key out of the re
     assert.strictEqual(r.sitemap.status, 'errors');
     assert.strictEqual(r.sitemap.errors, 2);
     assert.strictEqual(r.sitemap.warnings, 1);
+    assert.strictEqual(r.queries.status, 'measured');
+    assert.strictEqual(r.queries.value[0].query, 'https://zeusai.pro/guides');
     assert.ok(urls.some((u) => u.includes('sc-domain%3Azeusai.pro')));
     assert.ok(!urls.some((u) => u.includes('https%3A%2F%2Fzeusai.pro%2F')));
     const packed = JSON.stringify(r);
@@ -220,6 +222,8 @@ check('an empty Search Console response is a measured zero, not a hidden failure
     assert.strictEqual(r.metrics.ctr.status, 'unavailable');
     assert.strictEqual(r.metrics.position.value, null);
     assert.strictEqual(r.sitemap.status, 'missing');
+    assert.strictEqual(r.queries.status, 'measured');
+    assert.deepStrictEqual(r.queries.value, []);
     global.fetch = prev;
     clearSecrets();
   });

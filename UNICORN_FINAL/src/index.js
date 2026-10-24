@@ -2305,10 +2305,8 @@ function __predictivePrefetchHook(req, res, method, earlyPath) {
     // Emit 103 Early Hints. We bundle our two critical preloads (CSS+JS) into
     // the same frame so the browser parallelizes them with the prefetches.
     const cssHref = (typeof assetPath === 'function') ? assetPath('/assets/app.css') : '/assets/app.css';
-    const jsHref = (typeof assetPath === 'function') ? assetPath('/assets/app.js') : '/assets/app.js';
     const extra = [
       `<${cssHref}>; rel=preload; as=style`,
-      `<${jsHref}>; rel=preload; as=script`,
     ];
     predictivePrefetch.sendEarlyHints(res, predictions, extra, req);
     // Stash on res for the SSR route to append to the final Link header
@@ -7041,7 +7039,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       || (accept.indexOf('text/html') !== -1 && accept.indexOf('application/json') === -1)
     );
     if (isHtmlNavigation && req.method === 'GET') {
-      res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
+      res.writeHead(301, { Location: '/services', 'Cache-Control': 'public, max-age=86400' });
       return res.end('Redirecting to /services');
     }
     let shelf = [];
@@ -13085,6 +13083,34 @@ a{color:#8a5cff;text-decoration:none}
     return res.end('Redirecting to checkout');
   }
 
+  // Duplicate URLs that already canonicalize elsewhere. A 200 with a different
+  // canonical still leaves two addresses. A known blog slug follows its insight.
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const aliasTo = ({
+      '/marketplace': '/services',
+      '/autonomy': '/live-actions',
+      '/innovation-log': '/live-actions',
+    })[urlPath];
+    if (aliasTo) {
+      res.writeHead(301, {
+        Location: aliasTo + (requestUrl.search || ''),
+        'Cache-Control': 'public, max-age=86400',
+      });
+      return res.end();
+    }
+    if (urlPath.indexOf('/blog/') === 0 && urlPath !== '/blog') {
+      let found = null;
+      try { found = require('./site/v2/discover-trust-os').article(urlPath); } catch (_) { found = null; }
+      if (found && found.slug) {
+        res.writeHead(301, {
+          Location: '/insights/' + encodeURIComponent(found.slug) + (requestUrl.search || ''),
+          'Cache-Control': 'public, max-age=86400',
+        });
+        return res.end();
+      }
+    }
+  }
+
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
@@ -13374,7 +13400,7 @@ a{color:#8a5cff;text-decoration:none}
     // real navigation graph. This is the fallback for clients that don't
     // honor the 103 Early Hints we already sent at the dispatcher level —
     // the browser still gets the same hints, just slightly later.
-    let linkHeader = `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`;
+    let linkHeader = `<${assetPath('/assets/app.css')}>; rel=preload; as=style`;
     if (res.__zeusPrefetchLink) {
       linkHeader += ', ' + res.__zeusPrefetchLink;
     }
@@ -13432,6 +13458,7 @@ a{color:#8a5cff;text-decoration:none}
     res.writeHead(404, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
       'X-CSP-Nonce': nonce
     });
     return res.end(html404);

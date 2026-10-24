@@ -507,11 +507,13 @@ async function readPerformance(opts) {
     inventsImpressions: false,
     inventsCtr: false,
     inventsPosition: false,
+    inventsQueries: false,
     range: _range(),
     candidates: propertyCandidates(),
     siteUrl: null,
     metrics: _blankMetrics(),
     pages: { status: 'unavailable', value: null },
+    queries: { status: 'unavailable', value: null },
     sitemap: { status: 'unavailable', path: SITEMAP_URL, errors: null, warnings: null, pending: null },
     attempts: [],
   };
@@ -579,6 +581,34 @@ async function readPerformance(opts) {
       }
     );
     report.attempts.push({ siteUrl, call: 'pages', status: pages.status, ok: pages.ok });
+    const queries = await _request(
+      'https://www.googleapis.com/webmasters/v3/sites/' + encoded + '/searchAnalytics/query',
+      {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, bearer),
+        body: JSON.stringify({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          type: 'web',
+          dimensions: ['query'],
+          rowLimit: 25,
+        }),
+      }
+    );
+    report.attempts.push({ siteUrl, call: 'queries', status: queries.status, ok: queries.ok });
+    if (queries.ok) {
+      const qrows = queries.json && Array.isArray(queries.json.rows) ? queries.json.rows : [];
+      report.queries = {
+        status: 'measured',
+        value: qrows.map((item) => ({
+          query: item && item.keys ? String(item.keys[0] || '') : '',
+          clicks: Number.isFinite(Number(item && item.clicks)) ? Number(item.clicks) : null,
+          impressions: Number.isFinite(Number(item && item.impressions)) ? Number(item.impressions) : null,
+          ctr: Number.isFinite(Number(item && item.ctr)) ? Number(item.ctr) : null,
+          position: Number.isFinite(Number(item && item.position)) ? Number(item.position) : null,
+        })).filter((item) => item.query),
+      };
+    }
     if (pages.ok) {
       const list = pages.json && Array.isArray(pages.json.rows) ? pages.json.rows : [];
       report.pages = {
