@@ -95,8 +95,10 @@ async function main() {
     assert.ok(be.includes('Billion Autonomy Loop'));
     assert.ok(be.includes('revenue-autopilot:'));
     const te = read('backend/modules/traffic-engine.js');
-    assert.ok(te.includes('instant-catalog'));
-    assert.ok(te.includes('/enterprise'));
+    assert.ok(te.includes('corePublicPaths'), 'IndexNow inventory follows the public sitemap');
+    const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
+    assert.ok(urls.some((u) => u.endsWith('/services/instant-resume-makeover')), 'instant shelf page stays in IndexNow');
+    assert.ok(urls.some((u) => u.endsWith('/pricing')));
   });
 
   console.log('\n' + passed + ' checks passed (billion-autonomy-loop-os)');
