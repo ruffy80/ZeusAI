@@ -102,6 +102,9 @@ UNICORN_FINAL/data/cblos/
 /data/*.db
 /data/*.db-shm
 /data/*.db-wal
+UNICORN_FINAL/data/research-pipeline.db
+UNICORN_FINAL/data/research-pipeline.db-shm
+UNICORN_FINAL/data/research-pipeline.db-wal
 backups/auth-db/
 UNICORN_FINAL/backups/auth-db/
 

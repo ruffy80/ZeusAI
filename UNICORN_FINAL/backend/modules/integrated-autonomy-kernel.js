@@ -331,6 +331,23 @@ class IntegratedAutonomyKernel extends EventEmitter {
       phase,
       ts: new Date().toISOString(),
     });
+
+    // Research pipeline is daily, not per harmonic tick. noteTick no-ops
+    // unless RESEARCH_PIPELINE_SCHEDULE=1 and 24h have elapsed.
+    this._noteResearchPipeline();
+  }
+
+  _noteResearchPipeline() {
+    if (String(process.env.RESEARCH_PIPELINE_SCHEDULE || '') !== '1') return;
+    try {
+      const pipeline = require('./research-pipeline');
+      if (typeof pipeline.noteTick !== 'function') return;
+      Promise.resolve(pipeline.noteTick()).catch((err) => {
+        this._log(`research-pipeline tick: ${err.message}`);
+      });
+    } catch (err) {
+      this._log(`research-pipeline unavailable: ${err.message}`);
+    }
   }
 
   _phaseSense() {
@@ -1030,3 +1047,19 @@ module.exports.KERNEL_ID = KERNEL_ID;
 module.exports.external = externalSense;
 module.exports.tenants = tenantQueue;
 module.exports.guardian = guardianEngines;
+
+// Research → router → schema → SQLite. Registered on the singleton so
+// discover/causalStart can see it. start() does not fetch; the daily run is
+// gated by RESEARCH_PIPELINE_SCHEDULE=1 (see research-pipeline.noteTick).
+try {
+  const researchPipeline = require('./research-pipeline');
+  kernel.register('research-pipeline', researchPipeline, {
+    capability: 'research-to-memory',
+    statusFn: 'getStatus',
+    tier: 'infra',
+    honestyClass: 'infra',
+    bootPriority: 40,
+  });
+} catch (err) {
+  console.error(`[IAK] research-pipeline register failed: ${err.message}`);
+}
