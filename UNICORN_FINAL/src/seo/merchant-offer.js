@@ -8,7 +8,8 @@
  * do not. The public contract is a file delivered online, not a parcel:
  * shipping charge 0 USD, no warehouse, no street address, and the 30-day
  * pre-activation refund published at /refund. Refunds are owner-settled.
- * Bitcoin is not pulled back on-chain. There is no return-by-mail.
+ * Bitcoin is not pulled back on-chain. The buyer keeps the file, so the
+ * return method is KeepProduct. There is no mail, store, or kiosk return.
  *
  * Google has no worldwide country code and caps applicableCountry at 50.
  * DELIVERY_COUNTRIES is the explicit list of places the file can be delivered
@@ -92,6 +93,7 @@ function returnPolicy(origin) {
     applicableCountry: DELIVERY_COUNTRIES.slice(),
     returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
     merchantReturnDays: RETURN_DAYS,
+    returnMethod: 'https://schema.org/KeepProduct',
     returnFees: 'https://schema.org/FreeReturn',
     refundType: 'https://schema.org/FullRefund',
     url: base + RETURN_PATH,
@@ -159,6 +161,7 @@ function offerMicrodataHtml(item, opts) {
     + _countriesMeta('applicableCountry')
     + '<meta itemprop="merchantReturnDays" content="' + RETURN_DAYS + '">'
     + '<link itemprop="returnPolicyCategory" href="https://schema.org/MerchantReturnFiniteReturnWindow">'
+    + '<link itemprop="returnMethod" href="https://schema.org/KeepProduct">'
     + '<link itemprop="returnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="refundType" href="https://schema.org/FullRefund">'
     + '<link itemprop="url" href="' + refundUrl + '">'
