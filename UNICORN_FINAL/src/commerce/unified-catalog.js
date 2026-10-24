@@ -56,7 +56,7 @@ function _normalize(item, defaults) {
     deliveryMinutes: item.deliveryMinutes != null ? Number(item.deliveryMinutes) : undefined,
     deliveryDays: item.deliveryDays != null ? Number(item.deliveryDays) : undefined,
     requiresHumanFulfillment: requiresHuman,
-    buyMode: tier === 'enterprise' ? 'contact' : (tier === 'professional' ? 'reserve' : 'btc'),
+    buyMode: /^ent-/i.test(String(item.id || '')) ? 'reserve' : (tier === 'enterprise' ? 'contact' : (tier === 'professional' ? 'reserve' : 'btc')),
   };
   try {
     const omega = _omega();

@@ -33,9 +33,11 @@ check('public shelf lists every curated clock and the payable kickoff', () => {
   assert.strictEqual(kick.mode, 'reserve');
   assert.ok(kick.ctaHref.includes('ent-engagement-kickoff'));
   const acq = shelf.byId('ent-acquisition-pack');
-  assert.strictEqual(acq.mode, 'contact');
-  assert.strictEqual(acq.ctaLabel, 'Request a proposal →');
-  assert.ok(acq.ctaHref.includes('enterprise'));
+  assert.strictEqual(acq.mode, 'reserve');
+  assert.strictEqual(acq.buyable, true);
+  assert.strictEqual(acq.ctaLabel, 'Buy the engagement pack →');
+  assert.ok(acq.ctaHref.includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.ok(acq.when.includes('milestones in the pack'));
 });
 
 check('homepage renders the same ids and the same buttons as the shelf', () => {
@@ -46,9 +48,10 @@ check('homepage renders the same ids and the same buttons as the shelf', () => {
   }
   assert.ok(html.includes('id="concierge"'));
   assert.ok(!html.includes('Get My $39 Resume Makeover'));
-  assert.ok(html.includes('/api/shelf/proposal/ent-acquisition-pack'));
-  assert.ok(html.includes('Download the proposal'));
-  assert.ok(!html.includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.ok(html.includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.ok(html.includes('Buy the engagement pack →'));
+  assert.ok(html.includes('They are not in the download'));
+  assert.ok(!html.includes('/api/shelf/proposal/ent-acquisition-pack'));
 });
 
 check('advise prices a website ask and adds an unasked neighbor', () => {
@@ -69,20 +72,19 @@ check('advise answers in Romanian and routes a company ask to the kickoff', () =
   assert.strictEqual(advice.lang, 'ro');
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.ok(advice.primary.strategy.includes('Nu livrează licența'));
-  assert.ok(advice.also.some((x) => x.mode === 'contact'));
+  assert.ok(advice.also.some((x) => x.buyable === true && x.id !== 'ent-engagement-kickoff' && /Nu sunt în descărcare/.test(x.strategy)));
 });
 
-check('checkout uses the shelf price and refuses a self-serve cart for a proposal', () => {
+check('checkout uses the shelf price and sells the engagement pack', () => {
   const kick = shelf.byId('ent-engagement-kickoff');
   const pay = shell.getHtml('/checkout', { plan: 'ent-engagement-kickoff' });
   assert.ok(pay.includes(kick.title));
   assert.ok(pay.includes('id="coSkipForm"'));
   const proposal = shell.getHtml('/checkout', { plan: 'ent-acquisition-pack' });
-  assert.ok(proposal.includes('Request a proposal →'));
-  assert.ok(proposal.includes('/api/shelf/proposal/ent-acquisition-pack'));
-  assert.ok(proposal.includes('Download the proposal'));
-  assert.ok(proposal.includes('hidden'));
-  assert.ok(!proposal.includes('id="coSkipForm"'));
+  assert.ok(proposal.includes('id="coSkipForm"'));
+  assert.ok(proposal.includes('They are not in this download'));
+  assert.ok(proposal.includes('⚡ Pay with Bitcoin'));
+  assert.ok(!proposal.includes('this figure is a proposal, not a cart'));
   assert.ok(pay.includes('It does not deliver the license, the source, or a private cloud.'));
   assert.ok(!proposal.includes('It does not deliver the license, the source, or a private cloud.'));
 });
@@ -158,7 +160,7 @@ check('advise opens the kickoff for an AWS platform ask and does not replace AWS
   assert.strictEqual(advice.buyer.org, 'AWS');
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.ok(advice.primary.strategy.includes('does not deliver the license'));
-  assert.ok(advice.also.some((x) => x.mode === 'contact'));
+  assert.ok(advice.also.some((x) => x.buyable === true && x.mode === 'reserve' && x.id !== 'ent-engagement-kickoff'));
   assert.ok(advice.question.includes('does not replace AWS'));
   assert.ok(advice.question.includes('engagement kickoff'));
 });
@@ -170,7 +172,7 @@ check('advise answers an open Google ask from the whole shelf without inventing 
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.strictEqual(advice.knownOffers, ids.size);
   assert.ok(advice.question.includes('does not replace Google'));
-  assert.ok(advice.also.some((x) => x.mode === 'contact'));
+  assert.ok(advice.also.some((x) => x.buyable === true && /^ent-/.test(x.id)));
   for (const row of [advice.primary].concat(advice.also)) {
     if (row && row.id) assert.ok(ids.has(row.id), row.id);
   }

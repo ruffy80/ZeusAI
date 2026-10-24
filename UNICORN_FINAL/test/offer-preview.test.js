@@ -24,9 +24,13 @@ check('a proposal figure downloads an engagement proposal and does not open a ca
   assert.ok(/does not deliver the license/i.test(preview.note));
   assert.ok(preview.downloadHref.includes('/api/shelf/proposal/ent-platform-license'));
   const doc = engine.proposalDocument('ent-platform-license');
-  assert.ok(doc && doc.content.includes('# Engagement Proposal'));
-  assert.ok(/does not deliver the license/i.test(doc.content));
-  assert.ok(!/already delivered the license/i.test(doc.content));
+  assert.equal(doc, null);
+  const sold = engine.offerPreview('ent-platform-license', { mode: 'reserve', clock: 'contract', tier: 'enterprise' });
+  assert.equal(sold.kind, 'kickoff');
+  assert.equal(sold.fileTitle, 'Engagement Pack');
+  assert.ok(sold.sections.includes('MSA'));
+  assert.ok(/not in this download/i.test(sold.note));
+  assert.ok(!/source code is attached/i.test(sold.note));
   const vertical = engine.proposalDocument('fintech-os');
   assert.equal(vertical.kind, 'industry-brief');
   assert.ok(/does not install an operating system/i.test(vertical.content));

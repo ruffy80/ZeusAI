@@ -130,6 +130,29 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.ok(ent.artifacts[0].requiresHumanFulfillment);
   });
 
+  const prevCommerce = process.env.UNICORN_COMMERCE_DIR;
+  const packDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ent-pack-'));
+  process.env.UNICORN_COMMERCE_DIR = packDir;
+  const packed = await engine.fulfillReceipt({
+    id: 'r_acq', email: 'buyer@corp.com', services: ['ent-acquisition-pack'], amount: 4000000,
+  });
+  if (prevCommerce == null) delete process.env.UNICORN_COMMERCE_DIR;
+  else process.env.UNICORN_COMMERCE_DIR = prevCommerce;
+  check('a paid acquisition issues the six documents and does not attach source', () => {
+    assert.strictEqual(packed.ok, true);
+    const file = packed.artifacts[0];
+    assert.ok(/not in this download/i.test(file.content));
+    assert.ok(!/source code is attached/i.test(file.content));
+    assert.ok(file.engagementDocuments.includes('msa'));
+    assert.ok(file.engagementDocuments.includes('sow'));
+    assert.ok(file.engagementDocuments.includes('technical-appendix'));
+    assert.ok(file.engagementDocuments.includes('security-compliance'));
+    assert.ok(file.engagementDocuments.includes('timeline-milestones'));
+    assert.ok(file.engagementDocuments.includes('payment-schedule'));
+    const sow = fs.readFileSync(path.join(packDir, 'proposal-packs', file.engagementPackId + '-sow.md'), 'utf8');
+    assert.ok(/not in this download/i.test(sow));
+  });
+
   console.log('\u2705 fulfillment-engine: ' + pass + ' tests passed');
 })().catch((e) => {
   console.error('fulfillment-engine test failed:', e);

@@ -77,7 +77,7 @@ async function run() {
     assert.strictEqual(String(out.order.buyer && out.order.buyer.email || ''), '');
   });
 
-  await check('contact SKUs never mint self-serve invoices', async () => {
+  await check('enterprise pack mints an invoice and a bare enterprise plan does not', async () => {
     const ctx = {
       resolveCatalogItem: async (id) => ({
         id, title: 'Enterprise', priceUsd: 250000, group: 'enterprise', tier: 'enterprise',
@@ -86,7 +86,12 @@ async function run() {
     const out = await commerce.createOrder(ctx, {
       serviceId: 'ent-platform-license', qty: 1, email: 'ceo@corp.com',
     });
-    assert.ok(out.error === 'contact_required' || out.error === 'service_not_buyable', out.error);
+    assert.ok(out.order, JSON.stringify(out));
+    assert.strictEqual(out.order.buy_mode, 'reserve');
+    const bare = await commerce.createOrder(ctx, {
+      serviceId: 'enterprise', qty: 1, email: 'ceo@corp.com',
+    });
+    assert.ok(bare.error === 'contact_required' || bare.error === 'service_not_buyable', bare.error);
   });
 
   await check('high-ticket vertical is contact, not Buy CTA', () => {

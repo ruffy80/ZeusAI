@@ -167,9 +167,11 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(home.includes('data-product-id="ent-acquisition-pack"'));
   assert.ok(home.includes('data-product-id="ent-sovereign-deployment"'));
   assert.ok(home.includes('It does not deliver the license'));
+  assert.ok(home.includes('They are not in the download'));
   assert.ok(home.includes('not an instant download'));
   assert.ok(home.includes('See every priced deliverable'));
-  assert.ok(home.includes('Request a proposal →'));
+  assert.ok(home.includes('Buy the engagement pack →'));
+  assert.ok(home.includes('/checkout/?plan=ent-acquisition-pack'));
   assert.ok(home.includes('/checkout/?plan=ent-engagement-kickoff'));
   assert.ok(home.includes('"@type":"Service"'));
   assert.ok(!home.includes('id="homeRelayGraft"'));

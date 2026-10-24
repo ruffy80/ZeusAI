@@ -439,6 +439,14 @@ function offerPreview(serviceId, opts) {
       note: 'Download this proposal now. It states the listed figure and the work a signed engagement would cover. It does not deliver the license, the source, or a private cloud, and it does not open a cart.',
     };
   }
+  if (/^ent-/i.test(String(serviceId || '')) && String(serviceId) !== 'ent-engagement-kickoff') {
+    return {
+      kind: 'kickoff',
+      fileTitle: 'Engagement Pack',
+      sections: ['MSA', 'Statement of work', 'Technical appendix', 'Security pack', 'Timeline', 'Payment schedule'],
+      note: 'Payment issues this engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.',
+    };
+  }
   const human = mode === 'reserve' || clock === 'days' || clock === 'contract';
   const recipe = human
     ? ((clock === 'contract' || (opts && opts.tier === 'enterprise')) ? ENTERPRISE_RECIPE : PROFESSIONAL_RECIPE)
@@ -934,6 +942,43 @@ function shouldUseAiForSku(serviceId) {
   return allow.has(String(serviceId || '').trim());
 }
 
+function attachEnterprisePack(artifact, receipt, serviceId) {
+  if (!artifact || !/^ent-/i.test(String(serviceId || '')) || serviceId === 'ent-engagement-kickoff') return artifact;
+  const line = 'The license, the source, and a private cloud are milestones in the statement of work. They are not in this download.';
+  let extra = '\n\n## Engagement pack\nPayment issues the engagement pack. ' + line + '\n';
+  try {
+    const pack = require('../../commerce/enterprise-proposal-pack');
+    const catalog = require('../../commerce/enterprise-catalog').byId(serviceId);
+    const paid = receiptAmountUsd(receipt);
+    const listed = catalog && Number(catalog.priceUSD) > 0 ? Number(catalog.priceUSD) : paid;
+    const generated = pack.generatePack({
+      dealId: receipt && (receipt.id || receipt.orderId) || null,
+      buyer: {
+        email: receipt && (receipt.email || (receipt.buyer && receipt.buyer.email)) || '',
+      },
+      product: {
+        id: serviceId,
+        title: (catalog && catalog.title) || (receipt && (receipt.serviceName || receipt.plan)) || serviceId,
+        description: catalog && catalog.description,
+      },
+      kickoffUsd: paid > 0 ? paid : listed,
+      acv: { accepted: listed, mid: listed },
+    });
+    const names = (generated.documents || []).map((doc) => doc.key).join(', ');
+    extra += 'Documents: ' + names + '.\nPack ID: ' + generated.packId + '\n';
+    artifact.engagementPackId = generated.packId;
+    artifact.engagementDocuments = (generated.documents || []).map((doc) => doc.key);
+  } catch (_) { /* the sentence above still ships with the file */ }
+  artifact.content = String(artifact.content || '') + extra;
+  artifact.bytes = Buffer.byteLength(artifact.content, 'utf8');
+  artifact.deliverableType = 'enterprise-pack';
+  if (!/not in this download/i.test(artifact.content)) {
+    artifact.content += '\n' + line + '\n';
+    artifact.bytes = Buffer.byteLength(artifact.content, 'utf8');
+  }
+  return artifact;
+}
+
 async function fulfillService(receipt, serviceId) {
   const enterprise = isEnterprise(receipt, serviceId);
   const professional = !enterprise && needsHumanFulfillment(receipt, serviceId);
@@ -948,26 +993,26 @@ async function fulfillService(receipt, serviceId) {
     try { fulfillmentAiOs.reloadKeysFromSanctum(); } catch (_) { /* non-fatal */ }
   }
   if (!shouldUseAi || !aiProviders || typeof aiProviders.chat !== 'function') {
-    return buildDeterministicArtifact(receipt, serviceId, recipe, {
+    return attachEnterprisePack(buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
       professional,
       requiresHuman: human,
       reason: !shouldUseAi ? 'ai_disabled' : 'ai_layer_unavailable'
-    });
+    }), receipt, serviceId);
   }
   try {
     const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], human ? { premiumOnly: false } : {});
     const reply = result && result.reply ? String(result.reply) : '';
     if (!reply) {
-      return buildDeterministicArtifact(receipt, serviceId, recipe, {
+      return attachEnterprisePack(buildDeterministicArtifact(receipt, serviceId, recipe, {
         enterprise,
         professional,
         requiresHuman: human,
         reason: 'ai_null_response'
-      });
+      }), receipt, serviceId);
     }
     const content = reply.slice(0, MAX_ARTIFACT_CHARS);
-    return {
+    return attachEnterprisePack({
       serviceId,
       recipe: recipe.id,
       tier,
@@ -984,14 +1029,14 @@ async function fulfillService(receipt, serviceId) {
       bytes: Buffer.byteLength(content, 'utf8'),
       content,
       createdAt: new Date().toISOString()
-    };
+    }, receipt, serviceId);
   } catch (e) {
-    return buildDeterministicArtifact(receipt, serviceId, recipe, {
+    return attachEnterprisePack(buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
       professional,
       requiresHuman: human,
       reason: 'ai_error:' + String(e && e.message || e)
-    });
+    }), receipt, serviceId);
   }
 }
 

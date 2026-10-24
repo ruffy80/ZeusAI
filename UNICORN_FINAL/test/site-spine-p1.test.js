@@ -131,9 +131,11 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(!buy.includes('ReturnByMail'), 'a file is not returned by mail');
   assert.ok(!/"price":"[^"]*,/.test(buy), 'JSON-LD price has no thousands comma');
   const proposal = shell.getHtml('/services/ent-acquisition-pack');
-  assert.ok(proposal.includes('"@type":"Service"'), 'a proposal is a service');
-  assert.ok(!proposal.includes('https://schema.org/InStock'), 'a proposal is not in stock');
-  assert.ok(!proposal.includes('/checkout/?plan=ent-acquisition-pack'), 'a proposal has no checkout offer');
+  assert.ok(proposal.includes('"@type":"Product"'), 'the engagement pack is a product');
+  assert.ok(proposal.includes('/checkout/?plan=ent-acquisition-pack'), 'the pack has a checkout');
+  assert.ok(proposal.includes('They are not in this download'), 'the page names the download');
+  assert.ok(proposal.includes('"returnMethod":"https://schema.org/KeepProduct"'), 'the pack stays with the buyer');
+  assert.ok(!proposal.includes('customerRemorseReturnFees'), 'an issued pack is not a free remorse return');
   const listing = shell.getHtml('/services');
   const articleOf = (id) => {
     const m = listing.match(new RegExp('<article[^>]*data-product-id="' + id + '"[\\s\\S]*?</article>'));
@@ -170,9 +172,10 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   const buyCard = articleOf('instant-resume-makeover');
   assert.ok(/content="\d+\.\d{2}"/.test(buyCard), 'visible price is backed by a dotted number');
   const proposalCard = articleOf('ent-acquisition-pack');
-  assert.ok(proposalCard, 'proposal card is rendered');
-  assert.ok(!proposalCard.includes('itemtype="https://schema.org/Offer"'), 'proposal card has no offer');
-  assert.ok(!proposalCard.includes('InStock'), 'proposal card is not in stock');
+  assert.ok(proposalCard, 'engagement pack card is rendered');
+  assert.ok(proposalCard.includes('itemtype="https://schema.org/Offer"'), 'the pack card has an offer');
+  assert.ok(proposalCard.includes('KeepProduct'), 'the pack card keeps the file');
+  assert.ok(proposalCard.includes('Buy the engagement pack'), 'the pack card can be bought');
   const vertical = require('../backend/modules/programmatic-seo-engine').renderLandingHtml('fintech-os', { baseUrl: 'https://zeusai.pro' });
   assert.ok(vertical && vertical.includes('"@type":"WebPage"'));
   assert.ok(!vertical.includes('"@type":"Product"'));

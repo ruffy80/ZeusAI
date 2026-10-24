@@ -16,10 +16,13 @@ const fs = require('fs');
 const path = require('path');
 
 const PROTOCOL = 'EPP/1.0';
-const DATA_DIR = process.env.UNICORN_COMMERCE_DIR
-  || path.join(__dirname, '..', '..', 'data', 'commerce');
-const PACK_DIR = path.join(DATA_DIR, 'proposal-packs');
-const LOG = path.join(DATA_DIR, 'proposal-packs.jsonl');
+
+function commerceDir() {
+  return process.env.UNICORN_COMMERCE_DIR
+    || path.join(__dirname, '..', '..', 'data', 'commerce');
+}
+function packDir() { return path.join(commerceDir(), 'proposal-packs'); }
+function packLog() { return path.join(commerceDir(), 'proposal-packs.jsonl'); }
 
 const OWNER = {
   legalName: process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut',
@@ -31,7 +34,7 @@ const OWNER = {
 };
 
 function _ensure() {
-  try { fs.mkdirSync(PACK_DIR, { recursive: true }); } catch (_) {}
+  try { fs.mkdirSync(packDir(), { recursive: true }); } catch (_) {}
 }
 
 function _fmt(n) {
@@ -44,7 +47,7 @@ function _esc(s) {
 
 function _writeDoc(packId, name, body) {
   _ensure();
-  const file = path.join(PACK_DIR, packId + '-' + name + '.md');
+  const file = path.join(packDir(), packId + '-' + name + '.md');
   fs.writeFileSync(file, body, 'utf8');
   return { name, file: path.basename(file), bytes: Buffer.byteLength(body) };
 }
@@ -120,6 +123,9 @@ function buildSow(ctx) {
 **Pack ID:** ${ctx.packId}  
 **Product:** ${_esc(p.title || p.id || 'Enterprise Engagement')}  
 **Issued:** ${ctx.issuedAt}
+
+## What payment buys
+Payment issues this engagement pack. The license, the source, and a private cloud are milestones in this statement of work. They are not in this download.
 
 ## 1. Scope of Services
 ${_esc(p.description || 'Enterprise deployment of ZeusAI Unicorn Platform under signed commercial terms.')}
@@ -325,14 +331,15 @@ function buildPaymentSchedule(ctx) {
 ## Schedule
 | Event | Amount | Due |
 |-------|--------|-----|
-| Kickoff fee (engagement) | ${_fmt(kick)} | On commercial acceptance (unlocks pack) |
+| Engagement pack issued with this payment | ${_fmt(kick)} | On payment |
 | Milestone M1 — Discovery / Architecture | ${_fmt(m1)} | On M1 acceptance |
 | Milestone M2 — Integration ready | ${_fmt(m2)} | On M2 acceptance |
 | Milestone M3 — Go-live | ${_fmt(m3)} | On go-live |
 | Renewal | ${_fmt(acv)} / year | 30 days before term end |
 
 ## Notes
-- Kickoff is credited toward ACV; it is non-refundable once the proposal pack is delivered.
+- This payment buys the engagement pack. The license, the source, and a private cloud are milestones in the statement of work. They are not in this download.
+- The refund closes once the pack is issued. The amount is credited toward the contract value named above.
 - BTC invoices use deal-desk spot rate at mint time.
 - Failure to pay within 15 days of due date may suspend non-critical work (MSA §5).
 
@@ -390,9 +397,9 @@ function generatePack(input) {
   };
 
   _ensure();
-  fs.writeFileSync(path.join(PACK_DIR, ctx.packId + '-index.json'), JSON.stringify(index, null, 2));
+  fs.writeFileSync(path.join(packDir(), ctx.packId + '-index.json'), JSON.stringify(index, null, 2));
   try {
-    fs.appendFileSync(LOG, JSON.stringify(Object.assign({ ts: new Date().toISOString() }, index)) + '\n');
+    fs.appendFileSync(packLog(), JSON.stringify(Object.assign({ ts: new Date().toISOString() }, index)) + '\n');
   } catch (_) {}
 
   return {
@@ -413,13 +420,13 @@ function generatePack(input) {
 
 function getPack(packId) {
   const id = String(packId || '');
-  const idxPath = path.join(PACK_DIR, id + '-index.json');
+  const idxPath = path.join(packDir(), id + '-index.json');
   if (!fs.existsSync(idxPath)) return null;
   try { return JSON.parse(fs.readFileSync(idxPath, 'utf8')); } catch (_) { return null; }
 }
 
 function readDocument(packId, name) {
-  const file = path.join(PACK_DIR, String(packId) + '-' + String(name) + '.md');
+  const file = path.join(packDir(), String(packId) + '-' + String(name) + '.md');
   if (!fs.existsSync(file)) return null;
   return fs.readFileSync(file, 'utf8');
 }
