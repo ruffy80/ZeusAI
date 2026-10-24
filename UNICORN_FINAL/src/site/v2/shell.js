@@ -466,7 +466,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     const faq = (route === '/faq' || route === '/trust-safety') ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
     : route === '/pricing' ? [
       { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
-      { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: on SLA breach a signed REFUND_INTENT is sealed and owner-settled (not an automatic on-chain clawback). Plus a 30-day pre-activation money-back window. See /refund.' },
+      { q: 'Is there a refund?', a: 'The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement is an owner action, not an automatic clawback. See /refund.' },
       { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
     ] : [
       { q: 'What is ZeusAI?', a: 'A sovereign autonomous AI operating system that ships signed outcomes, BTC-native commerce, and self-healing automation.' },
@@ -2396,7 +2396,7 @@ function pageDocs() {
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/delivery/:receiptId</code></td><td>Delivery registry package: API key, workspace, report, onboarding, downloads</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/customer/me</code></td><td>Customer portal: orders, licenses, services, pending payments, deliverables</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/admin/commerce</code></td><td>Protected commerce cockpit: receipts, paid/unpaid, delivery state</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/admin/commerce/refund</code></td><td>Protected refund action for paid/pending receipts</td></tr>
+      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/admin/commerce/refund</code></td><td>Protected refund for a receipt whose file was never issued. An issued file returns 409.</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/security/pq/status</code></td><td>Post-quantum readiness + payment confirmation security mode</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/future/standard</code></td><td>30-year readiness manifest and architecture guarantees</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/evolution/loop</code></td><td>Autonomous optimization loop status + guardrails</td></tr>
@@ -4487,7 +4487,7 @@ function renderRoute(route, params = {}) {
     case '/changelog': return pageChangelog();
     case '/terms': return pageTerms();
     case '/privacy': return pagePrivacy();
-    case '/refund': return pageRefund();
+    case '/refund': return pageRefund(params);
     case '/sla': return pageSla();
     case '/pledge': return pagePledge();
     case '/cancel': return pageCancel();
@@ -6566,27 +6566,37 @@ function pageChangelog() {
 
 function pageTerms()   { return _legalSub('Terms of Service', 'In plain language: you pay for a named deliverable, delivery follows a matched payment, and the refund rules live on /refund. By using ZeusAI you agree that outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and the refund guarantee at /refund.'); }
 function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR export/delete: signed-in customers use /account (API: GET /api/privacy/export · POST /api/privacy/delete-request). Cryptographic receipts are append-only and owner-owned. Sub-processors: see /dpa and GET /api/compliance/attestation when available.'); }
-function pageRefund()  {
+function pageRefund(params)  {
   const policyJson = JSON.stringify(merchantOffer.policyDocument(OWNER.domain)).replace(/</g, '\\u003c');
   const days = merchantOffer.RETURN_DAYS;
+  const nonce = params && params.nonce ? String(params.nonce).replace(/"/g, '') : '';
+  const N = nonce ? ` nonce="${nonce}"` : '';
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let rulesHtml = '';
+  try {
+    const guarantee = require('../../frontier-engine').refundGuarantee();
+    rulesHtml = (Array.isArray(guarantee.rules) ? guarantee.rules : []).map((rule) => (
+      '<div class="card" style="padding:14px"><span class="tag">' + esc(rule.id || 'rule') + '</span><p style="margin:8px 0 0;color:var(--ink-dim);font-size:14px">' + esc(rule.text || '') + '</p></div>'
+    )).join('');
+  } catch (_) { rulesHtml = ''; }
   return `<section style="padding-top:140px;max-width:880px">
   <script type="application/ld+json">${policyJson}</script>
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">In plain language: if the file or the work you paid for is missing or wrong, email ${OWNER.email} with the order id. There is a ${days}-day window. Bitcoin cannot be pulled back automatically.</p>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. ${days}-day money-back remains available via contact.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">The refund is closed once the file is issued. You keep that file. Using it and then asking for the money back is refused.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">There is a ${days}-day window only for an order whose file, license, or work was never issued. Email ${OWNER.email} with the order id. A signed <code class="inline">REFUND_INTENT</code> can be recorded for that unissued order. The owner settles it. Bitcoin cannot be pulled back automatically. If a card network forces a payment back, access to the order is revoked.</p>
   ${merchantOffer.policyFactsHtml(OWNER.domain)}
   <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
-  <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"><p style="color:var(--ink-dim);font-size:13px">Loading guarantee terms…</p></div>
+  <div id="rfRules" style="margin-top:16px;display:grid;gap:10px">${rulesHtml}</div>
   <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Audit: <button type="button" class="btn" data-live-inspect="/api/refund/audit" data-live-title="Refund audit" style="padding:6px 10px;font-size:12px">Inspect refund audit</button></p>
-  <script>
+  <script${N}>
   fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{
     const out = document.getElementById('rfOut');
     if (!out) return;
     const title = d && d.title || 'Refund guarantee';
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
     const hash = d && d.hash ? String(d.hash).slice(0,18)+'…' : 'n/a';
-    out.textContent = title+'\\nIssued: '+(d.issuedAt||'—')+'\\nHash: '+hash+'\\nSignature: '+sig+'\\nSelf-execution: signed REFUND_INTENT + owner/ops settlement (not automatic chain reverse)';
+    out.textContent = title+'\\nIssued: '+(d.issuedAt||'—')+'\\nHash: '+hash+'\\nSignature: '+sig+'\\nSelf-execution: '+(d.selfExecution||'An issued file is not reversed.');
     const host = document.getElementById('rfRules');
     const rules = Array.isArray(d && d.rules) ? d.rules : [];
     if (host) host.innerHTML = rules.map(function(r){ return '<div class="card" style="padding:14px"><span class="tag">'+(r.id||'rule')+'</span><p style="margin:8px 0 0;color:var(--ink-dim);font-size:14px">'+(r.text||'')+'</p></div>'; }).join('');
@@ -6604,7 +6614,7 @@ function pageSla() { return `<section style="padding-top:140px;max-width:880px">
     <li><b style="color:#fff">Latency</b> · p95 &lt; 800ms global, p99 &lt; 1500ms</li>
     <li><b style="color:#fff">Receipt</b> · every paid receipt is eligible for inclusion in the next daily signed Merkle root</li>
     <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
-    <li><b style="color:#fff">Refund</b> · signed REFUND_INTENT on breach (see /refund) + 30-day pre-activation money-back</li>
+    <li><b style="color:#fff">Refund</b> · closed once the file is issued. An unissued order can be reported within 30 days (see /refund)</li>
   </ul>
   <a class="btn btn-primary" href="/status" data-link>Live status →</a>
 </section>`; }
@@ -7087,7 +7097,7 @@ const FAQ_ITEMS = [
   { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
   { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
   { q: 'Can I verify my receipt independently?', a: 'Yes. Receipts are Ed25519-signed and Merkle-chained. Fetch the public key from /api/v50/keys.json (also /.well-known/keys.json) and verify offline — no trust in us required.' },
-  { q: 'Is there a refund?', a: 'A cryptographic refund guarantee: if a signed service promise is breached, a signed REFUND_INTENT is sealed and owner/ops settles against it. Plus a 30-day money-back window. See /refund.' },
+  { q: 'Is there a refund?', a: 'The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. The owner settles that case. See /refund.' },
   { q: 'Can I cancel anytime?', a: 'Yes — /cancel records a signed cancellation intent in one click. No retention flows, no dark patterns (see /pledge). The owner processes active subscriptions and sends confirmation.' },
   { q: 'Do you train AI models on my data?', a: 'No. Minimal data collection, no resale, no model training on personal data. Full details in /privacy and /dpa.' },
   { q: 'Can software agents buy from you autonomously?', a: 'Yes — the catalog is machine-readable (/agents.json, /openapi.json) and checkout is a single signed POST. Agent-to-agent commerce is a first-class flow.' },

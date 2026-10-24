@@ -193,6 +193,13 @@ function openRefundIntent(input = {}) {
   const escrowId = String(input.escrowId || '').trim();
   const escrow = _escrows.get(escrowId);
   if (!escrow) return { ok: false, reason: 'escrow_not_found' };
+  if (escrow.deliveryHash) {
+    return {
+      ok: false,
+      reason: 'deliverable_already_issued',
+      note: 'The refund is closed once the file or work is issued.',
+    };
+  }
   if (escrow.status === 'released') return { ok: false, reason: 'already_released' };
 
   const intentId = 'refund_' + sha256(escrowId + isoNow()).slice(0, 14);

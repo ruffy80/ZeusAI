@@ -6,10 +6,13 @@
  * Search Console's merchant-listing report treats a priced Product as invalid
  * until the offer names a shipping rate and a return policy. Product snippets
  * do not. The public contract is a file delivered online, not a parcel:
- * shipping charge 0 USD, no warehouse, no street address, and the 30-day
- * pre-activation refund published at /refund. Refunds are owner-settled.
- * Bitcoin is not pulled back on-chain. The buyer keeps the file, so the
- * return method is KeepProduct. There is no mail, store, or kiosk return.
+ * shipping charge 0 USD, no warehouse, no street address. The refund at
+ * /refund stays open only until the file is issued. Once the buyer has the
+ * file, license, or work, the refund is closed. An unissued order can be
+ * reported within 30 days and is settled by the owner. Bitcoin is not pulled
+ * back on-chain. The buyer keeps an issued file, so the return method is
+ * KeepProduct. There is no mail, store, or kiosk return, and no free
+ * buyer's-remorse return.
  *
  * Google has no worldwide country code and caps applicableCountry at 50.
  * DELIVERY_COUNTRIES is the explicit list of places the file can be delivered
@@ -97,8 +100,6 @@ function returnPolicy(origin) {
     returnFees: 'https://schema.org/FreeReturn',
     refundType: 'https://schema.org/FullRefund',
     merchantReturnLink: base + RETURN_PATH,
-    customerRemorseReturnFees: 'https://schema.org/FreeReturn',
-    itemDefectReturnFees: 'https://schema.org/FreeReturn',
     url: base + RETURN_PATH,
   };
 }
@@ -177,8 +178,6 @@ function offerMicrodataHtml(item, opts) {
     + '<link itemprop="returnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="refundType" href="https://schema.org/FullRefund">'
     + '<link itemprop="merchantReturnLink" href="' + refundUrl + '">'
-    + '<link itemprop="customerRemorseReturnFees" href="https://schema.org/FreeReturn">'
-    + '<link itemprop="itemDefectReturnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="url" href="' + refundUrl + '">'
     + '</div>'
     + '<div itemprop="seller" itemid="' + originOf(opts && opts.origin) + '/#organization" itemscope itemtype="https://schema.org/Organization">'
@@ -201,6 +200,8 @@ function contractReport(origin) {
     inventsReviews: false,
     inventsAddresses: false,
     inventsTraffic: false,
+    remorseRefund: false,
+    closesWhenIssued: true,
     policyId: policy['@id'],
     sellerId: organizationId(origin),
     countries: DELIVERY_COUNTRIES.length,
@@ -214,6 +215,8 @@ function contractReport(origin) {
       { field: 'review', because: 'No review is written here.' },
       { field: 'streetAddress', because: 'The file is delivered online. There is no warehouse address.' },
       { field: 'ReturnByMail', because: 'The buyer keeps the file. The return method is KeepProduct.' },
+      { field: 'customerRemorseReturnFees', because: 'Using the file and then asking for the money back is refused. The refund closes when the file is issued.' },
+      { field: 'itemDefectReturnFees', because: 'An issued file is not a free defect return. Only an order whose file was never issued can be settled.' },
       { field: 'priceValidUntil', because: 'The shelf price can change. No expiry date is claimed.' },
       { field: 'searchConsoleShippingSettings', because: 'The Search Console shipping and returns screen is an owner setting. The site cannot write it. These pages are the policy Google can read.' },
     ],
@@ -224,9 +227,9 @@ function policyFactsHtml(origin) {
   const base = originOf(origin);
   return '<dl id="merchantReturnFacts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:16px 0">'
     + '<div class="card" style="padding:14px"><dt class="kicker">Window</dt><dd style="margin:6px 0 0">' + RETURN_DAYS + ' days</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Closes</dt><dd style="margin:6px 0 0">When the file is issued</dd></div>'
     + '<div class="card" style="padding:14px"><dt class="kicker">Method</dt><dd style="margin:6px 0 0">You keep the file</dd></div>'
-    + '<div class="card" style="padding:14px"><dt class="kicker">Fee</dt><dd style="margin:6px 0 0">None</dd></div>'
-    + '<div class="card" style="padding:14px"><dt class="kicker">Refund</dt><dd style="margin:6px 0 0">Full amount, settled by the owner</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Refund</dt><dd style="margin:6px 0 0">Closed once the file is issued</dd></div>'
     + '<div class="card" style="padding:14px"><dt class="kicker">Policy</dt><dd style="margin:6px 0 0;overflow-wrap:anywhere"><a href="' + _esc(base + RETURN_PATH) + '" data-link>' + _esc(base + RETURN_PATH) + '</a></dd></div>'
     + '</dl>';
 }
@@ -240,7 +243,7 @@ function contractHtml(origin) {
     + '<span class="kicker">Merchant contract</span>'
     + '<h2 style="margin:8px 0 10px">What Google can read</h2>'
     + '<p style="color:var(--ink-dim);font-size:14px;max-width:46rem">Every buyable offer, the organization, and <a href="/refund" data-link>/refund</a> use one return policy. '
-    + _esc(String(body.windowDays)) + ' days, method KeepProduct, fee none, full refund, shipping 0 USD, transit '
+    + _esc(String(body.windowDays)) + ' days to report an order whose file was never issued. The refund is closed once the file is issued. Method KeepProduct, shipping 0 USD, transit '
     + _esc(String(body.transitDays)) + ' days, ' + _esc(String(body.countries)) + ' delivery countries. '
     + 'A rating, a review, a GTIN, and a street address stay unpublished.</p>'
     + '<ul style="margin:8px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.55">' + refused + '</ul>'

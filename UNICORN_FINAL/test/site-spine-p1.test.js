@@ -122,7 +122,8 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(buy.includes('"returnMethod":"https://schema.org/KeepProduct"'), 'the buyer keeps the file');
   assert.ok(buy.includes('"merchantReturnLink":"https://zeusai.pro/refund"'), 'the offer links the public refund page');
   assert.ok(buy.includes('"seller":{"@id":"https://zeusai.pro/#organization"}'), 'the offer names the organization');
-  assert.ok(buy.includes('customerRemorseReturnFees'), 'the 30-day money-back is a free remorse return');
+  assert.ok(!buy.includes('customerRemorseReturnFees'), 'a used file is not a free remorse return');
+  assert.ok(!buy.includes('itemDefectReturnFees'), 'a used file is not a free defect return');
   assert.ok(!buy.includes('streetAddress'), 'no warehouse address is invented');
   assert.ok(!buy.includes('aggregateRating'), 'no rating is invented');
   assert.ok(buy.includes('"addressCountry":["US"'), 'delivery countries are an explicit list');
@@ -152,6 +153,11 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(refund.includes('id="merchantReturnFacts"'));
   assert.ok(refund.includes('>' + merchant.RETURN_DAYS + ' days<'));
   assert.ok(refund.includes(merchant.RETURN_DAYS + '-day window'));
+  assert.ok(refund.includes('The refund is closed once the file is issued'));
+  assert.ok(refund.includes('The refund closes when the file, license, or work is issued.'));
+  assert.ok(refund.includes('When the file is issued'));
+  assert.ok(!refund.includes('no questions asked'));
+  assert.ok(!refund.includes('money-back remains available'));
   const home = shell.getHtml('/');
   assert.ok(home.includes('"@id":"https://zeusai.pro/#organization"'));
   const contract = merchant.contractReport('https://zeusai.pro');

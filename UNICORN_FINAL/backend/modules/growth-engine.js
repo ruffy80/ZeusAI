@@ -490,7 +490,7 @@ function getOfferOfTheDay() {
   const featured = links.tiers.find(t => t.id === 'pro') || links.tiers[0];
   return {
     ok: true,
-    headline: 'AI Revenue OS — your first $10K in 30 days, or your money back.',
+    headline: 'AI Revenue OS — signed receipts. The refund closes once the file is issued.',
     subhead: 'ZeusAI ships an autonomous AI engine that prices, sells, fulfills, and self-heals your B2B funnel — sovereign, signed, deploy-in-an-hour.',
     primary: {
       label: featured.cta,
@@ -506,7 +506,7 @@ function getOfferOfTheDay() {
       label: 'Zero-upfront: revenue share',
       href: '/revenue-share',
     },
-    guarantee: '30-day money-back. Sovereign signed receipts. Cancel anytime.',
+    guarantee: 'The refund closes once the file or work is issued. Signed receipts. An unissued order can be reported within 30 days.',
     trust: {
       proof: '/proof',
       soc2: '/soc2',

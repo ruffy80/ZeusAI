@@ -79,7 +79,7 @@ const ARTICLES = [
       'Autonomy is not the same thing as traction. A machine can be ready to sell and still have zero confirmed buyers. ZeusAI publishes that zero on /origin. The number moves only when a settlement is confirmed. Page views, bot hits, and draft invoices are not customers.',
       'The technical loop is ordinary, on purpose. You pick a service. The server quotes one price. You pay the owner wallet in Bitcoin, or another rail if that rail is actually configured. After settlement, the server issues an Ed25519-signed receipt and a delivery credential. You can verify the receipt with the public key at /api/v50/keys.json.',
       'What the system will not do is invent a crowd. There is no “trusted by thousands” line, because that sentence would be false today. The useful claim is narrower: the catalog, the checkout, the refund contract, and the owner identity are public, and the buyer count is public too.',
-      'If you are evaluating the category, read /how for the delivery path and /refund for the money-back terms. Then decide with the ledger in front of you, not with a slogan.',
+      'If you are evaluating the category, read /how for the delivery path and /refund for the refund terms. Then decide with the ledger in front of you, not with a slogan.',
     ],
   },
   {
@@ -117,7 +117,7 @@ const ARTICLES = [
       'Instant services name a delivery window in minutes. The resume makeover is listed at about 10 minutes. The website audit is listed at about 5 minutes. Those clocks start from settlement, not from the moment you open the page.',
       'Professional services are engagements. The RAG chatbot and the marketing engine take a reserve payment and unlock a kickoff pack. The finished system is delivered across the stated milestone window by the operator. Paying does not download a complete company.',
       'Every paid order is supposed to carry an Ed25519-signed receipt. You can verify it offline with the public key. Verification proves the platform signed the record. It does not replace reading the deliverable.',
-      'The refund contract lives at /refund. It includes a 30-day money-back window and a path for a signed refund intent when a service promise is breached. Settlement of that intent is an owner action, not an automatic clawback of Bitcoin. Read that sentence before you pay. Bitcoin payments are hard to reverse, which is why the contract and the owner email are the protection, not a card network.',
+      'The refund contract lives at /refund. The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement of that case is an owner action, not an automatic clawback of Bitcoin. Read that sentence before you pay. Bitcoin payments are hard to reverse, which is why the contract and the owner email are the protection, not a card network.',
       'Cancellation of a subscription intent is /cancel. There is a separate anti-dark-pattern pledge at /pledge. None of these pages invent a satisfaction score. They are the rules.',
     ],
   },
@@ -204,11 +204,11 @@ const ARTICLES = [
 const OBJECTIONS = [
   {
     q: 'Who operates ZeusAI, and how does support work?',
-    a: 'Vladoi Ionut operates ZeusAI. Email the address on /contact. Before you pay, compare the Bitcoin address with /trust and read the deliverable on the shelf card. Delivery follows a matched payment. The refund contract at /refund states a 30-day window and a signed refund intent when a service promise is breached.',
+    a: 'Vladoi Ionut operates ZeusAI. Email the address on /contact. Before you pay, compare the Bitcoin address with /trust and read the deliverable on the shelf card. Delivery follows a matched payment. The refund at /refund closes once the file is issued. An unissued order can be reported within 30 days.',
   },
   {
     q: 'How does the refund work?',
-    a: 'Read /refund before you pay. It states a 30-day money-back window and a signed refund intent when a service promise is breached. Email the owner with your order id. Bitcoin is not automatically reversible, so the contract and the named operator are the protection.',
+    a: 'Read /refund before you pay. The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Email the owner with your order id. Bitcoin is not automatically reversible, so the contract and the named operator are the protection.',
   },
   {
     q: 'Do I need to pay with Bitcoin?',
@@ -666,7 +666,7 @@ function howBuyerHtml() {
     <div class="card"><span class="tag">1 · Choose</span><p style="color:var(--ink-dim);line-height:1.65">Say what you do, or pick a named shelf item. Minute files are paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. None of them is a finished company in a download.</p></div>
     <div class="card"><span class="tag">2 · Quote</span><p style="color:var(--ink-dim);line-height:1.65">Checkout locks one dollar price. Bitcoin is the primary rail and shows the owner wallet. Other rails appear only when configured.</p></div>
     <div class="card"><span class="tag">3 · Settle</span><p style="color:var(--ink-dim);line-height:1.65">Delivery follows a matched payment. Instant SKUs quote minutes (resume about 10, website audit about 5). Engagements quote days. A signed receipt is the record.</p></div>
-    <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">If the deliverable is missing or wrong, use <a href="/refund" data-link>/refund</a> and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. The 30-day window and the breach path are written on that page. Operator, wallet, and delivery notes are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
+    <div class="card"><span class="tag">4 · Refund</span><p style="color:var(--ink-dim);line-height:1.65">The refund closes once the file is issued. If the file was never issued, use <a href="/refund" data-link>/refund</a> within 30 days and email ${esc(OWNER.email)}. Bitcoin is not auto-reversed. Operator, wallet, and delivery notes are on <a href="/trust-safety" data-link>/trust-safety</a>.</p></div>
   </div>
 </section>`;
 }
@@ -674,7 +674,7 @@ function howBuyerHtml() {
 function homeLandingHtml() {
   return `<section id="homeTrust" class="home-trust" aria-label="Trust and safety">
   <a class="trust-badge" href="/trust" data-link><b>Secure payment</b><span>Bitcoin to the published wallet. Card and PayPal when that checkout is live.</span></a>
-  <a class="trust-badge" href="/refund" data-link><b>Refund guarantee</b><span>30-day window and a public contract at /refund.</span></a>
+  <a class="trust-badge" href="/refund" data-link><b>Refund guarantee</b><span>Closed once the file is issued. Unissued orders can be reported within 30 days.</span></a>
   <a class="trust-badge" href="/privacy" data-link><b>Privacy and GDPR rights</b><span>Export and delete from your account. No resale of your brief.</span></a>
 </section>
 <section id="howItWorks">
