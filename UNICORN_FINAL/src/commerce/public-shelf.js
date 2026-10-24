@@ -61,7 +61,9 @@ function clockOf(raw) {
   const id = String((raw && raw.id) || '');
   const tier = String((raw && raw.tier) || '');
   if (tier === 'enterprise' || /^ent-/i.test(id)) return 'contract';
-  if (tier === 'professional' || /^professional-/i.test(id) || Number(raw && raw.deliveryDays) > 0) return 'days';
+  const days = Number(raw && raw.deliveryDays);
+  const mins = Number(raw && raw.deliveryMinutes);
+  if (days > 0 && !(mins > 0)) return 'days';
   return 'minutes';
 }
 
@@ -81,8 +83,8 @@ function whenOf(raw) {
   const mins = Number(raw && raw.deliveryMinutes);
   if (mins > 0) return 'About ' + mins + ' min after payment settles';
   const days = Number(raw && raw.deliveryDays);
-  if (days > 0) return 'Kickoff pack now · team delivery about ' + days + ' days · not an instant download';
-  if (clock === 'days') return 'Kickoff pack now · human delivery on the stated window · not an instant download';
+  if (days > 0) return 'The file is issued when payment settles. A day count is not a second product';
+  if (clock === 'days') return 'The file is issued when payment settles. The finished build is not in the file';
   return 'After payment settles';
 }
 
@@ -177,8 +179,8 @@ function whenLang(item, lang) {
   const mins = Number(item.deliveryMinutes);
   if (mins > 0) return 'Cam ' + mins + ' min după confirmarea plății';
   const days = Number(item.deliveryDays);
-  if (days > 0) return 'Pachetul de kickoff acum · echipa livrează în cam ' + days + ' zile · nu este o descărcare instant';
-  if (item.clock === 'days') return 'Pachetul de kickoff acum · livrare umană în fereastra anunțată · nu este o descărcare instant';
+  if (days > 0) return 'Fișierul pleacă la confirmarea plății. O numărătoare de zile nu este un al doilea produs';
+  if (item.clock === 'days') return 'Fișierul pleacă la confirmarea plății. Construcția finită nu este în fișier';
   return 'După confirmarea plății';
 }
 
@@ -217,10 +219,9 @@ function strategy(item, lang) {
       : `The listed figure is ${price}${per}. It is not a cart. Download the engagement proposal now. It does not deliver the license, the source, or a private cloud. ${when}.`;
   }
   if (item.clock === 'days') {
-    const days = Number(item.deliveryDays) || 0;
     return lang === 'ro'
-      ? `Rezervi ${price}. Primești pachetul de kickoff acum. Sistemul finit ajunge${days ? ' în cam ' + days + ' zile' : ''}. Nu este o descărcare instant.`
-      : `Reserve ${price}. The kickoff pack unlocks now. The finished system arrives${days ? ' in about ' + days + ' days' : ''}. It is not an instant download.`;
+      ? `Rezervi ${price}. Primești fișierul de kickoff: scopul, schița de arhitectură și etapele. Prețul este prețul acestui fișier. Construcția finită nu este în fișier.`
+      : `Reserve ${price}. You receive the project kickoff: scope, the architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file.`;
   }
   return lang === 'ro'
     ? `Plătești ${price}. Primești ${item.title}. ${when}. Bitcoin este calea deschisă. Cardul și PayPal apar la checkout când sunt configurate.`
@@ -387,8 +388,8 @@ function fitQuestion(buyer, door, lang, count, limitNote) {
       : ('I read all ' + n + ' public offers.' + (org ? '' : ' Unicorn does not replace that cloud.') + ' The payable start is the engagement kickoff. The other contract figures buy the engagement pack. The license, the source, and a private cloud are milestones in that pack, not the download.');
   } else if (door === 'build') {
     doorLine = lang === 'ro'
-      ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este o construcție, așa că ușa este rezervarea pe zile, nu un fișier de minute și nu licența.')
-      : ('I read all ' + n + ' public offers. The request is a build, so the door is the day-clock reservation, not a minute file and not the license.');
+      ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este un fișier de kickoff, nu licența.')
+      : ('I read all ' + n + ' public offers. The request is a kickoff file, not the license.');
   } else if (door === 'file') {
     doorLine = lang === 'ro'
       ? ('Am citit toate cele ' + n + ' oferte publice. Cererea este un fișier, așa că ușa este fișierul potrivit, nu platforma.')
@@ -531,4 +532,4 @@ function advise(text) {
   });
 }
 
-module.exports = { publicShelf, byId, advise, money, PROTOCOL: 'SHELF/1.0' };
+module.exports = { publicShelf, byId, advise, strategy, money, PROTOCOL: 'SHELF/1.0' };

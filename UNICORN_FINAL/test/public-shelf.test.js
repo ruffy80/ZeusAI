@@ -123,8 +123,8 @@ check('pricing, services, buy, and home share one shelf', () => {
   assert.strictEqual(ro.lang, 'ro');
   assert.strictEqual(en.lang, 'en');
   assert.notStrictEqual(ro.primary.strategy, en.primary.strategy);
-  assert.ok(!/Kickoff pack now|About \d+ days/.test(ro.primary.strategy));
-  assert.ok(ro.primary.strategy.includes('zile') || ro.primary.strategy.includes('Nu este un coș') || ro.primary.strategy.includes('Rezervi'));
+  assert.ok(!/Kickoff pack now|About \d+ days|Sistemul finit ajunge/.test(ro.primary.strategy));
+  assert.ok(ro.primary.strategy.includes('zile') || ro.primary.strategy.includes('Nu este un coș') || ro.primary.strategy.includes('Rezervi') || ro.primary.strategy.includes('Plătești') || ro.primary.strategy.includes('Primești'));
 });
 
 check('advise hears a person and keeps the resume file', () => {
@@ -181,14 +181,15 @@ check('advise answers an open Google ask from the whole shelf without inventing 
   }
 });
 
-check('advise reserves a build for a company and does not jump to the license', () => {
+check('advise reserves a kickoff file for a company and does not jump to the license', () => {
   const advice = shelf.advise('We are a company and we need a mobile app');
   assert.strictEqual(advice.buyer.kind, 'company');
   assert.strictEqual(advice.buyer.org, null);
   assert.strictEqual(advice.primary.id, 'professional-mobile-app');
   assert.notStrictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.ok(advice.question.includes('Heard as a company'));
-  assert.ok(advice.question.includes('build'));
+  assert.ok(advice.question.includes('file'));
+  assert.ok(advice.primary.title.includes('Kickoff'));
 });
 
 check('advise answers a Romanian person with the resume file', () => {

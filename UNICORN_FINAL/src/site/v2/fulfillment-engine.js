@@ -224,6 +224,7 @@ const RECIPE_OUTLINE = {
 };
 
 const PACK_SECTIONS = ['Order Summary', 'What Is Included', 'Next Steps', 'Receipt references', 'Download links'];
+const KICKOFF_SECTIONS = ['Order Summary', 'What Is Included', 'Scope', 'Architecture sketch', 'Milestones', 'Next Steps', 'Receipt references'];
 
 function proposalPath(serviceId) {
   return '/api/shelf/proposal/' + encodeURIComponent(String(serviceId || ''));
@@ -453,6 +454,14 @@ function offerPreview(serviceId, opts) {
       note: 'Download this proposal now. It states the listed figure and the work a signed engagement would cover. It does not deliver the license, the source, or a private cloud, and it does not open a cart.',
     };
   }
+  if (String(serviceId || '') === 'ent-engagement-kickoff') {
+    return {
+      kind: 'kickoff',
+      fileTitle: 'Engagement Kickoff',
+      sections: ['Discovery brief', 'Commercial proposal', 'Draft statement of work'],
+      note: 'Payment issues this file. It is the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement. It does not deliver the license, the source, or a private cloud.',
+    };
+  }
   if (/^ent-/i.test(String(serviceId || '')) && String(serviceId) !== 'ent-engagement-kickoff') {
     return {
       kind: 'kickoff',
@@ -471,9 +480,9 @@ function offerPreview(serviceId, opts) {
     return {
       kind: human ? 'kickoff' : 'activation',
       fileTitle: human ? 'Project Kickoff Pack' : 'Service Activation Pack',
-      sections: human ? PACK_SECTIONS.slice() : outline.slice(),
+      sections: human ? KICKOFF_SECTIONS.slice() : outline.slice(),
       note: human
-        ? 'Payment unlocks this kickoff file now. The scope and the milestone plan are in the file. The finished build follows on the stated window. It is not an instant download.'
+        ? 'Payment unlocks this kickoff file now. Scope, the architecture sketch, and the milestones are in the file. The price is the price of this file. The finished build is not in this file. It is not an instant download.'
         : 'Payment unlocks this activation file. The written work is inside it, from your brief. A model key is not required for that copy.',
     };
   }
@@ -627,21 +636,33 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
   const briefBlock = quoted.length
     ? quoted.map((line) => '- ' + line).join('\n')
     : '- No extra brief was on the order. The copy below uses the service id.';
+  if (String(serviceId || '') === 'ent-engagement-kickoff') {
+    return [
+      '## Discovery brief',
+      'This discovery brief restates the paid start for ' + clipText(serviceId, 80) + '.',
+      'It does not deliver the license, the source, or a private cloud.',
+      '',
+      '## Commercial proposal',
+      'This commercial proposal is the paid start. The amount is credited toward a signed engagement.',
+      '',
+      '## Draft statement of work',
+      'This draft statement of work is the download. The license, the source, and a private cloud are not in this download.',
+    ].join('\n');
+  }
   if (opts && (opts.enterprise || opts.professional || opts.requiresHuman)) {
     return [
       '## Scope',
       briefBlock,
       '',
       '## Architecture sketch',
-      'The engagement names the components for ' + clipText(serviceId, 80) + '. This file is the kickoff. The finished build is not in this file.',
+      'The architecture sketch names the components for ' + clipText(serviceId, 80) + '. This file is the kickoff. The finished build is not in this file.',
       '',
       '## Milestones',
-      '1. Accept this kickoff pack.',
-      '2. Confirm the owner, the window, and the inputs above.',
-      '3. The ZeusAI team delivers the build across the stated window.',
-      '4. Acceptance is per milestone. This download is not that acceptance.',
+      '1. This kickoff file is the paid delivery.',
+      '2. The scope above is the scope of this file.',
+      '3. A later build is not included. The price is the price of this file.',
       '',
-      'The finished system is not an instant download.',
+      'The finished build is not in this file. It is not an instant download of a finished system.',
     ].join('\n');
   }
   if (recipeId === 'website-audit') {
@@ -674,7 +695,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       '',
       '## Title and meta',
       'Title: A practical guide to ' + clipText(seed, 80),
-      'Meta: A single article for the words above. It does not claim a ranking.',
+      'Meta description: A single article for the words above. It does not claim a ranking.',
       '',
       '## Article',
       clipText(seed, 180) + ' is the subject of this article. Start by naming the reader and the job they are trying to finish. Then list the three steps they can do this week: write the offer in one sentence, point one internal link at that offer, and check the title tag against the same sentence.',
@@ -713,8 +734,8 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
     const names = nameCandidates(seed);
     return [
       '## Name candidates',
+      'Eight name candidates are spelling candidates. This file does not check whether a domain is available.',
       names.map((name, index) => (index + 1) + '. ' + name).join('\n'),
-      'These are spelling candidates. This file does not check whether a domain is available.',
       '',
       '## Positioning',
       clipText(seed, 200) + ' — one offer, one reader, one next step.',
@@ -727,7 +748,10 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       '5. Leave out a claim you cannot show.',
       '',
       '## Voice',
-      'Short sentences. Name the file. Do not invent a customer. This is written voice, not a designed brand book, and it is not a finished voice guide as a PDF.',
+      'Audience: the reader named in the brief.',
+      'Tone: short sentences. Name the file. Do not invent a customer.',
+      'Sample lines: The file is the delivery. Leave out a claim you cannot show.',
+      'This is written voice, not a designed brand book, and it is not a finished voice guide as a PDF.',
       '',
       '## Color and type',
       'Ink #111111, paper #f7f4ef, accent #0b8a3e. A neutral sans for the interface and a serif for the name.',
@@ -746,7 +770,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       'Name the buyer who already has the problem. Do not invent a market size.',
       '',
       '## Product',
-      'What the file and the later build include, taken from the brief above.',
+      'What this file includes, taken from the brief above. A later build is not in this file.',
       '',
       '## Ask',
       'The listed shelf price for this offer. This markdown is the slide copy. It is not a designed slide deck.',
@@ -762,7 +786,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       'Call to action: Open the shelf page for this offer.',
       '',
     ].join('\n'));
-    return emails.join('\n');
+    return ['Five emails follow.', ''].concat(emails).join('\n');
   }
   if (recipeId === 'social-kit') {
     const posts = [1, 2, 3, 4, 5, 6, 7].map((n) => (
@@ -770,7 +794,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
     ));
     return [
       '## Weekly theme',
-      'Seven text posts for the channels named in the brief.',
+      'Seven text posts for the channels named in the brief. Each one has a hook, a caption, and hashtags.',
       '',
       '## Hooks, captions, hashtags',
       posts.join('\n'),
@@ -839,21 +863,21 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
   const refs = receiptRefs(receipt);
   const nextSteps = human
     ? [
-        'Review the engagement scope and milestone plan in this pack.',
-        'Reply with the implementation owner, kickoff window, and any compliance contacts.',
-        'Use the delivery overview and receipt links below for procurement and internal approval.',
-        'ZeusAI follows up to schedule the milestone-based kickoff and delivery cadence.'
+        'Read the scope and the milestones in this file.',
+        'The price is the price of this file.',
+        'Use the receipt links below for the order record.',
+        'The finished build is not in this file.'
       ]
     : [
-        'Download the signed receipt and license token from the links below.',
+        'Download the signed receipt from the links below.',
         'Open the onboarding payload and provide any missing business inputs.',
         'Read the written deliverable in this same file. It was produced from the order brief.',
-        'A model replaces that written section only when a provider key is armed for an allowlisted SKU.'
+        'A model may add copy only when a provider key is armed. The headings in this file stay.'
       ];
   const track = enterprise
-    ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
+    ? 'Track: engagement pack. The license, the source, and a private cloud are not in this download.'
     : (opts.professional
-      ? 'Track: professional build kickoff (human fulfillment follows across stated milestones).'
+      ? 'Track: project kickoff. The finished build is not in this file.'
       : 'Track: digital activation pack. The written deliverable in this file was produced without a model.');
   const work = writtenDeliverable(serviceId, receipt, recipe, opts);
   const content = compactLines([
@@ -874,8 +898,10 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     '',
     '## What Is Included',
     human
-      ? `This pack is the immediate, honest deliverable for "${recipe.title}". It captures commercial kickoff, milestone coordination, and download references while the ZeusAI team executes the actual engagement. It is NOT a claim that the finished product is already shipped.`
-      : `This pack is the immediate activation deliverable for "${recipe.title}". The written work is in this file. It was produced from the order brief by the deterministic engine. It is not a model reply. When a provider key is armed for an allowlisted SKU, a model reply can replace that written section.`,
+      ? (enterprise
+        ? `This file is the engagement pack for "${recipe.title}". The documents in this download are the delivery.`
+        : `This file is the project kickoff for "${recipe.title}". Scope, the architecture sketch, and the milestones are the delivery. The price is the price of this file.`)
+      : `This pack is the immediate activation deliverable for "${recipe.title}". The written work is in this file. It was produced from the order brief by the deterministic engine. It is not a model reply. When a provider key is armed for an allowlisted SKU, a model may add copy. The headings in this file stay.`,
     '',
     '## Written deliverable',
     work,
@@ -896,7 +922,7 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     '',
     '## Delivery Notes',
     human
-      ? 'This document is your kickoff / engagement pack; the underlying product is delivered by the ZeusAI team according to the agreed milestones.'
+      ? 'The finished build is not in this file.'
       : 'This artifact is intentionally deterministic and never claims AI generation when AI was not actually used.',
   ]).join('\n');
 
@@ -956,32 +982,43 @@ function shouldUseAiForSku(serviceId) {
   return allow.has(String(serviceId || '').trim());
 }
 
-function attachEnterprisePack(artifact, receipt, serviceId) {
+function engagementContext(receipt, serviceId) {
+  const catalog = require('../../commerce/enterprise-catalog').byId(serviceId);
+  const paid = receiptAmountUsd(receipt);
+  const listed = catalog && Number(catalog.priceUSD) > 0 ? Number(catalog.priceUSD) : paid;
+  return {
+    packId: 'pack_' + String(receipt && (receipt.id || receipt.orderId) || serviceId).replace(/[^a-z0-9]/gi, '').slice(0, 24),
+    dealId: receipt && (receipt.id || receipt.orderId) || null,
+    buyer: {
+      email: receipt && (receipt.email || (receipt.buyer && receipt.buyer.email)) || '',
+    },
+    product: {
+      id: serviceId,
+      title: (catalog && catalog.title) || (receipt && (receipt.serviceName || receipt.plan)) || serviceId,
+      description: catalog && catalog.description,
+    },
+    kickoffUsd: paid > 0 ? paid : listed,
+    acv: { accepted: listed, mid: listed },
+  };
+}
+
+function attachEnterprisePack(artifact, receipt, serviceId, persist) {
   if (!artifact || !/^ent-/i.test(String(serviceId || '')) || serviceId === 'ent-engagement-kickoff') return artifact;
   const line = 'The license, the source, and a private cloud are milestones in the statement of work. They are not in this download.';
   let extra = '\n\n## Engagement pack\nPayment issues the engagement pack. ' + line + '\n';
   try {
     const pack = require('../../commerce/enterprise-proposal-pack');
-    const catalog = require('../../commerce/enterprise-catalog').byId(serviceId);
-    const paid = receiptAmountUsd(receipt);
-    const listed = catalog && Number(catalog.priceUSD) > 0 ? Number(catalog.priceUSD) : paid;
-    const generated = pack.generatePack({
-      dealId: receipt && (receipt.id || receipt.orderId) || null,
-      buyer: {
-        email: receipt && (receipt.email || (receipt.buyer && receipt.buyer.email)) || '',
-      },
-      product: {
-        id: serviceId,
-        title: (catalog && catalog.title) || (receipt && (receipt.serviceName || receipt.plan)) || serviceId,
-        description: catalog && catalog.description,
-      },
-      kickoffUsd: paid > 0 ? paid : listed,
-      acv: { accepted: listed, mid: listed },
-    });
-    const names = (generated.documents || []).map((doc) => doc.key).join(', ');
-    extra += 'Documents: ' + names + '.\nPack ID: ' + generated.packId + '\n';
-    artifact.engagementPackId = generated.packId;
-    artifact.engagementDocuments = (generated.documents || []).map((doc) => doc.key);
+    const ctx = engagementContext(receipt, serviceId);
+    extra += pack.renderPack(ctx);
+    if (persist !== false) {
+      const generated = pack.generatePack(ctx);
+      const names = (generated.documents || []).map((doc) => doc.key).join(', ');
+      extra += '\nDocuments: ' + names + '.\nPack ID: ' + generated.packId + '\n';
+      artifact.engagementPackId = generated.packId;
+      artifact.engagementDocuments = (generated.documents || []).map((doc) => doc.key);
+    } else {
+      artifact.engagementDocuments = ['msa', 'sow', 'technical-appendix', 'security-compliance', 'timeline-milestones', 'payment-schedule'];
+    }
   } catch (_) { /* the sentence above still ships with the file */ }
   artifact.content = String(artifact.content || '') + extra;
   artifact.bytes = Buffer.byteLength(artifact.content, 'utf8');
@@ -991,6 +1028,47 @@ function attachEnterprisePack(artifact, receipt, serviceId) {
     artifact.bytes = Buffer.byteLength(artifact.content, 'utf8');
   }
   return artifact;
+}
+
+function buyerReceipt(item) {
+  const id = String(item && item.id || '');
+  return {
+    id: 'dip-' + id,
+    email: 'buyer@example.com',
+    serviceId: id,
+    plan: id,
+    services: [id],
+    amount: Number(item && item.priceUsd) || 0,
+    status: 'paid',
+    serviceName: item && item.title ? item.title : id,
+  };
+}
+
+function buyerFile(item) {
+  const serviceId = String(item && item.id || '');
+  const receipt = buyerReceipt(item);
+  try {
+    const row = require('../../commerce/money-catalog').byId(serviceId);
+    if (row) return require('../../commerce/money-catalog').render(row, receipt);
+  } catch (_) { /* shelf recipes below */ }
+  if (item && item.mode === 'contact') {
+    const doc = proposalDocument(serviceId);
+    return doc && doc.content ? doc.content : '';
+  }
+  if (item && item.mode === 'unavailable') return '';
+  const enterprise = isEnterprise(receipt, serviceId);
+  const professional = !enterprise && needsHumanFulfillment(receipt, serviceId);
+  const human = enterprise || professional;
+  const recipe = enterprise
+    ? ENTERPRISE_RECIPE
+    : (professional ? PROFESSIONAL_RECIPE : pickRecipe(serviceId));
+  const artifact = buildDeterministicArtifact(receipt, serviceId, recipe, {
+    enterprise,
+    professional,
+    requiresHuman: human,
+    reason: 'delivery_integrity',
+  });
+  return attachEnterprisePack(artifact, receipt, serviceId, false).content;
 }
 
 async function fulfillService(receipt, serviceId) {
@@ -1030,7 +1108,15 @@ async function fulfillService(receipt, serviceId) {
         reason: 'ai_null_response'
       }), receipt, serviceId);
     }
-    const content = reply.slice(0, MAX_ARTIFACT_CHARS);
+    let content = reply.slice(0, MAX_ARTIFACT_CHARS);
+    try {
+      const dip = require('../../commerce/delivery-integrity');
+      let shelfItem = null;
+      try { shelfItem = require('../../commerce/public-shelf').byId(serviceId); } catch (_) { shelfItem = null; }
+      const preview = offerPreview(serviceId, shelfItem || {});
+      const floor = buyerFile(shelfItem || { id: serviceId, title: serviceId, priceUsd: receiptAmountUsd(receipt), mode: 'btc', clock: 'minutes' });
+      content = dip.keepSections(content, preview && preview.sections, floor);
+    } catch (_) { /* the model text still returns */ }
     return attachEnterprisePack({
       serviceId,
       recipe: recipe.id,
@@ -1093,6 +1179,7 @@ async function fulfillReceipt(receipt, opts = {}) {
 
 module.exports = {
   fulfillReceipt, fulfillService, pickRecipe, offerPreview, proposalDocument, proposalHttp, isEnterprise, needsHumanFulfillment,
+  buyerFile,
   shouldUseAiForSku, aiSkuAllowlist,
   fulfillmentAiOs,
   RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,

@@ -41,7 +41,7 @@ const SERVICES = [
     name: 'Instant Resume + LinkedIn Makeover',
     priceUsd: 39,
     path: '/checkout/?plan=instant-resume-makeover',
-    description: 'AI-rewritten one-page resume and matching LinkedIn About and headline for a target role.',
+    description: 'Markdown resume plus a LinkedIn headline and About section, written from the resume text you supply. It does not invent an employer.',
   },
   {
     id: 'instant-website-audit',
@@ -52,17 +52,17 @@ const SERVICES = [
   },
   {
     id: 'professional-ai-chatbot',
-    name: 'RAG Chatbot Build Engagement',
+    name: 'RAG Chatbot Kickoff File',
     priceUsd: 1499,
     path: '/checkout/?plan=professional-ai-chatbot',
-    description: 'Reserve unlocks a kickoff pack. The retrieval chatbot engagement is delivered by the operator across the stated window.',
+    description: 'The file is the project kickoff: scope, an architecture sketch, and the milestones. The finished build is not in this file.',
   },
   {
     id: 'professional-ai-marketing',
-    name: '90-day Marketing Engine Engagement',
+    name: 'Marketing Engine Kickoff File',
     priceUsd: 1799,
     path: '/checkout/?plan=professional-ai-marketing',
-    description: 'Reserve unlocks kickoff materials. Calendar, automation, and the runbook are an engagement, not an instant download.',
+    description: 'The file is the project kickoff: scope, an architecture sketch, and the milestones. The finished build is not in this file.',
   },
 ];
 
@@ -88,7 +88,7 @@ const ARTICLES = [
     description: 'How a minute-file on the public shelf works, what you must send, and what a signed receipt does and does not prove.',
     keywords: 'AI resume service',
     paragraphs: [
-      'Ask ZeusAI what you do and what you want. The reply is one shelf offer with a price and a delivery clock, plus a neighboring offer you did not have to name. A resume rewrite is one minute-file on that shelf. You provide the current text, a target role, and an email. The deliverable is a rewritten one-page resume plus a LinkedIn headline and About section aimed at that role.',
+      'Ask ZeusAI what you do and what you want. The reply is one shelf offer with a price and a delivery clock, plus a neighboring offer you did not have to name. A resume file is one minute-file on that shelf. You provide the current text, a target role, and an email. The deliverable is a Markdown resume plus a LinkedIn headline and About section, written from that text. It does not invent an employer.',
       'Bitcoin is the primary checkout. The card on the shelf shows the live price, including the Bitcoin discount. PayPal and card appear on the same checkout only when those processors are configured. If a button is missing, that rail is not armed. The page should not pretend it is.',
       'Payment and delivery are separate facts. A signed receipt proves an order was recorded and, once settled, that the payment matched the quote. It does not by itself prove you liked the writing. If the result is wrong, the refund contract at /refund is the remedy, together with a message to the owner.',
       'A minute-file is not a career guarantee and it is not a claim that employers prefer AI-edited resumes. It is a paid rewrite with a public price, a public operator, and a public refund page.',
@@ -115,7 +115,7 @@ const ARTICLES = [
     keywords: 'ZeusAI refund delivery',
     paragraphs: [
       'Instant services name a delivery window in minutes. The resume makeover is listed at about 10 minutes. The website audit is listed at about 5 minutes. Those clocks start from settlement, not from the moment you open the page.',
-      'Professional services are engagements. The RAG chatbot and the marketing engine take a reserve payment and unlock a kickoff pack. The finished system is delivered across the stated milestone window by the operator. Paying does not download a complete company.',
+      'Professional services are kickoff files. The RAG chatbot and the marketing engine take a reserve payment and unlock that file: scope, an architecture sketch, and the milestones. The finished build is not in the file. Paying does not download a complete company.',
       'Every paid order is supposed to carry an Ed25519-signed receipt. You can verify it offline with the public key. Verification proves the platform signed the record. It does not replace reading the deliverable.',
       'The refund contract lives at /refund. The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement of that case is an owner action, not an automatic clawback of Bitcoin. Read that sentence before you pay. Bitcoin payments are hard to reverse, which is why the contract and the owner email are the protection, not a card network.',
       'Cancellation of a subscription intent is /cancel. There is a separate anti-dark-pattern pledge at /pledge. None of these pages invent a satisfaction score. They are the rules.',
@@ -130,7 +130,7 @@ const ARTICLES = [
       'Check three public facts before you pay. The operator is named on /about and /contact. The Bitcoin address is published on /trust and must match the invoice. The refund contract is at /refund.',
       'ZeusAI does not publish a street address, a phone number, or a company registration number. Those values stay off the site until the owner supplies them for publication. A placeholder would be a false trust signal.',
       'The site runs on a single VPS behind nginx. The check a buyer can do is the wallet, the refund page, the owner email, and whether the shelf card names a deliverable you can reject.',
-      'Delivery follows a matched payment. Minute files quote a clock in minutes. Engagements open a kickoff pack, then the operator delivers on the stated window. If the file is missing or wrong, email the owner with the order id and the transaction id and use /refund.',
+      'Delivery follows a matched payment. The clock on the card is the file. The finished build is not in a kickoff file. If the file is missing or wrong, email the owner with the order id and the transaction id and use /refund.',
       'The pages for that check are /trust-safety, /refund, /trust, and /origin. ZeusAI does not publish invented testimonials. Confirmed buyers are counted on /origin.',
     ],
   },

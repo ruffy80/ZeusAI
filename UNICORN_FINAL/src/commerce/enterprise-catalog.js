@@ -134,7 +134,7 @@ const SEED = [
     billing: 'one-time',
     currency: 'USD',
     description:
-      'Paid start of the autonomous enterprise deal: discovery brief, commercial proposal pack, and SOW draft. Credited toward any signed engagement. Does NOT deliver the full enterprise license.',
+      'The file is the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement. It does not deliver the license, the source, or a private cloud.',
     sla: 'proposal pack ≤ 24h after payment',
     inputs: [
       { key: 'contactEmail', label: 'Work Email', required: true },

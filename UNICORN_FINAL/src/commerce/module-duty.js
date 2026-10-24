@@ -82,6 +82,12 @@ const CUSTOMER = Object.freeze([
     role: 'proof',
     work: 'Refuses a shelf offer whose button and file disagree.',
   },
+  {
+    path: 'src/commerce/delivery-integrity.js',
+    duty: 'customer',
+    role: 'proof',
+    work: 'Refuses a shelf offer whose page promises more than the paid file.',
+  },
 ]);
 
 const SUPPORT = Object.freeze([

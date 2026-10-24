@@ -3575,16 +3575,16 @@ async function hydrateServiceDetail(id){
       <div class="svc-cine-card" data-tilt>
         <span class="kicker">${escapeHtml(s.segment||s.category||'core')}</span>
         <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${escapeHtml(s.title||s.id)}</h1>
-        <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${escapeHtml(s.description || 'Core ZeusAI service delivering measurable, signed outcomes across the platform.')}</p>
+        <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${escapeHtml(s.description || 'The file named on this page is the delivery.')}</p>
         <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
           <div class="svc-step"><span>①</span><b>Pay with BTC</b><p>Unique invoice · usually under 60 seconds.</p></div>
           <div class="svc-step"><span>②</span><b>Mempool confirm</b><p>Server watches mempool.space — no manual steps.</p></div>
-          <div class="svc-step"><span>③</span><b>Signed delivery</b><p>License + pack to your email and account.</p></div>
+          <div class="svc-step"><span>③</span><b>Signed delivery</b><p>The file named in the description is the download. A signed receipt is stored with the order.</p></div>
         </div>
         <div class="panels" style="margin-top:20px">
-          <div class="panel"><div class="ic">✓</div><h4>Signed outcomes</h4><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
-          <div class="panel"><div class="ic">🔌</div><h4>API first</h4><p>REST + SSE. Integrates with all 42 giant connectors through the Integration Fabric.</p></div>
-          <div class="panel"><div class="ic">💎</div><h4>Outcome pricing</h4><p>Enterprise plans bill a share of measured value delivered.</p></div>
+          <div class="panel"><div class="ic">✓</div><h4>The file</h4><p>The description on this page is the delivery. Headings in that file are the work.</p></div>
+          <div class="panel"><div class="ic">₿</div><h4>Bitcoin</h4><p>Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p></div>
+          <div class="panel"><div class="ic">↩</div><h4>Refund</h4><p>The refund closes once this file is issued.</p></div>
         </div>
       </div>
       <aside class="co-box">
@@ -3593,7 +3593,7 @@ async function hydrateServiceDetail(id){
         <div class="price" id="svcLivePrice" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${priceText}${moSuffix}</div>
         <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px"></div>
         ${discountLine}
-        <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly after on-chain confirmation. Signed receipt on every invoice.</p>
+        <p style="color:var(--ink-dim);font-size:13.5px">Payment unlocks the file named in the description. A signed receipt is stored with the order.</p>
         <label style="display:block;margin-top:12px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
           <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
         </label>
@@ -5939,7 +5939,7 @@ async function hydrateStore(){
   const noteEl = document.getElementById('storeTabNote');
   const tierNotes = {
     instant: 'One-time BTC purchase · digital deliverable + signed receipt after on-chain settlement · email optional on payment page',
-    professional: 'BTC reserve · signed kickoff pack immediately · human milestone delivery for the finished build (not an instant download)',
+    professional: 'BTC reserve · the kickoff file is the delivery · the finished build is not in the file',
     enterprise: 'SOW / proposal only · Contact Enterprise Sales · not a self-serve cart · wire or BTC settlement agreed in contract'
   };
   function showTier(tier){
@@ -5990,7 +5990,7 @@ function renderStoreGrid(products, grid){
       : isEnt
       ? 'Proposal only. This figure is not a cart.'
       : isPro
-        ? 'Kickoff pack now · human milestone delivery for the build'
+        ? 'Kickoff file now. The finished build is not in the file.'
         : escStore(p.deliverable || 'Signed digital deliverable');
     return `
     <div class="card" style="padding:22px;display:flex;flex-direction:column;gap:10px" data-tier="${escStore(p.tier||'')}" data-product-id="${escStore(p.id)}">

@@ -237,7 +237,9 @@ Each integration includes: auth model, rate limits, retry/idempotency, audit tra
 
 function buildSecurityPack(ctx) {
   const req = ctx.requirements || {};
-  return `# Security & Compliance Pack — Schedule D
+  return `# Security pack — Schedule D
+
+This security pack is Schedule D of the engagement pack. It describes controls. It does not deploy them.
 
 **Pack ID:** ${ctx.packId}  
 **Issued:** ${ctx.issuedAt}
@@ -357,6 +359,28 @@ function buildPaymentSchedule(ctx) {
  * @param {object} input
  * @returns {{ packId, issuedAt, documents, summary, index }}
  */
+function renderPack(input) {
+  const ctx = Object.assign({
+    packId: 'pack_preview',
+    issuedAt: new Date().toISOString(),
+    termYears: 1,
+    timelineWeeks: 12,
+    kickoffUsd: 2500,
+    buyer: {},
+    product: {},
+    requirements: {},
+    acv: {},
+  }, input || {});
+  return [
+    buildMsa(ctx),
+    buildSow(ctx),
+    buildTechAppendix(ctx),
+    buildSecurityPack(ctx),
+    buildTimeline(ctx),
+    buildPaymentSchedule(ctx),
+  ].join('\n\n');
+}
+
 function generatePack(input) {
   const ctx = Object.assign({
     packId: 'pack_' + crypto.randomBytes(6).toString('hex'),
@@ -433,6 +457,7 @@ function readDocument(packId, name) {
 
 module.exports = {
   PROTOCOL,
+  renderPack,
   generatePack,
   getPack,
   readDocument,
