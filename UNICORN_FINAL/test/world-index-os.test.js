@@ -97,11 +97,12 @@ check('site + nginx + sitemap + traffic-engine are wired', () => {
   const idx = nginx.indexOf('location = /.well-known/world-index.json');
   assert.ok(idx >= 0);
   assert.ok(/proxy_pass\s+http:\/\/unicorn_site\b/.test(nginx.slice(idx, idx + 420)));
-  const seo = read('src/seo/sitemap-helpers.js');
-  assert.ok(seo.includes("'/visible-world'"));
-  const te = read('backend/modules/traffic-engine.js');
-  assert.ok(te.includes('/visible-world'));
-  assert.ok(te.includes('world-index.json'));
+  const seo = require('../src/seo/sitemap-helpers');
+  assert.ok(!seo.corePublicPaths().includes('/visible-world'));
+  assert.ok(!seo.corePublicPaths().includes('/buy'));
+  const submitted = require('../backend/modules/traffic-engine').urlsToSubmit();
+  assert.ok(!submitted.some((u) => u.endsWith('/visible-world')));
+  assert.ok(!submitted.some((u) => u.includes('world-index.json')));
   const sov = read('src/site/sovereign-extensions.js');
   assert.ok(sov.includes('World Index'));
   assert.ok(sov.includes('world-index.json'));

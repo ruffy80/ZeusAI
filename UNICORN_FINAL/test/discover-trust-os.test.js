@@ -62,11 +62,16 @@ check('ten articles, four topic pages, and twenty communities, desk excluded fro
     assert.ok(!/customers love us|rated 5 stars|testimonial from Jane/i.test(a.paragraphs.join(' ')));
   });
   const pub = seo.corePublicPaths();
-  assert.ok(pub.includes('/trust-safety'));
+  assert.ok(pub.includes('/'));
+  assert.ok(pub.includes('/about'));
+  assert.ok(pub.includes('/pricing'));
+  assert.ok(pub.includes('/contact'));
   assert.ok(pub.includes('/insights/ai-resume-service-bitcoin'));
   assert.ok(pub.includes('/insights/public-cost-of-an-ai-service'));
-  assert.ok(pub.includes('/multi-agent'));
+  assert.ok(!pub.includes('/trust-safety'));
+  assert.ok(!pub.includes('/multi-agent'));
   assert.ok(!pub.includes('/outreach-desk'));
+  assert.ok(!pub.includes('/origin'));
 });
 
 check('A/B counts impressions and conversions without cloaking the price', () => {
@@ -240,7 +245,7 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
 });
 
 check('robots disallow the desk and the client logs variants', () => {
-  const robots = fs.readFileSync(path.join(__dirname, '../src/site/sovereign-extensions.js'), 'utf8');
+  const robots = require('../src/seo/sitemap-helpers').robotsTxt('https://zeusai.pro');
   assert.ok(robots.includes('Disallow: /outreach-desk'));
   const client = fs.readFileSync(path.join(__dirname, '../src/site/v2/client.js'), 'utf8');
   assert.ok(client.includes('initDiscoverTrust'));

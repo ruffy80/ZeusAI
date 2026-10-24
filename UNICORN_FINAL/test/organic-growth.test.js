@@ -81,9 +81,10 @@ check('alias, robots, 404, and script preload are in the server source', () => {
   assert.ok(site.includes("'/marketplace': '/services'"));
   assert.ok(site.includes('X-Robots-Tag\': \'noindex, nofollow\''));
   assert.ok(!site.includes('rel=preload; as=script'));
-  const robots = read('src/site/sovereign-extensions.js');
+  const robots = require('../src/seo/sitemap-helpers').robotsTxt('https://zeusai.pro');
   assert.ok(robots.includes('Disallow: /admin'));
-  assert.ok(robots.includes('Sitemap: ${OWNER.domain}/sitemap.xml'));
+  assert.ok(robots.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
+  assert.ok(robots.includes('User-agent: Googlebot'));
   const shell = read('src/site/v2/shell.js');
   assert.ok(shell.includes("path === '/__not-found__'"));
   assert.ok(shell.includes("content=\"${ogType}\""));

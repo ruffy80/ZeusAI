@@ -532,20 +532,7 @@ function sitemapXml(base = 'https://zeusai.pro') {
   ]);
 }
 function robotsTxt(base = 'https://zeusai.pro') {
-  const b = String(base || 'https://zeusai.pro').replace(/\/+$/, '');
-  return [
-    'User-agent: *',
-    'Allow: /',
-    'Disallow: /admin',
-    'Disallow: /api/admin',
-    'Disallow: /dashboard',
-    'Disallow: /account',
-    '',
-    `Sitemap: ${b}/sitemap.xml`,
-    `Sitemap: ${b}/seo/sitemap-services.xml`,
-    `Sitemap: ${b}/seo/sitemap-index.xml`,
-    '',
-  ].join('\n');
+  return require('./seo/sitemap-helpers').robotsTxt(base);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

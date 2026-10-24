@@ -494,13 +494,13 @@ check('nginx pins share-surface.json to the site in conf, snippet and self-heal 
   assert.ok(patch.includes('127.0.0.1:3001'));
 });
 
-check('crawl inventory, sitemap, robots and llms.txt all advertise /share', () => {
+check('llms.txt still describes /share; sitemap and IndexNow omit it', () => {
   const te = read('backend/modules/traffic-engine.js');
-  assert.ok(te.includes("'/share'"));
-  assert.ok(te.includes('share-surface.json'));
   assert.ok(te.includes('_searchConsoleBridge'), 'traffic-engine cycle must run the bridge');
-  const seo = read('src/seo/sitemap-helpers.js');
-  assert.ok(seo.includes("'/share'"));
+  const seo = require('../src/seo/sitemap-helpers');
+  assert.ok(!seo.corePublicPaths().includes('/share'));
+  const submitted = require('../backend/modules/traffic-engine').urlsToSubmit();
+  assert.ok(!submitted.some((u) => new URL(u).pathname === '/share'));
   const sov = read('src/site/sovereign-extensions.js');
   assert.ok(sov.includes('/share'));
   assert.ok(sov.includes('share-surface.json'));

@@ -20,8 +20,8 @@
 //     with /indexnow-{key}.txt kept as a backward-compatible alias.
 //   • Google: sitemap discovery only (Google retired the ping endpoint in
 //     2023 — we record that honestly instead of pretending to ping).
-//   • Builds the canonical URL inventory: core pages + every /services/:id
-//     + every /vertical/:id landing page.
+//   • Builds the canonical URL inventory from the public sitemap:
+//     /, /about, /pricing, /contact, insight articles, shelf service pages.
 //   • Outreach: ranks the sales-leads ledger via ai-sdr-agent into a
 //     persisted outreach queue (sending stays SMTP-gated — honest status).
 //
@@ -89,59 +89,13 @@ function _saveState() {
   } catch (_) {}
 }
 
-// ── URL inventory ────────────────────────────────────────────────────
-function _catalogIds() {
-  const ids = [];
-  const tryMod = (p) => { try { return require(p); } catch (_) { return null; } };
-  const uni = tryMod('../../src/commerce/unified-catalog');
-  try {
-    const items = uni && typeof uni.all === 'function' ? uni.all() : [];
-    for (const it of items || []) if (it && it.id) ids.push(String(it.id));
-  } catch (_) {}
-  return ids;
-}
-
-function _verticalIds() {
-  try {
-    const seo = require('./programmatic-seo-engine');
-    return (seo.listVerticals() || []).map((v) => v.id);
-  } catch (_) { return []; }
-}
-
-/** Canonical list of every URL worth indexing. Deterministic, capped. */
+// ── URL inventory — the public sitemap, nothing else ─────────────────
+/** Same public set as /sitemap.xml. Internal and system routes stay out. */
 function urlsToSubmit() {
-  const core = ['/', '/buy', '/first-dollar', '/visible-world', '/visible', '/share', '/relay', '/origin', '/from/x', '/from/facebook', '/from/instagram', '/from/telegram', '/services', '/pricing', '/store', '/status', '/proof', '/trust', '/verticals',
-    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
-    '/enterprise', '/wizard', '/dropship', '/zacc', '/tg', '/llms.txt'];
-  const urls = new Set(core.map((p) => APP_URL + p));
-  try {
-    const d7 = require('./discovery-seven');
-    for (const p of d7.publicPaths()) urls.add(APP_URL + p);
-  } catch (_) { /* guides optional */ }
-  urls.add(APP_URL + '/.well-known/origin-gravity.json');
-  urls.add(APP_URL + '/.well-known/social-gravity.json');
-  urls.add(APP_URL + '/.well-known/viral-unification.json');
-  urls.add(APP_URL + '/.well-known/first-dollar.json');
-  urls.add(APP_URL + '/.well-known/world-index.json');
-  urls.add(APP_URL + '/.well-known/visible-social.json');
-  urls.add(APP_URL + '/.well-known/share-surface.json');
-  urls.add(APP_URL + '/.well-known/relay-graft.json');
-  try {
-    const wivp = require('../../src/commerce/world-index-os');
-    for (const u of wivp.indexNowPriorityUrls(APP_URL)) urls.add(u);
-  } catch (_) { /* optional */ }
-  for (const id of _catalogIds()) urls.add(APP_URL + '/services/' + encodeURIComponent(id));
-  for (const id of _verticalIds()) urls.add(APP_URL + '/vertical/' + encodeURIComponent(id));
-  // Billion Autonomy Loop — prioritize instant digital money pages when catalog is large
-  try {
-    const instant = require('../../src/commerce/instant-catalog');
-    const all = instant && typeof instant.all === 'function' ? instant.all() : [];
-    for (const p of all || []) {
-      if (p && p.id) urls.add(APP_URL + '/services/' + encodeURIComponent(p.id));
-    }
-  } catch (_) { /* optional */ }
-  return Array.from(urls)
-    .filter((u) => u.indexOf('/checkout') === -1 && u.indexOf('/for/') === -1)
+  const seo = require('../../src/seo/sitemap-helpers');
+  return seo.corePublicPaths()
+    .map((p) => APP_URL + p)
+    .filter((u) => u.indexOf('/checkout') === -1 && u.indexOf('/for/') === -1 && u.indexOf('/api/') === -1)
     .slice(0, MAX_URLS);
 }
 

@@ -24,7 +24,7 @@ function pageSeo() {
   <div class="card" style="padding:16px">
     <span class="kicker">/sitemap.xml</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Public pages + services</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Full urlset: conversion pages (/buy, /standard, /continuity…) and live services. Styled with XSL in the browser.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Homepage, about, pricing, contact, public insight articles, and public service pages such as /services/instant-resume-makeover. Internal routes stay out.</p>
   </div>
   <div class="card" style="padding:16px">
     <span class="kicker">/seo/sitemap-services.xml</span>
@@ -39,7 +39,7 @@ function pageSeo() {
   <div class="card" style="padding:16px">
     <span class="kicker">/robots.txt</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Crawl policy</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Allows AI bots; disallows /dashboard and /account; lists sitemap URLs.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /status, /health, /origin, /admin, /dashboard, and the other internal prefixes. Public pages stay allowed.</p>
   </div>
 </section>
 
@@ -50,7 +50,7 @@ ${require('../../seo/merchant-offer').contractHtml()}
   <span class="kicker">Honesty</span>
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
   <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:0;padding-left:18px">
-    <li>Conversion + trust pages are always listed (/buy, /standard, /continuity, /rails…)</li>
+    <li>The sitemap lists /, /about, /pricing, /contact, each public insight article, and each public shelf service. /api/, /status, /health, /origin, /admin, and /dashboard are excluded.</li>
     <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>

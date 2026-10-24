@@ -26,16 +26,21 @@ function check(name, fn) {
 async function main() {
   const seo = require('../src/seo/sitemap-helpers');
 
-  await check('helpers emit XSL-linked urlset with required conversion pages', () => {
-    const xml = seo.buildUrlsetXml('https://zeusai.pro', seo.corePublicPaths());
+  await check('helpers emit XSL-linked urlset with marketing pages only', () => {
+    const xml = seo.marketingUrlset('https://zeusai.pro');
     assert.ok(xml.includes('xml-stylesheet'));
     assert.ok(xml.includes('/seo/sitemap.xsl'));
     assert.ok(xml.includes('<urlset'));
-    for (const p of ['/buy', '/first-dollar', '/visible-world', '/visible', '/origin', '/from/x', '/continuity', '/standard', '/rails', '/outcomes', '/vom', '/agents', '/zacc']) {
-      assert.ok(xml.includes(`https://zeusai.pro${p}</loc>`), 'missing ' + p);
+    for (const p of ['/', '/about', '/pricing', '/contact', '/insights/ai-resume-service-bitcoin', '/services/instant-resume-makeover']) {
+      const loc = p === '/' ? 'https://zeusai.pro/</loc>' : `https://zeusai.pro${p}</loc>`;
+      assert.ok(xml.includes(loc), 'missing ' + p);
     }
-    assert.ok(!xml.includes('/dashboard</loc>'));
-    assert.ok(!xml.includes('/account</loc>'));
+    for (const p of ['/buy', '/origin', '/status', '/health', '/admin', '/dashboard', '/api/', '/from/x', '/vertical/']) {
+      assert.ok(!xml.includes(`https://zeusai.pro${p}`), 'leaked ' + p);
+    }
+    assert.ok(xml.includes('<lastmod>'));
+    assert.ok(xml.includes('<changefreq>'));
+    assert.ok(xml.includes('<priority>1.0</priority>'));
   });
 
   await check('helpers emit styled sitemap index', () => {
@@ -62,41 +67,54 @@ async function main() {
     assert.ok(!xml.includes('<urlset'));
   });
 
-  await check('sovereign /sitemap.xml uses helpers + includes /buy', async () => {
+  await check('sovereign /sitemap.xml is marketing pages and returns the urlset', async () => {
     const sov = require('../src/site/sovereign-extensions');
     let body = '';
+    let status = 0;
     const res = {
-      writeHead: () => {},
+      writeHead: (code) => { status = code; },
       end: (b) => { body = b; },
       setHeader: () => {},
     };
     const handled = await sov.handle(
       { url: '/sitemap.xml', method: 'GET', headers: {} },
       res,
-      { buildSnapshot: () => ({ marketplace: [{ id: 'instant-website-audit' }], services: [] }) }
+      { buildSnapshot: () => ({ marketplace: [{ id: 'never-down-kernel' }, { id: 'instant-website-audit' }], services: [] }) }
     );
     assert.equal(handled, true);
+    assert.equal(status, 200);
     assert.ok(body.includes('xml-stylesheet'));
-    assert.ok(body.includes('/buy</loc>'));
-    assert.ok(body.includes('/standard</loc>'));
-    assert.ok(body.includes('/continuity</loc>'));
-    assert.ok(body.includes('/services/instant-website-audit</loc>'));
+    assert.ok(body.includes('https://zeusai.pro/</loc>') || body.includes('https://zeusai.pro</loc>'));
+    assert.ok(body.includes('/about</loc>'));
+    assert.ok(body.includes('/pricing</loc>'));
+    assert.ok(body.includes('/contact</loc>'));
+    assert.ok(body.includes('/services/instant-website-audit</loc>') || body.includes('/services/instant-resume-makeover</loc>'));
+    assert.ok(body.includes('<lastmod>'));
     assert.ok(!body.includes('/dashboard</loc>'));
     assert.ok(!body.includes('/checkout</loc>'));
+    assert.ok(!body.includes('/origin</loc>'));
+    assert.ok(!body.includes('/status</loc>'));
+    assert.ok(!body.includes('never-down-kernel'));
+    assert.ok(!body.includes('/api/'));
   });
 
-  await check('sitemap omits noindex module urls that are not shelf offers', async () => {
+  await check('robots.txt blocks internal prefixes for Googlebot', async () => {
     const sov = require('../src/site/sovereign-extensions');
     let body = '';
-    const res = { writeHead: () => {}, end: (b) => { body = b; }, setHeader: () => {} };
-    const handled = await sov.handle(
-      { url: '/sitemap.xml', method: 'GET', headers: {} },
-      res,
-      { buildSnapshot: () => ({ marketplace: [{ id: 'instant-website-audit' }, { id: 'never-down-kernel' }], services: [] }) }
-    );
+    let status = 0;
+    const res = {
+      writeHead: (code) => { status = code; },
+      end: (b) => { body = b; },
+      setHeader: () => {},
+    };
+    const handled = await sov.handle({ url: '/robots.txt', method: 'GET', headers: {} }, res, {});
     assert.equal(handled, true);
-    assert.ok(body.includes('/services/instant-website-audit</loc>'));
-    assert.ok(!body.includes('never-down-kernel'));
+    assert.equal(status, 200);
+    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /admin', 'Disallow: /dashboard']) {
+      assert.ok(body.includes(line), line);
+    }
+    assert.ok(body.includes('User-agent: Googlebot'));
+    assert.ok(body.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
   });
 
   await check('site wires /seo desk + XSL route + footer sitemap', () => {

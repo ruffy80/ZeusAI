@@ -21,8 +21,6 @@ const BACKEND_INDEX = path.join(ROOT, 'backend', 'index.js');
 const SHELL = path.join(ROOT, 'src', 'site', 'v2', 'shell.js');
 const NGINX = path.join(ROOT, 'scripts', 'nginx-unicorn.conf');
 const SOV = path.join(ROOT, 'src', 'site', 'sovereign-extensions.js');
-const SEO = path.join(ROOT, 'src', 'seo', 'sitemap-helpers.js');
-const TRAFFIC = path.join(ROOT, 'backend', 'modules', 'traffic-engine.js');
 const IAK_DISC = path.join(ROOT, 'backend', 'modules', 'iak', 'module-discovery.js');
 const PKG = path.join(ROOT, 'package.json');
 
@@ -114,12 +112,11 @@ check('llms.txt ships share templates', () => {
   assert.ok(src.includes('inboundLandings'));
 });
 
-check('sitemap + IndexNow include /from/x and social-gravity.json', () => {
-  const seo = fs.readFileSync(SEO, 'utf8');
-  assert.ok(seo.includes("'/from/x'"));
-  const te = fs.readFileSync(TRAFFIC, 'utf8');
-  assert.ok(te.includes("'/from/x'"));
-  assert.ok(te.includes('social-gravity.json'));
+check('sitemap and IndexNow omit /from/x', () => {
+  const seo = require('../src/seo/sitemap-helpers');
+  assert.ok(!seo.corePublicPaths().some((p) => p === '/from/x' || p.startsWith('/from/')));
+  const submitted = require('../backend/modules/traffic-engine').urlsToSubmit();
+  assert.ok(!submitted.some((u) => new URL(u).pathname.startsWith('/from/')));
 });
 
 check('nginx pins social-gravity.json to backend', () => {
