@@ -2462,6 +2462,10 @@ function canonicalBaseForService(serviceId) {
   if (fromCatalog != null) return fromCatalog;
   const fromEnt = probe(entCatalog);
   if (fromEnt != null) return fromEnt;
+  try {
+    const fromMoney = probe(require('./commerce/money-catalog'));
+    if (fromMoney != null && fromMoney > 0) return fromMoney;
+  } catch (_) { /* money catalog unavailable */ }
   const fromUnified = probe(unifiedCatalog);
   if (fromUnified != null) return fromUnified;
   try {
@@ -3063,36 +3067,9 @@ function buildBtcUri(address, btcAmount, label) {
 // Aggregates: strategic services + dynamic marketplace modules +
 // frontier inventions + vertical OSes. All BTC-priced live.
 // ===================================================================
-const FRONTIER_DELIVERABLES = [
-  { id: 'frontier-refund-shield', title: 'Crypto Refund Guarantee Shield', priceUsd: 199, group: 'frontier', kpi: 'refund-trust', description: 'Cryptographic refund guarantee — escrow-free, BTC-native, signed receipts.' },
-  { id: 'frontier-aura-feed',     title: 'Live Conversion Aura Feed',      priceUsd: 149, group: 'frontier', kpi: 'social-proof',  description: 'Signed real-time KPI ticker (orders, refunds, GMV) for any storefront.' },
-  { id: 'frontier-outcome-pricing', title: 'Outcome-Anchored Pricing Engine', priceUsd: 399, group: 'frontier', kpi: 'value-share', description: 'Auto-prices each unit by measured outcome, not flat seats.' },
-  { id: 'frontier-checkout-cascade', title: 'Self-Healing Checkout Cascade', priceUsd: 249, group: 'frontier', kpi: 'conversion',  description: 'BTC → Lightning → Stripe → PayPal → Wire fallback chain.' },
-  { id: 'frontier-timelock-discounts', title: 'Time-Locked Discount Vault', priceUsd: 99,  group: 'frontier', kpi: 'urgency',     description: 'Bitcoin-anchored expiry discounts, verifiable & non-fakeable.' },
-  { id: 'frontier-receipt-nft',   title: 'Sovereign Receipt NFT Issuer',   priceUsd: 299, group: 'frontier', kpi: 'audit-trail', description: 'Mints owner-signed receipt NFTs per sale with proof-of-revenue.' },
-  { id: 'frontier-email-proof',   title: 'Provable Email Delivery',         priceUsd: 79,  group: 'frontier', kpi: 'deliverability', description: 'Cryptographic proof of email send + open with DKIM-anchored signature.' },
-  { id: 'frontier-gift-capability', title: 'Gift-as-Capability Token',     priceUsd: 49,  group: 'frontier', kpi: 'virality',    description: 'Transferable, redeemable capability tokens — gift any service in 1 click.' },
-  { id: 'frontier-pledge-pack',   title: 'Anti-Dark-Pattern Pledge Pack',  priceUsd: 0,   group: 'frontier', kpi: 'trust',       description: 'Public pledge + audit endpoint guaranteeing zero dark patterns. Free forever.' },
-  { id: 'frontier-universal-cancel', title: 'Universal 1-Click Cancel',    priceUsd: 0,   group: 'frontier', kpi: 'retention',   description: 'GDPR-grade cancellation + signed acknowledgement. Always free.' },
-  { id: 'frontier-bandit-transparency', title: 'Pricing Bandit Transparency Console', priceUsd: 179, group: 'frontier', kpi: 'fairness', description: 'Live multi-armed bandit pricing log — every customer sees the math.' },
-  { id: 'frontier-carbon-checkout', title: 'Carbon-Inclusive Checkout',   priceUsd: 39,  group: 'frontier', kpi: 'esg',         description: 'Auto-prices and offsets gCO2 per transaction. BTC-settled.' }
-];
-const VERTICAL_OS_DELIVERABLES = [
-  ['fintech-os', 'Fintech OS Architecture Pack', 4999], ['health-os', 'HealthTech OS Architecture Pack', 4999], ['retail-os', 'Retail OS Architecture Pack', 3499],
-  ['logistics-os', 'Logistics OS Architecture Pack', 3999], ['manufacturing-os', 'Manufacturing OS Architecture Pack', 4499], ['energy-os', 'Energy OS Architecture Pack', 4499],
-  ['agri-os', 'AgriTech OS Architecture Pack', 2999], ['edu-os', 'EduTech OS Architecture Pack', 2499], ['govtech-os', 'GovTech OS Architecture Pack', 5999],
-  ['legaltech-os', 'LegalTech OS Architecture Pack', 3499], ['hospitality-os', 'Hospitality OS Architecture Pack', 2799], ['media-os', 'Media OS Architecture Pack', 2499],
-  ['gaming-os', 'Gaming OS Architecture Pack', 2999], ['realestate-os', 'RealEstate OS Architecture Pack', 3299], ['mobility-os', 'Mobility OS Architecture Pack', 3499],
-  ['biotech-os', 'BioTech OS Architecture Pack', 5499], ['security-os', 'Security OS Architecture Pack', 4999], ['climate-os', 'ClimateTech OS Architecture Pack', 3999]
-].map(([id, title, priceUsd]) => ({
-  id,
-  title,
-  priceUsd,
-  group: 'vertical',
-  kpi: 'engagement kickoff',
-  description: title + ' — engagement kickoff / architecture pack with milestone plan and signed receipt. Not a finished OS shipped on payment; human-led delivery follows. BTC settled.',
-  deliveryKind: 'engagement-kickoff-pack'
-}));
+const _moneyCatalog = require('./commerce/money-catalog');
+const FRONTIER_DELIVERABLES = _moneyCatalog.frontierMasterRows();
+const VERTICAL_OS_DELIVERABLES = _moneyCatalog.industryMasterRows();
 const CATALOG_EXPANSION_DELIVERABLES = [
   ['ai-sales-closer', 'AI Sales Closer', 299, 'conversion'], ['ai-cfo-agent', 'AI CFO Agent', 399, 'profit control'], ['auto-marketing-engine', 'Auto Marketing Engine', 249, 'campaign velocity'],
   ['competitor-spy-agent', 'Competitor Spy Agent', 199, 'market intelligence'], ['seo-optimizer', 'SEO Optimizer', 149, 'organic growth'], ['content-ai-studio', 'Content AI Studio', 179, 'content throughput'],
@@ -3186,7 +3163,19 @@ async function buildMasterCatalog() {
     };
   });
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
-  const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
+  const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'industry' }));
+  const listingDesk = _moneyCatalog.shelfRows()
+    .filter((row) => row && row.id === 'dropship-listing-desk')
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      group: 'dropship',
+      tier: 'dropship',
+      priceUsd: row.priceUSD,
+      kpi: row.kpi,
+      description: row.description,
+      segment: 'dropship',
+    }));
 
   // Billion-scale enterprise packages + activation products (real, high-ACV).
   const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
@@ -3213,6 +3202,7 @@ async function buildMasterCatalog() {
     ...strategic,
     ...frontierItems,
     ...verticals,
+    ...listingDesk,
     ...futureInventions,
     ...autoModules,
   ];
@@ -5544,13 +5534,13 @@ async function unicornHandler(req, res) {
       // index, fără fricțiune.
       const cards = list.map((v) => `<li class="card">
 <div class="meta"><a class="title" href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span></div>
-<div class="act"><span class="price">$${v.priceUsd}<small>/mo</small></span>
+<div class="act"><span class="price">$${v.priceUsd}</span>
 <a class="btn ghost" href="/vertical/${v.id}">Details</a>
-<a class="btn buy" href="/checkout/?plan=${encodeURIComponent(v.id)}" data-vertical-buy="${v.id}">Deploy → BTC −10%</a></div>
+<a class="btn buy" href="/checkout/?plan=${encodeURIComponent(v.id)}" data-vertical-buy="${v.id}">Buy the architecture pack →</a></div>
 </li>`).join('');
-      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ZeusAI vertical AI operating systems — ${list.length} industries, BTC-settled, instant deploy.">
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ZeusAI industry architecture packs — ${list.length} files. Payment issues the pack. It does not install an operating system.">
 <style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#e7ecf3;background:#070510}h1{font-size:2.1rem;background:linear-gradient(135deg,#8a5cff,#4ea1ff);-webkit-background-clip:text;background-clip:text;color:transparent}p.lead{color:#9aa3b5}ul{list-style:none;padding:0;display:grid;gap:12px}li.card{border:1px solid #221d3d;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:#0d0a1c}.meta{display:flex;flex-direction:column;gap:4px;min-width:220px}.title{color:#cfd6ff;text-decoration:none;font-weight:700;font-size:1.05rem}.title:hover{color:#fff}.kpi{color:#7fffd4;font-size:.8rem}.act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.price{color:#ffd36a;font-weight:800;font-size:1.2rem}.price small{color:#9aa3b5;font-weight:400}.btn{padding:8px 14px;border-radius:9px;text-decoration:none;font-weight:600;font-size:.88rem}.btn.buy{background:linear-gradient(135deg,#8a5cff,#4ea1ff);color:#fff}.btn.ghost{border:1px solid #2c2752;color:#cfd6ff}.foot{color:#9aa3b5;margin-top:24px;font-size:.9rem}a{color:#4ea1ff}</style></head>
-<body><h1>Vertical AI Architecture Packs</h1><p class="lead">${list.length} industry architecture packs — engagement kickoff with milestone plan and signed receipt. Not a finished OS shipped on payment. Pay in BTC — 10% sovereign discount at checkout.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
+<body><h1>Vertical AI Architecture Packs</h1><p class="lead">${list.length} industry architecture packs. Payment issues the file: outcomes, workflow, the KPI focus, a phase plan, and the handoff. The pack does not install an operating system. Bitcoin is the live rail.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
       return res.end(html);
     } catch (e) {
@@ -6520,7 +6510,7 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.class
         : '<option value="">All categories</option>';
       const body = dropshipUiCss + `
 <div class="ds-world">
-  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">${dropshipContinuumLive() ? 'WORLD CONTINUUM · LIVE' : 'DEMO / PAUSED'}</span></div><h1 id="ds-hero-title">The store that lists a demo catalog until a supplier rail is armed.</h1><p>Demo catalog and paused intake until ZACC is enabled with an armed supplier. BTC checkout still mints a real invoice.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/world-dropship.json" data-live-title="WDOS continuum">WDOS continuum \u2192</button><a class="ds-cta ds-cta-secondary" href="#uscf">USCF rails \u2193</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/uscf.json" data-live-title="USCF suppliers">USCF matrix \u2192</button></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
+  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">${dropshipContinuumLive() ? 'WORLD CONTINUUM · LIVE' : 'DEMO / PAUSED'}</span></div><h1 id="ds-hero-title">The payable product is the listing desk file.</h1><p>Payment issues every curated listing sheet. The grid below is a demo catalog until a supplier key is armed and that row is dispatchable. This page does not dispatch a parcel.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="/checkout/?plan=dropship-listing-desk">Buy the listing desk \u2192</a><a class="ds-cta ds-cta-secondary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/world-dropship.json" data-live-title="WDOS continuum">WDOS continuum \u2192</button><a class="ds-cta ds-cta-secondary" href="#uscf">USCF rails \u2193</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/uscf.json" data-live-title="USCF suppliers">USCF matrix \u2192</button></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
   <section class="ds-continuum" aria-label="World continuum feed"><div class="ds-wrap ds-continuum-inner"><div><span class="ds-kicker">Invention \u00b7 WDOS/1.0</span><h2 class="ds-continuum-title">World continuum (paused).</h2><p class="ds-continuum-meta" id="ds-continuum-meta">${dropshipContinuumLive() ? 'Pulling worldwide catalogs on the armed supplier loop' : 'DEMO / PAUSED — intake is not running and no supplier rail is armed'}</p></div><div class="ds-feed-ticker" id="ds-feed-ticker" aria-live="polite"><div class="ds-feed-row"><b>Bootstrapping worldwide intake\u2026</b><span>WDOS</span></div></div></div></section>
   <section class="ds-uscf" id="uscf" aria-label="Universal Supplier Connector Framework"><div class="ds-wrap ds-uscf-inner"><div class="ds-uscf-head"><div><span class="ds-kicker">Invention \u00b7 USCF/1.0</span><h2>Supplier rails that map the full commerce stack.</h2></div><p class="ds-uscf-meta" id="ds-uscf-meta">products \u2192 inventory \u2192 pricing \u2192 orders \u2192 fulfillment \u2192 tracking \u2192 returns. Armed rails AUTO-SHIP; missing keys pause only at owner authorization.</p></div><div class="ds-uscf-pipe" id="ds-uscf-pipe" aria-label="Commerce pipeline stages"></div><div class="ds-uscf-rails" id="ds-uscf-rails" aria-live="polite"><div class="ds-rail"><strong>CJ Dropshipping</strong><span class="ds-rail-status wait">CHECKING</span><p>Official API 2.0 \u00b7 physical goods</p></div><div class="ds-rail"><strong>Printful</strong><span class="ds-rail-status wait">CHECKING</span><p>Official POD REST \u00b7 Bearer token</p></div><div class="ds-rail"><strong>Printify</strong><span class="ds-rail-status wait">CHECKING</span><p>Official POD v1 \u00b7 shop + token</p></div><div class="ds-rail"><strong>Webhook / Desk</strong><span class="ds-rail-status live">ALWAYS ON</span><p>Catch-all + Zeus Fulfillment Desk</p></div></div></div></section><section class="ds-autonomy" aria-label="Autonomy pipeline"><div class="ds-wrap ds-strip"><div class="ds-metric"><span class="ds-metric-label">Sourced</span><strong class="ds-metric-value" id="ds-sourced">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Qualified</span><strong class="ds-metric-value" id="ds-qualified">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Listed</span><strong class="ds-metric-value" id="ds-listed">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">World pulse</span><strong class="ds-metric-value" id="ds-world-pulse">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Pending fulfil</span><strong class="ds-metric-value" id="ds-pending">\u2014</strong></div></div></section>
   <section class="ds-section" id="store"><div class="ds-wrap"><div class="ds-section-head"><div><span class="ds-kicker">Autonomous world catalog</span><h2>Qualified to sell worldwide.</h2></div><p class="ds-section-note">Each listing exposes source mode and proof-of-margin. Shipping is quoted for your destination. Continuum keeps new SKUs arriving from global feeds.</p></div><div class="ds-controls" role="search"><input class="ds-control" id="ds-search" type="search" placeholder="Search the world catalog\u2026" aria-label="Search products"><select class="ds-control" id="ds-sort" aria-label="Sort products"><option value="shelf">Shelf fitness (ASP)</option><option value="autoship">Profit Gravity (AUTO-SHIP first)</option><option value="profit">Highest margin signal</option><option value="newest">Newest listed</option><option value="sales">Best-selling</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option></select><select class="ds-control" id="ds-category" aria-label="Filter by category">` + catOpts + `</select></div><div class="ds-product-grid" id="ds-grid" aria-live="polite">` + gridHtml + `</div></div></section>

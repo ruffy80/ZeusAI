@@ -135,15 +135,16 @@ check('financial and production actions stay proposals', () => {
   assert.strictEqual(read.applied, false);
 });
 
-check('dropship stays an unpriced limit', () => {
+check('dropship demand opens the listing desk', () => {
   const row = desk.demand('I want dropship products');
-  const limit = row.limits.find((item) => item.title === 'Dropship is paused');
-  assert.ok(limit);
-  assert.strictEqual(limit.priceUsd, null);
-  assert.strictEqual(limit.mode, 'unavailable');
+  assert.ok(row.offer);
+  assert.strictEqual(row.offer.id, 'dropship-listing-desk');
+  assert.strictEqual(row.offer.buyable, true);
+  assert.ok(shelf.byId(row.offer.id));
   assert.strictEqual(row.hypothesis.confirmed, false);
   assert.strictEqual(row.hypothesis.investment, 'none');
-  if (row.offer) assert.ok(shelf.byId(row.offer.id));
+  const blocked = row.limits.find((item) => /orbital|quantum channel|neural implant/i.test(item.title));
+  assert.strictEqual(blocked, undefined);
 });
 
 check('the desk source does not call a model or simulate a payment', () => {

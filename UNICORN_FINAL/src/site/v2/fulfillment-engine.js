@@ -349,6 +349,9 @@ function proposalDocument(serviceId) {
       content,
     };
   }
+  try {
+    if (require('../../commerce/money-catalog').byId(id)) return null;
+  } catch (_) { /* proposal files below */ }
   if (id === 'frontier-desk') {
     const content = [
       '# Frontier Desk Brief',
@@ -368,7 +371,7 @@ function proposalDocument(serviceId) {
       '- F10 Cancel: /cancel.',
       '- F11 Bandit transparency: /transparency.',
       '',
-      'A listed research price is not a sale. The payable shelf is /services.',
+      'The priced frontier tools are on the shelf. This brief does not sell orbital compute, a neural implant, or a quantum channel.',
       '',
     ].join('\n');
     return {
@@ -420,6 +423,17 @@ function proposalHttp(serviceId) {
 }
 
 function offerPreview(serviceId, opts) {
+  try {
+    const money = require('../../commerce/money-catalog').byId(serviceId);
+    if (money) {
+      return {
+        kind: 'activation',
+        fileTitle: money.fileTitle,
+        sections: money.sections.slice(),
+        note: money.note,
+      };
+    }
+  } catch (_) { /* shelf preview below */ }
   const mode = opts && opts.mode;
   const clock = opts && opts.clock;
   if (mode === 'unavailable') {
@@ -980,6 +994,11 @@ function attachEnterprisePack(artifact, receipt, serviceId) {
 }
 
 async function fulfillService(receipt, serviceId) {
+  try {
+    const money = require('../../commerce/money-catalog');
+    const row = money.byId(serviceId);
+    if (row) return money.artifact(receipt, row);
+  } catch (_) { /* generic recipes below */ }
   const enterprise = isEnterprise(receipt, serviceId);
   const professional = !enterprise && needsHumanFulfillment(receipt, serviceId);
   const human = enterprise || professional;

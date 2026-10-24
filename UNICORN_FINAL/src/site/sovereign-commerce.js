@@ -774,6 +774,25 @@ async function resolveService(ctx, serviceId) {
       });
     }
   } catch (_) { /* fall through */ }
+  try {
+    const row = require('../commerce/money-catalog').byId(serviceId);
+    if (row && Number(row.priceUSD) > 0) {
+      return withCanonical({
+        id: row.id,
+        name: row.title,
+        title: row.title,
+        price: row.priceUSD,
+        description: row.description,
+        segment: row.group,
+        group: row.group,
+        tier: row.tier,
+        kpi: row.kpi || '',
+        demoOnly: false,
+        synthetic: false,
+        autoPublished: false,
+      });
+    }
+  } catch (_) { /* unknown id */ }
   return null;
 }
 
