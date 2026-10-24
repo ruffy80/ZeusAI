@@ -5467,7 +5467,7 @@ async function unicornHandler(req, res) {
     const payload = {
       ok: true,
       generatedAt: new Date().toISOString(),
-      slo: { apiUptimeTarget: '99.99%', siteUptimeTarget: '99.9%', checkoutProbeTargetMs: 2500, sitemapProbeTarget: '200 + contains /terms' },
+      slo: { apiUptimeTarget: '99.99%', siteUptimeTarget: '99.9%', checkoutProbeTargetMs: 2500, sitemapProbeTarget: '200 + marketing allowlist' },
       probes: [
         { name: 'root health', target: '/health', interval: '60s', status: 'ready' },
         { name: 'robots', target: '/robots.txt', interval: '15m', status: 'ready' },

@@ -14,6 +14,7 @@ process.env.UNICORN_DATA_DIR = tmpRoot;
 process.env.UNICORN_RECEIPTS_FILE = path.join(tmpRoot, 'commerce-receipts.json');
 
 const { createServer } = require('../src/index');
+const seo = require('../src/seo/sitemap-helpers');
 const app = createServer();
 const port = Number(process.env.PORT);
 const base = `http://127.0.0.1:${port}`;
@@ -142,7 +143,12 @@ async function run() {
 
     const sitemap = await request('/sitemap.xml');
     assert.equal(sitemap.status, 200, '/sitemap.xml should return 200');
-    assert.match(sitemap.text, /<loc>https:\/\/zeusai\.pro\/terms<\/loc>/);
+    const expectedSitemap = seo.marketingUrlset(process.env.PUBLIC_APP_URL || 'https://zeusai.pro');
+    assert.equal(
+      sitemap.text,
+      expectedSitemap,
+      '/sitemap.xml must equal the marketing allowlist from sitemap-helpers'
+    );
 
     const integrity = await request('/.well-known/unicorn-integrity.json');
     assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
