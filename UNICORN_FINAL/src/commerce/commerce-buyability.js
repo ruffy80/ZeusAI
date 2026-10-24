@@ -219,6 +219,25 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
+  if (id === 'frontier-pledge-pack') {
+    return { mode: 'unavailable', buyable: false, reason: 'free_tool', ctaLabel: 'Open the pledge', ctaHref: '/pledge' };
+  }
+  if (id === 'frontier-universal-cancel') {
+    return { mode: 'unavailable', buyable: false, reason: 'free_tool', ctaLabel: 'Open cancel', ctaHref: '/cancel' };
+  }
+  try {
+    const money = require('./money-catalog').byId(id);
+    if (money && Number(money.priceUSD) > 0) {
+      return {
+        mode: 'btc',
+        buyable: true,
+        reason: money.reason,
+        ctaLabel: money.ctaLabel,
+        ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
+      };
+    }
+  } catch (_) { /* contact and priced gates below */ }
+
   if (CONTACT_CORE_IDS.has(id) || ENTERPRISE_ID_RE.test(id) || tier === 'enterprise' || group === 'enterprise') {
     return {
       mode: 'contact', buyable: false, reason: 'enterprise_sow',

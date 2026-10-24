@@ -22,38 +22,24 @@ const LANES = [
   { keys: ['pipeline', 'dashboard', 'warehouse', 'kpi'], ids: ['professional-data-pipeline'], also: ['instant-website-audit'] },
   { keys: ['marketing', 'leads', 'campanie', 'clienți', 'clienti'], ids: ['professional-ai-marketing', 'instant-email-sequence'], also: ['instant-landing-page', 'instant-social-media-kit'] },
   { keys: ['enterprise', 'licen', 'license', 'acquisition', 'achiziti', 'achiziți', 'source code', 'white-label', 'white label', 'on-prem', 'sovereign', 'suveran', 'private cloud', 'transformare'], ids: ['ent-engagement-kickoff'], also: ['ent-platform-license', 'ent-private-cloud', 'ent-acquisition-pack', 'ent-sovereign-deployment'] },
+  { keys: ['dropship', 'printful', 'cj dropshipping', 'supplier feed', 'furnizor', 'listing desk'], ids: ['dropship-listing-desk'], also: [] },
+  { keys: ['frontier', 'refund shield', 'aura feed', 'bandit transparency'], ids: ['frontier-refund-shield'], also: ['frontier-aura-feed', 'frontier-bandit-transparency'] },
+  { keys: ['fintech'], ids: ['fintech-os'], also: ['health-os'] },
+  { keys: ['healthtech', 'health-os', 'health os'], ids: ['health-os'], also: ['fintech-os'] },
+  { keys: ['govtech'], ids: ['govtech-os'], also: ['legaltech-os'] },
+  { keys: ['architecture pack', 'pachet de industrie', 'industry os', 'industrie'], ids: ['fintech-os'], also: ['health-os', 'retail-os'] },
 ];
 
 const LIMITS = [
   {
-    keys: ['dropship', 'printful', 'cj dropshipping', 'supplier feed', 'furnizor'],
-    href: '/zacc',
-    titleEn: 'Dropship is paused',
-    titleRo: 'Dropship este în pauză',
-    noteEn: 'Supplier connectors stay off until credentials exist. A product page can download its listing sheet. The parcel does not ship. This is not a priced shelf product.',
-    noteRo: 'Conectorii de furnizori rămân opriți până există credențiale. Pagina produsului poate descărca fișa de listare. Coletul nu pleacă. Nu este un produs cu preț pe raft.',
-    ctaEn: 'Read the paused cockpit',
-    ctaRo: 'Vezi cabina în pauză',
-  },
-  {
-    keys: ['quantum', 'orbital', 'implant', 'neural', 'frontier', 'cuantic', 'cuantică'],
+    keys: ['orbital', 'implant', 'neural implant', 'quantum channel', 'quantum blockchain', 'canal cuantic', 'cuantic'],
     href: '/frontier',
-    titleEn: 'Frontier is research',
-    titleRo: 'Frontier este cercetare',
-    noteEn: 'You can read the frontier desk. It does not sell orbital compute, a neural implant, or a quantum channel, and it has no price.',
-    noteRo: 'Poți citi biroul frontier. Nu vinde calcul orbital, un implant neural sau un canal cuantic și nu are preț.',
-    ctaEn: 'Read the research',
-    ctaRo: 'Citește cercetarea',
-  },
-  {
-    keys: ['vertical', 'industrie', 'industry os', 'pharma', 'vom', 'architecture pack', 'pachet de industrie'],
-    href: '/vom',
-    titleEn: 'Industry packs are a kickoff',
-    titleRo: 'Pachetele de industrie sunt un kickoff',
-    noteEn: 'An industry architecture pack downloads as a brief from its page. It is an engagement kickoff, not a finished system delivered on payment. The list is on /vom. It is not a separate priced product here.',
-    noteRo: 'Un pachet de arhitectură pe industrie se descarcă ca brief de pe pagina lui. Este un kickoff de angajament, nu un sistem finit livrat la plată. Lista este pe /vom. Nu este un produs cu preț separat aici.',
-    ctaEn: 'See the kickoff list',
-    ctaRo: 'Vezi lista de kickoff',
+    titleEn: 'Orbital compute, a neural implant, and a quantum channel are not products',
+    titleRo: 'Calculul orbital, un implant neural și un canal cuantic nu sunt produse',
+    noteEn: 'The priced frontier tools are on the shelf. This desk does not sell orbital compute, a neural implant, or a quantum channel.',
+    noteRo: 'Uneltele frontier cu preț sunt pe raft. Acest birou nu vinde calcul orbital, un implant neural sau un canal cuantic.',
+    ctaEn: 'See the tool packs',
+    ctaRo: 'Vezi pachetele de unelte',
   },
 ];
 
@@ -81,6 +67,10 @@ function clockOf(raw) {
 
 function whenOf(raw) {
   const id = String((raw && raw.id) || '');
+  try {
+    const money = require('./money-catalog').byId(id);
+    if (money && money.when) return money.when;
+  } catch (_) { /* shelf clocks below */ }
   if (id === 'ent-engagement-kickoff') return 'Proposal pack after payment · credited toward a signed engagement';
   if (/^ent-/i.test(id)) {
     try { return require('./enterprise-catalog').ENGAGEMENT_PACK_WHEN; } catch (_) { /* seed copy below */ }
@@ -149,7 +139,9 @@ function publicShelf() {
   let enterprise = [];
   try { instant = require('./instant-catalog').all() || []; } catch (_) { instant = []; }
   try { enterprise = require('./enterprise-catalog').all() || []; } catch (_) { enterprise = []; }
-  for (const raw of instant.concat(enterprise)) {
+  let money = [];
+  try { money = require('./money-catalog').shelfRows() || []; } catch (_) { money = []; }
+  for (const raw of instant.concat(enterprise, money)) {
     if (!raw || !raw.id || seen.has(String(raw.id))) continue;
     seen.add(String(raw.id));
     rows.push(toRecord(raw));
@@ -176,6 +168,9 @@ function langOf(text) {
 
 function whenLang(item, lang) {
   if (lang !== 'ro') return item.when;
+  if (item.tier === 'frontier') return 'Pachetul de unealtă după plată · ruta live este în fișier';
+  if (item.tier === 'industry') return 'Pachetul de arhitectură după plată · fișierul nu instalează un sistem de operare';
+  if (item.tier === 'dropship') return 'Fișierul de listare după plată · coletul așteaptă o cheie de furnizor';
   if (item.id === 'ent-engagement-kickoff') return 'Pachetul de propunere după plată · se creditează la un angajament semnat';
   if (/^ent-/i.test(item.id)) return 'Pachetul de angajament după plată · licența, sursa și cloud-ul rămân etape în pachet';
   if (item.clock === 'contract') return 'Fișierul de propunere acum · cifra listată nu este un coș';
@@ -191,6 +186,21 @@ function strategy(item, lang) {
   const price = money(item.priceUsd);
   const per = item.billing === 'annual' ? (lang === 'ro' ? '/an' : '/yr') : '';
   const when = whenLang(item, lang);
+  if (item.tier === 'frontier' && item.mode !== 'contact') {
+    return lang === 'ro'
+      ? `Plătești ${price}. Primești pachetul de unealtă. Fișierul numește ruta live. Nu vinde calcul orbital, un implant neural sau un canal cuantic.`
+      : `Pay ${price}. You receive the tool pack. The file names the live route. It does not sell orbital compute, a neural implant, or a quantum channel.`;
+  }
+  if (item.tier === 'industry' && item.mode !== 'contact') {
+    return lang === 'ro'
+      ? `Plătești ${price}. Primești pachetul de arhitectură: rezultate, flux, focusul KPI, planul pe faze și predarea. Prețul este prețul fișierului. Pachetul nu instalează un sistem de operare și nu certifică HIPAA, SOX sau un regulator.`
+      : `Pay ${price}. You receive the architecture pack: outcomes, workflow, the KPI focus, a phase plan, and the handoff. The price is the price of that file. The pack does not install an operating system and does not certify HIPAA, SOX, or a regulator.`;
+  }
+  if (item.tier === 'dropship' && item.mode !== 'contact') {
+    return lang === 'ro'
+      ? `Plătești ${price}. Primești fișierul de listare, cu costul și transportul fiecărui rând. Coletul pleacă doar când o cheie CJ, Printful sau Printify este armată și rândul este dispatchable. Acest fișier nu expediază un colet.`
+      : `Pay ${price}. You receive the listing desk file, with cost and shipping for each row. A parcel ships only when a CJ, Printful, or Printify key is armed and that row is dispatchable. This file does not dispatch a parcel.`;
+  }
   if (item.id === 'ent-engagement-kickoff') {
     return lang === 'ro'
       ? `Plătești ${price}. Primești brief-ul, propunerea comercială și draftul de contract. Suma se creditează la un angajament semnat. Nu livrează licența, sursa sau cloud-ul.`

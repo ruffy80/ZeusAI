@@ -92,7 +92,7 @@ function unicornContext(rows) {
     'You are the local Unicorn assistant.',
     'Use only the shelf rows below. Do not invent customers, revenue, a street address, a phone number, or a product that is not in the list.',
     'Bitcoin is the live payment rail. Card and PayPal appear only when checkout shows them.',
-    'Dropship is paused. Frontier is research and is not for sale.',
+    'The listing desk, frontier tool packs, and industry architecture packs are on the shelf. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.',
     'ent-engagement-kickoff does not deliver the license, the source, or a private cloud.',
     'Shelf:',
     lines.join('\n') || '(no shelf rows loaded)',

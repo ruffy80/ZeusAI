@@ -754,7 +754,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">PAUSED</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -1456,7 +1456,7 @@ function _homeAtlasHtml() {
     <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock buys the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The license, the source, and a private cloud are milestones in that pack. They are not in the download.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
   </div>
-  <p class="atlas-footnote">This is the public shelf. Dropship stays paused until supplier credentials exist. The frontier desk is research you can read; it does not sell orbital compute, a neural implant, or a quantum channel. Industry architecture packs are kickoff engagements, listed on <a href="/vom" data-link>/vom</a>.</p>
+  <p class="atlas-footnote">This is the public shelf. The listing desk, the frontier tool packs, and the industry architecture packs are files on this page. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
 </section>`;
 }
 
@@ -1551,14 +1551,15 @@ function pageHome() {
     <div>
       <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
       <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
-      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Dropship cockpit — engine paused; suppliers arm when keys exist. Inspect <code class="inline">/api/zacc/status</code> for the measured tick — we do not claim live Printful/CJ feeds until the status says enabled.</p>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">The listing desk file is for sale. A parcel ships only when a supplier key is armed and the row is dispatchable. Inspect <code class="inline">/api/zacc/status</code> for the measured tick — we do not claim live Printful/CJ feeds until the status says enabled.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open dropship cockpit \u2192</a>
+        <a class="btn btn-primary" href="/checkout/?plan=dropship-listing-desk" data-link>Buy the listing desk →</a>
+        <a class="btn" href="/zacc" data-link>\u26a1 Open dropship cockpit \u2192</a>
         <button type="button" class="btn" data-live-inspect="/api/zacc/status" data-live-title="Inspect ZACC status" style="margin-top:8px">Inspect ZACC status</button>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr;gap:10px">
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Status</div><div style="font-size:18px;font-weight:700;margin-top:4px;color:#ffb020">Engine paused</div><p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-dim);line-height:1.5">Supplier connectors and marketplace scanners activate only after credentials are configured. No invented source counts on this banner.</p></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Status</div><div style="font-size:18px;font-weight:700;margin-top:4px;color:#ffb020">Listing desk for sale</div><p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-dim);line-height:1.5">Auto-ship waits for a CJ, Printful, or Printify key. The paid file is the listing desk. No invented source counts on this banner.</p></div>
     </div>
   </div>
 </section>`;
@@ -1927,7 +1928,7 @@ function pageServices() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
-    <p>The same public shelf as the homepage. Minute files can be paid now. Day engagements reserve a kickoff. Contract figures are proposals, except the payable kickoff. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
+    <p>The same public shelf as the homepage. Minute files can be paid now, including the listing desk, frontier tool packs, and industry architecture packs. Day engagements reserve a kickoff. Enterprise figures buy the engagement pack. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
   </div>
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
@@ -1954,13 +1955,16 @@ function pageServices() {
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
     <span class="kicker">What you receive</span>
     <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the other files. Day engagements unlock a kickoff pack. Contract figures are proposals, except the payable kickoff. Each card names the file you get today. The headings are the template, not a past customer.</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, and the industry architecture packs. Day engagements unlock a kickoff pack. Enterprise figures buy the engagement pack. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
     <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
     <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
     <button class="chip" data-group="enterprise" type="button">👑 Enterprise (${counts.enterprise || 0})</button>
+    <button class="chip" data-group="frontier" type="button">Frontier (${counts.frontier || 0})</button>
+    <button class="chip" data-group="industry" type="button">Industry (${counts.industry || 0})</button>
+    <button class="chip" data-group="dropship" type="button">Listing desk (${counts.dropship || 0})</button>
   </div>
   ${_homeAtlasHtml()}
 </section>`;
@@ -2079,13 +2083,20 @@ function pageService(id) {
       <a class="btn btn-primary" href="/api/shelf/proposal/${encId}" download>Download the proposal</a>
       <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(href)}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
         }
+        let moneyNote = '';
+        try {
+          const moneyRow = require('../../commerce/money-catalog').byId(safeId);
+          if (moneyRow && moneyRow.note) moneyNote = moneyRow.note;
+        } catch (_) { moneyNote = ''; }
         const note = safeId === 'ent-engagement-kickoff'
           ? 'Paid start only. It does not deliver the license, the source, or a private cloud.'
-          : (/^ent-/i.test(safeId)
+          : (moneyNote
+            ? moneyNote
+            : (/^ent-/i.test(safeId)
             ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.'
             : (cta.mode === 'reserve'
             ? 'Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.'
-            : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.'));
+            : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.')));
         return `<p style="color:var(--ink-dim);font-size:13.5px">${note}</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
@@ -2145,6 +2156,11 @@ function pageCheckout(params) {
   const contactOnly = !!(shelfItem && shelfItem.mode === 'contact');
   const kickoffOnly = !!(shelfItem && shelfItem.id === 'ent-engagement-kickoff');
   const packOnly = !!(shelfItem && /^ent-/i.test(shelfItem.id) && !kickoffOnly);
+  let moneyNote = '';
+  try {
+    const moneyRow = require('../../commerce/money-catalog').byId(shelfItem && shelfItem.id);
+    if (moneyRow && moneyRow.note) moneyNote = moneyRow.note;
+  } catch (_) { moneyNote = ''; }
   let ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   if (shelfItem && Number(shelfItem.priceUsd) > 0) ssrUsd = Number(shelfItem.priceUsd);
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
@@ -2183,7 +2199,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description)))}</p>` : ''}
+        ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
     <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
@@ -6897,6 +6913,8 @@ function pageFrontier() {
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
   <p style="color:var(--ink-dim);font-size:15px;max-width:820px;line-height:1.7">Each invention below has a live API. Cards marked <span class="tag">interactive</span> open tools on this page. Honesty: refund/cancel emit signed intents and owner-processed settlement — not automatic on-chain clawbacks.</p>
   <p style="margin:12px 0 0"><a href="/api/shelf/proposal/frontier-desk" download>Download the frontier brief</a></p>
+  <p style="color:var(--ink-dim);font-size:15px;max-width:820px;line-height:1.7">The priced tool packs are for sale. Payment issues the tool pack. Orbital compute, a neural implant, and a quantum channel are not products.</p>
+  <p style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0">${(() => { try { return require('../../commerce/money-catalog').shelfRows().filter((row) => row.tier === 'frontier').map((row) => '<a class="btn" href="/checkout/?plan=' + encodeURIComponent(row.id) + '" data-link>' + _esc(row.title) + ' →</a>').join(''); } catch (_) { return ''; } })()}</p>
   ${fcoCard}
   <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Signed SLA + REFUND_INTENT audit trail.</p><a class="btn" href="/refund" data-link>Open</a></div>
