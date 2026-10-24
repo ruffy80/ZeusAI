@@ -21,6 +21,13 @@ UNICORN_FINAL/data/**/pq-keys.json
 UNICORN_FINAL/data/**/vrf-key.json
 .env.secrets.local
 
+# Google Search Console service-account key. The live file belongs in
+# /var/www/unicorn/shared/ and must never be committed.
+search-console-key.json
+**/search-console-key.json
+**/search-console.env
+*search-console*.json
+
 # AdaptiveModule01..82 / Engine1..62 — materialized at boot by TEP/adaptiveEnginePool
 # (gitignored deterministic shims; regenerate via pool.materializeShims() on start)
 UNICORN_FINAL/backend/modules/AdaptiveModule[0-9][0-9].js

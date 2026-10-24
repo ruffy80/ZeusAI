@@ -239,6 +239,7 @@ function _pathInsideRepo(filePath) {
 /**
  * GOOGLE_APPLICATION_CREDENTIALS is a filesystem path, never the JSON body.
  * The file must sit outside this repository and be readable only by its owner.
+ * A miss returns null and is not logged.
  */
 function _accountFromCredentialsFile() {
   const rawPath = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();

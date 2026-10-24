@@ -104,10 +104,12 @@ check('a valid key is stored as base64 only and the result hides the key', async
   assert.ok(!text.includes(body.private_key.slice(0, 40)));
   const mode = fs.statSync(envFile).mode & 0o777;
   assert.strictEqual(mode, 0o600);
-  const line = fs.readFileSync(envFile, 'utf8').trim();
-  assert.ok(line.startsWith('GOOGLE_SERVICE_ACCOUNT_JSON_B64='));
-  assert.ok(!line.includes('PRIVATE KEY'));
-  const decoded = JSON.parse(Buffer.from(line.split('=')[1], 'base64').toString('utf8'));
+  const lines = fs.readFileSync(envFile, 'utf8').replace(/\n$/, '').split('\n');
+  assert.strictEqual(lines.length, 2);
+  assert.ok(lines[0].startsWith('GOOGLE_SERVICE_ACCOUNT_JSON_B64='));
+  assert.strictEqual(lines[1], 'GOOGLE_APPLICATION_CREDENTIALS=' + path.resolve(file));
+  assert.ok(!lines.join('\n').includes('PRIVATE KEY'));
+  const decoded = JSON.parse(Buffer.from(lines[0].split('=')[1], 'base64').toString('utf8'));
   assert.strictEqual(decoded.client_email, body.client_email);
   assert.ok(decoded.private_key.includes('BEGIN PRIVATE KEY'));
   assert.strictEqual(fs.statSync(file).mode & 0o777, 0o600);
