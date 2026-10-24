@@ -66,7 +66,6 @@ function goneHtml(pathname) {
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="robots" content="noindex"/>
 <title>This address has no page</title>
 </head>
 <body>
@@ -91,7 +90,8 @@ function document() {
       industries: MATRIX_INDUSTRIES.length,
       urls: matrixSize(),
       http: 410,
-      reason: 'These URLs were listed in a generated sitemap. No page was rendered for them.',
+      robots: null,
+      reason: 'These URLs were listed in a generated sitemap. No page was rendered for them. The response is 410 and carries no noindex tag. A noindex tag keeps the address in Search Console under Not indexed.',
     },
   };
 }
