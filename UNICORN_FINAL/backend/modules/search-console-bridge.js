@@ -208,10 +208,50 @@ async function runBing(opts) {
 }
 
 // ── Google service account ───────────────────────────────────────────
+function _credentialRoots() {
+  return [
+    path.resolve(__dirname, '..', '..', '..'),
+    path.resolve(__dirname, '..', '..'),
+  ];
+}
+
+function _pathInsideRepo(filePath) {
+  let resolved = path.resolve(String(filePath || ''));
+  try { resolved = fs.realpathSync(resolved); } catch (_) { /* unresolved path */ }
+  return _credentialRoots().some((root) => {
+    const rel = path.relative(root, resolved);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  });
+}
+
+/**
+ * GOOGLE_APPLICATION_CREDENTIALS is a filesystem path, never the JSON body.
+ * The file must sit outside this repository and be readable only by its owner.
+ * A miss returns null and is not logged.
+ */
+function _accountFromCredentialsFile() {
+  const rawPath = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+  if (!rawPath || rawPath.includes('\0') || /[\r\n]/.test(rawPath)) return null;
+  let resolved;
+  try { resolved = fs.realpathSync(rawPath); } catch (_) { return null; }
+  if (_pathInsideRepo(resolved)) return null;
+  let st;
+  try { st = fs.statSync(resolved); } catch (_) { return null; }
+  if (!st.isFile() || (st.mode & 0o077) !== 0) return null;
+  let text = '';
+  try { text = fs.readFileSync(resolved, 'utf8'); } catch (_) { return null; }
+  try {
+    const sa = JSON.parse(text);
+    if (sa && sa.client_email && sa.private_key && (!sa.type || sa.type === 'service_account')) return sa;
+  } catch (_) { /* not a service-account file */ }
+  return null;
+}
+
 /**
  * A service-account key is multi-line, which a raw .env line cannot carry
  * losslessly, so the base64 form is tried first and is what sync-all-secrets
- * ships. Either form is accepted.
+ * ships. A JSON string is next. GOOGLE_APPLICATION_CREDENTIALS is only a path
+ * to a mode-600 file outside the repository.
  */
 function _serviceAccount() {
   const candidates = [];
@@ -228,7 +268,7 @@ function _serviceAccount() {
       if (sa && sa.client_email && sa.private_key) return sa;
     } catch (_) { /* try the next form */ }
   }
-  return null;
+  return _accountFromCredentialsFile();
 }
 
 function _b64url(input) {
