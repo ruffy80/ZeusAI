@@ -396,6 +396,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   blocks.push({
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': base + '/#organization',
     name: 'ZeusAI',
     url: base + '/',
     logo: base + assetPath('/assets/icons/icon-512.png'),
@@ -6565,11 +6566,16 @@ function pageChangelog() {
 
 function pageTerms()   { return _legalSub('Terms of Service', 'In plain language: you pay for a named deliverable, delivery follows a matched payment, and the refund rules live on /refund. By using ZeusAI you agree that outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and the refund guarantee at /refund.'); }
 function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR export/delete: signed-in customers use /account (API: GET /api/privacy/export · POST /api/privacy/delete-request). Cryptographic receipts are append-only and owner-owned. Sub-processors: see /dpa and GET /api/compliance/attestation when available.'); }
-function pageRefund()  { return `<section style="padding-top:140px;max-width:880px">
+function pageRefund()  {
+  const policyJson = JSON.stringify(merchantOffer.policyDocument(OWNER.domain)).replace(/</g, '\\u003c');
+  const days = merchantOffer.RETURN_DAYS;
+  return `<section style="padding-top:140px;max-width:880px">
+  <script type="application/ld+json">${policyJson}</script>
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">In plain language: if the file or the work you paid for is missing or wrong, email ${OWNER.email} with the order id. There is a 30-day window. Bitcoin cannot be pulled back automatically.</p>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. 30-day money-back remains available via contact.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">In plain language: if the file or the work you paid for is missing or wrong, email ${OWNER.email} with the order id. There is a ${days}-day window. Bitcoin cannot be pulled back automatically.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. ${days}-day money-back remains available via contact.</p>
+  ${merchantOffer.policyFactsHtml(OWNER.domain)}
   <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
   <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"><p style="color:var(--ink-dim);font-size:13px">Loading guarantee terms…</p></div>
   <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Audit: <button type="button" class="btn" data-live-inspect="/api/refund/audit" data-live-title="Refund audit" style="padding:6px 10px;font-size:12px">Inspect refund audit</button></p>

@@ -378,6 +378,7 @@ function report() {
     aliases: ALIASES,
     findings: findings(),
     search,
+    merchantContract: require('./merchant-offer').contractReport(),
     briefs,
     briefCount: briefs.length,
     publishedBriefs: 0,

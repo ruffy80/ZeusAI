@@ -45,6 +45,7 @@ function pageSeo() {
 
 ${seven}
 ${require('../../seo/organic-growth').deskHtml()}
+${require('../../seo/merchant-offer').contractHtml()}
 <section class="card" style="padding:20px;margin-bottom:48px">
   <span class="kicker">Honesty</span>
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>

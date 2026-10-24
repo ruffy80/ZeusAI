@@ -96,13 +96,25 @@ function returnPolicy(origin) {
     returnMethod: 'https://schema.org/KeepProduct',
     returnFees: 'https://schema.org/FreeReturn',
     refundType: 'https://schema.org/FullRefund',
+    merchantReturnLink: base + RETURN_PATH,
+    customerRemorseReturnFees: 'https://schema.org/FreeReturn',
+    itemDefectReturnFees: 'https://schema.org/FreeReturn',
     url: base + RETURN_PATH,
   };
+}
+
+function organizationId(origin) {
+  return originOf(origin) + '/#organization';
+}
+
+function policyDocument(origin) {
+  return Object.assign({ '@context': 'https://schema.org' }, returnPolicy(origin));
 }
 
 function offerFields(item, origin) {
   return {
     itemCondition: 'https://schema.org/NewCondition',
+    seller: { '@id': organizationId(origin) },
     shippingDetails: shippingDetails(item),
     hasMerchantReturnPolicy: returnPolicy(origin),
   };
@@ -164,8 +176,75 @@ function offerMicrodataHtml(item, opts) {
     + '<link itemprop="returnMethod" href="https://schema.org/KeepProduct">'
     + '<link itemprop="returnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="refundType" href="https://schema.org/FullRefund">'
+    + '<link itemprop="merchantReturnLink" href="' + refundUrl + '">'
+    + '<link itemprop="customerRemorseReturnFees" href="https://schema.org/FreeReturn">'
+    + '<link itemprop="itemDefectReturnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="url" href="' + refundUrl + '">'
-    + '</div>';
+    + '</div>'
+    + '<div itemprop="seller" itemid="' + originOf(opts && opts.origin) + '/#organization" itemscope itemtype="https://schema.org/Organization">'
+    + '<meta itemprop="name" content="ZeusAI"><link itemprop="url" href="' + originOf(opts && opts.origin) + '/"></div>';
+}
+
+function _esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function contractReport(origin) {
+  const policy = returnPolicy(origin);
+  return {
+    ok: true,
+    inventsRatings: false,
+    inventsReviews: false,
+    inventsAddresses: false,
+    inventsTraffic: false,
+    policyId: policy['@id'],
+    sellerId: organizationId(origin),
+    countries: DELIVERY_COUNTRIES.length,
+    windowDays: RETURN_DAYS,
+    returnMethod: policy.returnMethod,
+    shippingRateUsd: 0,
+    transitDays: 0,
+    refused: [
+      { field: 'gtin', because: 'These files have a sku. They do not have a GTIN.' },
+      { field: 'aggregateRating', because: 'A rating is published only after a verified review exists.' },
+      { field: 'review', because: 'No review is written here.' },
+      { field: 'streetAddress', because: 'The file is delivered online. There is no warehouse address.' },
+      { field: 'ReturnByMail', because: 'The buyer keeps the file. The return method is KeepProduct.' },
+      { field: 'priceValidUntil', because: 'The shelf price can change. No expiry date is claimed.' },
+      { field: 'searchConsoleShippingSettings', because: 'The Search Console shipping and returns screen is an owner setting. The site cannot write it. These pages are the policy Google can read.' },
+    ],
+  };
+}
+
+function policyFactsHtml(origin) {
+  const base = originOf(origin);
+  return '<dl id="merchantReturnFacts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:16px 0">'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Window</dt><dd style="margin:6px 0 0">' + RETURN_DAYS + ' days</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Method</dt><dd style="margin:6px 0 0">You keep the file</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Fee</dt><dd style="margin:6px 0 0">None</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Refund</dt><dd style="margin:6px 0 0">Full amount, settled by the owner</dd></div>'
+    + '<div class="card" style="padding:14px"><dt class="kicker">Policy</dt><dd style="margin:6px 0 0"><a href="' + _esc(base + RETURN_PATH) + '" data-link>' + _esc(base + RETURN_PATH) + '</a></dd></div>'
+    + '</dl>';
+}
+
+function contractHtml(origin) {
+  const body = contractReport(origin);
+  const refused = body.refused.map((row) => (
+    '<li style="margin:0 0 8px"><strong>' + _esc(row.field) + '</strong> ' + _esc(row.because) + '</li>'
+  )).join('');
+  return '<section id="merchantContract" style="margin:8px 0 28px">'
+    + '<span class="kicker">Merchant contract</span>'
+    + '<h2 style="margin:8px 0 10px">What Google can read</h2>'
+    + '<p style="color:var(--ink-dim);font-size:14px;max-width:46rem">Every buyable offer, the organization, and <a href="/refund" data-link>/refund</a> use one return policy. '
+    + _esc(String(body.windowDays)) + ' days, method KeepProduct, fee none, full refund, shipping 0 USD, transit '
+    + _esc(String(body.transitDays)) + ' days, ' + _esc(String(body.countries)) + ' delivery countries. '
+    + 'A rating, a review, a GTIN, and a street address stay unpublished.</p>'
+    + '<ul style="margin:8px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.55">' + refused + '</ul>'
+    + '</section>';
 }
 
 module.exports = {
@@ -177,6 +256,11 @@ module.exports = {
   handlingWindow,
   shippingDetails,
   returnPolicy,
+  organizationId,
+  policyDocument,
+  contractReport,
+  policyFactsHtml,
+  contractHtml,
   offerFields,
   productJson,
   offerMicrodataHtml,
