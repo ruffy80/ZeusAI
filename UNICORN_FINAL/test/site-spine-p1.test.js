@@ -119,6 +119,7 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(buy.includes('"shippingDetails"'), 'offer names shipping');
   assert.ok(buy.includes('"value":0'), 'digital delivery is a zero shipping rate');
   assert.ok(buy.includes('"merchantReturnDays":30'), 'return window matches /refund');
+  assert.ok(buy.includes('"returnMethod":"https://schema.org/KeepProduct"'), 'the buyer keeps the file');
   assert.ok(buy.includes('"addressCountry":["US"'), 'delivery countries are an explicit list');
   assert.ok(buy.includes('https://zeusai.pro/refund'), 'return policy points at the public refund page');
   assert.ok(!buy.includes('ReturnByMail'), 'a file is not returned by mail');
@@ -138,6 +139,7 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(listing.includes('itemprop="shippingDetails"'), 'card offers carry shipping');
   assert.ok(listing.includes('content="0"'), 'card shipping rate is zero');
   assert.ok(listing.includes('merchantReturnDays'), 'card offers carry the return window');
+  assert.ok(listing.includes('itemprop="returnMethod" href="https://schema.org/KeepProduct"'), 'card offers name KeepProduct');
   const buyCard = articleOf('instant-resume-makeover');
   assert.ok(/content="\d+\.\d{2}"/.test(buyCard), 'visible price is backed by a dotted number');
   const proposalCard = articleOf('ent-acquisition-pack');
