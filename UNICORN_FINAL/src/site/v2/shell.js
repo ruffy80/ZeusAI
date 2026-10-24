@@ -1323,8 +1323,8 @@ function _atlasWhen(p) {
   const mins = Number(p && p.deliveryMinutes);
   if (mins > 0) return 'About ' + mins + ' min after payment settles';
   const days = Number(p && p.deliveryDays);
-  if (days > 0) return 'Kickoff pack now · team delivery about ' + days + ' days · not an instant download';
-  if (tier === 'professional') return 'Kickoff pack now · human delivery on the stated window · not an instant download';
+  if (days > 0) return 'The file is issued when payment settles. A day count is not a second product';
+  if (tier === 'professional') return 'The file is issued when payment settles. The finished build is not in the file';
   return 'After payment settles';
 }
 function _atlasEnterprise(fromCatalog) {
@@ -1434,7 +1434,7 @@ function _homeAtlasHtml() {
   return `<section id="homeAtlas">
   <div class="section-title">
     <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
-    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day-clock engagement unlocks a kickoff pack now and a human-built system on the window shown. A contract figure can be paid. The download is the engagement pack.</p>
+    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is not a second product. A contract figure can be paid. The download is the engagement pack.</p>
   </div>
   <nav class="atlas-clocks" aria-label="Delivery clocks">
     <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
@@ -1447,8 +1447,8 @@ function _homeAtlasHtml() {
     <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
   </div>
   <div id="atlasDays" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Days</span><h2>Reserve today. The team builds across the window.</h2></div>
-    <p>Payment unlocks a signed kickoff pack immediately. The finished system is human-delivered. It is not an instant download.</p></div>
+    <div class="section-title"><div><span class="kicker">Days</span><h2>The file is the delivery.</h2></div>
+    <p>Payment unlocks the file named on the card. The finished build is not in that file. It is not an instant download of a finished system.</p></div>
     <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
   </div>
   <div id="atlasContract" class="atlas-band">
@@ -1955,7 +1955,7 @@ function pageServices() {
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
     <span class="kicker">What you receive</span>
     <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, and the industry architecture packs. Day engagements unlock a kickoff pack. Enterprise figures buy the engagement pack. Each card names the file you get today. The headings are the template, not a past customer.</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. Enterprise figures buy the engagement pack. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
@@ -2004,7 +2004,7 @@ function pageService(id) {
   }
 
   const title = String(s.title || s.name || s.id);
-  const desc = String(s.description || 'Core ZeusAI service delivering measurable, signed outcomes across the platform.');
+  const desc = String(s.description || 'The file named on this page is the delivery.');
   const price = Number(s.priceUSD != null ? s.priceUSD : (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 0))) || 0;
   const hasFrac = Math.abs(price - Math.round(price)) > 0.0049;
   const priceTxt = price > 0
@@ -2058,12 +2058,12 @@ function pageService(id) {
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
         <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Mempool confirm</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Signed delivery</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Ed25519 receipt + license + downloadable artefacts appear in your account.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Signed delivery</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">The file named in the description is the download. A signed receipt is stored with the order.</p></div>
       </div>
       <div class="panels" style="margin-top:20px">
-        <div class="panel"><div class="ic">✓</div><p class="card-title">Signed outcomes</p><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
-        <div class="panel"><div class="ic">🔌</div><p class="card-title">API first</p><p>REST + SSE. Integrates with all 42 giant connectors through the Integration Fabric.</p></div>
-        <div class="panel"><div class="ic">💎</div><p class="card-title">Outcome pricing</p><p>Enterprise plans bill a share of measured value delivered.</p></div>
+        <div class="panel"><div class="ic">✓</div><p class="card-title">The file</p><p>The description on this page is the delivery. Headings in that file are the work.</p></div>
+        <div class="panel"><div class="ic">₿</div><p class="card-title">Bitcoin</p><p>Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p></div>
+        <div class="panel"><div class="ic">↩</div><p class="card-title">Refund</p><p>The refund closes once this file is issued.</p></div>
       </div>
     </div>
     <aside class="co-box">
@@ -2095,7 +2095,7 @@ function pageService(id) {
             : (/^ent-/i.test(safeId)
             ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.'
             : (cta.mode === 'reserve'
-            ? 'Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.'
+            ? 'Reserve buys the kickoff file. The finished build is not in this file. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.'
             : 'Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.')));
         return `<p style="color:var(--ink-dim);font-size:13.5px">${note}</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
@@ -2868,7 +2868,7 @@ function pageStore() {
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} curated products · honest checkout · $${totalUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} listed catalogue value</span>
     <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Real products. Real BTC settlement. Real delivery.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver digital packs after on-chain payment. Professional builds are BTC reserves with a signed kickoff pack now and human milestone delivery after. Enterprise figures buy the engagement pack at the listed price. The license, the source, and a private cloud are milestones in that pack. They are not in the download. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver the file named on the card after on-chain payment. A professional row buys that kickoff file. The finished build is not in the file. Enterprise figures buy the engagement pack at the listed price. The license, the source, and a private cloud are milestones in that pack. They are not in the download. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>

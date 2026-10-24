@@ -48,6 +48,15 @@ function evaluate(item, preview) {
   } else if (href.indexOf('/checkout') !== -1) {
     failures.push('unbuyable_opened_a_cart');
   }
+  try {
+    const dip = require('./delivery-integrity').review(item, file);
+    const extra = dip && Array.isArray(dip.failures) ? dip.failures : [];
+    for (const failure of extra) {
+      if (failures.indexOf(failure) === -1) failures.push(failure);
+    }
+  } catch (_) {
+    failures.push('delivery_integrity_unavailable');
+  }
   return {
     onShelf: !!(item && item.id),
     pass: failures.length === 0,
@@ -114,6 +123,7 @@ function status() {
     orchestrator: report.orchestrator,
     inventsDelivery: false,
     modulesAdvertiseCustomerDelivery: false,
+    deliveryProtocol: 'DIP/1.0',
     offers: report.offers,
     delivering: report.delivering,
     failing: report.failing,

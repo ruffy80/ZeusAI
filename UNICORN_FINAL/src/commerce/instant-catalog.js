@@ -138,18 +138,16 @@ const SEED = [
     ]
   },
 
-  // ---------- PROFESSIONAL (8) — BTC reserve + human-built delivery ----------
-  // Honest contract: payment reserves the engagement and unlocks a signed
-  // kickoff / SOW pack immediately; the finished system is delivered by the
-  // ZeusAI team across the stated milestone window (not an instant download).
+  // ---------- PROFESSIONAL (8) — the kickoff file is the delivery ----------
+  // The listed price buys that file. A running product is not in it.
   {
     id: 'professional-saas-mvp',
-    title: 'SaaS MVP Build Engagement (≈7 days)',
+    title: 'SaaS MVP Kickoff File',
     tier: 'professional',
     priceUSD: 1999,
-    deliveryDays: 7,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'Reserve with BTC: you receive a signed project kickoff pack + SOW immediately. ZeusAI engineers then build your SaaS MVP (auth, billing, deploy) across ~7 day milestones.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include a running SaaS, auth, billing, or a deploy.',
     inputs: [
       { key: 'spec', label: 'Product Spec', required: true, type: 'textarea' },
       { key: 'email', label: 'Project Email', required: true, type: 'email' }
@@ -157,12 +155,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-agent',
-    title: 'Custom AI Agent Build Engagement (≈10 days)',
+    title: 'Custom AI Agent Kickoff File',
     tier: 'professional',
     priceUSD: 2999,
-    deliveryDays: 10,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'BTC reserve unlocks the kickoff pack now; the custom agent (tools, memory, hosted UI, your knowledge base) is delivered by the team across ~10 day milestones.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include tools, memory, a hosted UI, or a knowledge base.',
     inputs: [
       { key: 'useCase', label: 'Use Case', required: true, type: 'textarea' },
       { key: 'email', label: 'Project Email', required: true, type: 'email' }
@@ -170,12 +168,12 @@ const SEED = [
   },
   {
     id: 'professional-mobile-app',
-    title: 'Mobile App Build Engagement (iOS + Android, ≈14 days)',
+    title: 'Mobile App Kickoff File',
     tier: 'professional',
     priceUSD: 4499,
-    deliveryDays: 14,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'Reserve with BTC for a signed kickoff pack. Cross-platform React Native app with auth, push, and store-ready builds — delivered by the team in ~14 days.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include a React Native app, push, or store-ready builds.',
     inputs: [
       { key: 'spec', label: 'App spec / wireframe', required: true, type: 'textarea' },
       { key: 'platforms', label: 'Platforms (iOS, Android, both)', required: true, type: 'text' },
@@ -184,12 +182,12 @@ const SEED = [
   },
   {
     id: 'professional-ecommerce-store',
-    title: 'E-commerce Store Build Engagement (≈10 days)',
+    title: 'E-commerce Store Kickoff File',
     tier: 'professional',
     priceUSD: 2499,
-    deliveryDays: 10,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'BTC reserve + kickoff pack now; production storefront (theme, payments, shipping, tax, product import) built and handed over across ~10 day milestones.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include a production storefront, payments, shipping, tax, or a product import.',
     inputs: [
       { key: 'brand', label: 'Brand / Niche', required: true, type: 'text' },
       { key: 'platform', label: 'Preferred platform (Shopify, WooCommerce, custom)', required: true, type: 'text' },
@@ -198,12 +196,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-chatbot',
-    title: 'RAG Chatbot Build Engagement (≈7 days)',
+    title: 'RAG Chatbot Kickoff File',
     tier: 'professional',
     priceUSD: 1499,
-    deliveryDays: 7,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'Reserve with BTC: kickoff pack immediately; retrieval-augmented chatbot on your docs, site widget + analytics delivered by the team in ~7 days.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include a retrieval chatbot, a site widget, or analytics.',
     inputs: [
       { key: 'docsUrl', label: 'Docs URL / corpus location', required: true, type: 'url' },
       { key: 'goals', label: 'Use-case goals', required: true, type: 'textarea' },
@@ -212,12 +210,12 @@ const SEED = [
   },
   {
     id: 'professional-data-pipeline',
-    title: 'Data Pipeline + Dashboard Engagement (≈14 days)',
+    title: 'Data Pipeline Kickoff File',
     tier: 'professional',
     priceUSD: 3499,
-    deliveryDays: 14,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'BTC reserve unlocks the SOW kickoff pack; ETL + warehouse + KPI dashboard delivered by the team across ~14 day milestones.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include an ETL pipeline, a warehouse, or a KPI dashboard.',
     inputs: [
       { key: 'sources', label: 'Data sources (e.g. Stripe, Postgres, GA)', required: true, type: 'textarea' },
       { key: 'kpis', label: 'KPIs to track', required: true, type: 'textarea' },
@@ -226,12 +224,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-marketing',
-    title: '90-day Marketing Engine Engagement (≈7 days setup)',
+    title: 'Marketing Engine Kickoff File',
     tier: 'professional',
     priceUSD: 1799,
-    deliveryDays: 7,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'Reserve with BTC for kickoff materials now; calendar, automation, lead capture and attribution dashboard configured by the team (~7 day setup, then 90-day runbook).',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include a calendar, automation, lead capture, or an attribution dashboard.',
     inputs: [
       { key: 'product', label: 'Product / Offer', required: true, type: 'textarea' },
       { key: 'audience', label: 'Target audience', required: true, type: 'text' },
@@ -240,12 +238,12 @@ const SEED = [
   },
   {
     id: 'professional-investor-package',
-    title: 'Investor Package Engagement (deck + model + memo)',
+    title: 'Investor Package Kickoff File',
     tier: 'professional',
     priceUSD: 2299,
-    deliveryDays: 10,
+    deliveryMinutes: 5,
     requiresHumanFulfillment: true,
-    description: 'BTC reserve + kickoff pack immediately; investor-grade deck, financial model and memo produced by the team across ~10 day milestones.',
+    description: 'The file is the project kickoff: scope from your brief, an architecture sketch, and the milestones. The price is the price of this file. The finished build is not in this file. It does not include an investor-grade deck, a financial model, or a memo.',
     inputs: [
       { key: 'company', label: 'Company / Idea (1 paragraph)', required: true, type: 'textarea' },
       { key: 'stage', label: 'Funding stage (pre-seed, seed, A…)', required: true, type: 'text' },
