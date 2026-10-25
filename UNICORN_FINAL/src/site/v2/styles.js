@@ -257,7 +257,7 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 @keyframes resumeWrite{0%{opacity:.35}35%{opacity:1}100%{opacity:1}}
 #earlyAccess{margin:8px 32px 0;padding:22px 24px}
 @media (max-width:720px){
-  .nav.is-scrolled .nav-cta > a.btn-primary:not(.nav-offer){display:none}
+  .nav.is-scrolled .nav-cta > a.btn-primary:not(.nav-offer):not([data-customer-cta]){display:none}
   .home-trust,.how-steps,.resume-compare,.atlas-clocks{grid-template-columns:1fr}
   .home-trust,#earlyAccess{padding-left:14px;padding-right:14px;margin-left:0;margin-right:0}
 }
