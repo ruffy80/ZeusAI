@@ -34,7 +34,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A queued run for an older main SHA must not turn red after a newer
+      # merge already contains it. cancel-in-progress stays false so a deploy
+      # that passed this gate is never killed mid-rsync.
+      - name: ⏭️ Newer main commit owns the deploy
+        id: queue-freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          LATEST="$(git rev-parse origin/main)"
+          echo "Candidate commit: $GITHUB_SHA"
+          echo "Latest origin/main commit: $LATEST"
+          if ! decision="$(bash scripts/deploy-freshness-decision.sh "$GITHUB_SHA" "$LATEST")"; then
+            echo "::error::Refuz deploy: $GITHUB_SHA nu este un strămoș al origin/main ($LATEST)."
+            exit 1
+          fi
+          echo "Freshness: $decision"
+          if [ "$decision" = "SUPERSEDED" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Acest commit este deja în $LATEST. Nu se face deploy din rularea aceasta."
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 🔐 Required deploy secrets gate
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
           HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
@@ -55,6 +79,7 @@ jobs:
           echo "✅ required deploy secrets present"
 
       - name: 🌐 SSH reachability preflight (retry)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
           HETZNER_DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
@@ -82,6 +107,7 @@ jobs:
       # that is not a strict descendant of that SHA is refused.
       # See LIVE_BASELINE.md for the full contract.
       - name: 🛡️ No-downgrade pre-flight (refuse rollback before SSH)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         run: |
           set -euo pipefail
           if [ ! -f .github/baselines/live.sha ]; then
@@ -114,6 +140,7 @@ jobs:
       # trailer. See LIVE_BASELINE.md and no-downgrade-guard.yml for the
       # matching CI-level check.
       - name: 🤖 AutoInnovation deploy gate
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         run: |
           set -euo pipefail
           BASELINE="$(tr -d '[:space:]' < .github/baselines/live.sha)"
@@ -165,6 +192,7 @@ jobs:
       # ancestors. This is a redundant check that makes the contract visible
       # in the repo root for human reviewers and external auditors.
       - name: 📌 VERSION_LOCK consistency
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         run: |
           set -euo pipefail
           if [ ! -f VERSION_LOCK ]; then
@@ -195,6 +223,7 @@ jobs:
           fi
 
       - name: 🟦 Setup Node.js
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         uses: actions/setup-node@v5
         with:
           node-version-file: '.nvmrc'
@@ -205,6 +234,7 @@ jobs:
             UNICORN_FINAL/client/package-lock.json
 
       - name: 🔍 Run Linter (ESLint)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         working-directory: ./UNICORN_FINAL
         timeout-minutes: 10
         env:
@@ -216,6 +246,7 @@ jobs:
           npm run lint
 
       - name: 🛰️ Probe live outage (for deploy test gate)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         id: live_outage
         continue-on-error: true
         env:
@@ -266,6 +297,7 @@ jobs:
           fi
 
       - name: 🛠️ Test UNICORN_FINAL
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         working-directory: ./UNICORN_FINAL
         # Hard timeout so a hung test (e.g. one that forgets process.exit
         # while production modules keep intervals alive) fails fast instead
@@ -322,11 +354,13 @@ jobs:
           exit "$rc"
 
       - name: 🧬 Forward-only preflight (syntax, requires, routes, PM2 contract)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         working-directory: ./UNICORN_FINAL
         timeout-minutes: 8
         run: npm run preflight:forward
 
       - name: 🏗️ Build React client UI
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         working-directory: ./UNICORN_FINAL/client
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
         # Keep CI=false for the same warning behavior in local and CI builds.
@@ -339,6 +373,7 @@ jobs:
           NODE_OPTIONS=--no-deprecation CI=false npm run build
 
       - name: 🔐 Export configured optional secrets for env generation
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         env:
           OPTIONAL_SECRETS_JSON: ${{ toJson(secrets) }}
         run: |
@@ -390,10 +425,12 @@ jobs:
           NODE
 
       - name: ⚙️ Generate .env with configured secrets
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         run: |
           bash UNICORN_FINAL/scripts/create-env.sh UNICORN_FINAL
 
       - name: 🔐 Ensure SSH access (unicorn secrets module auto-bootstrap)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         env:
           HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
           HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
@@ -407,21 +444,30 @@ jobs:
           bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
 
       - name: 🔐 Setup SSH
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
 
       - name: 🧷 Freshness + anti-downgrade guard
+        if: success() && steps.queue-freshness.outputs.proceed == 'true'
+        id: deploy-freshness
         run: |
+          set -euo pipefail
           git fetch origin main --quiet
           LATEST_SHA=$(git rev-parse origin/main)
           echo "Latest origin/main commit: $LATEST_SHA"
           echo "Candidate commit: $GITHUB_SHA"
-          if [ "$GITHUB_SHA" != "$LATEST_SHA" ]; then
-            echo "❌ Refuz deploy stale: acest workflow nu mai este ultimul commit de pe main."
+          if ! decision="$(bash scripts/deploy-freshness-decision.sh "$GITHUB_SHA" "$LATEST_SHA")"; then
+            echo "::error::Refuz deploy: candidate-ul nu este pe origin/main."
             echo "   Candidate=$GITHUB_SHA"
             echo "   Latest=$LATEST_SHA"
             exit 1
+          fi
+          if [ "$decision" = "SUPERSEDED" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Commitul $GITHUB_SHA este inclus în $LATEST_SHA. Deploy-ul aparține commitului mai nou."
+            exit 0
           fi
 
           DEPLOYED_SHA=$(ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
@@ -433,8 +479,10 @@ jobs:
               exit 1
             fi
           fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
 
       - name: 🧹 Pre-deploy disk hygiene (forward-only, never touches current symlink)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Forward-only safety: prune old release dirs and runtime caches so
         # ENOSPC cannot block a deploy. Keeps the last 3 release dirs plus
         # whatever DEPLOY_LINK currently points at. Never touches data/, db/,
@@ -471,6 +519,7 @@ jobs:
           REMOTE
 
       - name: 📦 Deploy to Server
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           RELEASE_ID="${{ github.sha }}-$(date +%s)"
           RELEASE_ROOT="/var/www/unicorn/releases"
@@ -515,6 +564,7 @@ jobs:
             "set -euo pipefail; chmod +x '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.sh '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.js 2>/dev/null || true; GITHUB_SHA='${{ github.sha }}' ZEUS_CI_VERIFIED_UPGRADE=1 PUBLIC_URL='https://zeusai.pro' bash '$RELEASE_PATH/UNICORN_FINAL/scripts/deploy-atomic-forward.sh' '$RELEASE_PATH/UNICORN_FINAL' '$DEPLOY_LINK'"
 
       - name: 🔬 Verify rsync replicated source
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Catch silent rsync failures: pick a few canonical files from the
         # repo and confirm the deployed copy has the exact same SHA-256.
         run: |
@@ -532,6 +582,7 @@ jobs:
           echo "✅ rsync replication verified."
 
       - name: 🏷️ Stamp build SHA on server (.env + .build-sha)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           set -uo pipefail
@@ -567,6 +618,7 @@ jobs:
           SSHEOF
 
       - name: 🩺 Post-promote topology lean (no server-doctor restart)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           # Atomic deploy already canary-gated + promoted. Do NOT run
@@ -731,6 +783,7 @@ jobs:
           SSHEOF
 
       - name: 🧠 Install + start DeepSeek advisory/execute loop (default-OFF)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Idempotent installer for `deepseek-loop.service`. Replaces the
         # manual workflow_dispatch (install-deepseek-loop.yml) for the
         # happy path: every successful deploy copies the unit file, runs
@@ -868,6 +921,7 @@ jobs:
           SSHEOF
 
       - name: 🤖 Install autonomous health/payment bots
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           set -uo pipefail
@@ -933,6 +987,7 @@ jobs:
           SSHEOF
 
       - name: 🏥 Health Check
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
@@ -999,6 +1054,7 @@ jobs:
           fi
 
       - name: 🧪 Public smoke tests (api/health, api/services, api/modules, api/btc/rate)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Rulează scripts/smoke-tests.sh ÎN PROCES PE SERVER, contra 127.0.0.1:3000
         # (bypass nginx/SSL), pentru cele 4 endpoint-uri publice care garantează
         # că backend-ul a pornit și frontend-ul nu mai rămâne pe loading. Pasul
@@ -1020,6 +1076,7 @@ jobs:
           SSHEOF
 
       - name: 🔒 Sensitive path exposure gate
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
@@ -1034,12 +1091,14 @@ jobs:
             bash UNICORN_FINAL/scripts/sensitive-path-gate.sh
 
       - name: 🧊 Cache correctness checks (HTML no-cache + hashed assets)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           set -e
           chmod +x UNICORN_FINAL/scripts/verify-cache-freshness.sh
           bash UNICORN_FINAL/scripts/verify-cache-freshness.sh https://zeusai.pro
 
       - name: 🧪 Commerce Smoke (catalog + delivery)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           set -uo pipefail
@@ -1171,6 +1230,7 @@ jobs:
           fi
 
       - name: 🛡️  50Y smoke (additive · non-fatal)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Verifică reziliența noului layer 50Y: /.well-known/did.json + /api/v50/*.
         # NU pică deploy-ul (continue-on-error). Toate rutele sunt ADITIVE — nu
         # ating endpoint-urile existente. Acest pas este protecția pentru
@@ -1225,6 +1285,7 @@ jobs:
           NODE
 
       - name: 🧾 SBOM determinism (additive · non-fatal)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Generează SBOM-ul de două ori local (din UNICORN_FINAL/) și verifică
         # că hash-urile sunt identice. Detectează drift de dependențe sau
         # ne-determinism introdus accidental în sbom-cyclonedx.js.
@@ -1257,6 +1318,7 @@ jobs:
           NODE
 
       - name: 🔒 Secret-leak scan (additive · non-fatal)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Boots the server with canary secret values and ensures none of them
         # appear in startup logs (catches accidental console.log of secrets).
         continue-on-error: true
@@ -1267,6 +1329,7 @@ jobs:
           npm run test:secret-leak
 
       - name: 📢 Done
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           set -uo pipefail
@@ -1293,6 +1356,7 @@ jobs:
           SSHEOF
 
       - name: 🪙 Sovereign checkout smoke (BTC self-custody)
+        if: success() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         # Verifică non-blocking că /api/checkout/create răspunde cu un ordin
         # legat direct de wallet-ul owner-ului (bc1q4f7e66z…) și că suma este
         # validă în sats. Eșuarea NU pică deploy-ul (continue-on-error) — este
@@ -1355,7 +1419,7 @@ jobs:
           NODE
 
       - name: 🧹 Final PM2 topology cleanup
-        if: always()
+        if: always() && steps.queue-freshness.outputs.proceed == 'true' && steps.deploy-freshness.outputs.proceed == 'true'
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
