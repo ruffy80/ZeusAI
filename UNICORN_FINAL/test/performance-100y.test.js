@@ -20,8 +20,11 @@ assert(shellJs.includes('/api/v100/perf/manifest'), 'shell.js links to /api/v100
 assert(typeof m.handle === 'function', 'module exports handle()');
 
 // ── A11y/perf regression guards from PageSpeed pass-2 ──
-assert(shellJs.includes('class="zeus-hero-image"') && shellJs.includes('fetchpriority="high"'), 'hero image has fetchpriority=high');
-assert(/zeus-hero-image[^>]*width="1600"[^>]*height="900"/.test(shellJs), 'hero image has explicit width/height');
+// The live homepage HTML is the contract. A copy left only in an unreturned
+// template must not keep this green after the image leaves the page.
+const homeHtml = require('../src/site/v2/shell').getHtml('/');
+assert(homeHtml.includes('class="zeus-hero-image"') && /<img[^>]*class="zeus-hero-image"[^>]*fetchpriority="high"/.test(homeHtml), 'hero image has fetchpriority=high');
+assert(/<img[^>]*class="zeus-hero-image"[^>]*width="1600"[^>]*height="900"/.test(homeHtml), 'hero image has explicit width/height');
 assert(/brand-176\.jpg[^<]*width="72"[^<]*height="72"[^<]*(fetchpriority="high"|loading="lazy")/.test(shellJs), 'brand logo has explicit dimensions + high-priority (above-fold) loading');
 assert(!/<h4|<h5|<h6/.test(shellJs), 'no <h4>/<h5>/<h6> headings (descending order preserved)');
 assert(shellJs.includes('.pillar-title{') && shellJs.includes('.footer-col-title{'), 'pillar-title + footer-col-title CSS present');
