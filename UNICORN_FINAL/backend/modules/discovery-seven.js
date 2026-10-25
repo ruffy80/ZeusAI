@@ -324,15 +324,16 @@ function audit() {
     {
       n: 6,
       key: 'promotion',
-      question: 'Is there promotion on Reddit, X, LinkedIn, Facebook?',
-      questionRo: 'Există promovare pe Reddit, X, LinkedIn, Facebook?',
-      closed: false,
+      question: 'Can a person buy without a social account?',
+      questionRo: 'Poate cineva cumpăra fără un cont de socializare?',
+      closed: true,
+      required: false,
+      secondary: true,
       channels: promo.channels,
       keyless: promo.keyless,
       posted: false,
-      whyOpen: promo.anyArmed
-        ? 'At least one channel has keys. The existing viralizer is the only poster. This audit does not mark a post successful until that channel API accepts it. A visitor can still arrive through /guides, /pricing, and /llms.txt.'
-        : 'Reddit, X, LinkedIn, and Facebook are optional. /guides, /pricing, /sitemap.xml, and /llms.txt do not need those accounts. This check stays open because no post was sent. An open check is not an empty site.',
+      whyOpen: null,
+      note: 'Reddit, X, LinkedIn, and Facebook are optional. /social-network stays available and is not how a stranger becomes a buyer. The shelf, the service page, and Bitcoin checkout are.',
     },
     {
       n: 7,
@@ -341,12 +342,13 @@ function audit() {
       questionRo: 'Există un mecanism prin care utilizatorii găsesc produsul?',
       closed: guides.length > 0 && paths.indexOf('/guides') >= 0,
       mechanisms: [
-        { id: 'sitemap', path: '/sitemap.xml', note: 'Homepage, about, pricing, contact, insight articles, and public service pages. Guides and internal routes are not listed.' },
-        { id: 'indexnow', path: '/api/traffic/status', note: 'IndexNow notifies Bing and Yandex. It does not create visitors. Google discovers the sitemap.' },
-        { id: 'guides', path: '/guides', note: 'One article per shelf offer, price and checkout read live.' },
-        { id: 'share', path: '/share', note: 'Tokenless hop into Reddit, X, LinkedIn, Facebook, and others.' },
-        { id: 'social', path: '/social-network', note: 'On-site catalog posts need no third-party key.' },
+        { id: 'sitemap', path: '/sitemap.xml', note: 'Homepage, the marketplace, how it works, pricing, refund, insights, and each public service page. Guide duplicates and /social-network are not submitted.' },
+        { id: 'services', path: '/services', note: 'The store. A visitor picks a named file and pays. No social account.' },
         { id: 'homepage', path: '/', note: 'The concierge answers with a real shelf offer.' },
+        { id: 'guides', path: '/guides', note: 'One long read per offer. The canonical buyer URL is the service page.' },
+        { id: 'account', path: '/account', note: 'Keeps the download after payment. It is not required to pay.' },
+        { id: 'indexnow', path: '/api/traffic/status', note: 'IndexNow notifies Bing and Yandex. It does not create visitors. Google discovers the sitemap.' },
+        { id: 'social', path: '/social-network', note: 'Secondary. The same offers can appear here. A buyer does not need this page.' },
       ],
       whyOpen: null,
     },
@@ -373,9 +375,9 @@ function audit() {
     innovations: [
       { id: 'live-guides', note: 'Every shelf offer grows a /guides/:id article. A new offer is indexed on the next cycle without a hand-written page.' },
       { id: 'live-price', note: 'Title, description, price, and checkout href are read from the public shelf on each request, so the article cannot drift from the card.' },
-      { id: 'sitemap-indexnow', note: 'Public service pages and insight articles join /sitemap.xml and the IndexNow inventory. Guide URLs do not. Google still needs Search Console to confirm indexing.' },
+      { id: 'sitemap-indexnow', note: 'The marketplace, how-it-works, refund, insights, service pages, and insight articles join /sitemap.xml and IndexNow. Guide duplicates and /social-network do not. Google still needs Search Console to confirm indexing.' },
       { id: 'unique-service-head', note: '/services/:id uses the offer title and a description that names the price and the delivery clock.' },
-      { id: 'promo-waits', note: 'Reddit, X, LinkedIn, and Facebook drafts ride the existing viralizer. Missing keys stay keys_missing.' },
+      { id: 'promo-secondary', note: 'Off-site social posts are optional and are not marked sent. The buyer path does not wait for them.' },
     ],
     generatedAt: new Date().toISOString(),
   };
@@ -450,9 +452,9 @@ function guideHtml(id) {
   <div class="card" style="padding:18px;margin-top:18px">
     <span class="kicker">How someone finds this</span>
     <ul style="color:var(--ink-dim);font-size:14.5px;line-height:1.7;margin:10px 0 0;padding-left:18px">
-      <li>The service page for this offer is listed in <a href="/sitemap.xml" data-allow-raw="1">/sitemap.xml</a>. This guide address is not submitted.</li>
-      <li>IndexNow can notify Bing and Yandex. That notification is not a visitor and not a Google index confirmation.</li>
-      <li>The same offer is on <a href="/social-network" data-link>ZeusAI Social</a> and can be opened from <a href="/share" data-link>/share</a> into Reddit, X, LinkedIn, or Facebook when a person taps.</li>
+      <li>The service page for this offer is listed in <a href="/sitemap.xml" data-allow-raw="1">/sitemap.xml</a>, with the marketplace, how it works, and the refund contract. This guide address is the long read and is not a second copy in the sitemap.</li>
+      <li>No social account is required. Email on checkout is optional. <a href="/account" data-link>/account</a> keeps the file after payment.</li>
+      <li><a href="/social-network" data-link>ZeusAI Social</a> can show the same card later. It is not the way in.</li>
     </ul>
     <p style="color:var(--ink-dim);font-size:13px;margin:12px 0 0">This page does not claim the site is indexed, that Search Console is connected, or that a social post already went out.</p>
   </div>

@@ -6001,7 +6001,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
-        '<a href="/">Home</a><a href="/social-network" style="color:#7cf7c0;font-weight:700">ZeusAI Social</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Dropship OS</a><a href="/dropship" style="color:#8a5cff;font-weight:700">🌐 Live Store</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '<a href="/">Home</a><a href="/services" style="font-weight:700">Services</a><a href="/pricing">Pricing</a><a href="/how">How it works</a><a href="/refund">Refund</a><a href="/account">Account</a><a href="/social-network" style="color:var(--muted)">Social (optional)</a><a href="/status">Status</a>',
         '</div></nav>',
         '</header>',
         '<main>',
