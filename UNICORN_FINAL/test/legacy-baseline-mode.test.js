@@ -21,9 +21,10 @@
 //      • `/health` responds 200
 //      • `/snapshot` responds 200
 //      • `/internal/topology` reports role:'site'
-//      • SSR `/` includes the live-pricing hooks (`data-pricing-value`)
-//        and BTC markers — proving the user-visible 4.5h-ago page
-//        survives the rollback.
+//      • SSR `/services` includes the live-pricing hooks (`data-pricing-value`)
+//        and BTC markers. The homepage `/` is the enterprise cost-optimizer
+//        and does not render the shelf; the pricing DOM contract lives on
+//        the marketplace page.
 //
 // Operator-set values are respected: the guard never overwrites a flag
 // that's already explicitly set (covered indirectly — we set the master
@@ -130,15 +131,18 @@ async function run() {
     assert.equal(topo.role, 'site', 'topology.role must remain "site" in baseline mode');
     console.log('  ✅ /internal/topology → role:site');
 
-    // 4d. SSR HTML preserves the user-visible live-pricing + BTC markers
-    // that the user complained went missing. Their PRESENCE in baseline
-    // mode proves the rollback didn't strip the underlying SSR contract.
-    assert.ok(html.indexOf('data-pricing-value') !== -1,
-      'baseline SSR HTML must still contain data-pricing-value hooks (live pricing DOM contract)');
-    console.log('  ✅ SSR HTML contains data-pricing-value hooks');
-    assert.ok(/BTC/i.test(html),
-      'baseline SSR HTML must still contain BTC markers');
-    console.log('  ✅ SSR HTML contains BTC markers');
+    // 4d. The marketplace keeps the live-pricing + BTC markers. Their
+    // presence in baseline mode proves the rollback didn't strip the SSR
+    // shelf. `/` is the enterprise homepage and is not that shelf.
+    const shelfRes = await fetch(base + '/services');
+    assert.equal(shelfRes.status, 200, '/services must respond 200 in baseline mode');
+    const shelfHtml = await shelfRes.text();
+    assert.ok(shelfHtml.indexOf('data-pricing-value') !== -1,
+      'baseline /services SSR HTML must still contain data-pricing-value hooks (live pricing DOM contract)');
+    console.log('  ✅ /services SSR HTML contains data-pricing-value hooks');
+    assert.ok(/BTC/i.test(shelfHtml),
+      'baseline /services SSR HTML must still contain BTC markers');
+    console.log('  ✅ /services SSR HTML contains BTC markers');
 
     // 4e. Static asset /assets/app.js still served (just not from memcache).
     const jsRes = await fetch(base + '/assets/app.js');
