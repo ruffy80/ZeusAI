@@ -31,11 +31,13 @@ async function main() {
     assert.ok(xml.includes('xml-stylesheet'));
     assert.ok(xml.includes('/seo/sitemap.xsl'));
     assert.ok(xml.includes('<urlset'));
-    for (const p of ['/', '/about', '/pricing', '/contact', '/services', '/how', '/refund', '/insights', '/insights/ai-resume-service-bitcoin', '/services/instant-resume-makeover']) {
+    const locs = xml.match(/<loc>/g) || [];
+    assert.strictEqual(locs.length, 7);
+    for (const p of ['/', '/about', '/pricing', '/contact', '/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents']) {
       const loc = p === '/' ? 'https://zeusai.pro/</loc>' : `https://zeusai.pro${p}</loc>`;
       assert.ok(xml.includes(loc), 'missing ' + p);
     }
-    for (const p of ['/buy', '/origin', '/status', '/health', '/admin', '/dashboard', '/api/', '/from/x', '/vertical/', '/social-network', '/guides']) {
+    for (const p of ['/buy', '/services', '/how', '/refund', '/insights', '/origin', '/status', '/health', '/admin', '/dashboard', '/api/', '/from/x', '/vertical/', '/social-network', '/guides', '/internal']) {
       assert.ok(!xml.includes(`https://zeusai.pro${p}`), 'leaked ' + p);
     }
     assert.ok(xml.includes('<lastmod>'));
@@ -88,7 +90,10 @@ async function main() {
     assert.ok(body.includes('/about</loc>'));
     assert.ok(body.includes('/pricing</loc>'));
     assert.ok(body.includes('/contact</loc>'));
-    assert.ok(body.includes('/services/instant-website-audit</loc>') || body.includes('/services/instant-resume-makeover</loc>'));
+    assert.ok(body.includes('/solutions/model-routing</loc>'));
+    assert.ok(body.includes('/solutions/self-healing</loc>'));
+    assert.ok(body.includes('/solutions/autonomous-agents</loc>'));
+    assert.ok(!body.includes('/services/instant-resume-makeover</loc>'));
     assert.ok(body.includes('<lastmod>'));
     assert.ok(!body.includes('/dashboard</loc>'));
     assert.ok(!body.includes('/checkout</loc>'));
@@ -110,11 +115,12 @@ async function main() {
     const handled = await sov.handle({ url: '/robots.txt', method: 'GET', headers: {} }, res, {});
     assert.equal(handled, true);
     assert.equal(status, 200);
-    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /admin', 'Disallow: /dashboard']) {
+    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /metrics', 'Disallow: /admin', 'Disallow: /dashboard', 'Disallow: /internal', 'Disallow: /internal/']) {
       assert.ok(body.includes(line), line);
     }
     assert.ok(body.includes('User-agent: Googlebot'));
     assert.ok(body.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
+    assert.ok(!body.includes('sitemap-services.xml'));
   });
 
   await check('site wires /seo desk + XSL route + footer sitemap', () => {
@@ -128,6 +134,25 @@ async function main() {
     // Root /sitemap.xml must NOT be served as frontier index anymore
     assert.ok(!/fu === '\/sitemap\.xml' \|\| fu === '\/seo\/sitemap\.xml'/.test(indexJs));
     assert.ok(indexJs.includes("'/seo'"));
+    assert.ok(indexJs.includes("'/solutions/model-routing'"));
+    const home = require('../src/site/v2/shell').getHtml('/');
+    assert.ok(home.includes('<title>UNICORN | Autonomous AI Orchestration & Cost Optimization</title>'));
+    assert.ok(home.includes('Reduce AI API costs by 70% with our autonomous model router.'));
+    assert.ok(home.includes('Book an Enterprise Demo'));
+    assert.ok(home.includes('rel="canonical" href="https://zeusai.pro/"'));
+    assert.ok(home.includes('"@type":"Organization"'));
+    assert.ok(home.includes('"@type":"WebSite"'));
+    assert.ok(!/href="\/origin"/.test(home));
+    assert.ok(!/href="\/status"/.test(home));
+    for (const p of ['/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents']) {
+      const html = require('../src/site/v2/shell').getHtml(p);
+      assert.ok(html.includes('<h1>'), p);
+      assert.ok(html.includes('Contact Sales'), p);
+      assert.ok(html.includes('id="howItWorks"'), p);
+      assert.ok(html.includes('"@type":"Service"'), p);
+      assert.ok(html.includes(`rel="canonical" href="https://zeusai.pro${p}"`), p);
+      assert.ok(!html.includes('"@type":"Offer"'), p);
+    }
   });
 
   await check('nginx self-heal requires ICP/CAC/MTS well-known exact matches', () => {

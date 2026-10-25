@@ -20,6 +20,56 @@ const OWNER = {
   domain: process.env.PUBLIC_APP_URL || 'https://zeusai.pro'
 };
 
+const HOME_TITLE = 'UNICORN | Autonomous AI Orchestration & Cost Optimization';
+const HOME_DESCRIPTION = 'Reduce AI API costs by 70% with our autonomous model router. Enterprise-grade multi-agent orchestration, self-healing, and R&D engines.';
+
+/** Enterprise module landings. Sales pages, not priced shelf SKUs. */
+const ENTERPRISE_LANDINGS = Object.freeze([
+  {
+    path: '/solutions/model-routing',
+    kicker: 'Enterprise AI Autonomy · Model Routing',
+    title: 'Cut AI API Costs with Autonomous Model Routing',
+    description: 'Route each request to a capable model and keep expensive calls for the work that needs them. Enterprise model routing with a signed route record and a sales path.',
+    h1: 'Cut Your AI API Costs by 70% with Autonomous Routing',
+    lead: 'One request comes in. The router chooses a model that can finish the job, so routine calls do not sit on the most expensive API.',
+    steps: [
+      ['Name the workload', 'Classify the call: draft, classify, extract, or reason. The router reads the job instead of pinning every call to one vendor.'],
+      ['Route to a capable model', 'A lighter model handles the routine call. A stronger model is reserved when the job needs it.'],
+      ['Keep a signed record', 'Each route can leave an operator-visible receipt. Contact sales to scope the engagement for your stack.'],
+    ],
+  },
+  {
+    path: '/solutions/self-healing',
+    kicker: 'Self-Healing Infrastructure',
+    title: 'Self-Healing Infrastructure for Production AI',
+    description: 'Watch latency and faults, run a guarded recovery, and keep the customer path up. Enterprise self-healing for the orchestration plane.',
+    h1: 'Keep Production AI Up with Self-Healing Infrastructure',
+    lead: 'A failed dependency should not take the whole workflow down. The plane detects the fault, applies a guarded recovery, and records what it did.',
+    steps: [
+      ['Watch the live path', 'Latency, error rate, and module health are the signals. A green dashboard is not a substitute for the failing call.'],
+      ['Recover inside a guardrail', 'The playbook retries, reroutes, or isolates the bad unit. It does not invent a successful customer delivery.'],
+      ['Leave an operator record', 'The recovery is visible to the operator. Contact sales when you want that plane on your own stack.'],
+    ],
+  },
+  {
+    path: '/solutions/autonomous-agents',
+    kicker: 'Autonomous Agents',
+    title: 'Autonomous Agents for Enterprise AI Orchestration',
+    description: 'Coordinate specialist agents under one orchestration plane. Each agent has a job, a receipt, and a human sales path.',
+    h1: 'Run Enterprise Work with Autonomous Agents',
+    lead: 'Specialist agents take a named job. The orchestration plane assigns the work, keeps the receipt, and leaves a person a way to talk to sales.',
+    steps: [
+      ['Name the agent job', 'Research, routing, or recovery. An agent without a job is not a product.'],
+      ['Orchestrate the handoff', 'The plane passes the result to the next agent or to a person. It does not claim a finished company in one download.'],
+      ['Talk to sales', 'Contact sales for an enterprise demo. The engagement starts from a scoped conversation, not an invented seat count.'],
+    ],
+  },
+]);
+
+function enterpriseLanding(route) {
+  return ENTERPRISE_LANDINGS.find((row) => row.path === String(route || '')) || null;
+}
+
 // ── SSR catalogue helpers ───────────────────────────────────────────────
 // The previous build rendered all marketplace/pricing/store pages purely
 // client-side — when JS was slow or disabled, users saw "Loading…" stubs
@@ -490,6 +540,18 @@ function buildJsonLd(title, route, canonical, desc, opts) {
       }))
     });
   }
+  const landing = enterpriseLanding(route);
+  if (landing) {
+    blocks.push({
+      '@context': 'https://schema.org',
+      '@type': 'Service',
+      name: landing.h1,
+      serviceType: landing.kicker,
+      description: landing.description,
+      url: canonical,
+      provider: { '@id': base + '/#organization' },
+    });
+  }
   return blocks;
 }
 
@@ -600,8 +662,10 @@ function head(title, route, opts) {
     ? 'article' : 'website';
   // Per-route OG image: dedicated 1200x630 banner with safe fallback.
   const ogImage = base + assetPath('/assets/icons/og-default.png');
-  const desc = routeDescription(route);
-  const jsonLdBlocks = buildJsonLd(title, route, canonical, desc, opts)
+  const homeDocument = route === '/';
+  const documentTitle = homeDocument ? HOME_TITLE : `${title} — ZEUSAI`;
+  const desc = homeDocument ? HOME_DESCRIPTION : routeDescription(route);
+  const jsonLdBlocks = buildJsonLd(documentTitle, route, canonical, desc, opts)
     .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
   // SSR is English. ?lang= only sets a translate cookie, so those URLs are
   // not separate language documents and must not be advertised as hreflang.
@@ -624,12 +688,12 @@ function head(title, route, opts) {
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <meta name="color-scheme" content="dark"/>
-<title>${title} — ZEUSAI</title>
+<title>${documentTitle}</title>
 <meta name="description" content="${desc}"/>
 <link rel="canonical" href="${canonical}"/>
 ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
-<meta property="og:title" content="${title} — ZeusAI"/>
+<meta property="og:title" content="${homeDocument ? documentTitle : `${title} — ZeusAI`}"/>
 <meta property="og:description" content="${desc}"/>
 <meta property="og:type" content="${ogType}"/>
 <meta property="og:url" content="${canonical}"/>
@@ -639,7 +703,7 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:image:alt" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:locale" content="${lang}_${(lang === 'en' ? 'US' : lang.toUpperCase())}"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="${title} — ZeusAI"/>
+<meta name="twitter:title" content="${homeDocument ? documentTitle : `${title} — ZeusAI`}"/>
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
 ${discoverTrust.headExtras()}
@@ -755,7 +819,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -768,7 +832,6 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
     ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
-    ${L('/status', 'Autonomy OS')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
@@ -777,6 +840,7 @@ ${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="na
 <div class="nav-cta">
 ${langToggle}
 <a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign up</a>
+<a class="btn btn-primary" href="/contact" data-link>Book an Enterprise Demo</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
 </nav>`;
@@ -795,7 +859,9 @@ function footer(route, opts) {
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
       <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
-      <li><a href="/origin" data-link><strong style="color:#00ffa3">Origin Gravity</strong></a></li>
+      <li><a href="/solutions/model-routing" data-link>Model Routing</a></li>
+      <li><a href="/solutions/self-healing" data-link>Self-Healing</a></li>
+      <li><a href="/solutions/autonomous-agents" data-link>Autonomous Agents</a></li>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/outcomes" data-link>Outcomes</a></li>
@@ -834,7 +900,6 @@ function footer(route, opts) {
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
       <li><a href="/aura" data-link>Live Aura</a></li>
-      <li><a href="/status" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
     </ul></div>
@@ -1111,13 +1176,13 @@ function concierge() {
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus<span class="meta" id="conciergeMeta">shelf</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">Hello. What can I do for you?<br><br>Say what you do and what you want. The answer is a real shelf offer: the deliverable, the price, when it arrives, and one next step — plus something you did not ask for.<br><br>Salut. Ce pot face pentru tine? Spune ce faci și ce vrei. Răspunsul vine doar din raftul public.</div></div>
+      <div class="msg bot"><div class="msg-body">Enterprise AI Autonomy. Ask about model routing, self-healing infrastructure, or autonomous agents.<br><br>Book an Enterprise Demo from the homepage, or open Contact Sales.<br><br>Autonomie AI pentru enterprise. Întreabă despre rutarea modelelor, infrastructura care se repară singură, sau agenții autonomi.</div></div>
     </div>
     <div class="chips" id="conciergeChips">
-      <button class="chip" data-q="I run a clinic and I need a site plus a way to answer patient questions">Clinic</button>
-      <button class="chip" data-q="Am o companie și vreau licența și un private cloud">Companie</button>
-      <button class="chip" data-q="I need a logo, a landing page, and SEO">Brand + site</button>
-      <button class="chip" data-q="Vreau un magazin online și un chatbot">Magazin</button>
+      <button class="chip" data-q="We need autonomous model routing across our API spend">Model routing</button>
+      <button class="chip" data-q="We need self-healing infrastructure for production agents">Self-healing</button>
+      <button class="chip" data-q="We need an autonomous agent mesh with a human sales path">Agents</button>
+      <button class="chip" data-q="Vrem o demonstrație enterprise pentru rutarea modelelor">Demo</button>
     </div>
     <div class="concierge-foot">
       <textarea id="conciergeInput" rows="1" placeholder="Întreabă Zeus orice… / Ask Zeus anything…  (Enter · Shift+Enter newline)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
@@ -1868,24 +1933,20 @@ ${_zaccBanner}
   </div>
   <div class="hero-grid">
     <div class="hero-copy">
-      <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
+      <span class="hero-eyebrow"><span class="dot"></span> Enterprise AI Autonomy · Model Routing · Self-Healing Infrastructure</span>
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
-      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad" data-b="${_esc(discoverTrust.HEADLINES.B.h1)}">${_esc(discoverTrust.ssrVariant().h1)}</span></h1>
-      <p class="lead" id="dtHeroLead" data-b="${_esc(discoverTrust.HEADLINES.B.lead)}">${_esc(discoverTrust.ssrVariant().lead)}</p>
-      <p class="hero-pay-note">Secure payment confirmation and a public refund guarantee. Bitcoin is live. Card and PayPal appear when that checkout is configured.</p>
-      <p class="hero-shelf-facts" id="heroShelfFacts">${_heroShelfFacts()}</p>
-      <form id="concierge" class="shelf-ask" action="/api/shelf/advise" method="post">
-        <label for="conciergeAsk">What do you do, and what do you want?</label>
-        <textarea id="conciergeAsk" name="text" required maxlength="2000" placeholder="I run a clinic. I need a site and a way to answer patient questions."></textarea>
-        <div class="hero-cta">
-          <button class="btn btn-primary dt-cta-glow" id="dtHeroCta" type="submit">${_esc(discoverTrust.ssrVariant().cta)}</button>
-          <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
-        </div>
-      </form>
-      <div id="conciergeReply" aria-live="polite"></div>
+      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad">Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure</span></h1>
+      <p class="lead" id="dtHeroLead">${_esc(HOME_DESCRIPTION)}</p>
+      <p class="hero-pay-note">The priced shelf stays on the marketplace. This page is the enterprise brief: model routing, self-healing infrastructure, and autonomous agents.</p>
+      <p class="hero-shelf-facts" id="heroShelfFacts">Enterprise modules below. Open /services for the priced shelf.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Book an Enterprise Demo</a>
+        <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
+      </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
-        <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
-        <a href="#homeAtlas" style="color:var(--violet2)">See every priced deliverable →</a>
+        <a href="/solutions/model-routing" data-link style="color:var(--violet2)">Model Routing</a>
+        <a href="/solutions/self-healing" data-link style="color:var(--violet2)">Self-Healing</a>
+        <a href="/solutions/autonomous-agents" data-link style="color:var(--violet2)">Autonomous Agents</a>
       </div>
       <div class="hero-stats" id="heroStats" style="margin-top:14px">
         <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
@@ -1904,24 +1965,44 @@ ${_zaccBanner}
   </div>
 </section>
 
+<section id="enterpriseSolutions">
+  <div class="section-title">
+    <div><span class="kicker">Enterprise modules</span><h2>Three systems. <span class="grad">One orchestration plane.</span></h2></div>
+    <p>Model Routing, Self-Healing Infrastructure, and Autonomous Agents. Each page states the job and ends at Contact Sales.</p>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+    ${ENTERPRISE_LANDINGS.map((row) => `<a class="card" href="${row.path}" data-link style="text-decoration:none;display:block"><span class="kicker">${_esc(row.kicker)}</span><h3 style="margin:8px 0">${_esc(row.h1)}</h3><p style="color:var(--ink-dim);margin:0">${_esc(row.lead)}</p></a>`).join('')}
+  </div>
+  <p style="margin-top:16px"><a class="btn btn-primary" href="/contact" data-link>Book an Enterprise Demo</a></p>
+</section>
+
 ${discoverTrust.homeLandingHtml()}
-
-${_homeAtlasHtml()}
-
-${_homeProofRail}
-
-${sellSurface.homeBuyStripHtml(_all.length)}
 `;
 }
 
-function _heroShelfFacts() {
-  let items = [];
-  try { items = require('../../commerce/public-shelf').publicShelf(); } catch (_) { items = []; }
-  const minutes = items.filter((p) => p.clock === 'minutes');
-  const days = items.filter((p) => p.clock === 'days');
-  const kick = items.find((p) => p.id === 'ent-engagement-kickoff');
-  const kickPrice = kick ? _atlasMoney(kick.priceUsd || kick.priceUSD || 0) : '';
-  return `Minutes ${_esc(_atlasRange(minutes) || '—')} · Days ${_esc(_atlasRange(days) || '—')} · Kickoff ${kickPrice}. Press Show me the offer.`;
+function pageEnterpriseLanding(route) {
+  const row = enterpriseLanding(route);
+  if (!row) return pageNotFound(route);
+  const others = ENTERPRISE_LANDINGS.filter((item) => item.path !== row.path);
+  return `<section style="padding-top:140px">
+  <div class="section-title">
+    <div><span class="kicker">${_esc(row.kicker)}</span><h1>${_esc(row.h1)}</h1></div>
+    <p>${_esc(row.lead)}</p>
+  </div>
+  <section id="howItWorks">
+    <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps.</h2></div></div>
+    <div class="grid how-steps">
+      ${row.steps.map((step, i) => `<article class="card glass-card"><span class="tag">${i + 1} · ${_esc(step[0])}</span><h3>${_esc(step[0])}</h3><p>${_esc(step[1])}</p></article>`).join('')}
+    </div>
+  </section>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+    <a class="btn btn-primary" href="/contact" data-link>Contact Sales</a>
+    <a class="btn" href="/pricing" data-link>See pricing</a>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:22px">
+    ${others.map((item) => `<a class="card" href="${item.path}" data-link style="text-decoration:none;display:block"><span class="kicker">Also</span><h3 style="margin:8px 0">${_esc(item.title)}</h3></a>`).join('')}
+  </div>
+</section>`;
 }
 
 function pageServices() {
@@ -4485,6 +4566,9 @@ function renderRoute(route, params = {}) {
     case '/solutions/ai-pricing': return pageSolution('pricing');
     case '/solutions/ai-checkout': return pageSolution('checkout');
     case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
+    case '/solutions/model-routing':
+    case '/solutions/self-healing':
+    case '/solutions/autonomous-agents': return pageEnterpriseLanding(route);
     case '/checkout':
     case '/checkout/': return pageCheckout(params);
     case '/dashboard': return pageDashboard();
@@ -7582,7 +7666,7 @@ function pageNotFound(route) {
     <a class="btn" href="/services" data-link>Marketplace</a>
     <a class="btn" href="/wizard" data-link>Find my plan</a>
     <a class="btn" href="/docs" data-link>API & docs</a>
-    <a class="btn" href="/status" data-link>Status</a>
+    <a class="btn" href="/contact" data-link>Contact Sales</a>
   </div>
 </section>`;
 }
@@ -7608,7 +7692,9 @@ function _legalSub(title, body) {
 }
 
 function routeTitle(route) {
-  if (route === '/') return 'Hello. What can I do for you?';
+  if (route === '/') return HOME_TITLE;
+  const landingTitle = enterpriseLanding(route);
+  if (landingTitle) return landingTitle.title;
   if (route === '/trust-safety') return 'Trust and safety';
   if (route === '/insights') return 'Buyer insights';
   if (route === '/outreach-desk') return 'Outreach desk';
@@ -7654,8 +7740,10 @@ function routeTitle(route) {
 }
 
 function routeDescription(route) {
+  const landingDesc = enterpriseLanding(route);
+  if (landingDesc) return landingDesc.description;
   const map = {
-    '/': 'Tell ZeusAI what you do and what you want. The reply is a real shelf offer with a price, a delivery clock, and one next step. Bitcoin is live. Card and PayPal appear when configured.',
+    '/': HOME_DESCRIPTION,
     '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
     '/origin': 'Origin Gravity Protocol — ZeusAI publishes a hash-chained genesis that it has zero paid humans. Be Origin #1 and receive a Founding Origin Passport.',
     '/from': 'Social Gravity landing: tracked autoviral click to Origin #1 checkout. Page loads are not buyers.',

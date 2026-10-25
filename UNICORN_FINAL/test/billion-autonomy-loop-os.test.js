@@ -97,7 +97,8 @@ async function main() {
     const te = read('backend/modules/traffic-engine.js');
     assert.ok(te.includes('corePublicPaths'), 'IndexNow inventory follows the public sitemap');
     const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
-    assert.ok(urls.some((u) => u.endsWith('/services/instant-resume-makeover')), 'instant shelf page stays in IndexNow');
+    assert.ok(urls.some((u) => u.endsWith('/solutions/model-routing')), 'model-routing landing stays in IndexNow');
+    assert.ok(!urls.some((u) => u.endsWith('/services/instant-resume-makeover')), 'shelf URLs stay out of IndexNow');
     assert.ok(urls.some((u) => u.endsWith('/pricing')));
   });
 

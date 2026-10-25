@@ -37,15 +37,15 @@ function check(label, fn) {
 }
 
 // ── A) Home conversion ───────────────────────────────────────────
-check('shell: hero eyebrow uses BTC-native save-10% copy', () => {
-  assert.ok(shell.includes('₿ Native Bitcoin · save 10% · instant delivery'));
+check('shell: hero eyebrow names the enterprise modules', () => {
+  assert.ok(shell.includes('Enterprise AI Autonomy · Model Routing · Self-Healing Infrastructure'));
 });
 check('shell: hero headline keeps ZeusAI brand + a benefit line', () => {
   assert.ok(/id="dtHeroH1"[\s\S]{0,240}hero-brand">ZeusAI/.test(shell));
-  assert.ok(shell.includes('discoverTrust.ssrVariant().h1'));
+  assert.ok(shell.includes('Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure'));
   assert.ok(shell.includes('See How It Works'));
+  assert.ok(shell.includes('Book an Enterprise Demo'));
   assert.ok(shell.includes('Ask ZeusAI'));
-  assert.ok(shell.includes('id="concierge"'));
 });
 check('shell: Building the future sits above ZeusAI brand (no right panel)', () => {
   assert.ok(!shell.includes('hero-side hero-vision'), 'old right panel must be gone');
@@ -61,9 +61,9 @@ check('styles: hero-future letterpress uses Orbitron + vibrant chroma', () => {
   assert.ok(styles.includes('heroFutureShimmer'), 'shimmer motion missing');
   assert.ok(/#FF3B5C|#FF9F1C|#00E8A0|#2DE2E6/.test(styles), 'vibrant chroma missing');
 });
-check('shell: hero secondary link points to /wizard plan finder', () => {
-  assert.ok(shell.includes('30-second plan finder'));
-  assert.ok(/href="\/wizard"/.test(shell));
+check('shell: hero secondary link points at the enterprise modules', () => {
+  assert.ok(shell.includes('href="/solutions/model-routing"'));
+  assert.ok(shell.includes('Book an Enterprise Demo'));
 });
 check('shell: buyer-trust hero stats render before Modules/Verticals row', () => {
   const trustIdx = shell.indexOf('Signed receipts');

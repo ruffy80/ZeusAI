@@ -11,19 +11,19 @@ const path = require('path');
 const PROTOCOL = 'SEO/1.0';
 
 /**
- * Marketing pages a crawler should keep.
- * Service URLs are /services/<shelf id> (the live resume page is
- * /services/instant-resume-makeover). Blog posts are /insights/<slug>.
+ * Public marketing pages a crawler should keep.
+ * Homepage, company pages, and the three enterprise module landings.
+ * Shelf URLs, insight articles, /origin, /status, and /api stay out of
+ * /sitemap.xml. The shelf remains linked from /services.
  */
 const MARKETING_PAGES = Object.freeze([
   { path: '/', changefreq: 'weekly', priority: '1.0', source: 'shell' },
-  { path: '/services', changefreq: 'daily', priority: '0.9', source: 'shell' },
-  { path: '/pricing', changefreq: 'weekly', priority: '0.9', source: 'shell' },
-  { path: '/how', changefreq: 'monthly', priority: '0.8', source: 'shell' },
   { path: '/about', changefreq: 'monthly', priority: '0.8', source: 'shell' },
+  { path: '/pricing', changefreq: 'weekly', priority: '0.9', source: 'shell' },
   { path: '/contact', changefreq: 'monthly', priority: '0.8', source: 'shell' },
-  { path: '/insights', changefreq: 'weekly', priority: '0.7', source: 'insights' },
-  { path: '/refund', changefreq: 'monthly', priority: '0.6', source: 'shell' },
+  { path: '/solutions/model-routing', changefreq: 'weekly', priority: '0.9', source: 'shell' },
+  { path: '/solutions/self-healing', changefreq: 'weekly', priority: '0.9', source: 'shell' },
+  { path: '/solutions/autonomous-agents', changefreq: 'weekly', priority: '0.9', source: 'shell' },
 ]);
 
 /** Exact paths and prefixes that must never appear in a public sitemap. */
@@ -40,6 +40,7 @@ const BLOCKED_EXACT = new Set([
   '/auth',
   '/operator',
   '/metrics',
+  '/internal',
   '/outreach-desk',
   '/api',
 ]);
@@ -58,6 +59,7 @@ const BLOCKED_PREFIXES = [
   '/auth/',
   '/operator/',
   '/metrics/',
+  '/internal/',
   '/.well-known/',
 ];
 
@@ -81,6 +83,8 @@ const ROBOTS_DISALLOW_LINES = Object.freeze([
   'Disallow: /operator',
   'Disallow: /outreach-desk',
   'Disallow: /metrics',
+  'Disallow: /internal',
+  'Disallow: /internal/',
 ]);
 
 /** Kept so older callers can skip private paths. */
@@ -96,6 +100,7 @@ const ROBOTS_DISALLOW = new Set([
   '/origin',
   '/checkout',
   '/metrics',
+  '/internal',
   '/operator',
 ]);
 
@@ -310,7 +315,7 @@ function publicServiceEntries() {
 function marketingEntries() {
   const seen = new Set();
   const out = [];
-  MARKETING_PAGES.concat(publicBlogEntries(), publicServiceEntries()).forEach((entry) => {
+  MARKETING_PAGES.forEach((entry) => {
     const p = normalizePath(entry && entry.path);
     if (!p || seen.has(p) || isBlockedPath(p)) return;
     seen.add(p);
@@ -395,7 +400,6 @@ function robotsTxt(base) {
   return block.concat([''], google, [
     '',
     'Sitemap: ' + b + '/sitemap.xml',
-    'Sitemap: ' + b + '/seo/sitemap-services.xml',
     '',
   ]).join('\n');
 }

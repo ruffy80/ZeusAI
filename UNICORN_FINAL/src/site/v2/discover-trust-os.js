@@ -688,12 +688,12 @@ function homeLandingHtml() {
   <a class="trust-badge" href="/privacy" data-link><b>Privacy and GDPR rights</b><span>Export and delete from your account. No resale of your brief.</span></a>
 </section>
 <section id="howItWorks">
-  <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps. <span class="grad">Then one real offer.</span></h2></div>
-  <p>The reply is a shelf item. It is not a promise of customers, interviews, or a finished company in a download.</p></div>
+  <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps. <span class="grad">Then a conversation with sales.</span></h2></div>
+  <p>Enterprise AI Autonomy starts with the workload, not a consumer download. Model Routing, Self-Healing Infrastructure, and Autonomous Agents each have their own page.</p></div>
   <div class="grid how-steps">
-    <article class="card glass-card"><span class="tag">1 · Say the work</span><h3>What you do, and what you want</h3><p>Write it in the box above. Romanian or English. The match uses the public shelf, not a hidden catalog.</p></article>
-    <article class="card glass-card"><span class="tag">2 · Read the price</span><h3>One offer, plus one you did not ask for</h3><p>Each answer names the deliverable, the price, and when it arrives. A second card is an adjacent shelf item, labeled as something you did not request.</p></article>
-    <article class="card glass-card"><span class="tag">3 · Pay or ask</span><h3>Bitcoin is live</h3><p>Minute files, the listing desk, frontier tool packs, industry architecture packs, and day-clock reserves open checkout. Enterprise figures buy the engagement pack. Card and PayPal show when they are configured.</p></article>
+    <article class="card glass-card"><span class="tag">1 · Name the system</span><h3>Model routing, self-healing, or agents</h3><p>Open the module page that matches the job. The page states the benefit and the three operating steps.</p></article>
+    <article class="card glass-card"><span class="tag">2 · Read the operating steps</span><h3>Route, recover, or assign</h3><p>Routing picks a capable model. Self-healing recovers inside a guardrail. Agents take a named job and hand the result on.</p></article>
+    <article class="card glass-card"><span class="tag">3 · Book the demo</span><h3>Contact Sales</h3><p><a href="/contact" data-link>Book an Enterprise Demo</a>. The priced file shelf stays on <a href="/services" data-link>/services</a> and is not this brief.</p></article>
   </div>
 </section>
 <section id="earlyAccess" class="card glass-card">

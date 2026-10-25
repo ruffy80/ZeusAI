@@ -13113,6 +13113,7 @@ a{color:#8a5cff;text-decoration:none}
     // DeepSeek cockpit + solutions sub-pages
     '/deepseek-cockpit',
     '/solutions/ai-pricing', '/solutions/ai-checkout', '/solutions/ai-self-healing',
+    '/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents',
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
