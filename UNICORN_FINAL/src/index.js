@@ -5089,7 +5089,7 @@ async function unicornHandler(req, res) {
     '/api/secrets/status',
     '/api/build', '/api/version',
     '/api/status',
-    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payments/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/relay-graft', '/api/visible-social/arm'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payments/methods', '/api/payment/innovation', '/api/payment/pios', '/api/payment/nowpayments/security', '/api/first-dollar', '/api/first-dollar/status', '/api/world-index', '/api/world-index/status', '/api/world-index/activation', '/api/share/targets', '/api/relay-graft', '/api/visible-social/arm', '/api/demo/optimize'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -5758,6 +5758,49 @@ async function unicornHandler(req, res) {
         return res.end(JSON.stringify(result.body));
       });
     }
+  }
+
+  // Demo router. No provider call and the prompt is not logged or stored.
+  // nginx sends this exact path to the site; the backend has the same route
+  // for a direct /api/ proxy miss.
+  if (urlPath === '/api/demo/optimize') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        Allow: 'POST',
+      });
+      return res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+    }
+    const demoRouter = require('./site/demo-router');
+    let body = '';
+    let tooBig = false;
+    req.on('data', (chunk) => {
+      if (tooBig) return;
+      body += chunk;
+      if (body.length > 8192) {
+        tooBig = true;
+        res.writeHead(413, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: false, error: 'body_too_large' }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (tooBig || res.writableEnded) return;
+      let prompt = '';
+      try {
+        const parsed = JSON.parse(body || '{}');
+        prompt = parsed && parsed.prompt;
+      } catch (_) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: false, error: 'bad_json' }));
+        return;
+      }
+      const out = demoRouter.optimizePrompt(prompt);
+      res.writeHead(out.ok ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(out));
+    });
+    return;
   }
 
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
@@ -13113,7 +13156,7 @@ a{color:#8a5cff;text-decoration:none}
     // DeepSeek cockpit + solutions sub-pages
     '/deepseek-cockpit',
     '/solutions/ai-pricing', '/solutions/ai-checkout', '/solutions/ai-self-healing',
-    '/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents',
+    '/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents', '/solutions/continuous-rd',
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.

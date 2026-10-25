@@ -20,8 +20,8 @@ const OWNER = {
   domain: process.env.PUBLIC_APP_URL || 'https://zeusai.pro'
 };
 
-const HOME_TITLE = 'UNICORN | Autonomous AI Orchestration & Cost Optimization';
-const HOME_DESCRIPTION = 'Reduce AI API costs by 70% with our autonomous model router. Enterprise-grade multi-agent orchestration, self-healing, and R&D engines.';
+const HOME_TITLE = 'ZeusAI | Enterprise AI Cost Optimization & Orchestration';
+const HOME_DESCRIPTION = 'Reduce your LLM API costs by 70% with our autonomous model router. Enterprise-grade multi-agent orchestration and self-healing infrastructure.';
 
 /** Enterprise module landings. Sales pages, not priced shelf SKUs. */
 const ENTERPRISE_LANDINGS = Object.freeze([
@@ -62,6 +62,19 @@ const ENTERPRISE_LANDINGS = Object.freeze([
       ['Name the agent job', 'Research, routing, or recovery. An agent without a job is not a product.'],
       ['Orchestrate the handoff', 'The plane passes the result to the next agent or to a person. It does not claim a finished company in one download.'],
       ['Talk to sales', 'Contact sales for an enterprise demo. The engagement starts from a scoped conversation, not an invented seat count.'],
+    ],
+  },
+  {
+    path: '/solutions/continuous-rd',
+    kicker: 'Continuous R&D',
+    title: 'Continuous R&D for Enterprise AI Operations',
+    description: 'A research loop that proposes the next automation from the work you already run. It does not invent customers or a savings figure.',
+    h1: 'Let the Research Loop Propose the Next Automation',
+    lead: 'Continuous R&D watches the jobs you already route and writes the next candidate. A person still decides what becomes a product.',
+    steps: [
+      ['Read the work you already run', 'Routing and recovery receipts are the input. The loop does not scrape a private prompt from the homepage demo.'],
+      ['Propose one next automation', 'The output is a candidate brief: the job, the boundary, and what would have to be true before it ships.'],
+      ['Decide with sales', 'Contact sales before a proposal becomes an engagement. The homepage calculator is a simulation, not this loop.'],
     ],
   },
 ]);
@@ -485,8 +498,19 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items });
   // 5) FAQPage on /how, /pricing and /faq — small but valuable for rich results.
   try {
-    if (route === '/' || route === '/services' || route === '/pricing') {
+    if (route === '/services' || route === '/pricing') {
       blocks.push(discoverTrust.serviceListJsonLd(base));
+    }
+    if (route === '/') {
+      blocks.push({
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: 'Autonomous Model Routing',
+        serviceType: 'Enterprise AI cost optimization',
+        description: HOME_DESCRIPTION,
+        url: canonical,
+        provider: { '@id': base + '/#organization' },
+      });
     }
     if (String(route || '').indexOf('/insights/') === 0 || String(route || '').indexOf('/blog/') === 0) {
       const articleBlock = discoverTrust.articleJsonLd(route, base);
@@ -780,6 +804,22 @@ section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>s
 body { top:0 !important; position:static !important; }
 font[style*="vertical-align"] { background:none !important; box-shadow:none !important; }
 #google_translate_element { position:absolute !important; left:-9999px !important; top:-9999px !important; width:1px; height:1px; overflow:hidden; }
+.cost-demo{margin:8px auto 0;max-width:760px;padding:18px;border:1px solid rgba(138,92,255,.45);border-radius:18px;background:rgba(8,6,20,.72)}
+.cost-demo h2{margin:0 0 8px}
+.cost-demo label{display:block;margin:0 0 8px;color:var(--ink-dim);font-size:14px}
+.cost-demo textarea{width:100%;min-height:120px;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font:16px/1.45 inherit}
+.cost-demo .btn{margin-top:12px}
+.cost-results{margin-top:14px;white-space:pre-line;font-family:var(--mono);font-size:14px;line-height:1.6}
+.cost-trust{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
+.cost-trust li,.cost-trust a{border:1px solid rgba(0,232,160,.45);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);text-decoration:none}
+.cost-trust-note{margin:10px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
+.cost-modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:640px){
+  .cost-demo{padding:14px}
+  .cost-demo .btn{width:100%}
+  .cost-modules{grid-template-columns:1fr}
+  .cost-trust{flex-direction:column;align-items:flex-start}
+}
 </style>
 ${gtPrimer}
 </head>
@@ -790,7 +830,7 @@ ${gtPrimer}
 ${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
-<div id="zeusHonestyBanner" class="lhos-fallback-banner" role="status">Serving a cached API response while Unicorn reconnects. Live numbers resume automatically.</div>
+<div id="zeusHonestyBanner" class="lhos-fallback-banner" role="status">Serving a cached API response while Unicorn reconnects. Live numbers continue automatically.</div>
 <main id="app">`;
 }
 
@@ -819,7 +859,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -831,6 +871,7 @@ ${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solution
     ${L('/store', 'Store')}
     ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/enterprise', 'Enterprise')}
+    ${L('/account', 'Account')}
     ${L('/docs', 'API &amp; Docs')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
@@ -839,8 +880,7 @@ ${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solution
 </div>
 <div class="nav-cta">
 ${langToggle}
-<a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign up</a>
-<a class="btn btn-primary" href="/contact" data-link>Book an Enterprise Demo</a>
+<a class="btn btn-primary" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
 </nav>`;
@@ -1176,7 +1216,7 @@ function concierge() {
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus<span class="meta" id="conciergeMeta">shelf</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">Enterprise AI Autonomy. Ask about model routing, self-healing infrastructure, or autonomous agents.<br><br>Book an Enterprise Demo from the homepage, or open Contact Sales.<br><br>Autonomie AI pentru enterprise. Întreabă despre rutarea modelelor, infrastructura care se repară singură, sau agenții autonomi.</div></div>
+      <div class="msg bot"><div class="msg-body">Enterprise AI Autonomy. Ask about model routing, self-healing infrastructure, or autonomous agents.<br><br>Get Enterprise Access from the homepage, or open Contact Sales.<br><br>Autonomie AI pentru enterprise. Întreabă despre rutarea modelelor, infrastructura care se repară singură, sau agenții autonomi.</div></div>
     </div>
     <div class="chips" id="conciergeChips">
       <button class="chip" data-q="We need autonomous model routing across our API spend">Model routing</button>
@@ -1916,67 +1956,57 @@ ${_zaccBanner}
   <div class="grid" id="verticals"></div>
 </section>`;
   void _offHome;
-  return `<section class="hero">
-  <div class="zeus-scene" aria-hidden="true">
-    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
-    <div class="zeus-halo zeus-halo-a"></div>
-    <div class="zeus-halo zeus-halo-b"></div>
-    <div class="zeus-stars"></div>
-    <div class="zeus-vignette"></div>
-  </div>
-  <div class="hero-fx" aria-hidden="true">
-    <div class="fx-orb fx-orb-a"></div>
-    <div class="fx-orb fx-orb-b"></div>
-    <div class="fx-orb fx-orb-c"></div>
-    <div class="fx-grid"></div>
-    <div class="fx-scan"></div>
-  </div>
+  return `<section class="hero" id="costHero">
   <div class="hero-grid">
     <div class="hero-copy">
-      <span class="hero-eyebrow"><span class="dot"></span> Enterprise AI Autonomy · Model Routing · Self-Healing Infrastructure</span>
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
-      <h1 id="dtHeroH1"><span class="hero-brand">ZeusAI</span> <span class="grad" id="dtHeroGrad">Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure</span></h1>
-      <p class="lead" id="dtHeroLead">${_esc(HOME_DESCRIPTION)}</p>
-      <p class="hero-pay-note">The priced shelf stays on the marketplace. This page is the enterprise brief: model routing, self-healing infrastructure, and autonomous agents.</p>
-      <p class="hero-shelf-facts" id="heroShelfFacts">Enterprise modules below. Open /services for the priced shelf.</p>
+      <p class="hero-brand">ZeusAI</p>
+      <h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</h1>
+      <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Book an Enterprise Demo</a>
-        <a class="btn btn-ghost" href="#howItWorks">See How It Works</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Get Enterprise Access</a>
       </div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
-        <a href="/solutions/model-routing" data-link style="color:var(--violet2)">Model Routing</a>
-        <a href="/solutions/self-healing" data-link style="color:var(--violet2)">Self-Healing</a>
-        <a href="/solutions/autonomous-agents" data-link style="color:var(--violet2)">Autonomous Agents</a>
-      </div>
-      <div class="hero-stats" id="heroStats" style="margin-top:14px">
-        <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
-        <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
-        <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
-        <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
-      </div>
-      <div class="hero-stats hero-stats-ops" style="margin-top:14px">
-        <div class="hero-stat"><b id="statModules">—</b><span>Modules</span></div>
-        <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">—</b><span>Catalog SKUs</span></div>
-        <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
-        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
-      </div>
+      <ul class="cost-trust" aria-label="Trust badges">
+        <li>Secure</li>
+        <li>No Data Retention</li>
+        <li><a href="/privacy" data-link>GDPR Compliant</a></li>
+      </ul>
+      <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
     </div>
   </div>
 </section>
-
-<section id="enterpriseSolutions">
-  <div class="section-title">
-    <div><span class="kicker">Enterprise modules</span><h2>Three systems. <span class="grad">One orchestration plane.</span></h2></div>
-    <p>Model Routing, Self-Healing Infrastructure, and Autonomous Agents. Each page states the job and ends at Contact Sales.</p>
-  </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
-    ${ENTERPRISE_LANDINGS.map((row) => `<a class="card" href="${row.path}" data-link style="text-decoration:none;display:block"><span class="kicker">${_esc(row.kicker)}</span><h3 style="margin:8px 0">${_esc(row.h1)}</h3><p style="color:var(--ink-dim);margin:0">${_esc(row.lead)}</p></a>`).join('')}
-  </div>
-  <p style="margin-top:16px"><a class="btn btn-primary" href="/contact" data-link>Book an Enterprise Demo</a></p>
+<section id="costDemoSection" aria-labelledby="costDemoLabel">
+  <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
+    <h2 id="costDemoLabel">Test the Router Live</h2>
+    <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
+    <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
+    <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
+    <p class="cost-trust-note">Simulated route. No model provider is called. The prompt is not stored.</p>
+    <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
+  </form>
 </section>
-
-${discoverTrust.homeLandingHtml()}
+<section id="unicornEcosystem">
+  <div class="section-title">
+    <div><h2>Powered by UNICORN Ecosystem</h2></div>
+  </div>
+  <div class="cost-modules">
+    <article class="card">
+      <h3>Autonomous Self-Healing</h3>
+      <p>Never go down again.</p>
+      <a class="btn" href="/solutions/self-healing" data-link>Learn More</a>
+    </article>
+    <article class="card">
+      <h3>Multi-Agent Orchestration</h3>
+      <p>Scale your AI operations.</p>
+      <a class="btn" href="/solutions/autonomous-agents" data-link>Learn More</a>
+    </article>
+    <article class="card">
+      <h3>Continuous R&amp;D</h3>
+      <p>Let AI find new opportunities for you.</p>
+      <a class="btn" href="/solutions/continuous-rd" data-link>Learn More</a>
+    </article>
+  </div>
+</section>
 `;
 }
 
@@ -4568,7 +4598,8 @@ function renderRoute(route, params = {}) {
     case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
     case '/solutions/model-routing':
     case '/solutions/self-healing':
-    case '/solutions/autonomous-agents': return pageEnterpriseLanding(route);
+    case '/solutions/autonomous-agents':
+    case '/solutions/continuous-rd': return pageEnterpriseLanding(route);
     case '/checkout':
     case '/checkout/': return pageCheckout(params);
     case '/dashboard': return pageDashboard();

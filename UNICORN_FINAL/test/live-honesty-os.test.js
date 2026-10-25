@@ -202,7 +202,7 @@ async function run() {
     assert.ok(!site.includes('Math.sin(uptime / 37)'));
     assert.ok(!site.includes('avgRecoveryMs: 420'));
     assert.ok(!/id="statModules">169</.test(shell));
-    assert.ok(shell.includes('id="statModules">—'));
+    assert.ok(!/id="statModules">\d+/.test(shell));
     assert.ok(shell.includes('lhos-fallback-banner'));
     assert.ok(shell.includes('not sampled'));
     assert.ok(!shell.includes('169 living modules'));

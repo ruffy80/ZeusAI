@@ -149,10 +149,10 @@ check('agents.json discovery advertises autonomy score + smoke', () => {
   assert.ok(src.includes("'/.well-known/autonomy.json'"), 'autonomy discovery endpoint literal missing');
 });
 
-check('shell.js hero exposes statTaos + machine-speed headline', () => {
+check('shell.js hero exposes the cost demo and keeps machine-speed copy off', () => {
   const src = fs.readFileSync(SHELL, 'utf8');
-  assert.ok(src.includes('id="statTaos"'), 'statTaos hero stat missing');
-  assert.ok(src.includes('See How It Works'), 'how-it-works link missing');
+  assert.ok(src.includes('id="costDemo"'), 'cost demo missing');
+  assert.ok(src.includes('Calculate Savings'), 'savings button missing');
   assert.ok(!src.includes('Ship AI products at machine speed'), 'internal machine-speed line must stay off the shell');
   assert.ok(!/Launch AI products faster\./.test(src), 'legacy headline still present');
 });

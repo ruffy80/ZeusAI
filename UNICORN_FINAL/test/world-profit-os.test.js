@@ -37,14 +37,10 @@ function check(label, fn) {
 }
 
 // ── A) Home conversion ───────────────────────────────────────────
-check('shell: hero eyebrow names the enterprise modules', () => {
-  assert.ok(shell.includes('Enterprise AI Autonomy · Model Routing · Self-Healing Infrastructure'));
-});
-check('shell: hero headline keeps ZeusAI brand + a benefit line', () => {
-  assert.ok(/id="dtHeroH1"[\s\S]{0,240}hero-brand">ZeusAI/.test(shell));
-  assert.ok(shell.includes('Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure'));
-  assert.ok(shell.includes('See How It Works'));
-  assert.ok(shell.includes('Book an Enterprise Demo'));
+check('shell: hero headline is the cost-optimizer promise', () => {
+  assert.ok(shell.includes('Cut Your AI API Costs by 70% Automatically'));
+  assert.ok(/class="hero-brand">ZeusAI<\/p>\s*<h1 id="dtHeroH1">/.test(shell));
+  assert.ok(shell.includes('Get Enterprise Access'));
   assert.ok(shell.includes('Ask ZeusAI'));
 });
 check('shell: Building the future sits above ZeusAI brand (no right panel)', () => {
@@ -63,17 +59,12 @@ check('styles: hero-future letterpress uses Orbitron + vibrant chroma', () => {
 });
 check('shell: hero secondary link points at the enterprise modules', () => {
   assert.ok(shell.includes('href="/solutions/model-routing"'));
-  assert.ok(shell.includes('Book an Enterprise Demo'));
+  assert.ok(shell.includes('href="/solutions/self-healing"'));
+  assert.ok(shell.includes('Learn More'));
 });
-check('shell: buyer-trust hero stats render before Modules/Verticals row', () => {
-  const trustIdx = shell.indexOf('Signed receipts');
-  const modulesIdx = shell.indexOf('id="statModules"');
-  assert.ok(trustIdx > 0 && modulesIdx > 0, 'both blocks must exist');
-  assert.ok(trustIdx < modulesIdx, 'trust stats must precede modules stats');
-});
-check('shell: stats include #statBtcSave 10% BTC discount', () => {
-  assert.ok(/id="statBtcSave"/.test(shell));
-  assert.ok(/BTC discount/.test(shell));
+check('shell: homepage does not print a fake module count', () => {
+  assert.ok(!/id="statModules">\d+/.test(shell));
+  assert.ok(shell.includes('id="costDemo"'));
 });
 check('shell: featured strip includes ONLY instant+professional (no enterprise picks)', () => {
   const featured = shell.match(/const _featured = \[\][\s\S]*?;\s*const _featuredHtml/);

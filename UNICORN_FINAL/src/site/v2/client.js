@@ -1987,7 +1987,7 @@ async function hydratePage(route){
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  try { if (route === '/') { initDiscoverTrust(); bindConcierge(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/') { initDiscoverTrust(); bindConcierge(); bindCostOptimizer(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
   try { if (route === '/outreach-desk') bindDiscoverDesk(); } catch (e) { console.warn('hydratePage:desk', e && e.message); }
   try { if (route === '/services' || route === '/marketplace') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
@@ -5864,6 +5864,51 @@ function initNavOffer(){
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 }
+function bindCostOptimizer(){
+  const form = document.getElementById('costDemo');
+  if (!form || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  const out = document.getElementById('costDemoOut');
+  const btn = document.getElementById('costDemoBtn');
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    const promptEl = document.getElementById('costDemoPrompt');
+    const prompt = promptEl ? String(promptEl.value || '').trim() : '';
+    if (btn) btn.disabled = true;
+    fetch('/api/demo/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ prompt: prompt })
+    }).then(function(r){
+      return r.json().then(function(body){ return { ok: r.ok, body: body || {} }; }).catch(function(){ return { ok: false, body: {} }; });
+    }).then(function(res){
+      if (btn) btn.disabled = false;
+      if (!out) return;
+      const j = res.body || {};
+      if (!res.ok || !j.ok) {
+        out.textContent = j.error === 'prompt_required'
+          ? 'Enter a prompt to calculate savings.'
+          : 'The demo could not route that prompt.';
+        return;
+      }
+      const cost = Number(j.costUsd);
+      const gpt4 = Number(j.gpt4CostUsd);
+      const lines = [
+        j.analyzed || 'Prompt analyzed.',
+        'Routed to: ' + String(j.routedTo || ''),
+        'Latency: ' + String(j.latencyMs) + 'ms',
+        'Cost: $' + (Number.isFinite(cost) ? cost.toFixed(4) : '0.0000'),
+        'Cost if using GPT-4: $' + (Number.isFinite(gpt4) ? gpt4.toFixed(4) : '0.0000'),
+        'You just saved ' + String(j.savingsPct) + '%!'
+      ];
+      out.replaceChildren();
+      out.textContent = lines.join('\n');
+    }).catch(function(){
+      if (btn) btn.disabled = false;
+      if (out) out.textContent = 'The demo could not route that prompt.';
+    });
+  });
+}
 function refreshCustomerNav(){
   try {
     const token = getCustToken();
@@ -5883,7 +5928,13 @@ function refreshCustomerNav(){
       else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
     document.querySelectorAll('[data-customer-cta]').forEach((el) => {
-      el.textContent = active ? 'My Account' : 'Sign up';
+      const guestLabel = el.getAttribute('data-guest-label');
+      if (guestLabel) {
+        el.textContent = active ? (el.getAttribute('data-auth-label') || 'My Account') : guestLabel;
+        el.setAttribute('href', active ? (el.getAttribute('data-auth-href') || '/account') : (el.getAttribute('data-guest-href') || '/contact'));
+      } else {
+        el.textContent = active ? 'My Account' : 'Sign up';
+      }
       if (customer && customer.email) el.setAttribute('title', customer.email);
       else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
