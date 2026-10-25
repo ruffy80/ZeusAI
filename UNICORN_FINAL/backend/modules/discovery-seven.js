@@ -403,18 +403,9 @@ function _jsonLd(guide) {
     publisher: { '@type': 'Organization', name: 'ZeusAI', url: origin },
     about: { '@type': 'Service', name: guide.title, url: origin + guide.servicePath },
   };
-  if (guide.buyable && guide.priceUsd > 0 && guide.ctaHref) {
-    const href = /^https?:/i.test(guide.ctaHref) ? guide.ctaHref : origin + guide.ctaHref;
-    let offerExtra = {};
-    try { offerExtra = require('../../src/seo/merchant-offer').offerFields(guide, origin); } catch (_) { offerExtra = {}; }
-    body.about.offers = Object.assign({
-      '@type': 'Offer',
-      priceCurrency: 'USD',
-      price: Number(guide.priceUsd).toFixed(2),
-      url: href,
-      availability: 'https://schema.org/InStock',
-    }, offerExtra);
-  }
+  // The guide is the long read. The merchant listing is the service page.
+  // A second Offer here, pointed at checkout, is another item for Search
+  // Console and it has no product image.
   return body;
 }
 

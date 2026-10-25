@@ -71,6 +71,7 @@ check('buyable guide matches shelf price and checkout', () => {
   assert.strictEqual(guide.buyable, true);
   const html = d7.guideHtml(item.id);
   assert.ok(html.includes('data-product-id="' + item.id + '"'));
+  assert.ok(!html.includes('schema.org/InStock'), 'the guide does not publish a second merchant offer');
   assert.ok(html.includes('data-price-usd="' + item.priceUsd + '"'));
   assert.ok(html.includes(item.ctaHref));
   assert.ok(!/aggregateRating/.test(html));

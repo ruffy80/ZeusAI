@@ -605,6 +605,7 @@ function openPricingStream(){
           const meta = offer.querySelector('meta[itemprop="price"]');
           if (meta) meta.setAttribute('content', usd.toFixed(2));
         }
+        syncMerchantJsonLdPrice(it.id, usd);
         updated++;
       });
       // Companion BTC line (≈ 0.00045 BTC) — keeps the Bitcoin amount that
@@ -3618,7 +3619,12 @@ async function hydrateServiceDetail(id){
     s.price = Number(live.price_usd);
     var el = document.getElementById('svcLivePrice');
     var btcEl = document.getElementById('svcLiveBtc');
-    if (el) el.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + moSuffix;
+    if (el) {
+      const usd = Number(live.price_usd);
+      const hasFrac = Math.abs(usd - Math.round(usd)) > 0.0049;
+      el.innerHTML = '$' + usd.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 }) + moSuffix;
+      syncMerchantJsonLdPrice(sid, usd);
+    }
     if (btcEl) btcEl.textContent = live.price_btc != null ? ('≈ ' + Number(live.price_btc).toFixed(8) + ' BTC') : '';
   }).catch(function(){});
   initServiceNarrative(s);
@@ -5668,6 +5674,19 @@ function subscribeAutonomousEvents(){
   connect();
 }
 
+function syncMerchantJsonLdPrice(id, usd) {
+  const price = Number(usd);
+  if (!id || !Number.isFinite(price) || price <= 0) return;
+  const text = price.toFixed(2);
+  document.querySelectorAll('script[type="application/ld+json"]').forEach(function (node) {
+    let data = null;
+    try { data = JSON.parse(node.textContent || ''); } catch (_) { data = null; }
+    if (!data || data['@type'] !== 'Product' || String(data.sku || '') !== String(id) || !data.offers) return;
+    if (String(data.offers.price) === text) return;
+    data.offers.price = text;
+    node.textContent = JSON.stringify(data).replace(/</g, '\\u003c');
+  });
+}
 function applyLivePriceToDom(moduleId, priceUsd){
   if (!moduleId) return;
   const safe = String(moduleId).replace(/"/g, '\\"');
@@ -5679,13 +5698,17 @@ function applyLivePriceToDom(moduleId, priceUsd){
     setTimeout(() => el.classList.remove('price-flash'), 800);
   });
   document.querySelectorAll('[data-pricing-value="' + safe + '"]').forEach(el => {
-    el.innerHTML = fmt + '<small>/mo</small>';
     const offer = el.closest ? el.closest('[itemprop="offers"]') : null;
     if (offer) {
+      // A shelf offer is a one-time file price. Do not paint "/mo" into it.
+      el.textContent = fmt;
       const meta = offer.querySelector('meta[itemprop="price"]');
       if (meta) meta.setAttribute('content', Number(priceUsd || 0).toFixed(2));
+      return;
     }
+    el.innerHTML = fmt + '<small>/mo</small>';
   });
+  syncMerchantJsonLdPrice(moduleId, priceUsd);
 }
 
 function applyAutonomousSnapshot(){

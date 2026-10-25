@@ -130,6 +130,7 @@ function productJson(opts) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
+    '@id': url + '#product',
     name,
     description: String(o.description || item.description || '').slice(0, 400),
     sku: String(item.id || ''),
@@ -138,6 +139,7 @@ function productJson(opts) {
     brand: { '@type': 'Brand', name: 'ZeusAI' },
     offers: Object.assign({
       '@type': 'Offer',
+      '@id': url + '#offer',
       url,
       priceCurrency: 'USD',
       price: priceContent(item),

@@ -484,26 +484,30 @@ function _liveService(id, fallbackPrice, fallbackPath) {
 
 function serviceListJsonLd(base) {
   const origin = String(base || OWNER.domain).replace(/\/+$/, '');
+  let image = origin + '/assets/icons/og-default.png';
+  try { image = origin + require('./build-id').assetPath('/assets/icons/og-default.png'); } catch (_) { /* static path */ }
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'ZeusAI services',
     itemListElement: SERVICES.map((s, i) => {
       const live = _liveService(s.id, s.priceUsd, s.path);
-      const href = String(live.path || s.path);
-      const abs = /^https?:/i.test(href) ? href : origin + href;
+      const abs = origin + '/services/' + encodeURIComponent(s.id);
       return {
         '@type': 'ListItem',
         position: i + 1,
         item: {
           '@type': 'Service',
+          '@id': abs + '#service',
           name: s.name,
           serviceType: s.name,
           description: s.description,
+          image,
           url: abs,
           provider: { '@type': 'Organization', name: 'ZeusAI', email: OWNER.email },
           offers: Object.assign({
             '@type': 'Offer',
+            '@id': abs + '#offer',
             price: Number(live.price).toFixed(2),
             priceCurrency: 'USD',
             availability: 'https://schema.org/InStock',

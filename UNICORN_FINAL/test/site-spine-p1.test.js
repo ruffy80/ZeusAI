@@ -116,6 +116,8 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   const merchant = require('../src/seo/merchant-offer');
   const buy = shell.getHtml('/services/instant-resume-makeover');
   assert.ok(buy.includes('"@type":"Product"'), 'buyable detail keeps Product JSON-LD');
+  assert.ok(buy.includes('"@id":"https://zeusai.pro/services/instant-resume-makeover#product"'), 'the product has one id');
+  assert.ok(buy.includes('"@id":"https://zeusai.pro/services/instant-resume-makeover#offer"'), 'the offer has one id');
   assert.ok(buy.includes('"shippingDetails"'), 'offer names shipping');
   assert.ok(buy.includes('"value":0'), 'digital delivery is a zero shipping rate');
   assert.ok(buy.includes('"merchantReturnDays":30'), 'return window matches /refund');
@@ -145,6 +147,13 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(!listing.includes('"@type":"Product"'), 'the shelf page is not one product named ZeusAI');
   assert.ok(listing.includes('itemtype="https://schema.org/Product"'), 'buyable cards stay products');
   assert.ok(listing.includes('itemprop="shippingDetails"'), 'card offers carry shipping');
+  const offerHtml = _firstOfferElement(listing);
+  assert.ok(offerHtml.indexOf('<div') === 0, 'the offer is a div, so nested shipping stays inside it');
+  assert.ok(offerHtml.includes('itemprop="shippingDetails"'), 'shipping stays inside the offer');
+  assert.ok(offerHtml.includes('itemprop="hasMerchantReturnPolicy"'), 'the return policy stays inside the offer');
+  assert.ok(offerHtml.includes('content="35.10"') || /content="\d+\.\d{2}"/.test(offerHtml), 'the offer carries the dotted price');
+  assert.ok(!offerHtml.includes('10% BTC'), 'the discount sentence is not a second price inside the offer');
+  assert.ok(!offerHtml.includes('btc-line'), 'the bitcoin line is not inside the offer');
   assert.ok(listing.includes('content="0"'), 'card shipping rate is zero');
   assert.ok(listing.includes('merchantReturnDays'), 'card offers carry the return window');
   assert.ok(listing.includes('itemprop="returnMethod" href="https://schema.org/KeepProduct"'), 'card offers name KeepProduct');
@@ -189,6 +198,29 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.strictEqual(merchant.DELIVERY_COUNTRIES.length <= 50, true);
   assert.ok(merchant.shippingDetails({ deliveryDays: 7 }).shippingDestination.addressCountry.includes('RO'));
 });
+
+function _firstOfferElement(html) {
+  const re = /<\/?([a-zA-Z0-9]+)(\s[^>]*)?>/g;
+  const voidTags = { meta: 1, link: 1, img: 1, br: 1, input: 1, source: 1 };
+  const stack = [];
+  let start = null;
+  let m;
+  while ((m = re.exec(html))) {
+    const raw = m[0];
+    const name = m[1].toLowerCase();
+    const close = raw.charAt(1) === '/';
+    if (close) {
+      stack.pop();
+      if (start && stack.length === start.depth) return html.slice(start.index, m.index);
+      continue;
+    }
+    if (start == null && /itemprop="offers"/.test(raw) && /schema\.org\/Offer"/.test(raw)) {
+      start = { depth: stack.length, index: m.index };
+    }
+    if (!voidTags[name] && !raw.endsWith('/>')) stack.push(name);
+  }
+  return '';
+}
 
 check('routeTitle and routeDescription cover the new routes', () => {
   // These helpers are used by SEO/OG tags — they must have real strings
