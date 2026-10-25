@@ -65,6 +65,7 @@ assert.match(home, /Learn More/);
 assert.match(home, /@media\(max-width:640px\)/);
 assert.match(home, /\.cost-modules\{grid-template-columns:1fr\}/);
 assert.match(home, /\.cost-demo \.btn\{width:100%\}/);
+assert.match(home, /<img[^>]*class="zeus-hero-image"[^>]*width="1600"[^>]*height="900"[^>]*fetchpriority="high"/);
 assert.doesNotMatch(home, /resume/i);
 assert.doesNotMatch(home, /\$39/);
 assert.doesNotMatch(home, /LinkedIn headline/);
