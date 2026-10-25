@@ -206,9 +206,13 @@ check('guides in the sitemap are shelf offers, and aliases do not share a title'
 check('the homepage and account lead with the offer, and social stays secondary', () => {
   const { getHtml } = require('../src/site/v2/shell');
   const home = getHtml('/');
-  assert.ok(home.includes('id="buyerWithoutSocial"'));
-  assert.ok(home.includes('No social account'));
+  assert.ok(home.includes('id="costDemo"'));
+  assert.ok(home.includes('Get Enterprise Access'));
   assert.ok(home.includes('href="/services"'));
+  assert.ok(!/sign in with (google|x|twitter|facebook)/i.test(home));
+  const landing = require('../src/site/v2/discover-trust-os').homeLandingHtml();
+  assert.ok(landing.includes('id="buyerWithoutSocial"'));
+  assert.ok(landing.includes('No social account'));
   const account = getHtml('/account');
   assert.ok(account.includes('Browse offers'));
   assert.ok(account.includes('Social is optional'));

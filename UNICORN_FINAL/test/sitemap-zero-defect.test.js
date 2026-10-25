@@ -136,15 +136,16 @@ async function main() {
     assert.ok(indexJs.includes("'/seo'"));
     assert.ok(indexJs.includes("'/solutions/model-routing'"));
     const home = require('../src/site/v2/shell').getHtml('/');
-    assert.ok(home.includes('<title>UNICORN | Autonomous AI Orchestration & Cost Optimization</title>'));
-    assert.ok(home.includes('Reduce AI API costs by 70% with our autonomous model router.'));
-    assert.ok(home.includes('Book an Enterprise Demo'));
+    assert.ok(home.includes('<title>ZeusAI | Enterprise AI Cost Optimization & Orchestration</title>'));
+    assert.ok(home.includes('Reduce your LLM API costs by 70% with our autonomous model router. Enterprise-grade multi-agent orchestration and self-healing infrastructure.'));
+    assert.ok(home.includes('Get Enterprise Access'));
+    assert.ok(!/resume/i.test(home));
     assert.ok(home.includes('rel="canonical" href="https://zeusai.pro/"'));
     assert.ok(home.includes('"@type":"Organization"'));
     assert.ok(home.includes('"@type":"WebSite"'));
     assert.ok(!/href="\/origin"/.test(home));
     assert.ok(!/href="\/status"/.test(home));
-    for (const p of ['/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents']) {
+    for (const p of ['/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents', '/solutions/continuous-rd']) {
       const html = require('../src/site/v2/shell').getHtml(p);
       assert.ok(html.includes('<h1>'), p);
       assert.ok(html.includes('Contact Sales'), p);

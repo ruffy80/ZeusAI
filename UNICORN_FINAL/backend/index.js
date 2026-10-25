@@ -5763,6 +5763,12 @@ function _livenessHealthHandler(req, res) {
 }
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
+app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
+  const demo = require('../src/site/demo-router');
+  const out = demo.optimizePrompt(req.body && req.body.prompt);
+  res.set('Cache-Control', 'no-store');
+  res.status(out.ok ? 200 : 400).json(out);
+});
 app.get('/api/health/live', _livenessHealthHandler);
 
 // LHOS/1.0 — public measured status JSON (nginx /api/* hits this process).

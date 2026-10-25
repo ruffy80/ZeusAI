@@ -108,8 +108,8 @@ check('homepage strip is a pass, and the hero headline stays pinned', () => {
   assert.ok(!/millions of users|biggest site/i.test(strip));
   const shell = read('src/site/v2/shell.js');
   assert.ok(shell.includes('id="dtHeroH1"'));
-  assert.ok(shell.includes('Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure'));
-  assert.ok(shell.includes('See How It Works'));
+  assert.ok(shell.includes('Cut Your AI API Costs by 70% Automatically'));
+  assert.ok(shell.includes('Test the Router Live'));
   assert.ok(shell.includes("if (route === '/') return HOME_TITLE;"));
   assert.ok(shell.includes('homeRelayGraft') || shell.includes('relay-graft-os'));
   assert.ok(!shell.includes('Ship AI products at machine speed'));
@@ -121,14 +121,14 @@ check('rendered homepage keeps the offer and leaves the graft on /relay', () => 
   assert.ok(!html.includes('id="homeRelayGraft"'));
   assert.ok(!html.includes('RGP/1.0'));
   assert.ok(!html.includes('Ship AI products at machine speed.'));
-  assert.ok(html.includes('Enterprise AI Autonomy for Model Routing and Self-Healing Infrastructure'));
-  assert.ok(html.includes('Book an Enterprise Demo'));
+  assert.ok(html.includes('Cut Your AI API Costs by 70% Automatically'));
+  assert.ok(html.includes('Get Enterprise Access'));
   assert.ok(!html.includes('Get My $39 Resume Makeover'));
   assert.ok(html.includes('id="dtHeroCta"'));
-  assert.ok(html.includes('<title>UNICORN | Autonomous AI Orchestration & Cost Optimization</title>'));
+  assert.ok(html.includes('<title>ZeusAI | Enterprise AI Cost Optimization & Orchestration</title>'));
   assert.ok(!html.includes('The server does not post, and it does not count you.'));
   const desc = html.match(/<meta name="description" content="([^"]*)"/);
-  assert.ok(desc && /Reduce AI API costs by 70%/.test(desc[1]));
+  assert.ok(desc && /Reduce your LLM API costs by 70%/.test(desc[1]));
   assert.ok(!/millions of users|biggest site in the world/i.test(html));
 });
 

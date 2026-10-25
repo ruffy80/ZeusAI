@@ -52,7 +52,7 @@ check('the marketplace renders the same ids and the same buttons as the shelf', 
   assert.ok(html.includes('They are not in the download'));
   assert.ok(!html.includes('/api/shelf/proposal/ent-acquisition-pack'));
   const home = shell.getHtml('/');
-  assert.ok(home.includes('Book an Enterprise Demo'));
+  assert.ok(home.includes('Get Enterprise Access'));
   assert.ok(home.includes('href="/solutions/model-routing"'));
   assert.ok(!home.includes('data-product-id="instant-resume-makeover"'));
 });
@@ -119,7 +119,7 @@ check('pricing, services, buy, and home share one shelf', () => {
   assert.ok(!/\/checkout\/\?plan=starter(?![a-z0-9_-])/i.test(pricing));
   assert.ok(!/\/checkout\/\?plan=pro(?![a-z0-9_-])/i.test(pricing));
   const home = shell.getHtml('/');
-  assert.ok(home.includes('id="heroShelfFacts"'));
+  assert.ok(home.includes('id="costDemo"'));
   assert.ok(!home.includes('data-pricing-plan="starter"'));
   const ro = shelf.advise('Am o companie și vreau un chatbot');
   const en = shelf.advise('I need a chatbot for patient questions');
