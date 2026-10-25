@@ -23,23 +23,23 @@ function pageSeo() {
 <section class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:28px">
   <div class="card" style="padding:16px">
     <span class="kicker">/sitemap.xml</span>
-    <h3 style="margin:8px 0 6px;font-size:16px">Public pages + services</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Homepage, about, pricing, contact, public insight articles, and public service pages such as /services/instant-resume-makeover. Internal routes stay out.</p>
+    <h3 style="margin:8px 0 6px;font-size:16px">Public marketing pages</h3>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Homepage, /about, /pricing, /contact, and the three enterprise module pages under /solutions. Shelf URLs, insight articles, /api, /origin, and /status stay out of this file.</p>
   </div>
   <div class="card" style="padding:16px">
     <span class="kicker">/seo/sitemap-services.xml</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Service detail pages</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Dedicated index of /services/:id for catalog depth.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Operator file of /services/:id. It is not listed in robots.txt, so the public sitemap stays the marketing set.</p>
   </div>
   <div class="card" style="padding:16px">
     <span class="kicker">/seo/sitemap-index.xml</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Index of sitemaps</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Points crawlers at both files. Same content as /seo/sitemap.xml.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Optional index. robots.txt advertises only /sitemap.xml.</p>
   </div>
   <div class="card" style="padding:16px">
     <span class="kicker">/robots.txt</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Crawl policy</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /status, /health, /origin, /admin, /dashboard, and the other internal prefixes. Public pages stay allowed.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /origin, /status, /health, /metrics, /admin, /dashboard, /internal/, and the other private prefixes. Public pages stay allowed.</p>
   </div>
 </section>
 
@@ -50,7 +50,7 @@ ${require('../../seo/merchant-offer').contractHtml()}
   <span class="kicker">Honesty</span>
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
   <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:0;padding-left:18px">
-    <li>The sitemap lists /, /about, /pricing, /contact, each public insight article, and each public shelf service. /api/, /status, /health, /origin, /admin, and /dashboard are excluded.</li>
+    <li>The public sitemap lists /, /about, /pricing, /contact, /solutions/model-routing, /solutions/self-healing, and /solutions/autonomous-agents. /api/, /status, /health, /origin, /admin, /dashboard, /internal/, shelf URLs, and insight articles are excluded.</li>
     <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>

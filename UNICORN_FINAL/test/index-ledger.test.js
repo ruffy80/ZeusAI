@@ -26,6 +26,9 @@ async function main() {
     assert.strictEqual(ledger.isGhost('/solutions/ai-revenue-os/for/fintech'), true);
     assert.strictEqual(ledger.isGhost('/solutions/ai-revenue-os/for/fintech/'), true);
     assert.strictEqual(ledger.isGhost('/solutions/ai-self-healing'), false);
+    assert.strictEqual(ledger.isGhost('/solutions/model-routing'), false);
+    assert.strictEqual(ledger.isGhost('/solutions/self-healing'), false);
+    assert.strictEqual(ledger.isGhost('/solutions/autonomous-agents'), false);
     assert.strictEqual(ledger.isGhost('/solutions/ai-pricing'), false);
     assert.strictEqual(ledger.isGhost('/solutions/not-a-vertical/for/fintech'), false);
   });
@@ -47,7 +50,8 @@ async function main() {
   await check('the api sitemap no longer lists the matrix or private paths', () => {
     const xml = require('../backend/modules/growth-engine').buildSitemap();
     assert.ok(xml.includes('<urlset'));
-    assert.ok(xml.includes('/services/instant-resume-makeover</loc>'));
+    assert.ok(xml.includes('/solutions/model-routing</loc>'));
+    assert.ok(!xml.includes('/services/instant-resume-makeover</loc>'));
     assert.ok(!xml.includes('/origin</loc>'));
     assert.ok(!xml.includes('/status</loc>'));
     assert.ok(!xml.includes('/api/'));
@@ -73,7 +77,8 @@ async function main() {
 
   await check('IndexNow does not submit a checkout or a ghost', () => {
     const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
-    assert.ok(urls.some((u) => u.includes('/services/instant-resume-makeover')));
+    assert.ok(urls.some((u) => u.includes('/solutions/autonomous-agents')));
+    assert.ok(!urls.some((u) => u.includes('/services/instant-resume-makeover')));
     assert.ok(!urls.some((u) => u.endsWith('/services')));
     assert.ok(!urls.some((u) => u.includes('/checkout')));
     assert.ok(!urls.some((u) => u.includes('/for/')));

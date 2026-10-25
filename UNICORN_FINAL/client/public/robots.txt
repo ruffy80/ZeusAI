@@ -17,6 +17,8 @@ Disallow: /auth
 Disallow: /operator
 Disallow: /outreach-desk
 Disallow: /metrics
+Disallow: /internal
+Disallow: /internal/
 
 User-agent: Googlebot
 Allow: /
@@ -37,7 +39,8 @@ Disallow: /auth
 Disallow: /operator
 Disallow: /outreach-desk
 Disallow: /metrics
+Disallow: /internal
+Disallow: /internal/
 
 # Canonical live host is https://zeusai.pro. The site process serves the same rules.
 Sitemap: https://zeusai.pro/sitemap.xml
-Sitemap: https://zeusai.pro/seo/sitemap-services.xml

@@ -40,18 +40,21 @@ check('public shelf lists every curated clock and the payable kickoff', () => {
   assert.ok(acq.when.includes('milestones in the pack'));
 });
 
-check('homepage renders the same ids and the same buttons as the shelf', () => {
-  const html = shell.getHtml('/');
+check('the marketplace renders the same ids and the same buttons as the shelf', () => {
+  const html = shell.getHtml('/services');
   for (const item of shelf.publicShelf()) {
     assert.ok(html.includes('data-product-id="' + item.id + '"'), item.id);
     assert.ok(html.includes(item.ctaHref), item.id + ' href');
   }
-  assert.ok(html.includes('id="concierge"'));
   assert.ok(!html.includes('Get My $39 Resume Makeover'));
   assert.ok(html.includes('/checkout/?plan=ent-acquisition-pack'));
   assert.ok(html.includes('Buy the engagement pack →'));
   assert.ok(html.includes('They are not in the download'));
   assert.ok(!html.includes('/api/shelf/proposal/ent-acquisition-pack'));
+  const home = shell.getHtml('/');
+  assert.ok(home.includes('Book an Enterprise Demo'));
+  assert.ok(home.includes('href="/solutions/model-routing"'));
+  assert.ok(!home.includes('data-product-id="instant-resume-makeover"'));
 });
 
 check('advise prices a website ask and adds an unasked neighbor', () => {
@@ -106,7 +109,7 @@ check('dropship buys the listing desk, and orbital compute stays unpriced', () =
 check('pricing, services, buy, and home share one shelf', () => {
   const kick = shelf.byId('ent-engagement-kickoff');
   const acq = shelf.byId('ent-acquisition-pack');
-  for (const path of ['/', '/pricing', '/services', '/buy']) {
+  for (const path of ['/pricing', '/services', '/buy']) {
     const html = shell.getHtml(path);
     assert.ok(html.includes('data-product-id="' + kick.id + '"'), path + ' kickoff');
     assert.ok(html.includes(kick.ctaHref), path + ' kickoff href');

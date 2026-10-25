@@ -342,9 +342,9 @@ function audit() {
       questionRo: 'Există un mecanism prin care utilizatorii găsesc produsul?',
       closed: guides.length > 0 && paths.indexOf('/guides') >= 0,
       mechanisms: [
-        { id: 'sitemap', path: '/sitemap.xml', note: 'Homepage, the marketplace, how it works, pricing, refund, insights, and each public service page. Guide duplicates and /social-network are not submitted.' },
+        { id: 'sitemap', path: '/sitemap.xml', note: 'Seven public marketing URLs: homepage, about, pricing, contact, and three /solutions pages. Shelf URLs, guides, and /social-network are not submitted.' },
         { id: 'services', path: '/services', note: 'The store. A visitor picks a named file and pays. No social account.' },
-        { id: 'homepage', path: '/', note: 'The concierge answers with a real shelf offer.' },
+        { id: 'homepage', path: '/', note: 'The homepage introduces enterprise model routing, self-healing, and autonomous agents, and links to /contact.' },
         { id: 'guides', path: '/guides', note: 'One long read per offer. The canonical buyer URL is the service page.' },
         { id: 'account', path: '/account', note: 'Keeps the download after payment. It is not required to pay.' },
         { id: 'indexnow', path: '/api/traffic/status', note: 'IndexNow notifies Bing and Yandex. It does not create visitors. Google discovers the sitemap.' },
@@ -375,7 +375,7 @@ function audit() {
     innovations: [
       { id: 'live-guides', note: 'Every shelf offer grows a /guides/:id article. A new offer is indexed on the next cycle without a hand-written page.' },
       { id: 'live-price', note: 'Title, description, price, and checkout href are read from the public shelf on each request, so the article cannot drift from the card.' },
-      { id: 'sitemap-indexnow', note: 'The marketplace, how-it-works, refund, insights, service pages, and insight articles join /sitemap.xml and IndexNow. Guide duplicates and /social-network do not. Google still needs Search Console to confirm indexing.' },
+      { id: 'sitemap-indexnow', note: 'IndexNow and /sitemap.xml submit the seven marketing URLs: homepage, about, pricing, contact, and three enterprise /solutions pages. Shelf URLs, guides, and /social-network do not. Google still needs Search Console to confirm indexing.' },
       { id: 'unique-service-head', note: '/services/:id uses the offer title and a description that names the price and the delivery clock.' },
       { id: 'promo-secondary', note: 'Off-site social posts are optional and are not marked sent. The buyer path does not wait for them.' },
     ],
@@ -443,7 +443,7 @@ function guideHtml(id) {
   <div class="card" style="padding:18px;margin-top:18px">
     <span class="kicker">How someone finds this</span>
     <ul style="color:var(--ink-dim);font-size:14.5px;line-height:1.7;margin:10px 0 0;padding-left:18px">
-      <li>The service page for this offer is listed in <a href="/sitemap.xml" data-allow-raw="1">/sitemap.xml</a>, with the marketplace, how it works, and the refund contract. This guide address is the long read and is not a second copy in the sitemap.</li>
+      <li>The public sitemap lists the homepage, about, pricing, contact, and the enterprise solution pages. This guide and the service page stay reachable by link and are not extra sitemap copies.</li>
       <li>No social account is required. Email on checkout is optional. <a href="/account" data-link>/account</a> keeps the file after payment.</li>
       <li><a href="/social-network" data-link>ZeusAI Social</a> can show the same card later. It is not the way in.</li>
     </ul>

@@ -52,7 +52,8 @@ check('urlsToSubmit is the public sitemap and omits internal routes', () => {
   const urls = te.urlsToSubmit();
   const joined = urls.join('\n');
   assert.ok(joined.includes('/pricing'));
-  assert.ok(joined.includes('/services/instant-resume-makeover'));
+  assert.ok(joined.includes('/solutions/model-routing'));
+  assert.ok(!joined.includes('/services/instant-resume-makeover'));
   const paths = urls.map((u) => new URL(u).pathname);
   for (const p of ['/first-dollar', '/visible-world', '/origin', '/status', '/health']) {
     assert.ok(!paths.includes(p), 'leaked ' + p);

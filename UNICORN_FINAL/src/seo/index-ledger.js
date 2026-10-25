@@ -12,6 +12,9 @@ const LIVE_SOLUTIONS = Object.freeze([
   '/solutions/ai-pricing',
   '/solutions/ai-checkout',
   '/solutions/ai-self-healing',
+  '/solutions/model-routing',
+  '/solutions/self-healing',
+  '/solutions/autonomous-agents',
 ]);
 
 const MATRIX_VERTICALS = Object.freeze([

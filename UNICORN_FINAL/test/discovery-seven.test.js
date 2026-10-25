@@ -97,7 +97,8 @@ check('the acquisition guide sells the pack and kickoff stays a paid start', () 
 
 check('sitemap and IndexNow list the service page and omit guides and internal routes', () => {
   const xml = seo.marketingUrlset('https://zeusai.pro');
-  assert.ok(xml.includes('https://zeusai.pro/services/instant-seo-content-pack</loc>'));
+  assert.ok(xml.includes('https://zeusai.pro/solutions/model-routing</loc>'));
+  assert.ok(!xml.includes('https://zeusai.pro/services/instant-seo-content-pack</loc>'));
   assert.ok(xml.includes('<lastmod>'));
   assert.ok(!xml.includes('/guides'));
   assert.ok(!xml.includes('/seo</loc>'));
@@ -105,7 +106,8 @@ check('sitemap and IndexNow list the service page and omit guides and internal r
   assert.ok(!xml.includes('/api/'));
   const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
   const paths = urls.map((u) => new URL(u).pathname);
-  assert.ok(paths.includes('/services/instant-seo-content-pack'));
+  assert.ok(paths.includes('/solutions/model-routing'));
+  assert.ok(!paths.includes('/services/instant-seo-content-pack'));
   assert.ok(!paths.some((p) => p === '/guides' || p.startsWith('/guides/')));
   assert.ok(!paths.includes('/origin'));
   assert.ok(!paths.some((p) => p.startsWith('/api/')));
