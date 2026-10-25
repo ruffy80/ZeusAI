@@ -129,6 +129,11 @@ run('SSR PDP includes Proof-of-Margin + JSON-LD', () => {
   assert.ok(ld.includes('"@type":"Product"') || ld.includes('"@type": "Product"'));
   assert.ok(!ld.includes('schema.org/InStock'), 'a demo dropship product is not in stock');
   assert.ok(!ld.includes('"offers"'), 'a paused physical good does not publish an offer');
+  const liveGood = Object.assign({}, p, { demoOnly: false, dispatchable: true, source: 'cj', supplier: 'cj', shippingUsd: 4 });
+  const liveLd = ssr.jsonLdProduct(liveGood);
+  assert.ok(liveLd.includes('"@type":"Product"') || liveLd.includes('"@type": "Product"'));
+  assert.ok(!liveLd.includes('schema.org/InStock'), 'a parcel without its own return policy is not an in-stock offer');
+  assert.ok(!liveLd.includes('"offers"'), 'digital-file shipping is not copied onto a parcel');
 });
 
 run('site source wires SSR + single-product API + Margin OS', () => {

@@ -348,17 +348,18 @@ function _catalogCard(p) {
     : '';
   const schema = _merchantSchema(p);
   const productAttrs = schema.merchant
-    ? ` itemscope itemtype="https://schema.org/Product"`
-    : '';
-  const offerAttrs = schema.merchant
-    ? ' itemprop="offers" itemscope itemtype="https://schema.org/Offer"'
+    ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
     : '';
   const identity = schema.merchant
     ? `<link itemprop="image" href="${_esc(schema.image)}"><meta itemprop="sku" content="${_esc(schema.item.id)}"><link itemprop="url" href="${_esc(schema.url)}">`
     : '';
+  const priceFigure = `<span data-pricing-value="${id}">${priceTxt}</span>${billing}`;
+  const offerBlock = schema.merchant
+    ? `<div itemprop="offers" itemscope itemtype="https://schema.org/Offer" itemid="${_esc(schema.url)}#offer">${schema.offerHtml}${priceFigure}</div>`
+    : priceFigure;
   return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}"${productAttrs} style="display:flex;flex-direction:column;gap:10px">
     ${identity}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right"${offerAttrs}>${schema.offerHtml}<span data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<div style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right">${offerBlock}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span>${btcDiscountNote}</div></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25"${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1"${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
     <div style="display:flex;gap:8px;margin-top:6px">${price > 0
@@ -1406,15 +1407,20 @@ function _atlasCard(p) {
       ? `<a class="btn btn-primary" href="${_esc(href)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
   const schema = _merchantSchema(p);
-  const productAttrs = schema.merchant ? ' itemscope itemtype="https://schema.org/Product"' : '';
-  const offerAttrs = schema.merchant ? ' itemprop="offers" itemscope itemtype="https://schema.org/Offer"' : '';
+  const productAttrs = schema.merchant
+    ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
+    : '';
   const identity = schema.merchant
     ? `<link itemprop="image" href="${_esc(schema.image)}"><meta itemprop="sku" content="${_esc(schema.item.id)}"><link itemprop="url" href="${_esc(schema.url)}">`
     : '';
+  const priceFigure = `<span data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}`;
+  const offerBlock = schema.merchant
+    ? `<div itemprop="offers" itemscope itemtype="https://schema.org/Offer" itemid="${_esc(schema.url)}#offer">${schema.offerHtml}${priceFigure}</div>`
+    : priceFigure;
   return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}"${productAttrs}>
     ${identity}
     <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
-    <div class="atlas-card-top">${_tierBadge(p.tier)}<span class="atlas-price"${offerAttrs}>${schema.offerHtml}<span data-pricing-value="${_esc(id)}">${priceTxt}</span>${billing}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</span></div>
+    <div class="atlas-card-top">${_tierBadge(p.tier)}<div class="atlas-price">${offerBlock}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</div></div>
     <h3${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
     <p${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
     ${_atlasFile(p)}
