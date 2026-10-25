@@ -31,11 +31,11 @@ async function main() {
     assert.ok(xml.includes('xml-stylesheet'));
     assert.ok(xml.includes('/seo/sitemap.xsl'));
     assert.ok(xml.includes('<urlset'));
-    for (const p of ['/', '/about', '/pricing', '/contact', '/insights/ai-resume-service-bitcoin', '/services/instant-resume-makeover']) {
+    for (const p of ['/', '/about', '/pricing', '/contact', '/services', '/how', '/refund', '/insights', '/insights/ai-resume-service-bitcoin', '/services/instant-resume-makeover']) {
       const loc = p === '/' ? 'https://zeusai.pro/</loc>' : `https://zeusai.pro${p}</loc>`;
       assert.ok(xml.includes(loc), 'missing ' + p);
     }
-    for (const p of ['/buy', '/origin', '/status', '/health', '/admin', '/dashboard', '/api/', '/from/x', '/vertical/']) {
+    for (const p of ['/buy', '/origin', '/status', '/health', '/admin', '/dashboard', '/api/', '/from/x', '/vertical/', '/social-network', '/guides']) {
       assert.ok(!xml.includes(`https://zeusai.pro${p}`), 'leaked ' + p);
     }
     assert.ok(xml.includes('<lastmod>'));

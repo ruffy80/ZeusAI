@@ -53,8 +53,11 @@ check('audit names all seven checks and invents nothing', () => {
   assert.strictEqual(gsc.closed, false);
   assert.ok(String(gsc.blocker || '').includes('GOOGLE_SERVICE_ACCOUNT_JSON'));
   const promo = report.points.find((p) => p.key === 'promotion');
-  assert.strictEqual(promo.closed, false);
+  assert.strictEqual(promo.closed, true);
+  assert.strictEqual(promo.required, false);
+  assert.strictEqual(promo.secondary, true);
   assert.strictEqual(promo.posted, false);
+  assert.strictEqual(promo.whyOpen, null);
   assert.ok(promo.channels.every((c) => c.posted === false && c.armed === false));
   assert.ok(!/indexed: true|millions of users|guaranteed traffic/i.test(JSON.stringify(report)));
 });
@@ -156,8 +159,9 @@ check('llms lines list every shelf guide and do not require a social network', (
     assert.ok(lines.includes(item.title), item.id);
   });
   const promo = d7.audit().points.find((p) => p.key === 'promotion');
-  assert.strictEqual(promo.closed, false);
-  assert.ok(promo.whyOpen.includes('optional'));
+  assert.strictEqual(promo.closed, true);
+  assert.strictEqual(promo.posted, false);
+  assert.ok(String(promo.note).includes('not how a stranger becomes a buyer'));
   const src = fs.readFileSync(path.join(__dirname, '../src/site/sovereign-extensions.js'), 'utf8');
   assert.ok(src.includes('llmsOfferLines'));
 });
@@ -194,6 +198,20 @@ check('guides in the sitemap are shelf offers, and aliases do not share a title'
   assert.match(getHtml('/autonomy'), /rel="canonical" href="https:\/\/zeusai\.pro\/live-actions"/);
   assert.match(getHtml('/marketplace'), /rel="canonical" href="https:\/\/zeusai\.pro\/services"/);
   assert.doesNotMatch(getHtml('/'), /hreflang=/);
+});
+
+check('the homepage and account lead with the offer, and social stays secondary', () => {
+  const { getHtml } = require('../src/site/v2/shell');
+  const home = getHtml('/');
+  assert.ok(home.includes('id="buyerWithoutSocial"'));
+  assert.ok(home.includes('No social account'));
+  assert.ok(home.includes('href="/services"'));
+  const account = getHtml('/account');
+  assert.ok(account.includes('Browse offers'));
+  assert.ok(account.includes('Social is optional'));
+  assert.ok(!account.includes('Open ZeusAI Social'));
+  const svc = getHtml('/services/instant-resume-makeover');
+  assert.ok(svc.includes('No social account is required to pay'));
 });
 
 check('test chain includes this file', () => {

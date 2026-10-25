@@ -672,7 +672,13 @@ function howBuyerHtml() {
 }
 
 function homeLandingHtml() {
-  return `<section id="homeTrust" class="home-trust" aria-label="Trust and safety">
+  return `<section id="buyerWithoutSocial" class="card glass-card" style="margin:8px 0 22px">
+  <span class="kicker">How a person starts</span>
+  <h2 style="margin:8px 0 8px">No social account. <span class="grad">The offer is the door.</span></h2>
+  <p style="margin:0;color:var(--ink-dim);line-height:1.65;max-width:72ch">Pick a named file on <a href="/services" data-link>/services</a>, pay Bitcoin, and that file is the delivery. Email on checkout is optional. <a href="/account" data-link>/account</a> only keeps the download for the next visit. <a href="/social-network" data-link>Social</a> stays available and is not required.</p>
+  <p style="margin:12px 0 0"><a class="btn btn-primary" href="/services" data-link>Open the marketplace</a> <a class="btn btn-ghost" href="/how" data-link>How payment works</a> <a class="btn btn-ghost" href="/refund" data-link>Refund contract</a></p>
+</section>
+<section id="homeTrust" class="home-trust" aria-label="Trust and safety">
   <a class="trust-badge" href="/trust" data-link><b>Secure payment</b><span>Bitcoin to the published wallet. Card and PayPal when that checkout is live.</span></a>
   <a class="trust-badge" href="/refund" data-link><b>Refund guarantee</b><span>Closed once the file is issued. Unissued orders can be reported within 30 days.</span></a>
   <a class="trust-badge" href="/privacy" data-link><b>Privacy and GDPR rights</b><span>Export and delete from your account. No resale of your brief.</span></a>

@@ -17,9 +17,13 @@ const PROTOCOL = 'SEO/1.0';
  */
 const MARKETING_PAGES = Object.freeze([
   { path: '/', changefreq: 'weekly', priority: '1.0', source: 'shell' },
-  { path: '/about', changefreq: 'monthly', priority: '0.8', source: 'shell' },
+  { path: '/services', changefreq: 'daily', priority: '0.9', source: 'shell' },
   { path: '/pricing', changefreq: 'weekly', priority: '0.9', source: 'shell' },
+  { path: '/how', changefreq: 'monthly', priority: '0.8', source: 'shell' },
+  { path: '/about', changefreq: 'monthly', priority: '0.8', source: 'shell' },
   { path: '/contact', changefreq: 'monthly', priority: '0.8', source: 'shell' },
+  { path: '/insights', changefreq: 'weekly', priority: '0.7', source: 'insights' },
+  { path: '/refund', changefreq: 'monthly', priority: '0.6', source: 'shell' },
 ]);
 
 /** Exact paths and prefixes that must never appear in a public sitemap. */

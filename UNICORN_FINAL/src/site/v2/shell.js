@@ -796,7 +796,6 @@ function footer(route, opts) {
       <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
       <li><a href="/origin" data-link><strong style="color:#00ffa3">Origin Gravity</strong></a></li>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
-      <li><a href="/social-network" data-link><strong style="color:#7cf7c0">ZeusAI Social</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/outcomes" data-link>Outcomes</a></li>
       <li><a href="/twin" data-link>Buyer twin</a></li>
@@ -807,6 +806,7 @@ function footer(route, opts) {
       <li><a href="/dashboard" data-link>Dashboard</a></li>
       <li><a href="/store" data-link>Instant Store</a></li>
       <li><a href="/gift" data-link>Gift</a></li>
+      <li><a href="/social-network" data-link style="color:var(--ink-dim)">Social (optional)</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
@@ -2063,7 +2063,7 @@ function pageService(id) {
       <div class="panels" style="margin-top:20px">
         <div class="panel"><div class="ic">✓</div><p class="card-title">The file</p><p>The description on this page is the delivery. Headings in that file are the work.</p></div>
         <div class="panel"><div class="ic">₿</div><p class="card-title">Bitcoin</p><p>Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p></div>
-        <div class="panel"><div class="ic">↩</div><p class="card-title">Refund</p><p>The refund closes once this file is issued.</p></div>
+        <div class="panel"><div class="ic">↩</div><p class="card-title">Refund</p><p>The refund closes once this file is issued. No social account is required to pay. <a href="/account" data-link>/account</a> keeps the download.</p></div>
       </div>
     </div>
     <aside class="co-box">
@@ -3371,7 +3371,9 @@ function pageAccount(opts) {
           '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">' + (function(){ var d = user.createdAt ? new Date(user.createdAt) : null; return (d && !isNaN(d.getTime())) ? 'Member since ' + html(d.toLocaleDateString()) : 'Active account'; })() + '</div>' +
         '</div>' +
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
-        '<a class=\"btn btn-primary\" href=\"/social-network\" data-link style=\"margin-left:auto\">Open ZeusAI Social \u2192</a>' +
+        '<a class=\"btn btn-primary\" href=\"/services\" data-link style=\"margin-left:auto\">Browse offers</a>' +
+        '<a class=\"btn btn-ghost\" href=\"#accountRoot\">Your orders</a>' +
+        '<a href=\"/social-network\" data-link style=\"font-size:13px;color:var(--ink-dim)\">Social is optional</a>' +
       '</div>');
     // Commerce ledger mount — paid orders, entitlements, downloadable deliverables.
     var existingRoot = document.getElementById('accountRoot');
