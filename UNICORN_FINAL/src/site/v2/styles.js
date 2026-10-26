@@ -505,7 +505,7 @@ section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>s
 
 /* footer */
 footer{position:relative;z-index:3;padding:60px 32px 40px;border-top:1px solid var(--stroke);background:linear-gradient(180deg,transparent,rgba(0,0,0,.35));margin-top:80px}
-.foot-grid{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:30px}
+.foot-grid{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:30px}
 .foot-grid h5{margin:0 0 12px;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--violet2)}
 .foot-grid ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
 .foot-grid li a{color:var(--ink-dim);font-size:13.5px}
