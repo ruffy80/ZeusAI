@@ -1189,7 +1189,8 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
    3. A stricter prefers-reduced-motion guard that disables every keyframe
       animation we declare, not just the wordmark family. */
 .zeus-hero-image,.zeus-halo-b,.zeus-stars,.fx-orb,.fx-scan,.hero-eyebrow .dot{will-change:transform,opacity}
-section,.section,footer,.foot-grid{content-visibility:auto;contain-intrinsic-size:1px 1200px}
+section,.section{content-visibility:auto;contain-intrinsic-size:1px 640px}
+footer,.foot-grid,.foot-lead,#costDemoSection,#unicornEcosystem{content-visibility:visible}
 /* Hero must always render — it's the LCP target. */
 .hero,.hero *{content-visibility:visible}
 @media (prefers-reduced-motion: reduce){
@@ -1221,6 +1222,34 @@ html[data-zeus-api-fallback="1"] .nav{top:34px}
   .cost-demo .btn{width:100%}
   .cost-modules{grid-template-columns:1fr}
   .cost-trust{flex-direction:column;align-items:flex-start}
+}
+
+/* Public path: the promise and the live router sit on one row. Inner pages
+   keep the full-viewport poster. */
+html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
+html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
+html[data-route="/"] #costDemoSection{padding:0;margin:0}
+html[data-route="/"] .cost-demo{margin:0}
+@media(max-width:980px){
+  html[data-route="/"] .hero{padding:112px 18px 20px}
+  html[data-route="/"] .hero-grid{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}
+  html[data-route="/"] #costDemoSection{margin-top:72px}
+}
+.nav-more-label{margin:10px 10px 2px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim)}
+.nav-more-menu{max-height:min(70vh,520px);overflow:auto}
+.nav-links{flex-wrap:nowrap}
+.nav-links>a,.nav-cta .btn-primary{white-space:nowrap}
+.foot-lead{max-width:1480px;margin:0 auto 28px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.foot-lead p{margin:0;max-width:62ch;color:var(--ink);font-size:16px;line-height:1.5}
+.foot-lead-cta{display:flex;gap:10px;flex-wrap:wrap}
+.foot-rest{list-style:none}
+.foot-rest details summary{cursor:pointer;color:var(--ink-dim);font-size:13px;margin-top:8px}
+.foot-rest details ul{margin-top:8px}
+@media(max-width:980px){
+  .foot-lead{align-items:flex-start}
 }
 
 `;

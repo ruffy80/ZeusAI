@@ -41,6 +41,17 @@ assert.match(home, /<h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically
 assert.match(home, /Our autonomous Model Router dynamically selects the cheapest, fastest LLM \(Groq, DeepSeek, Claude\)/);
 assert.match(home, /id="dtHeroCta"[^>]*>Get Enterprise Access</);
 assert.match(home, />Book Demo</);
+const primaryNav = home.slice(home.indexOf('id="nav-links"'), home.indexOf('data-nav-more'));
+assert.match(primaryNav, /href="\/services"/);
+assert.match(primaryNav, /href="\/pricing"/);
+assert.doesNotMatch(primaryNav, /href="\/solutions\//);
+assert.match(home, /Enterprise router · Marketplace/);
+assert.match(home, /html\[data-route="\/"\] \.hero\{min-height:0/);
+assert.match(home, /html\[data-route="\/"\] \.hero-grid\{min-height:0;grid-template-columns:minmax\(0,1\.05fr\)/);
+const gridAt = home.indexOf('class="hero-grid"');
+const demoAt = home.indexOf('id="costDemoSection"');
+const ecoAt = home.indexOf('id="unicornEcosystem"');
+assert.ok(gridAt > 0 && gridAt < demoAt && demoAt < ecoAt, 'router demo sits in the homepage hero');
 assert.match(home, /data-guest-label="Book Demo"/);
 assert.match(home, /data-auth-label="My Account"/);
 assert.doesNotMatch(home, />My Account</);
