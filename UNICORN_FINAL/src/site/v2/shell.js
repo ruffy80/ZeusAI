@@ -2604,7 +2604,7 @@ function pageDashboard() {
     <h3 style="margin:6px 0 10px">Next best actions</h3>
     <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-primary" href="/services" data-link>Open marketplace</a>
+      <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
       <a class="btn" href="/trust" data-link>Trust Center</a>
       <a class="btn" href="/docs" data-link>API &amp; Docs</a>
     </div>
