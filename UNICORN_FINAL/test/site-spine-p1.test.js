@@ -3,8 +3,7 @@
 // site-spine-p1.test.js
 //
 // Verifies the v2 site spine changes shipped in the P1 mission:
-//   • Primary nav is trimmed to Home / Marketplace / Dropship / Pricing /
-//     Account, with everything else moved to a `.nav-more` overflow menu.
+//   • Primary nav is Home / Marketplace / Pricing, with buyer pages in More.
 //   • `/services/:id` renders real product data on first paint (SSR) — no
 //     "Loading service …" placeholder — and includes a JSON-LD Product block.
 //   • `/agents` documents the Agent Commerce Protocol with the owner BTC
@@ -42,28 +41,31 @@ function check(name, fn) {
   catch (e) { console.error('✗', name, '\n  ', e && e.stack ? e.stack : e); process.exit(1); }
 }
 
-check('nav is trimmed to Home / Marketplace / Dropship / Pricing / Account + More overflow', () => {
+check('public nav is Home / Marketplace / Pricing plus a buyer More menu', () => {
   const home = shell.getHtml('/');
-  // Primary nav rail
   assert.ok(/data-nav-more/.test(home), 'nav-more overflow container is rendered');
   assert.ok(/nav-more-btn/.test(home), 'nav-more toggle button is rendered');
   assert.ok(/nav-more-menu/.test(home), 'nav-more overflow menu is rendered');
-  // Primary links: exact five items should live outside .nav-more (Home,
-  // Marketplace, Dropship, Pricing, Account). We only check the presence of
-  // each label — layout ordering is validated visually.
   const navBlock = home.match(/<div class="nav-links"[\s\S]*?<\/div>\s*<div class="nav-cta"/);
   assert.ok(navBlock, 'nav-links block is present');
   const nav = navBlock[0];
   assert.ok(/>Home</.test(nav), 'primary Home link');
   assert.ok(/Marketplace/.test(nav), 'primary Marketplace link');
-  assert.ok(/Dropship/.test(nav), 'primary Dropship link');
   assert.ok(/>Pricing</.test(nav), 'primary Pricing link');
-  assert.ok(/>Account</.test(nav), 'primary Account link');
-  // The overflow menu carries Social / Frontier / Innovations / Docs / etc.
-  assert.ok(/ZeusAI Social/.test(nav), 'Social lives in More menu');
-  assert.ok(/Frontier/.test(nav), 'Frontier lives in More menu');
-  assert.ok(/Innovations/.test(nav), 'Innovations lives in More menu');
-  assert.ok(/Agents/.test(nav), 'Agents lives in More menu');
+  assert.ok(/>Account</.test(nav), 'Account stays in the menu');
+  assert.ok(/Model Routing/.test(nav), 'model routing stays in More');
+  assert.ok(/Enterprise/.test(nav), 'enterprise stays in More');
+  assert.ok(/Find my plan/.test(nav), 'plan finder stays in More');
+  assert.ok(/Trust Center/.test(nav), 'trust stays in More');
+  assert.ok(!/Dropship/.test(nav), 'paused dropship desk stays out of public nav');
+  assert.ok(!/ZeusAI Social/.test(nav), 'social stays out of public nav');
+  assert.ok(!/Frontier/.test(nav), 'frontier stays out of public nav');
+  assert.ok(!/Innovations/.test(nav), 'innovations stay out of public nav');
+  assert.ok(!/Live actions/.test(nav), 'live actions stay out of public nav');
+  assert.ok(!/Crypto Bridge/.test(nav), 'crypto bridge stays out of public nav');
+  assert.ok(!/href="\/dashboard"/.test(nav), 'dashboard stays out of public nav');
+  assert.ok(!/href="\/origin"/.test(nav), 'origin stays out of public nav');
+  assert.ok(!/href="\/status"/.test(nav), 'status stays out of public nav');
 });
 
 check('/services/:id renders real SSR product data (no "Loading service …" stub)', () => {

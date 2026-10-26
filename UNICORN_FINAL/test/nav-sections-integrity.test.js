@@ -48,6 +48,10 @@ check('TRUST footer stays off robots-disallowed /status and /origin', () => {
   assert.ok(!/href="\/status"/.test(f), 'public footer must not link /status');
   assert.ok(!/href="\/origin"/.test(f), 'public footer must not link /origin');
   assert.ok(f.includes('href="/trust"'), 'Trust Center remains the public trust link');
+  assert.ok(!f.includes('href="/dashboard"'), 'robots-disallowed dashboard stays off the public footer');
+  assert.ok(!f.includes('href="/zacc"') && !f.includes('href="/dropship"'), 'paused dropship desk stays off the public footer');
+  assert.ok(!f.includes('href="/how"'), 'internal clockwork stays off the public footer');
+  assert.ok(!f.includes('href="/social-network"'), 'social stays off the public footer');
   assert.ok(!f.includes('/unicorn-status.html'), 'legacy unicorn-status.html must be gone from footer');
   assert.ok(indexJs.includes("urlPath === '/unicorn-status.html'") && indexJs.includes("Location: '/status'"),
     'site must 301 /unicorn-status.html → /status');

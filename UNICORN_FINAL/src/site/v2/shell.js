@@ -658,6 +658,10 @@ function _robotsMeta(route) {
   const path = String(route || '');
   if (path === '/__not-found__') return 'noindex, nofollow';
   if (path === '/dashboard' || path === '/account' || path === '/admin' || path.indexOf('/admin/') === 0) return 'noindex, nofollow';
+  if (path === '/origin' || path.indexOf('/origin/') === 0 || path === '/status' || path === '/health' || path === '/metrics') return 'noindex, nofollow';
+  if (path === '/operator' || path === '/seo' || path === '/observability' || path === '/how' || path === '/live-actions' || path === '/snapshot') return 'noindex, nofollow';
+  if (path === '/dropship' || path.indexOf('/dropship/') === 0 || path === '/zacc') return 'noindex, nofollow';
+  if (path === '/innovations' || path === '/frontier' || path === '/aura' || path === '/gift' || path === '/transparency' || path === '/crypto-fiat-bridge' || path === '/social-network' || path === '/store') return 'noindex, nofollow';
   if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
   if (path === '/outreach-desk') return 'noindex, nofollow';
   if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
@@ -932,19 +936,11 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
     ${L('/solutions/autonomous-agents', 'Autonomous Agents')}
     <div class="nav-more-label" role="presentation">Buy</div>
     ${L('/buy', 'Buy')}
-    <a class="nav-link nav-link-zacc" href="/dropship" data-link>Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>
-    ${L('/store', 'Store')}
     ${L('/enterprise', 'Enterprise')}
     ${L('/wizard', 'Find my plan')}
     <div class="nav-more-label" role="presentation">Workspace</div>
     ${L('/account', 'Account')}
     ${L('/docs', 'API &amp; Docs')}
-    ${L('/agents', 'Agents')}
-    ${L('/innovations', 'Innovations')}
-    ${L('/frontier', 'Frontier')}
-    ${L('/social-network', 'ZeusAI Social')}
-    ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
-    ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
 </div>
@@ -982,22 +978,15 @@ function footer(route, opts) {
       <li><a href="/solutions/self-healing" data-link>Self-Healing</a></li>
       <li><a href="/solutions/autonomous-agents" data-link>Autonomous Agents</a></li>
       <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
+      <li><a href="/enterprise" data-link>Enterprise</a></li>
       <li class="foot-rest"><details><summary>More product pages</summary><ul>
-      <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
-      <li><a href="/outcomes" data-link>Outcomes</a></li>
-      <li><a href="/twin" data-link>Buyer twin</a></li>
-      <li><a href="/vom" data-link>Vertical machines</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
-      <li><a href="/how" data-link>How it works</a></li>
-      <li><a href="/dashboard" data-link>Dashboard</a></li>
-      <li><a href="/store" data-link>Instant Store</a></li>
-      <li><a href="/gift" data-link>Gift</a></li>
-      <li><a href="/social-network" data-link style="color:var(--ink-dim)">Social (optional)</a></li>
       </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
+      <li><a href="/agents" data-link>Agents</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
     </ul></div>
@@ -1008,16 +997,10 @@ function footer(route, opts) {
       <li><a href="/sla" data-link>SLA</a></li>
       <li class="foot-rest"><details><summary>More trust pages</summary><ul>
       <li><a href="/rails" data-link>Payment rails</a></li>
-      <li><a href="/continuity" data-link>Continuity attestation</a></li>
-      <li><a href="/standard" data-link>Merchant standard</a></li>
       <li><a href="/trust-safety" data-link>Trust and safety</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
-      <li><a href="/transparency" data-link>Bandit Transparency</a></li>
-      <li><a href="/aura" data-link>Live Aura</a></li>
-      <li><a href="/innovations" data-link>30Y Innovations</a></li>
-      <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
       </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
@@ -2624,7 +2607,7 @@ function pageDashboard() {
 function pageHow() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">How it works</span><h2>Seven layers. <span class="grad">One clockwork.</span></h2></div>
+    <div><span class="kicker">How it works</span><h1>Seven layers. <span class="grad">One clockwork.</span></h1></div>
     <p>ZeusAI is engineered like a Swiss tourbillon — every component locked by cryptography, every movement measurable.</p>
   </div>
   <div class="panels">
@@ -2660,7 +2643,7 @@ function pageDocs() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
-    <p>Public buyers and integrators use the rows below. Operator consoles (health, snapshot, deploy) stay on <a href="/operator" data-link>/operator</a> and are not linked from the public footer. Auth, where a route requires it, is a capability token issued per action.</p>
+    <p>Public buyers and integrators use the rows below. Health, snapshot, and deploy consoles are not linked from the public site. Auth, where a route requires it, is a capability token issued per action.</p>
   </div>
   <table class="doc">
     <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
@@ -2708,8 +2691,8 @@ GET  /api/delivery/{receiptId}</pre></div>
 function pageAbout() {
   return `<section style="padding-top:140px;max-width:900px">
   <span class="kicker">About</span>
-  <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">A sovereign AI operating system, <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">hand‑forged</span> by its owner.</h1>
-  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI began as one question: what if every action inside a SaaS platform could be cryptographically proven, and every dollar routed without a custodian?</p>
+  <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">Two doors. <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">One owner.</span></h1>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI is the model-router demo and the marketplace. Both are operated by ${OWNER.name}. A module file on the server is not a product.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The public site is two doors: a model router you can try on the homepage, and a marketplace of files and engagement packs. Both are owned by ${OWNER.name}. Bitcoin is the live payment rail. Card and PayPal appear on checkout only when they are configured.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">There is no published customer count, no published revenue, and no claim that a module file on the server is a product for sale.</p>
   <ul id="aboutIdentity" style="color:var(--ink-dim);font-size:15.5px;line-height:1.8;padding-left:18px">
@@ -2749,13 +2732,11 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Owner BTC wallet</span><h3 style="margin:6px 0;font-size:16px;font-family:var(--mono)">${_esc(btcShort)}</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Revenue destination. 100% owner-routed — no custodian ever holds funds.</p><div style="margin-top:8px"><span class="btc-addr" data-copy="${OWNER.btc}" title="Click to copy full address">Copy full address</span></div></div>
     <div class="card"><span class="tag">Integrity manifest</span><h3 style="margin:6px 0;font-size:16px">/integrity.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Deploy SHA + Ed25519 signature over the deployed bundle.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/integrity.json" data-live-title="Inspect integrity">Inspect integrity live →</button></div></div>
     <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
-    <div class="card"><span class="tag">Trust and safety</span><h3 style="margin:6px 0;font-size:16px">/trust-safety</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Operator identity, the buyer ledger, delivery, and the refund contract. No invented address.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/trust-safety" data-link>Read trust and safety →</a></div></div>
+    <div class="card"><span class="tag">Trust and safety</span><h3 style="margin:6px 0;font-size:16px">/trust-safety</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Operator identity, delivery, and the refund contract. No invented address and no published customer count.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/trust-safety" data-link>Read trust and safety →</a></div></div>
     <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
     <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/.well-known/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests. The same document is also at /api/v50/keys.json.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/api/v50/keys.json" data-live-title="Inspect public keys" style="margin-top:8px">Inspect keys</button></div></div>
     <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/api/commerce/integrity" data-live-title="Open integrity report">Open integrity report</button></div></div>
     <div class="card"><span class="tag">Enterprise Standard OS</span><h3 style="margin:6px 0;font-size:16px">/.well-known/enterprise.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 posture: money integrity, real commerce metrics, rate-limit, AI-cost visibility.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/enterprise.json" data-live-title="Inspect enterprise posture" style="margin-top:8px">Inspect enterprise posture</button></div></div>
-    ${continuityAttestation.trustCardHtml()}
-    <div class="card" data-mts-trust-card="1"><span class="tag">MTS/1.0 Merchant Standard</span><h3 style="margin:6px 0;font-size:16px">/standard</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed commerce-ready envelope — buyable floor, armed rails honesty, bond + continuity. Agents verify before paying.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/standard" data-link>Open merchant standard →</a></div></div>
   </div>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
   <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">—</pre></div>
@@ -2845,6 +2826,20 @@ function pageOperator() {
     <a class="btn" href="/api-explorer?endpoint=/health" data-link>Health explorer</a>
     <button type="button" class="btn" data-live-inspect="/health" data-live-title="Health">/health</button>
     <a class="btn" href="/seo" data-link>SEO desk</a>
+  </div>
+  <div class="card" style="margin-top:16px;padding:14px">
+    <p style="margin:0 0 10px;color:var(--ink-dim);font-size:13.5px">These records stay off the public menu. They are operator surfaces, not buyer navigation.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/outcomes" data-link>Outcomes</a>
+      <a class="btn" href="/twin" data-link>Buyer twin</a>
+      <a class="btn" href="/vom" data-link>Vertical machines</a>
+      <a class="btn" href="/continuity" data-link>Continuity</a>
+      <a class="btn" href="/live-actions" data-link>Live actions</a>
+      <a class="btn" href="/how" data-link>Clockwork</a>
+      <a class="btn" href="/dashboard" data-link>Dashboard</a>
+    </div>
+    ${continuityAttestation.trustCardHtml()}
+    <div class="card" data-mts-trust-card="1" style="margin-top:12px"><span class="tag">MTS/1.0 Merchant Standard</span><h3 style="margin:6px 0;font-size:16px">/standard</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed commerce-ready envelope — buyable floor, armed rails honesty, bond + continuity. Agents verify before paying.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/standard" data-link>Open merchant standard →</a></div></div>
   </div>
   <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Operator snapshot will appear here.</p></div></div>
   <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Operator summary will appear here.</pre>
@@ -4013,136 +4008,54 @@ function pageAccount(opts) {
 }
 
 function pageEnterprise() {
-  const modules = [
-    { id: 'aws-auto-healer', icon: '🛠️', title: 'AWS Auto-Healer', tagline: 'Self-healing infrastructure for AWS — detects faults, auto-restarts, fails over without humans.', endpoint: '/api/enterprise/aws/auto-heal', kpi: 'MTTR < 90s' },
-    { id: 'gcp-cost-optimizer', icon: '📉', title: 'Google Cost Optimizer', tagline: 'Continuous GCP spend reduction — rightsizing, commitment optimization, idle resource cleanup.', endpoint: '/api/enterprise/gcp/cost-optimize', kpi: 'Up to −40% spend' },
-    { id: 'azure-security-bot', icon: '🛡️', title: 'Azure Security Bot', tagline: 'Continuously audits and auto-remediates misconfigurations across Azure subscriptions.', endpoint: '/api/enterprise/azure/security-scan', kpi: 'CIS L1+L2 enforced' },
-    { id: 'multi-cloud-orchestrator', icon: '☁️', title: 'Multi-Cloud Orchestrator', tagline: 'Workload portability — migrate live between AWS, GCP, Azure based on price/latency/policy.', endpoint: '/api/enterprise/multi-cloud/migrate', kpi: 'Zero-downtime moves' },
-    { id: 'k8s-self-healer', icon: '⚙️', title: 'K8s Self-Healer', tagline: 'Watches every cluster — heals broken pods, restarts deployments, repairs node-level drift.', endpoint: '/api/enterprise/k8s/heal', kpi: '99.99%+ uptime' },
-    { id: 'database-optimizer', icon: '🗄️', title: 'Database Optimizer', tagline: 'AI rewrites slow queries, indexes hot tables, vacuums and tunes — Postgres, MySQL, Mongo.', endpoint: '/api/enterprise/db/optimize', kpi: 'Up to 10× faster' },
-    { id: 'disaster-recovery-autopilot', icon: '🚀', title: 'Disaster Recovery Autopilot', tagline: 'Continuous backup, geo-replication, signed restoration drills — every 24h, fully automated.', endpoint: '/api/enterprise/dr/run', kpi: 'RPO ≤ 60s, RTO ≤ 15m' },
-  ];
-  const moduleCards = modules.map(m => `
-    <div class="card ent-module-card" data-module-id="${m.id}" style="padding:24px;display:flex;flex-direction:column;gap:12px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(20,12,40,.55),rgba(8,6,18,.55))">
-      <div style="font-size:34px;line-height:1">${m.icon}</div>
-      <h3 style="font-size:20px;line-height:1.2;margin:0;letter-spacing:-0.01em">${m.title}</h3>
-      <p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.55">${m.tagline}</p>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto">
-        <code class="inline" style="font-size:11px;color:#6fd3ff">${m.endpoint}</code>
-        <span style="font-size:11px;color:#ffd36a;font-weight:600">${m.kpi}</span>
-      </div>
-      <button type="button" class="btn btn-ghost ent-module-cta" data-module="${m.id}" data-module-title="${m.title}" style="font-size:13px;padding:8px 14px">Request demo →</button>
-    </div>`).join('');
-
-  const apiExamples = modules.slice(0, 3).map(m => `
-    <details style="margin-bottom:8px;background:rgba(8,6,18,.5);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 18px">
-      <summary style="cursor:pointer;font-weight:600;color:#6fd3ff">${m.endpoint}</summary>
-      <pre style="margin:12px 0 0;padding:14px;background:#000;border-radius:6px;overflow:auto;font-size:12px;line-height:1.5;color:#a3ffce"><code>POST ${m.endpoint}
-Authorization: Bearer &lt;ENTERPRISE_API_TOKEN&gt;
-Content-Type: application/json
-
-{
-  "tenantId": "your-org-id",
-  "scope": ["prod", "staging"],
-  "dryRun": false
-}
-
-→ 200 OK
-{
-  "ok": true,
-  "module": "${m.id}",
-  "actions": [...],
-  "kpi": "${m.kpi}",
-  "auditId": "audit-2026-..."
-}</code></pre>
-    </details>`).join('');
-
   return `<section class="enterprise-hero" style="padding-top:120px">
-  <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">ZeusAI · AEDO Autonomous Deal Orchestrator</span>
-    <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#6fd3ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Enterprise deals that close themselves.</h1>
-    <p style="color:var(--ink-dim);font-size:19px;max-width:860px;line-height:1.55">Three rails. Instant buys itself. Professional reserves. Enterprise runs full autonomous negotiation — dynamic ACV, kickoff at <b style="color:#fff">5–10% of ACV</b> ($1k–$25k), then MSA · SOW · Security Pack · Timeline · Payment Schedule and onboarding. No human approval. Never fake “Buy = full license”.</p>
-
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
-      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">Start Autonomous Deal</a>
-      <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
-      <button type="button" class="btn btn-ghost" data-live-inspect="/api/enterprise/aedo" data-live-title="AEDO status" style="font-size:16px;padding:14px 26px">AEDO status</button>
+  <div style="max-width:980px;margin:0 auto;padding:0 28px">
+    <span class="kicker" style="color:#ffd36a">Enterprise · engagement packs</span>
+    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.05;margin:14px 0 18px;letter-spacing:-0.02em">Enterprise work is an engagement pack.</h1>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:760px;line-height:1.6">The payable enterprise offer is a pack on the marketplace. Bitcoin is the live rail. Card and PayPal appear only when they are configured. A kickoff file is the scope, the sketch, and the milestones. It is not a cloud healer, a license, or a finished deployment.</p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 8px">
+      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the engagement pack</a>
+      <a class="btn" href="/services" data-link>Open the marketplace</a>
+      <a class="btn btn-ghost" href="#enterprise-contact">Write to the owner</a>
     </div>
-
-    <div id="entRails" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:36px 0 8px">
-      <div style="padding:22px 20px;border:1px solid rgba(111,211,255,.25);border-radius:12px;background:linear-gradient(165deg,rgba(111,211,255,.08),rgba(8,6,18,.4))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#6fd3ff;font-weight:700">1 · Instant · ACV &lt; $10k</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Buy → Pay</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Self-serve digital. No negotiation. Artifact after payment.</p>
-      </div>
-      <div style="padding:22px 20px;border:1px solid rgba(255,211,106,.28);border-radius:12px;background:linear-gradient(165deg,rgba(255,211,106,.08),rgba(8,6,18,.4))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;font-weight:700">2 · Professional · $10k–$50k</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Reserve → Pay</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">AI-assisted kickoff. Light SOW. Semi-custom delivery.</p>
-      </div>
-      <div style="padding:22px 20px;border:1px solid rgba(163,255,206,.3);border-radius:12px;background:linear-gradient(165deg,rgba(163,255,206,.1),rgba(8,6,18,.45))">
-        <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#a3ffce;font-weight:700">3 · Enterprise · ACV &gt; $50k</div>
-        <div style="font-size:20px;font-weight:700;margin:8px 0 6px;color:#fff">Start Autonomous Deal</div>
-        <p style="color:var(--ink-dim);font-size:13px;margin:0;line-height:1.5">Negotiate → kickoff 5–10% ACV → MSA/SOW pack → onboard.</p>
-      </div>
+    <div id="entRails" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:32px 0 8px">
+      <div class="card" style="padding:20px"><span class="tag">File</span><h3 style="margin:8px 0">Minute deliverable</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The card names the file. Payment issues that file.</p></div>
+      <div class="card" style="padding:20px"><span class="tag">Kickoff</span><h3 style="margin:8px 0">Professional reserve</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The reserve unlocks a kickoff file. The finished build is not in the download.</p></div>
+      <div class="card" style="padding:20px"><span class="tag">Engagement</span><h3 style="margin:8px 0">Owner-delivered pack</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The owner delivers the pack that the shelf card describes. There is no autonomous close.</p></div>
     </div>
-
-    <div id="entSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:32px 0 40px">
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Products</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entProducts">—</div></div>
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Target accounts</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entAccounts">—</div></div>
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Portfolio anchor</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#6fd3ff" id="entAnchor">—</div></div>
-      <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Topstone potential</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#ffd36a" id="entTop">—</div></div>
-    </div>
-
-    <h2 id="enterprise-modules" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise modules — production-ready</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Seven flagship modules covering cloud reliability, cost, security and disaster recovery. Each is exposed as a public API, deployable on your VPC or ours, with signed audit trails.</p>
-    <div id="entModulesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:20px;margin-bottom:60px">${moduleCards}</div>
-
-    <h2 id="enterprise-api" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">API endpoints exposed</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Every enterprise module is fully programmatic. Request a sandbox token via the contact form below — typical turnaround &lt; 4 hours.</p>
-    <div style="margin-bottom:24px">${apiExamples}</div>
-    <p style="color:var(--ink-dim);font-size:13px;margin-bottom:60px">📖 Full reference: <a href="/docs" data-link style="color:#6fd3ff">/docs</a> · 🧪 Sandbox available on request · 🔐 Every response is Ed25519-signed.</p>
-
-    <h2 style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise license catalogue</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">SOW packages for hyperscalers and Fortune 500 — plus a <b style="color:#fff">$2,500 engagement kickoff</b> you can pay now to start the autonomous desk.</p>
-    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:22px;margin-bottom:50px"></div>
-    <div id="entNegotiator" style="margin:40px 0"></div>
-    <div id="entDeals" style="margin:40px 0 60px"></div>
-
-    <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(163,255,206,.35);border-radius:14px;background:linear-gradient(180deg,rgba(163,255,206,.06),rgba(111,211,255,.04))">
-      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#a3ffce 0%,#6fd3ff 55%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Start Autonomous Deal</h2>
-      <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 24px">Submit once. AEDO classifies your rail, computes ACV, and mints a <b style="color:#fff">proportional kickoff (5–10% of ACV, $1k–$25k)</b>. Accept → MSA · SOW · Security Pack · Timeline · Payment Schedule generate autonomously — full license closes under SOW milestones.</p>
+    <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:18px;margin-bottom:40px"></div>
+    <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
+      <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>
+      <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 20px">This form reaches the owner. It does not mint a contract, compute a private ACV, or start a deployment. Pay a pack from the marketplace when the card matches the work.</p>
       <form id="entContactForm" class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Full name *
-          <input name="name" required maxlength="200" placeholder="Jane Doe" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+          <input name="name" required maxlength="200" placeholder="Your name" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Company *
-          <input name="company" required maxlength="200" placeholder="Acme Corp" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+          <input name="company" required maxlength="200" placeholder="Company" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Work email *
-          <input name="email" type="email" required maxlength="200" placeholder="jane@acme.com" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+          <input name="email" type="email" required maxlength="200" placeholder="you@company.com" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Phone (optional)
-          <input name="phone" maxlength="80" placeholder="+1 555 ..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+          <input name="phone" maxlength="80" placeholder="Optional" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
-        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Package / module of interest
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Pack
           <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
-            <option value="ent-engagement-kickoff">Enterprise Engagement Kickoff (5–10% ACV)</option>
-            <option value="ent-platform-license">Platform Enterprise License</option>
-            <option value="ent-private-cloud">Private Cloud</option>
-            <option value="ent-ai-transformation">AI Transformation Programme</option>
-            <option value="ent-white-label">White-Label Platform</option>
-            <option value="ent-acquisition-pack">Acquisition Pack</option>
-            ${modules.map(m => `<option value="${m.id}">${m.title}</option>`).join('')}
-            <option value="custom">Custom deployment</option>
+            <option value="ent-engagement-kickoff">Engagement kickoff</option>
+            <option value="ent-acquisition-pack">Acquisition pack</option>
+            <option value="ent-sovereign-deployment">Sovereign deployment pack</option>
+            <option value="custom">Something else on the shelf</option>
           </select>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Message *
-          <textarea name="message" required maxlength="4000" rows="5" placeholder="Scale, timeline, security, procurement constraints..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px;resize:vertical;min-height:120px;font-family:inherit"></textarea>
+          <textarea name="message" required maxlength="4000" rows="5" placeholder="What should the pack cover?" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px;resize:vertical;min-height:120px;font-family:inherit"></textarea>
         </label>
         <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px">
-          <p style="color:var(--ink-dim);font-size:12px;margin:0">By submitting you accept our <a href="/legal" data-link style="color:#6fd3ff">terms</a> &amp; <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. Kickoff credited toward signed ACV.</p>
-          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Start Autonomous Deal</button>
+          <p style="color:var(--ink-dim);font-size:12px;margin:0">Sending accepts the <a href="/legal" data-link style="color:#6fd3ff">terms</a> and <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. Payment is a separate checkout.</p>
+          <button type="submit" class="btn btn-primary" style="padding:14px 28px;font-size:15px;font-weight:600">Send to the owner</button>
         </div>
         <div id="entContactStatus" style="grid-column:1/-1;display:none;padding:14px 18px;border-radius:8px;font-size:14px"></div>
         <div id="entKickoffPay" style="grid-column:1/-1;display:none"></div>
@@ -6366,7 +6279,7 @@ function pageStatus(params = {}) {
         </div>
         <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Signed zero-customer genesis · founding passport · never invents humans · <b id="ogpStatusChain" style="color:#fff">—</b></p>
       </div>
-      <a class="btn" href="/origin" data-link style="margin-top:8px">Open origin ledger →</a>
+      <span class="btn" style="margin-top:8px">Buyer counts stay off marketing pages</span>
     </div>
     <p id="ogpStatusClaim" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">paidHumans is the only real number.</p>
   </div>
@@ -7413,12 +7326,9 @@ function pageBlog() {
     title: g.title,
     sub: g.metaDescription || g.description,
   })).concat(discoverTrust.blogCards()).concat([
-    { href: '/frontier', tag: 'Frontier', title: 'F1–F12: inventions that ship as products, not papers', sub: 'Refund guarantees, live conversion aura, self-healing checkout — each frontier module is live and purchasable.' },
-    { href: '/innovations', tag: 'Durability', title: '30-year cryptographic durability by design', sub: 'Post-quantum readiness, Merkle-chained receipts and constitution hashing on every response.' },
-    { href: '/transparency', tag: 'Pricing', title: 'Why our pricing experiments are public', sub: 'Every bandit experiment behind a price you see is published. Radical transparency converts better than tricks.' },
-    { href: '/trust', tag: 'Trust', title: 'Proof over promises: the Trust Center', sub: 'Deploy SHA, integrity signature, wallet proof and audit logs — verifiable live, not in a PDF.' },
-    { href: '/how', tag: 'Architecture', title: 'How a sovereign AI OS routes a dollar', sub: 'From quote → invoice → on-chain settlement → signed delivery, with zero custodians.' },
-    { href: '/changelog', tag: 'Shipping', title: 'The changelog is the roadmap receipt', sub: 'Everything we said we would build, with the commit that proves we did.' },
+    { href: '/trust', tag: 'Trust', title: 'The wallet and the deploy signature', sub: 'The Trust Center shows the owner wallet and the integrity manifest. It does not publish a customer count.' },
+    { href: '/changelog', tag: 'Shipping', title: 'The changelog is the shipping note', sub: 'What changed in the product, written as a note you can read.' },
+    { href: '/services', tag: 'Shelf', title: 'The marketplace is the catalog', sub: 'Every payable offer is a card with a price and a file or an engagement pack.' },
   ]);
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">Insights</span>
@@ -7463,7 +7373,7 @@ function pagePartners() {
   <p style="color:var(--ink-dim);max-width:640px">Three partnership lanes, all with direct owner access and BTC-native settlement.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
-    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver vertical architecture packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical engagement kickoff / architecture packs for your clients. Full API access (<a href="/docs" data-link>docs</a>, <button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI">OpenAPI</button>), signed outcomes, your services on top.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver engagement packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Resell the marketplace offers your client can actually receive. The public API is <a href="/docs" data-link>API &amp; Docs</a>. A kickoff file is not a finished deployment.</p></div>
     <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
   </div>
   <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
@@ -7478,16 +7388,15 @@ function pageRoadmap() {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Roadmap</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Where this is going — <span class="grad">in public.</span></h1>
-  <p style="color:var(--ink-dim);max-width:660px">Shipped means live on this domain right now (click and verify). Next means actively being built by the autonomous loop. No vapor decade-out promises.</p>
+  <p style="color:var(--ink-dim);max-width:660px">Shipped means a buyer can open the page today. A module file is not a product. No invented customer count.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px;border-color:rgba(127,255,212,.35)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">✓ Shipped &amp; live</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
-        <li><a href="/services" data-link>25+ services marketplace</a> with BTC checkout</li>
-        <li><a href="/verticals">Vertical AI operating systems</a></li>
-        <li><a href="/frontier" data-link>Frontier F1–F12 inventions</a></li>
+        <li><a href="/services" data-link>Marketplace</a> — the public shelf, paid in Bitcoin</li>
+        <li><a href="/" data-link>Model router demo</a> on the homepage</li>
+        <li><a href="/enterprise" data-link>Enterprise engagement packs</a></li>
         <li>Ed25519-signed receipts + <a href="/trust" data-link>Trust Center</a></li>
-        <li><a href="/transparency" data-link>Public pricing-bandit transparency</a></li>
-        <li>Autonomous traffic engine (IndexNow) + revenue flywheel</li>
+        <li><a href="/refund" data-link>Refund contract</a> and <a href="/contact" data-link>owner contact</a></li>
       </ul></div>
     <div class="card" style="padding:22px;border-color:rgba(255,211,106,.35)"><span class="tag" style="background:rgba(255,211,106,.12);color:#ffd36a">⚙ Now building</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
@@ -7504,7 +7413,7 @@ function pageRoadmap() {
         <li>Revenue-share marketplace for third-party modules</li>
       </ul></div>
   </div>
-  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:22px">Receipts for the past live in the <a href="/changelog" data-link>changelog</a>. The system also proposes its own roadmap items — see <a href="/innovations" data-link>30Y innovations</a>.</p>
+  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:22px">Receipts for the past live in the <a href="/changelog" data-link>changelog</a>.</p>
 </section>`;
 }
 
@@ -7527,8 +7436,8 @@ function pagePress() {
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">ZeusAI — <span class="grad">facts &amp; assets.</span></h1>
   <p style="color:var(--ink-dim);max-width:640px">Everything below is independently verifiable on this domain — link to the proofs, not to us.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
-    <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">A sovereign autonomous AI operating system: live catalog at /services, vertical OSes at /verticals, BTC-native checkout, Ed25519-signed receipts, self-healing operations. Owner-operated by ${OWNER.name}, no external custodians. Counts are measured, never invented.</p></div>
-    <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Pricing experiments: <a href="/transparency" data-link>/transparency</a> · Signed catalog: <a href="/agents.json">/agents.json</a></p></div>
+    <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Two public doors: a model-router demo on the homepage, and a marketplace of files and engagement packs at /services. Bitcoin is the live rail. Owner-operated by ${OWNER.name}. No published customer count and no published revenue.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Public API: <a href="/docs" data-link>/docs</a> · Agent manifest: <a href="/agents.json">/agents.json</a></p></div>
     <div class="card" style="padding:20px"><span class="tag">Brand</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Name: <b>ZeusAI</b> (one word, capital Z + AI) · Logo: <a href="/assets/icons/icon-512.png">icon-512.png</a> · Domain: ${OWNER.domain.replace(/^https?:\/\//,'')} · Palette: violet #8a5cff / gold #ffd36a on deep space.</p></div>
     <div class="card" style="padding:20px"><span class="tag">Media contact</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">${OWNER.name} — <a href="mailto:${OWNER.email}">${OWNER.email}</a> (or the <a href="/contact" data-link>contact form</a>, topic "Press"). Interviews, technical deep-dives and architecture walkthroughs welcome.</p></div>
   </div>

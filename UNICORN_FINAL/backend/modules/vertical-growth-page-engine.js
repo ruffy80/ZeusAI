@@ -66,7 +66,7 @@ function renderGrowthHtml(slug, opts) {
 <title>${_esc(v.title)} — Growth Page · ZeusAI</title>
 <meta name="description" content="${_esc(v.title)} growth page. The industry brief downloads now. ${_esc(v.kpi)}.">
 <link rel="canonical" href="${baseUrl}/grow/${v.id}">
-<meta name="robots" content="index,follow">
+<meta name="robots" content="noindex, nofollow">
 <style>
   /* Zeus full-bleed page background — alternation flipped vs the matching
      /vertical/<slug> page so the visitor sees a different Zeus on the

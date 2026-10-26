@@ -143,7 +143,7 @@ function pageBuy() {
     <strong style="font-size:22px">${_esc(price)}</strong>
     <a class="${btnClass}" href="${_esc(href)}"${sov} data-link>${_esc(p.ctaLabel)}</a>
   </div>
-  <p style="margin:0;font-size:11.5px;color:var(--ink-dim)">Receipt signed · Delivery Passport (DPS) · Commerce Twin exportable after pay</p>
+  <p style="margin:0;font-size:11.5px;color:var(--ink-dim)">A matched payment issues the file named on this card.</p>
 </article>`;
   }
 
@@ -159,7 +159,7 @@ function pageBuy() {
       <p class="lead">The same public shelf as the homepage, split by delivery clock. The button and the price match checkout. Bitcoin is live. Card and PayPal appear when they are configured.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#buy-instant" data-link>Shop instant delivery</a>
-        <a class="btn btn-ghost" href="/outcomes" data-link>See outcome proofs</a>
+        <a class="btn btn-ghost" href="/trust" data-link>Trust Center</a>
       </div>
     </div>
   </div>
@@ -187,14 +187,13 @@ ${contactHtml ? `<section id="buy-enterprise" style="margin:32px 0 48px">
     <p>High-ticket work stays contact/SOW. That is commerce honesty — not a missing button.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">${contactHtml}</div>
-  <p style="margin-top:16px"><a class="btn btn-primary" href="/contact" data-link>Talk to operator →</a>
-  <a class="btn btn-ghost" href="/vom" data-link style="margin-left:8px">Vertical Outcome Machines</a></p>
+  <p style="margin-top:16px"><a class="btn btn-primary" href="/contact" data-link>Talk to the owner →</a></p>
 </section>` : ''}
 
 <section class="card" style="margin:0 0 48px;padding:20px;background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(62,160,255,.06))">
-  <span class="kicker">SEO Agency Outcome Machine (VOM)</span>
-  <h3 style="margin:8px 0">One vertical to real GMV — Instant SEO Content Pack</h3>
-  <p style="color:var(--ink-dim);margin:0 0 12px">Checkout BTC → PoOP escrow → Delivery Passport → closed loop. No invented revenue.</p>
+  <span class="kicker">Marketplace file</span>
+  <h3 style="margin:8px 0">Instant SEO content pack</h3>
+  <p style="color:var(--ink-dim);margin:0 0 12px">Bitcoin is the live rail. Payment issues the file named on the card. This page does not report revenue.</p>
   <a class="btn btn-primary" href="/checkout/?plan=instant-seo-content-pack" data-link>Buy SEO pack ($79) →</a>
   <a class="btn btn-ghost" href="/rails" data-link style="margin-left:8px">Check payment rails</a>
 </section>`;

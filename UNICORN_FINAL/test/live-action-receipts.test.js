@@ -68,7 +68,8 @@ check('backend + site wire live-receipts', () => {
   assert.ok(site.includes("'/live-actions'"));
   assert.ok(shell.includes('function pageLiveActions'));
   assert.ok(shell.includes("case '/live-actions'"));
-  assert.ok(shell.includes("L('/live-actions', 'Live actions')"));
+  assert.ok(shell.includes('href="/live-actions"'), 'live actions remain on the operator page');
+  assert.ok(!shell.includes("L('/live-actions', 'Live actions')"), 'live actions stay out of the public nav helper');
   assert.ok(shell.includes('minmax(min(320px,100%),1fr)'));
   assert.ok(shell.includes('Safe Evolution Continuum'));
   assert.ok(shell.includes('SECOS ticks'));
