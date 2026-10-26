@@ -2305,7 +2305,7 @@ function __predictivePrefetchHook(req, res, method, earlyPath) {
     // Emit 103 Early Hints. We bundle our two critical preloads (CSS+JS) into
     // the same frame so the browser parallelizes them with the prefetches.
     const cssHref = (typeof assetPath === 'function') ? assetPath('/assets/app.css') : '/assets/app.css';
-    const extra = [
+    const extra = earlyPath === '/' ? [] : [
       `<${cssHref}>; rel=preload; as=style`,
     ];
     predictivePrefetch.sendEarlyHints(res, predictions, extra, req);
@@ -5012,7 +5012,22 @@ async function unicornHandler(req, res) {
       if (fu === '/api/status') return fsend(200, frontier.statusSnapshot());
 
       // Analytics
-      if (fu === '/api/track' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.trackEvent(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/track' && req.method === 'POST') return fbody(p => {
+        try {
+          const body = p && typeof p === 'object' ? p : {};
+          // The homepage beacon sends { event, route, ref }. The frontier
+          // counter requires name. Map the beacon so a direct site hit
+          // answers 200 instead of a console-visible 400.
+          if (!body.name) {
+            body.name = String(body.event || 'pageview').slice(0, 64);
+            body.props = Object.assign({}, body.props || {}, {
+              route: String(body.route || '').slice(0, 256),
+              ref: String(body.ref || '').slice(0, 512)
+            });
+          }
+          return fsend(200, frontier.trackEvent(body));
+        } catch (e) { return fsend(400, { error: e.message }); }
+      });
       if (fu === '/api/analytics/summary') return fsend(200, frontier.analyticsSummary());
 
       // F1 — Refund guarantee
@@ -13431,10 +13446,14 @@ a{color:#8a5cff;text-decoration:none}
     // real navigation graph. This is the fallback for clients that don't
     // honor the 103 Early Hints we already sent at the dispatcher level —
     // the browser still gets the same hints, just slightly later.
-    let linkHeader = `<${assetPath('/assets/app.css')}>; rel=preload; as=style`;
-    if (res.__zeusPrefetchLink) {
-      linkHeader += ', ' + res.__zeusPrefetchLink;
+    // Homepage does not load app.css. A leading comma here made the Link
+    // header invalid whenever a prefetch was appended to an empty preload.
+    const linkParts = [];
+    if (route !== '/') {
+      linkParts.push(`<${assetPath('/assets/app.css')}>; rel=preload; as=style`);
     }
+    if (res.__zeusPrefetchLink) linkParts.push(res.__zeusPrefetchLink);
+    const linkHeader = linkParts.join(', ');
     // Accept-CH + extended Vary are post-89a8b7f3 client-hint additions
     // bound to the predictive-prefetch feature (we use those hints to
     // suppress prefetch bytes on metered/slow connections). When the
@@ -13448,7 +13467,6 @@ a{color:#8a5cff;text-decoration:none}
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
-      'Link': linkHeader,
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,
@@ -13458,6 +13476,7 @@ a{color:#8a5cff;text-decoration:none}
         : 'Accept-Language, Accept-Encoding, Cookie',
       'Content-Language': lang
     };
+    if (linkHeader) responseHeaders.Link = linkHeader;
     if (__ppActive) {
       // 50-year-standard digital-equity hint: ask the browser to send
       // Save-Data + Network Information API client hints on subsequent

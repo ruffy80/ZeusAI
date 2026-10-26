@@ -732,16 +732,17 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta name="twitter:image" content="${ogImage}"/>
 ${discoverTrust.headExtras()}
 ${jsonLdBlocks}
-<link rel="manifest" href="/manifest.webmanifest"/>
-<!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
-     "Building the future" above the hero brand. Off critical path. -->
+${homeDocument ? '' : '<link rel="manifest" href="/manifest.webmanifest"/>'}
+${homeDocument ? '' : `<!-- Letterpress display fonts. Applied from a nonce script so CSP never sees an inline onload. -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap" media="print" onload="this.media='all'"/>
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap"/></noscript>
-<!-- Responsive LCP preload: tiny mobile AVIF/WebP first, full hero only on wider viewports. -->
-<link rel="preload" as="image" type="image/avif" href="${assetPath('/assets/zeus/hero-640.avif')}" imagesrcset="${assetPath('/assets/zeus/hero-640.avif')} 640w" imagesizes="100vw" fetchpriority="high"/>
-<link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
+<link id="zeusDisplayFonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap" media="print"/>
+<script${nonceAttr}>var zf=document.getElementById('zeusDisplayFonts');if(zf)zf.media='all';</script>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap"/></noscript>`}
+<!-- Responsive LCP preload: tiny mobile AVIF first. -->
+<link rel="preload" as="image" type="image/avif" href="${assetPath('/assets/zeus/hero-640.avif')}" imagesrcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" imagesizes="100vw" fetchpriority="high"/>
+${homeDocument ? '' : `<link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>`}
+<script${nonceAttr}>document.addEventListener('error',function(ev){var t=ev.target;if(!t||!t.getAttribute)return;var fb=t.getAttribute('data-fallback');if(!fb||t.getAttribute('data-fallback-used'))return;t.setAttribute('data-fallback-used','1');if(fb==='hide'){t.style.display='none';return;}t.removeAttribute('srcset');t.src=fb;},true);</script>
 <link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
 <link rel="apple-touch-icon" sizes="180x180" href="${assetPath('/assets/icons/apple-touch-icon.png')}"/>
@@ -820,11 +821,52 @@ font[style*="vertical-align"] { background:none !important; box-shadow:none !imp
   .cost-modules{grid-template-columns:1fr}
   .cost-trust{flex-direction:column;align-items:flex-start}
 }
+.skip-link{position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999}
+.skip-link:focus{left:10px}
+.lhos-fallback-banner{display:none}
+html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block;position:fixed;top:0;left:0;right:0;z-index:85;padding:8px 16px;text-align:center;font-size:13px;background:#ff9f1c;color:#05040a}
+.zeus-scene{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.zeus-hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;filter:contrast(1.08) saturate(1.08) brightness(.84)}
+.zeus-vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(3,2,8,.12),rgba(3,2,8,.62))}
+.hero-grid{position:relative;z-index:3}
+.btn-primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent;color:#fff}
+.nav-links{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.nav-links a{color:var(--ink);padding:8px 10px;font-size:14px}
+.nav-cta{display:flex;gap:8px;align-items:center}
+.nav-toggle{display:none;width:44px;height:44px;background:transparent;border:1px solid var(--stroke);border-radius:12px;flex-direction:column;gap:4px;align-items:center;justify-content:center}
+.nav-toggle-bar{display:block;width:18px;height:2px;background:#fff}
+main#app,footer{position:relative;z-index:2}
+.card{background:rgba(18,14,40,.55);border:1px solid var(--stroke);border-radius:18px;padding:18px}
+#costDemoSection,#unicornEcosystem{padding:28px 7vw 8px}
+footer{padding:48px 7vw 28px}
+.foot-grid{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:22px}
+.foot-grid ul{list-style:none;padding:0;margin:0}
+.foot-grid li{margin:6px 0}
+.foot-bot{max-width:1480px;margin:24px auto 0;padding-top:16px;border-top:1px solid var(--stroke);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--ink-dim);font-size:12px}
+.concierge{position:fixed;right:18px;bottom:18px;z-index:80}
+.concierge-btn{width:56px;height:56px;border-radius:50%;border:0;background:#8a5cff;color:#fff;font-size:24px;cursor:pointer}
+.concierge-panel{display:none}
+.concierge-panel.open{display:flex;position:absolute;right:0;bottom:72px;width:min(400px,calc(100vw - 32px));max-height:70vh;flex-direction:column;gap:8px;padding:12px;border-radius:18px;border:1px solid rgba(138,92,255,.6);background:#0a0818;color:var(--ink);overflow:auto}
+.concierge-foot{display:flex;gap:8px;align-items:flex-end}
+.concierge-foot textarea{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:8px;font:inherit}
+.chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
+.lang-toggle{background:transparent;border:1px solid var(--stroke);color:var(--ink);border-radius:12px;padding:8px 10px;font:inherit;cursor:pointer}
+.nav-more{position:relative}
+.nav-more-btn{background:transparent;border:0;color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}
+.nav-more-menu{position:absolute;top:100%;right:0;min-width:200px;background:#0b0a12;border:1px solid var(--stroke);border-radius:14px;padding:8px;z-index:60}
+.nav-more-menu a{display:block;padding:8px 10px;color:var(--ink)}
+@media(max-width:980px){
+  .nav{flex-wrap:wrap}
+  .nav-toggle{display:flex}
+  .nav-links{display:none;flex-basis:100%;flex-direction:column}
+  nav.nav[data-nav-open="true"] .nav-links{display:flex}
+  .foot-grid{grid-template-columns:1fr}
+}
 </style>
 ${gtPrimer}
 </head>
 <body>
-<a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
+<a class="skip-link" href="#app">Skip to content</a>
 <noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and the service marketplace are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/services" data-link style="color:#8a5cff">/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 ${zeusPageBgSSR(route)}
@@ -854,12 +896,12 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link aria-label="Dropship listing desk">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}
+${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link>Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -983,6 +1025,8 @@ ${globalChrome(N)}
       Object.keys(vars).forEach(function(k){ if(String(k).indexOf('--')===0) root.style.setProperty(k, vars[k]); });
     }catch(_){}
   }
+  var route = (window.__UNICORN__ && window.__UNICORN__.route) || '';
+  if (route === '/') return;
   fetch('/api/brand/spectrum',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
     if(d&&d.cssVars) apply(d.cssVars);
     else if(d&&d.spectrum&&d.spectrum.cssVars) apply(d.spectrum.cssVars);
@@ -1002,14 +1046,14 @@ ${globalChrome(N)}
     createScript: function(s){ return String(s == null ? '' : s); }
   }); } catch(_) { /* already registered — allow-duplicates in CSP is set */ }
 })();
-// 30Y-LTS: try locally vendored Three.js first, fall back to CDN only when absent.
-// PERF: defer until the browser is idle (or 1.5 s after load) so Three.js parsing
-// never blocks LCP / TBT. The galaxy canvas already has a CSS-only fallback
-// painted for the first frame so deferring is purely additive.
-// Phase 5: load Three.js only on the home route — other pages skip ~600KB parse.
+</script>
+${route !== '/' ? `<script${N} data-local-three-version="r160">
+// Vendored Three.js, then the CDN copy. The homepage does not include this
+// loader: the vendored build throws in the console and the CDN file is
+// unused JavaScript. Other routes still defer it until idle.
 (function loadThree(){
   var route = (window.__UNICORN__ && window.__UNICORN__.route) || '';
-  if (route && route !== '/') return;
+  if (!route || route === '/') return;
   function inject(){
     if (window.__zeusThreeLoaded) return; window.__zeusThreeLoaded = true;
     function loadCdnFallback(){
@@ -1037,7 +1081,7 @@ ${globalChrome(N)}
   if (document.readyState === 'complete') ric(inject, { timeout: 12000 });
   else window.addEventListener('load', function(){ ric(inject, { timeout: 12000 }); }, { once: true });
 })();
-</script>
+</script>` : ''}
 <script${N}>
 // 30Y-LTS — country-aware language toggle.
 // The site is auto-translated into the visitor's country's language via the
@@ -1177,14 +1221,19 @@ window.googleTranslateElementInit = function(){
     var meta = document.querySelector('meta[name="x-zeus-build"]');
     var pageSha = meta && meta.getAttribute('content');
     if (pageSha && !alreadyHealed) {
-      fetch('/integrity.json', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
-        var live = (d && d.payload && d.payload.version) || (d && d.version) || '';
-        if (!live) return;
-        var a = String(pageSha).slice(0, 7);
-        var b = String(live).slice(0, 7);
-        if (!a || !b || a === b) return;
-        goHeal('drift-' + b);
-      }).catch(function(){});
+      var checkDrift = function(){
+        fetch('/integrity.json', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
+          var live = (d && d.payload && d.payload.version) || (d && d.version) || '';
+          if (!live) return;
+          var a = String(pageSha).slice(0, 7);
+          var b = String(live).slice(0, 7);
+          if (!a || !b || a === b) return;
+          goHeal('drift-' + b);
+        }).catch(function(){});
+      };
+      var later = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
+      if (document.readyState === 'complete') later(checkDrift, { timeout: 4000 });
+      else window.addEventListener('load', function(){ later(checkDrift, { timeout: 4000 }); });
     }
   } catch(_){}
 })();
@@ -1206,7 +1255,7 @@ window.addEventListener('securitypolicyviolation', function(e){
 });
 </script>
 <script${N} src="${assetPath('/assets/aeon.js')}" defer></script>
-<script${N} src="${assetPath('/assets/app.js')}" defer></script>
+${route === '/' ? '' : `<script${N} src="${assetPath('/assets/app.js')}" defer></script>`}
 </body></html>`;
 }
 
@@ -1313,10 +1362,12 @@ function globalChrome(N) {
       navLinks.addEventListener('click', function(e){
         if (e.target && e.target.tagName === 'A') setOpen(false);
       });
-      // Close on resize to desktop
-      window.addEventListener('resize', function(){
-        if (window.innerWidth > 980) setOpen(false);
-      });
+      // Close when the viewport becomes desktop. matchMedia avoids a
+      // layout read (innerWidth) that Lighthouse records as a forced reflow.
+      var desktopNav = window.matchMedia('(min-width: 981px)');
+      var closeIfDesktop = function(ev){ if (ev.matches) setOpen(false); };
+      if (desktopNav.addEventListener) desktopNav.addEventListener('change', closeIfDesktop);
+      else if (desktopNav.addListener) desktopNav.addListener(closeIfDesktop);
       // Close on Esc
       document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
     }
@@ -1372,7 +1423,42 @@ function globalChrome(N) {
       }).catch(function(){});
     } catch(_){ }
   }
-  pullAura(); setInterval(pullAura, 30000);
+  if (document.getElementById('zeus-aura-text')) { pullAura(); setInterval(pullAura, 30000); }
+  try {
+    var token = '';
+    try { token = localStorage.getItem('u_cust_token') || localStorage.getItem('zeus_cryptoauth_token') || ''; } catch(_){}
+    if (token) {
+      document.querySelectorAll('[data-customer-cta][data-guest-label]').forEach(function(el){
+        el.textContent = el.getAttribute('data-auth-label') || 'My Account';
+        el.setAttribute('href', el.getAttribute('data-auth-href') || '/account');
+      });
+    }
+  } catch(_){}
+  try {
+    var costForm = document.getElementById('costDemo');
+    if (costForm && costForm.dataset.bound !== '1') {
+      costForm.dataset.bound = '1';
+      costForm.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        var promptEl = document.getElementById('costDemoPrompt');
+        var out = document.getElementById('costDemoOut');
+        var btn = document.getElementById('costDemoBtn');
+        var prompt = promptEl ? String(promptEl.value || '').trim() : '';
+        if (btn) btn.disabled = true;
+        fetch('/api/demo/optimize', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ prompt: prompt }) })
+          .then(function(r){ return r.json().then(function(body){ return { ok: r.ok, body: body || {} }; }).catch(function(){ return { ok:false, body:{} }; }); })
+          .then(function(res){
+            if (btn) btn.disabled = false;
+            if (!out) return;
+            var j = res.body || {};
+            if (!res.ok || !j.ok) { out.textContent = j.error === 'prompt_required' ? 'Enter a prompt to calculate savings.' : 'The demo could not route that prompt.'; return; }
+            var cost = Number(j.costUsd), gpt4 = Number(j.gpt4CostUsd);
+            out.textContent = [j.analyzed || 'Prompt analyzed.', 'Routed to: ' + String(j.routedTo || ''), 'Latency: ' + String(j.latencyMs) + 'ms', 'Cost: $' + (isFinite(cost) ? cost.toFixed(4) : '0.0000'), 'Cost if using GPT-4: $' + (isFinite(gpt4) ? gpt4.toFixed(4) : '0.0000'), 'You just saved ' + String(j.savingsPct) + '%!'].join('\\n');
+          })
+          .catch(function(){ if (btn) btn.disabled = false; if (out) out.textContent = 'The demo could not route that prompt.'; });
+      });
+    }
+  } catch(_){}
   // Sticky buy bar permanently removed (2026-06-09)
   // Exit-intent popup permanently removed — was blocking /account access for
   // logged-in users. Newsletter signup lives in the footer (non-blocking).
@@ -1382,9 +1468,58 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Track pageview
+  // Homepage dock. app.js owns the live concierge on every other route.
+  // This toggle does not open a stream and does not send the typed text.
   try {
-    fetch('/api/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ event:'pageview', route: location.pathname, ref: document.referrer || '' }) }).catch(function(){});
+    if (location.pathname === '/') {
+      var dockBtn = document.getElementById('conciergeBtn');
+      var dockPanel = document.getElementById('conciergePanel');
+      if (dockBtn && dockPanel && dockBtn.dataset.bound !== '1') {
+        dockBtn.dataset.bound = '1';
+        dockPanel.setAttribute('role', 'dialog');
+        dockBtn.addEventListener('click', function(){
+          var open = !dockPanel.classList.contains('open');
+          dockPanel.classList.toggle('open', open);
+          dockBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        var dockBody = document.getElementById('conciergeBody');
+        var dockInput = document.getElementById('conciergeInput');
+        var dockReply = function(){
+          if (!dockBody) return;
+          var note = document.createElement('div');
+          note.className = 'msg bot';
+          note.textContent = 'This page does not open a live model. Use Get Enterprise Access or Contact Sales.';
+          dockBody.appendChild(note);
+        };
+        var dockSend = document.getElementById('conciergeSend');
+        if (dockSend) dockSend.addEventListener('click', dockReply);
+        if (dockInput) dockInput.addEventListener('keydown', function(e){
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); dockReply(); }
+        });
+        var dockChips = document.getElementById('conciergeChips');
+        if (dockChips) dockChips.addEventListener('click', function(e){
+          var chip = e.target && e.target.closest ? e.target.closest('.chip') : null;
+          if (!chip || !dockInput) return;
+          dockInput.value = chip.getAttribute('data-q') || '';
+        });
+      }
+    }
+  } catch(_){}
+  // Pageview beacon. sendBeacon is a low-priority ping, so it is not a
+  // critical request in the network dependency tree. The homepage still
+  // waits until idle so it does not compete with the hero image.
+  try {
+    var sendPageview = function(){
+      var payload = JSON.stringify({ event:'pageview', route: location.pathname, ref: document.referrer || '' });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/track', new Blob([payload], { type: 'application/json' }));
+        return;
+      }
+      fetch('/api/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: payload }).catch(function(){});
+    };
+    var whenIdle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
+    if (document.readyState === 'complete') whenIdle(sendPageview, { timeout: 4000 });
+    else window.addEventListener('load', function(){ whenIdle(sendPageview, { timeout: 4000 }); });
   } catch(_){ }
 })();
 </script>
@@ -1958,7 +2093,7 @@ ${_zaccBanner}
   void _offHome;
   return `<section class="hero" id="costHero">
   <div class="zeus-scene" aria-hidden="true">
-    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
+    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.avif')}" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" data-fallback="${assetPath('/assets/zeus/placeholder.svg')}"/></picture>
     <div class="zeus-vignette"></div>
   </div>
   <div class="hero-grid">
@@ -1997,17 +2132,17 @@ ${_zaccBanner}
     <article class="card">
       <h3>Autonomous Self-Healing</h3>
       <p>Never go down again.</p>
-      <a class="btn" href="/solutions/self-healing" data-link>Learn More</a>
+      <a class="btn" href="/solutions/self-healing" data-link>Learn More about self-healing</a>
     </article>
     <article class="card">
       <h3>Multi-Agent Orchestration</h3>
       <p>Scale your AI operations.</p>
-      <a class="btn" href="/solutions/autonomous-agents" data-link>Learn More</a>
+      <a class="btn" href="/solutions/autonomous-agents" data-link>Learn More about orchestration</a>
     </article>
     <article class="card">
       <h3>Continuous R&amp;D</h3>
       <p>Let AI find new opportunities for you.</p>
-      <a class="btn" href="/solutions/continuous-rd" data-link>Learn More</a>
+      <a class="btn" href="/solutions/continuous-rd" data-link>Learn More about continuous research</a>
     </article>
   </div>
 </section>

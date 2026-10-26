@@ -43,8 +43,8 @@ button{font-family:inherit}
 /* ZEUS dual-image background, visible on every v2 page */
 body::before,
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-repeat:no-repeat;background-size:cover;opacity:.17}
-body::before{background-image:linear-gradient(180deg,rgba(5,4,10,.66),rgba(5,4,10,.74)),url('/assets/hero.jpg');background-position:center 10%;filter:contrast(1.04) saturate(1.08)}
-body::after{background-image:radial-gradient(760px 520px at 84% 74%,rgba(5,4,10,.08),rgba(5,4,10,.72) 76%),url('/assets/watch.jpg');background-position:right -120px bottom -20px;background-size:760px auto;opacity:.22;mix-blend-mode:screen;filter:contrast(1.08)}
+body::before{background-image:linear-gradient(180deg,rgba(5,4,10,.55),rgba(5,4,10,.78));background-position:center 10%}
+body::after{background-image:radial-gradient(760px 520px at 84% 74%,rgba(5,4,10,.08),rgba(5,4,10,.72) 76%);background-position:right -120px bottom -20px;background-size:760px auto;opacity:.22}
 
 /* subtle vignette */
 html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.5) 100%);opacity:.6}
