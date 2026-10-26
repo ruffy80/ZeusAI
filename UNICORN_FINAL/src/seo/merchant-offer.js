@@ -10,9 +10,12 @@
  * /refund stays open only until the file is issued. Once the buyer has the
  * file, license, or work, the refund is closed. An unissued order can be
  * reported within 30 days and is settled by the owner. Bitcoin is not pulled
- * back on-chain. The buyer keeps an issued file, so the return method is
- * KeepProduct. There is no mail, store, or kiosk return, and no free
- * buyer's-remorse return.
+ * back on-chain. The buyer keeps an issued file. There is no mail, store,
+ * or kiosk return, and no free buyer's-remorse return. Google's merchant
+ * listing enum accepts only ReturnByMail, ReturnInStore, and ReturnAtKiosk.
+ * schema.org/KeepProduct is the true method and Search Console rejects it
+ * as an invalid enum, so the structured data omits returnMethod. The refund
+ * page still says the buyer keeps the file.
  *
  * Google has no worldwide country code and caps applicableCountry at 50.
  * DELIVERY_COUNTRIES is the explicit list of places the file can be delivered
@@ -96,7 +99,6 @@ function returnPolicy(origin) {
     applicableCountry: DELIVERY_COUNTRIES.slice(),
     returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
     merchantReturnDays: RETURN_DAYS,
-    returnMethod: 'https://schema.org/KeepProduct',
     returnFees: 'https://schema.org/FreeReturn',
     refundType: 'https://schema.org/FullRefund',
     merchantReturnLink: base + RETURN_PATH,
@@ -112,13 +114,18 @@ function policyDocument(origin) {
   return Object.assign({ '@context': 'https://schema.org' }, returnPolicy(origin));
 }
 
-function offerFields(item, origin) {
-  return {
-    itemCondition: 'https://schema.org/NewCondition',
+function offerFields(item, origin, opts) {
+  const includeCondition = !opts || opts.itemCondition !== false;
+  const fields = {
     seller: { '@id': organizationId(origin) },
     shippingDetails: shippingDetails(item),
     hasMerchantReturnPolicy: returnPolicy(origin),
   };
+  // One value per offer. A shelf card that already states itemCondition on
+  // this same @id passes itemCondition:false so Search Console does not see
+  // a duplicate field.
+  if (includeCondition) fields.itemCondition = 'https://schema.org/NewCondition';
+  return fields;
 }
 
 function productJson(opts) {
@@ -176,7 +183,6 @@ function offerMicrodataHtml(item, opts) {
     + _countriesMeta('applicableCountry')
     + '<meta itemprop="merchantReturnDays" content="' + RETURN_DAYS + '">'
     + '<link itemprop="returnPolicyCategory" href="https://schema.org/MerchantReturnFiniteReturnWindow">'
-    + '<link itemprop="returnMethod" href="https://schema.org/KeepProduct">'
     + '<link itemprop="returnFees" href="https://schema.org/FreeReturn">'
     + '<link itemprop="refundType" href="https://schema.org/FullRefund">'
     + '<link itemprop="merchantReturnLink" href="' + refundUrl + '">'
@@ -208,7 +214,8 @@ function contractReport(origin) {
     sellerId: organizationId(origin),
     countries: DELIVERY_COUNTRIES.length,
     windowDays: RETURN_DAYS,
-    returnMethod: policy.returnMethod,
+    returnMethod: null,
+    buyerKeepsFile: true,
     shippingRateUsd: 0,
     transitDays: 0,
     refused: [
@@ -216,7 +223,8 @@ function contractReport(origin) {
       { field: 'aggregateRating', because: 'A rating is published only after a verified review exists.' },
       { field: 'review', because: 'No review is written here.' },
       { field: 'streetAddress', because: 'The file is delivered online. There is no warehouse address.' },
-      { field: 'ReturnByMail', because: 'The buyer keeps the file. The return method is KeepProduct.' },
+      { field: 'ReturnByMail', because: 'The buyer keeps the file. A mail return would be false.' },
+      { field: 'KeepProduct', because: 'schema.org/KeepProduct is the true method. Google merchant listings reject it as an invalid enum, so structured data omits returnMethod. The refund page says the buyer keeps the file.' },
       { field: 'customerRemorseReturnFees', because: 'Using the file and then asking for the money back is refused. The refund closes when the file is issued.' },
       { field: 'itemDefectReturnFees', because: 'An issued file is not a free defect return. Only an order whose file was never issued can be settled.' },
       { field: 'priceValidUntil', because: 'The shelf price can change. No expiry date is claimed.' },
@@ -245,7 +253,7 @@ function contractHtml(origin) {
     + '<span class="kicker">Merchant contract</span>'
     + '<h2 style="margin:8px 0 10px">What Google can read</h2>'
     + '<p style="color:var(--ink-dim);font-size:14px;max-width:46rem">Every buyable offer, the organization, and <a href="/refund" data-link>/refund</a> use one return policy. '
-    + _esc(String(body.windowDays)) + ' days to report an order whose file was never issued. The refund is closed once the file is issued. Method KeepProduct, shipping 0 USD, transit '
+    + _esc(String(body.windowDays)) + ' days to report an order whose file was never issued. The refund is closed once the file is issued. The buyer keeps the file. Shipping 0 USD, transit '
     + _esc(String(body.transitDays)) + ' days, ' + _esc(String(body.countries)) + ' delivery countries. '
     + 'A rating, a review, a GTIN, and a street address stay unpublished.</p>'
     + '<ul style="margin:8px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.55">' + refused + '</ul>'

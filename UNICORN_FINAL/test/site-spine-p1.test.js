@@ -123,7 +123,11 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(buy.includes('"shippingDetails"'), 'offer names shipping');
   assert.ok(buy.includes('"value":0'), 'digital delivery is a zero shipping rate');
   assert.ok(buy.includes('"merchantReturnDays":30'), 'return window matches /refund');
-  assert.ok(buy.includes('"returnMethod":"https://schema.org/KeepProduct"'), 'the buyer keeps the file');
+  assert.ok(!buy.includes('"returnMethod"'), 'Google rejects KeepProduct, so the offer omits returnMethod');
+  assert.ok(!buy.includes('KeepProduct'), 'the detail page does not emit the invalid enum');
+  assert.ok(!buy.includes('ReturnByMail'), 'a file is not returned by mail');
+  assert.strictEqual((buy.match(/schema\.org\/InStock/g) || []).length, 1, 'the detail offer states availability once');
+  assert.strictEqual((buy.match(/schema\.org\/NewCondition/g) || []).length, 1, 'the detail offer states itemCondition once');
   assert.ok(buy.includes('"merchantReturnLink":"https://zeusai.pro/refund"'), 'the offer links the public refund page');
   assert.ok(buy.includes('"seller":{"@id":"https://zeusai.pro/#organization"}'), 'the offer names the organization');
   assert.ok(!buy.includes('customerRemorseReturnFees'), 'a used file is not a free remorse return');
@@ -132,13 +136,15 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(!buy.includes('aggregateRating'), 'no rating is invented');
   assert.ok(buy.includes('"addressCountry":["US"'), 'delivery countries are an explicit list');
   assert.ok(buy.includes('https://zeusai.pro/refund'), 'return policy points at the public refund page');
-  assert.ok(!buy.includes('ReturnByMail'), 'a file is not returned by mail');
   assert.ok(!/"price":"[^"]*,/.test(buy), 'JSON-LD price has no thousands comma');
   const proposal = shell.getHtml('/services/ent-acquisition-pack');
   assert.ok(proposal.includes('"@type":"Product"'), 'the engagement pack is a product');
   assert.ok(proposal.includes('/checkout/?plan=ent-acquisition-pack'), 'the pack has a checkout');
   assert.ok(proposal.includes('They are not in this download'), 'the page names the download');
-  assert.ok(proposal.includes('"returnMethod":"https://schema.org/KeepProduct"'), 'the pack stays with the buyer');
+  assert.ok(!proposal.includes('"returnMethod"'), 'the pack offer omits the invalid return method');
+  assert.ok(!proposal.includes('KeepProduct'), 'the pack page does not emit KeepProduct');
+  assert.ok(!proposal.includes('ReturnByMail'), 'the pack is not a mail return');
+  assert.strictEqual((proposal.match(/schema\.org\/InStock/g) || []).length, 1, 'the pack offer states availability once');
   assert.ok(!proposal.includes('customerRemorseReturnFees'), 'an issued pack is not a free remorse return');
   const listing = shell.getHtml('/services');
   const articleOf = (id) => {
@@ -158,11 +164,20 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.ok(!offerHtml.includes('btc-line'), 'the bitcoin line is not inside the offer');
   assert.ok(listing.includes('content="0"'), 'card shipping rate is zero');
   assert.ok(listing.includes('merchantReturnDays'), 'card offers carry the return window');
-  assert.ok(listing.includes('itemprop="returnMethod" href="https://schema.org/KeepProduct"'), 'card offers name KeepProduct');
+  assert.ok(!listing.includes('itemprop="returnMethod"'), 'card offers omit the invalid return method');
+  assert.ok(!listing.includes('KeepProduct'), 'the shelf does not emit KeepProduct');
+  assert.ok(!listing.includes('ReturnByMail'), 'the shelf does not claim a mail return');
   assert.ok(listing.includes('itemprop="merchantReturnLink"'), 'card offers link the refund page');
+  const listOffers = _offersWithId(_jsonLdBlocks(listing), 'https://zeusai.pro/services/instant-resume-makeover#offer');
+  assert.strictEqual(listOffers.length, 1, 'the shelf list names that offer once');
+  assert.strictEqual(listOffers[0].availability, undefined, 'the list does not repeat availability');
+  assert.strictEqual(listOffers[0].itemCondition, undefined, 'the list does not repeat itemCondition');
+  assert.strictEqual(listOffers[0].hasMerchantReturnPolicy.returnMethod, undefined, 'the list policy omits returnMethod');
   const refund = shell.getHtml('/refund');
   assert.ok(refund.includes('"@type":"MerchantReturnPolicy"'));
-  assert.ok(refund.includes('https://schema.org/KeepProduct'));
+  assert.ok(!refund.includes('https://schema.org/KeepProduct'));
+  assert.ok(!refund.includes('ReturnByMail'));
+  assert.ok(refund.includes('You keep the file'));
   assert.ok(refund.includes('id="merchantReturnFacts"'));
   assert.ok(refund.includes('>' + merchant.RETURN_DAYS + ' days<'));
   assert.ok(refund.includes(merchant.RETURN_DAYS + '-day window'));
@@ -176,7 +191,11 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   const contract = merchant.contractReport('https://zeusai.pro');
   assert.strictEqual(contract.inventsRatings, false);
   assert.strictEqual(contract.inventsAddresses, false);
+  assert.strictEqual(contract.returnMethod, null);
+  assert.strictEqual(contract.buyerKeepsFile, true);
   assert.ok(contract.refused.some((row) => row.field === 'gtin'));
+  assert.ok(contract.refused.some((row) => row.field === 'ReturnByMail'));
+  assert.ok(contract.refused.some((row) => row.field === 'KeepProduct'));
   assert.ok(contract.refused.some((row) => row.field === 'searchConsoleShippingSettings'));
   const seo = shell.getHtml('/seo');
   assert.ok(seo.includes('id="merchantContract"'));
@@ -185,7 +204,9 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   const proposalCard = articleOf('ent-acquisition-pack');
   assert.ok(proposalCard, 'engagement pack card is rendered');
   assert.ok(proposalCard.includes('itemtype="https://schema.org/Offer"'), 'the pack card has an offer');
-  assert.ok(proposalCard.includes('KeepProduct'), 'the pack card keeps the file');
+  assert.strictEqual((proposalCard.match(/itemprop="availability"/g) || []).length, 1, 'the pack card states availability once');
+  assert.strictEqual((proposalCard.match(/itemprop="itemCondition"/g) || []).length, 1, 'the pack card states itemCondition once');
+  assert.ok(!proposalCard.includes('returnMethod'), 'the pack card omits returnMethod');
   assert.ok(proposalCard.includes('Buy the engagement pack'), 'the pack card can be bought');
   const vertical = require('../backend/modules/programmatic-seo-engine').renderLandingHtml('fintech-os', { baseUrl: 'https://zeusai.pro' });
   assert.ok(vertical && vertical.includes('"@type":"WebPage"'));
@@ -200,6 +221,31 @@ check('a buyable service is a merchant listing and a proposal is not', () => {
   assert.strictEqual(merchant.DELIVERY_COUNTRIES.length <= 50, true);
   assert.ok(merchant.shippingDetails({ deliveryDays: 7 }).shippingDestination.addressCountry.includes('RO'));
 });
+
+function _jsonLdBlocks(html) {
+  const out = [];
+  const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
+  let m;
+  while ((m = re.exec(html))) out.push(JSON.parse(m[1]));
+  return out;
+}
+
+function _offersWithId(blocks, id) {
+  const found = [];
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (node['@type'] === 'Offer' && node['@id'] === id) found.push(node);
+    Object.keys(node).forEach((key) => {
+      if (key !== '@context') walk(node[key]);
+    });
+  };
+  blocks.forEach(walk);
+  return found;
+}
 
 function _firstOfferElement(html) {
   const re = /<\/?([a-zA-Z0-9]+)(\s[^>]*)?>/g;
