@@ -830,6 +830,14 @@ html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block;position:fi
 .zeus-vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(3,2,8,.12),rgba(3,2,8,.62))}
 .hero-grid{position:relative;z-index:3}
 .btn-primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent;color:#fff}
+.brand small{display:block;font-weight:500;font-size:10px;color:var(--ink-dim);letter-spacing:2.5px;text-transform:uppercase;font-family:ui-monospace,monospace;margin-top:3px;line-height:1.3}
+.hero p.lead{font-size:clamp(15px,1.3vw,19px);color:var(--ink-dim);max-width:640px;line-height:1.6;margin:0 0 30px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+.section-title{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;gap:24px;flex-wrap:wrap}
+.section-title h1,.section-title h2{font-size:clamp(30px,3.2vw,44px);margin:0;font-weight:700;letter-spacing:-.5px;line-height:1.15}
+.section-title p{color:var(--ink-dim);max-width:520px;margin:0;font-size:15px;line-height:1.6}
+.card h3{margin:0 0 8px;font-size:18px;font-weight:650}
+.card p{color:var(--ink-dim);font-size:14px;line-height:1.55;margin:0 0 14px}
 .nav-links{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .nav-links a{color:var(--ink);padding:8px 10px;font-size:14px}
 .nav-cta{display:flex;gap:8px;align-items:center}
@@ -861,6 +869,13 @@ footer{padding:48px 7vw 28px}
   .nav-links{display:none;flex-basis:100%;flex-direction:column}
   nav.nav[data-nav-open="true"] .nav-links{display:flex}
   .foot-grid{grid-template-columns:1fr}
+  .brand small{display:none}
+  .hero-cta{justify-content:center}
+  .section-title{flex-direction:column;align-items:flex-start;gap:12px}
+}
+@media(max-width:768px){
+  .hero p.lead{margin-bottom:22px}
+  .section-title h1,.section-title h2{font-size:clamp(22px,7vw,30px)}
 }
 </style>
 ${gtPrimer}
@@ -1033,7 +1048,7 @@ ${globalChrome(N)}
   }).catch(function(){});
 })();
 </script>
-<script${N} data-local-three-version="r160">
+<script${N}>
 // Trusted Types: register a passthrough 'default' policy early — before any
 // third-party script runs — so raw innerHTML / script.src assignments from any
 // module are automatically routed through it, satisfying require-trusted-types-for
@@ -1047,41 +1062,6 @@ ${globalChrome(N)}
   }); } catch(_) { /* already registered — allow-duplicates in CSP is set */ }
 })();
 </script>
-${route !== '/' ? `<script${N} data-local-three-version="r160">
-// Vendored Three.js, then the CDN copy. The homepage does not include this
-// loader: the vendored build throws in the console and the CDN file is
-// unused JavaScript. Other routes still defer it until idle.
-(function loadThree(){
-  var route = (window.__UNICORN__ && window.__UNICORN__.route) || '';
-  if (!route || route === '/') return;
-  function inject(){
-    if (window.__zeusThreeLoaded) return; window.__zeusThreeLoaded = true;
-    function loadCdnFallback(){
-      if (window.__zeusThreeCdnLoaded) return;
-      window.__zeusThreeCdnLoaded = true;
-      var f=document.createElement('script');
-      var _fsrc='https://unpkg.com/three@0.160.0/build/three.min.js';
-      try { f.src = (window.trustedTypes && window.trustedTypes.defaultPolicy) ? window.trustedTypes.defaultPolicy.createScriptURL(_fsrc) : _fsrc; } catch(_e){ try{ f.setAttribute('src',_fsrc); }catch(__){} }
-      f.async=true;document.head.appendChild(f);
-    }
-    var s=document.createElement('script');
-    var _src='${assetPath('/assets/vendor/three.min.js')}';
-    // Use Trusted Types createScriptURL when available (satisfies TrustedScriptURL sink)
-    try { s.src = (window.trustedTypes && window.trustedTypes.defaultPolicy) ? window.trustedTypes.defaultPolicy.createScriptURL(_src) : _src; } catch(_e){ try{ s.setAttribute('src',_src); }catch(__){} }
-    s.async=true;
-    s.onerror=loadCdnFallback;
-    s.onload=function(){
-      try {
-        if (window.__UNICORN_THREE_STUB__ || !window.THREE) loadCdnFallback();
-      } catch(_) { loadCdnFallback(); }
-    };
-    document.head.appendChild(s);
-  }
-  var ric = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
-  if (document.readyState === 'complete') ric(inject, { timeout: 12000 });
-  else window.addEventListener('load', function(){ ric(inject, { timeout: 12000 }); }, { once: true });
-})();
-</script>` : ''}
 <script${N}>
 // 30Y-LTS — country-aware language toggle.
 // The site is auto-translated into the visitor's country's language via the

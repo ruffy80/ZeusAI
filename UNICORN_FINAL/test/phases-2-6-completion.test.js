@@ -99,13 +99,20 @@ check('phase4: lead hunter outreach metrics + await honesty', () => {
   assert.ok(src.includes("lead.outreachDelivery = 'sent'"));
 });
 
-check('phase5: lead hunter gated under stable; three.js stays off the homepage', () => {
+check('phase5: lead hunter gated under stable; three.js is not injected on any page', () => {
   const idx = read('backend/index.js');
   assert.ok(idx.includes('LEAD_HUNTER_FORCE'));
   assert.ok(idx.includes('_stableRuntime'));
-  const shell = read('src/site/v2/shell.js');
-  assert.ok(shell.includes("route !== '/'"));
-  assert.ok(shell.includes('loadThree'));
+  const shellSrc = read('src/site/v2/shell.js');
+  assert.ok(!shellSrc.includes('function loadThree'));
+  assert.ok(!shellSrc.includes('unpkg.com/three'));
+  const shell = require('../src/site/v2/shell');
+  for (const route of ['/', '/services', '/about', '/contact']) {
+    const html = shell.getHtml(route).replace(/window\.__ZEUS_ASSETS__=\{[\s\S]*?\};/, '');
+    assert.ok(!/unpkg\.com\/three/.test(html), route + ' must not request the Three CDN');
+    assert.ok(!/three\.min/.test(html), route + ' must not inject the vendored Three build');
+    assert.ok(!/<script\b[^>]*\bsrc=["'][^"']*three/i.test(html), route + ' must not load a Three script');
+  }
 });
 
 check('phase6: referralEngine + global-referral-loop deprecate to SoT', () => {

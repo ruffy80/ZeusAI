@@ -6,10 +6,7 @@ following files here:
 - `three.min.js` — Three.js r160 (or later) minified build.
 - `nacl-fast.min.js` — tweetnacl 1.0.3 (Ed25519 fallback when SubtleCrypto Ed25519 is missing).
 
-The site loader (`shell.js`) tries `/assets/vendor/three.min.js` first and falls
-back to `https://unpkg.com/three@0.160.0/build/three.min.js` only when the local
-copy is missing. Hosting the file locally neutralizes CDN-outage risk and CSP
-restrictions.
-
-Any update to Three.js should bump the `data-local-three-version` attribute in
-`shell.js` to preserve cacheability.
+Public pages do not inject Three.js. The homepage has no WebGL scene, and
+other routes never mounted one. Do not add a shell loader for
+`/assets/vendor/three.min.js` or for the unpkg build: the vendored file
+throws in the console, and the CDN copy is unused JavaScript.
