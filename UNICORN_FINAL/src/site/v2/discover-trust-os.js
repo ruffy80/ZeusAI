@@ -131,7 +131,7 @@ const ARTICLES = [
       'ZeusAI does not publish a street address, a phone number, or a company registration number. Those values stay off the site until the owner supplies them for publication. A placeholder would be a false trust signal.',
       'The site runs on a single VPS behind nginx. The check a buyer can do is the wallet, the refund page, the owner email, and whether the shelf card names a deliverable you can reject.',
       'Delivery follows a matched payment. The clock on the card is the file. The finished build is not in a kickoff file. If the file is missing or wrong, email the owner with the order id and the transaction id and use /refund.',
-      'The pages for that check are /trust-safety, /refund, /trust, and /origin. ZeusAI does not publish invented testimonials. Confirmed buyers are counted on /origin.',
+      'The pages for that check are /trust-safety, /refund, and /trust. ZeusAI does not publish invented testimonials or a buyer count on the marketing site.',
     ],
   },
   {
@@ -255,9 +255,9 @@ const LANDINGS = [
     title: 'Self-improvement without an unsupervised rewrite',
     description: 'Autonomy receipts are public. A proposal is not a production edit, and a missing Search Console token stays missing.',
     h1: 'Self-improvement stops where the proof stops.',
-    sub: 'Read /live-actions for what ran. The shelf price updates on the guide. The loop does not invent customers or a street address.',
-    cta: 'Read the public receipts',
-    href: '/live-actions',
+    sub: 'A proposal is not a production edit. The shelf price is the guide. The loop does not invent customers or a street address.',
+    cta: 'Open the offer guides',
+    href: '/guides',
     article: '/insights/what-self-improvement-means-here',
   },
   {
@@ -275,17 +275,17 @@ const LANDINGS = [
     title: 'Experiments stay unpublished until the counts are real',
     description: 'Headline and price experiments are recorded in public. Zero impressions do not produce a winner.',
     h1: 'An empty experiment is not a winner.',
-    sub: 'Impressions and conversions on /transparency are counts that happened. The homepage does not swap its headline from a zero sample.',
-    cta: 'Open the experiment record',
-    href: '/transparency',
+    sub: 'An empty sample is not a winner. The homepage does not swap its headline from a zero sample.',
+    cta: 'See the public prices',
+    href: '/pricing',
     article: '/insights/public-cost-of-an-ai-service',
   },
 ];
 
 const SOCIAL_DRAFTS = [
-  { channel: 'linkedin', text: 'ZeusAI prices a named deliverable on a public shelf. The guide, the card, and checkout use the same number. Bitcoin is live. Buyer count is on /origin. https://zeusai.pro/guides' },
+  { channel: 'linkedin', text: 'ZeusAI prices a named deliverable on a public shelf. The guide, the card, and checkout use the same number. Bitcoin is live. No published buyer count. https://zeusai.pro/guides' },
   { channel: 'linkedin', text: 'I wrote a plain note on what AI orchestration means here: one sentence in, one shelf offer out. No hidden router. https://zeusai.pro/insights/ai-orchestration-on-a-public-shelf' },
-  { channel: 'x', text: 'Public shelf. Same price on the guide and at checkout. Bitcoin is the live rail. The buyer ledger is on /origin. https://zeusai.pro/buy' },
+  { channel: 'x', text: 'Public shelf. Same price on the guide and at checkout. Bitcoin is the live rail. No published buyer count. https://zeusai.pro/buy' },
   { channel: 'reddit', text: 'Showing the work, not a launch thread with fake users. ZeusAI is an owner-operated checkout for named AI deliverables. Refund contract: https://zeusai.pro/refund — questions go to the owner email on /contact.' },
   { channel: 'reddit', text: 'If you want the long version of how a Bitcoin checkout is supposed to match the card, this note stays specific: https://zeusai.pro/insights/bitcoin-checkout-for-ai-services' },
 ];
@@ -588,7 +588,7 @@ function pageTrustSafety() {
     <div class="card"><span class="tag">Support</span><h3 style="margin:8px 0">Delivery and contact</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Minute files quote a delivery clock that starts at settlement. Engagements open a kickoff, then the operator delivers on the stated window. Email <a href="mailto:${esc(OWNER.email)}">${esc(OWNER.email)}</a> or use <a href="/contact" data-link>/contact</a>. The refund contract is <a href="/refund" data-link>/refund</a>.</p></div>
     <div class="card"><span class="tag">Payment</span><h3 style="margin:8px 0">Settlement, then delivery</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Bitcoin is paid to the owner wallet published on <a href="/trust" data-link>/trust</a>. Match that address to the invoice before you send. A signed receipt follows a matched settlement. The refund contract is <a href="/refund" data-link>/refund</a>.</p></div>
     <div class="card"><span class="tag">Data</span><h3 style="margin:8px 0">No training on your text</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">Order email, the brief you submit, and the receipt are the data. The privacy policy and DPA forbid resale and model training on personal data. See <a href="/privacy" data-link>/privacy</a> and <a href="/dpa" data-link>/dpa</a>.</p></div>
-    <div class="card"><span class="tag">Buyers</span><h3 style="margin:8px 0">Counted in public</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">paidHumans moves only after a confirmed settlement. The homepage no longer leads with a giant zero, and the number remains on <a href="/origin" data-link>/origin</a>.</p></div>
+    <div class="card"><span class="tag">Buyers</span><h3 style="margin:8px 0">Not a marketing number</h3><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.65;margin:0">ZeusAI does not publish a customer count on the marketing site. A count moves only after a confirmed settlement, and it is not linked from public pages.</p></div>
   </div>
   <p style="margin-top:22px"><a class="btn btn-primary" href="/refund" data-link>Read the refund contract</a> <a class="btn" href="/contact" data-link>Contact the operator</a></p>
 </section>`;
@@ -616,7 +616,7 @@ function pageLanding(slug) {
   <p style="margin-top:18px"><a class="btn btn-primary" href="${esc(found.href)}" data-link>${esc(found.cta)}</a> <a class="btn btn-ghost" href="${esc(found.article)}" data-link>Read the article</a></p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px">
     <a class="card" href="/refund" data-link style="padding:16px;text-decoration:none"><b>Refund guarantee</b><p style="color:var(--ink-dim);margin:8px 0 0">The contract is public. Bitcoin is not auto-reversed.</p></a>
-    <a class="card" href="/origin" data-link style="padding:16px;text-decoration:none"><b>Buyer ledger</b><p style="color:var(--ink-dim);margin:8px 0 0">Confirmed payments are counted on /origin.</p></a>
+    <a class="card" href="/trust" data-link style="padding:16px;text-decoration:none"><b>Trust Center</b><p style="color:var(--ink-dim);margin:8px 0 0">The owner wallet and the signed integrity manifest are on /trust.</p></a>
     <a class="card" href="/trust-safety" data-link style="padding:16px;text-decoration:none"><b>Operator</b><p style="color:var(--ink-dim);margin:8px 0 0">${esc(OWNER.name)} · ${esc(OWNER.email)}. Address and phone are not published.</p></a>
   </div>
 </section>`;

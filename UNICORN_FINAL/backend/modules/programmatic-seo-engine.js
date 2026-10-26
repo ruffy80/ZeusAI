@@ -97,10 +97,11 @@ function renderLandingHtml(slug, opts) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${_esc(v.title)} — Vertical AI OS by ZeusAI</title>
+<title>${_esc(v.title)} — architecture pack — ZeusAI</title>
 <meta name="description" content="${_esc(v.title)} — architecture pack focused on ${_esc(v.kpi)}. Payment issues the file. It does not install an operating system.">
+<meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="${baseUrl}/vertical/${v.id}">
-<meta property="og:title" content="${_esc(v.title)} — ZeusAI Vertical OS">
+<meta property="og:title" content="${_esc(v.title)} — ZeusAI architecture pack">
 <meta property="og:description" content="Industry architecture brief focused on ${_esc(v.kpi)}. The brief downloads now.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${baseUrl}/vertical/${v.id}">
