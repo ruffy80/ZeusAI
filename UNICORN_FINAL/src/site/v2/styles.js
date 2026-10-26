@@ -850,6 +850,11 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .immersive-strip{gap:8px}
 }
 
+.pay-receipt{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin:10px 0 0}
+.pay-receipt div{padding:8px 10px;border:1px solid var(--stroke);border-radius:10px;background:rgba(5,4,10,.35)}
+.pay-receipt dt{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+.pay-receipt dd{margin:4px 0 0;font-family:var(--mono);font-size:14px;color:var(--gold)}
+.pay-receipt-note{margin:8px 0 0;color:var(--ink-dim);font-size:12.5px;line-height:1.45}
 /* ============ PHONE FIT (≤768px) — kill horizontal overflow from inline grids ============
    Many SSR/client templates use fixed minmax(320|380px) or 1.xfr/1fr two-column
    layouts. On a ~390px phone those force overflow. Collapse to one column and
@@ -863,6 +868,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   #serviceMain > .svc-grid-ssr,#orderPassport > .op-grid-ssr{
     grid-template-columns:1fr!important
   }
+  #serviceMain > .svc-grid-ssr > .co-box{order:-1}
   #entProductsGrid,#entModulesGrid,#entSummary,
   .store-tier-block .grid,details.store-tier-block > div.grid{
     grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))!important

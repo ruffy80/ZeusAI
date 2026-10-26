@@ -3498,6 +3498,22 @@ async function hydrateLiveSales(gridEl){
   }).join('');
 }
 
+function payReceiptHtml(listUsd) {
+  const cents = Math.round(Number(listUsd) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return '';
+  const btc = Math.round(cents * 90 / 100) / 100;
+  const money = function(n) {
+    const frac = Math.abs(n - Math.round(n)) > 0.0049;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+  };
+  return '<dl class="pay-receipt" id="svcPayReceipt">'
+    + '<div><dt>List</dt><dd id="svcPayList">' + money(cents / 100) + '</dd></div>'
+    + '<div><dt>Bitcoin</dt><dd id="svcPayBitcoin">' + money(btc) + '</dd></div>'
+    + '<div><dt>Delivery</dt><dd>$0</dd></div>'
+    + '</dl>'
+    + '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>';
+}
+
 async function hydrateServiceDetail(id){
   const marked = document.getElementById('servicePage');
   if (marked && (marked.getAttribute('data-server-module') === '1' || marked.getAttribute('data-missing-service') === '1')) return;
@@ -3553,9 +3569,7 @@ async function hydrateServiceDetail(id){
   const moSuffix = period
     ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">' + period + '</small>'
     : '';
-  const discountLine = Number.isFinite(localPrice) && localPrice > 0
-    ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>'
-    : '';
+  const discountLine = payReceiptHtml(localPrice);
   // Flicker guard: when the SSR already rendered THIS EXACT service detail
   // (delivery timeline + upsell slot present) skip the full root wipe and only
   // refresh the live price + hydrate the upsell. This avoids a visible
@@ -3626,6 +3640,19 @@ async function hydrateServiceDetail(id){
       syncMerchantJsonLdPrice(sid, usd);
     }
     if (btcEl) btcEl.textContent = live.price_btc != null ? ('≈ ' + Number(live.price_btc).toFixed(8) + ' BTC') : '';
+    const listEl = document.getElementById('svcPayList');
+    const payEl = document.getElementById('svcPayBitcoin');
+    if (listEl && payEl) {
+      const usd = Number(live.price_usd);
+      const cents = Math.round(usd * 100);
+      const btcUsd = Math.round(cents * 90 / 100) / 100;
+      const money = function(n){
+        const frac = Math.abs(n - Math.round(n)) > 0.0049;
+        return '$' + n.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+      };
+      listEl.textContent = money(usd);
+      payEl.textContent = money(btcUsd);
+    }
   }).catch(function(){});
   initServiceNarrative(s);
   hydrateServiceUpsell(s).catch(function(){});
@@ -3734,6 +3761,18 @@ function hydrateCheckout(){
     if (sum) sum.textContent = '$' + Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 });
     const buyAmt = document.getElementById('checkoutBuyingAmount');
     if (buyAmt) buyAmt.textContent = '$' + Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const cents = Math.round(Number(usd) * 100);
+    const btcUsd = Math.round(cents * 90 / 100) / 100;
+    const money = function(n) {
+      const frac = Math.abs(n - Math.round(n)) > 0.0049;
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+    };
+    const listEl = document.getElementById('checkoutPayList');
+    const payEl = document.getElementById('checkoutPayBitcoin');
+    const cardEl = document.getElementById('checkoutPayCard');
+    if (listEl) listEl.textContent = money(Number(usd));
+    if (cardEl) cardEl.textContent = money(Number(usd));
+    if (payEl) payEl.textContent = money(btcUsd);
   };
   set('coPlan', plan);
   set('coPlanPP', plan);
