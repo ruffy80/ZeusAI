@@ -2305,7 +2305,7 @@ function __predictivePrefetchHook(req, res, method, earlyPath) {
     // Emit 103 Early Hints. We bundle our two critical preloads (CSS+JS) into
     // the same frame so the browser parallelizes them with the prefetches.
     const cssHref = (typeof assetPath === 'function') ? assetPath('/assets/app.css') : '/assets/app.css';
-    const extra = earlyPath === '/' ? [] : [
+    const extra = [
       `<${cssHref}>; rel=preload; as=style`,
     ];
     predictivePrefetch.sendEarlyHints(res, predictions, extra, req);
@@ -13446,12 +13446,9 @@ a{color:#8a5cff;text-decoration:none}
     // real navigation graph. This is the fallback for clients that don't
     // honor the 103 Early Hints we already sent at the dispatcher level —
     // the browser still gets the same hints, just slightly later.
-    // Homepage does not load app.css. A leading comma here made the Link
-    // header invalid whenever a prefetch was appended to an empty preload.
-    const linkParts = [];
-    if (route !== '/') {
-      linkParts.push(`<${assetPath('/assets/app.css')}>; rel=preload; as=style`);
-    }
+    // Every page loads app.css. Join only real parts so a prefetch never
+    // produces a leading comma.
+    const linkParts = [`<${assetPath('/assets/app.css')}>; rel=preload; as=style`];
     if (res.__zeusPrefetchLink) linkParts.push(res.__zeusPrefetchLink);
     const linkHeader = linkParts.join(', ');
     // Accept-CH + extended Vary are post-89a8b7f3 client-hint additions

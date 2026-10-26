@@ -733,15 +733,14 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 ${discoverTrust.headExtras()}
 ${jsonLdBlocks}
 ${homeDocument ? '' : '<link rel="manifest" href="/manifest.webmanifest"/>'}
-${homeDocument ? '' : `<!-- Letterpress display fonts. Applied from a nonce script so CSP never sees an inline onload. -->
+<!-- Letterpress display fonts. Applied from a nonce script so CSP never sees an inline onload. -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link id="zeusDisplayFonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap" media="print"/>
 <script${nonceAttr}>var zf=document.getElementById('zeusDisplayFonts');if(zf)zf.media='all';</script>
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap"/></noscript>`}
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap"/></noscript>
 <!-- Responsive LCP preload: tiny mobile AVIF first. -->
 <link rel="preload" as="image" type="image/avif" href="${assetPath('/assets/zeus/hero-640.avif')}" imagesrcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" imagesizes="100vw" fetchpriority="high"/>
-${homeDocument ? '' : `<link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>`}
 <script${nonceAttr}>document.addEventListener('error',function(ev){var t=ev.target;if(!t||!t.getAttribute)return;var fb=t.getAttribute('data-fallback');if(!fb||t.getAttribute('data-fallback-used'))return;t.setAttribute('data-fallback-used','1');if(fb==='hide'){t.style.display='none';return;}t.removeAttribute('srcset');t.src=fb;},true);</script>
 <link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
@@ -776,7 +775,7 @@ img{max-width:100%;display:block}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}#dtHeroCta{box-shadow:0 0 0 1px rgba(110,180,255,.55),0 0 28px rgba(138,92,255,.55)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw}
+.hero{position:relative;min-height:100vh;padding:120px 32px 40px;overflow:visible}
 @media(max-width:980px){.hero{padding-top:168px}}
 @media(max-width:768px){.hero{min-height:0;align-items:flex-start;padding:128px 14px 210px}.hero h1{font-size:clamp(28px,7.2vw,38px);line-height:1.2;margin:8px 0 10px}.hero .hero-pay-note{display:none}.hero p.lead{margin-bottom:8px}.shelf-ask textarea{min-height:64px}}
 @media(max-height:940px){.hero h1{font-size:clamp(32px,4.2vw,56px);margin:8px 0 12px}.hero .hero-pay-note{margin:0 0 8px}.shelf-ask textarea{min-height:72px}}
@@ -838,7 +837,7 @@ html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block;position:fi
 .section-title p{color:var(--ink-dim);max-width:520px;margin:0;font-size:15px;line-height:1.6}
 .card h3{margin:0 0 8px;font-size:18px;font-weight:650}
 .card p{color:var(--ink-dim);font-size:14px;line-height:1.55;margin:0 0 14px}
-.nav-links{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.nav-links{display:flex;gap:4px;align-items:center}
 .nav-links a{color:var(--ink);padding:8px 10px;font-size:14px}
 .nav-cta{display:flex;gap:8px;align-items:center}
 .nav-toggle{display:none;width:44px;height:44px;background:transparent;border:1px solid var(--stroke);border-radius:12px;flex-direction:column;gap:4px;align-items:center;justify-content:center}
@@ -878,6 +877,7 @@ footer{padding:48px 7vw 28px}
   .section-title h1,.section-title h2{font-size:clamp(22px,7vw,30px)}
 }
 </style>
+<link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
 ${gtPrimer}
 </head>
 <body>
@@ -951,7 +951,7 @@ function footer(route, opts) {
 <footer>
   <div class="foot-grid">
     <div>
-      <div class="brand" style="margin-bottom:14px"><div class="brand-logo" aria-hidden="true"></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+      <div class="brand" style="margin-bottom:14px"><div class="brand-logo brand-logo-photo" aria-hidden="true"><img src="${assetPath('/assets/zeus/brand-176.avif')}" alt="" width="72" height="72" decoding="async" data-fallback="hide"/></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
