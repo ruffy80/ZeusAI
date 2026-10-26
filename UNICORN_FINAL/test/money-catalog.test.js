@@ -89,7 +89,10 @@ async function run() {
     assert.ok(/does not sell orbital compute/i.test(checkout));
     const industry = shell.getHtml('/services/fintech-os');
     assert.ok(industry.includes('Buy the architecture pack'));
-    assert.ok(industry.includes('KeepProduct'));
+    assert.ok(industry.includes('"merchantReturnDays":30'));
+    assert.ok(!industry.includes('KeepProduct'));
+    assert.ok(!industry.includes('ReturnByMail'));
+    assert.strictEqual((industry.match(/schema\.org\/InStock/g) || []).length, 1);
     assert.ok(!industry.includes('>/mo<'));
     const audit = integrity.audit();
     assert.strictEqual(audit.ok, true, JSON.stringify(audit.failing));
