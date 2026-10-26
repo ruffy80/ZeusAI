@@ -75,6 +75,18 @@ check('/services/:id renders real SSR product data (no "Loading service …" stu
   assert.ok(!/Loading service /.test(html), 'no "Loading service …" placeholder in SSR');
   assert.ok(html.includes('data-pricing-value="' + svc.id + '"'), 'price attribute carries the product id');
   assert.ok(/svcLivePrice/.test(html), 'live-price container is rendered');
+  const priced = shell.getHtml('/services/instant-resume-makeover');
+  assert.ok(priced.includes('id="svcPayReceipt"'), 'the offer shows list, Bitcoin, and delivery');
+  assert.ok(priced.includes('Bitcoin is 10% under the list price'), 'the discount is a second number, not a claim that the list already includes it');
+  const shelfPrice = require('../src/commerce/public-shelf').byId('instant-resume-makeover');
+  const btcPay = (Math.round(Math.round(Number(shelfPrice.priceUsd) * 100) * 90 / 100) / 100).toFixed(2);
+  assert.ok(priced.includes(btcPay), 'Bitcoin due is 10% under the shelf list price');
+  const checkout = shell.getHtml('/checkout', { plan: 'instant-resume-makeover' });
+  assert.ok(checkout.includes('id="checkoutPayReceipt"'), 'checkout repeats the same three figures');
+  assert.ok(checkout.includes('id="checkoutPayList"') && checkout.includes('id="checkoutPayBitcoin"'), 'checkout receipt cells can follow a live reprice');
+  assert.ok(checkout.includes(btcPay), 'checkout Bitcoin figure matches the product page');
+  const styles = require('../src/site/v2/styles').CSS;
+  assert.ok(styles.includes('#serviceMain > .svc-grid-ssr > .co-box{order:-1}'), 'on a phone the buy box is the first block');
   assert.ok(/data-sovereign-buy="/.test(html), 'BTC checkout CTA is present');
   // Real product name from the catalog
   assert.ok(html.includes(svc.title || svc.name || svc.id), 'product title appears in SSR');

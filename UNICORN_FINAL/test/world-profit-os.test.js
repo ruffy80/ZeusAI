@@ -48,7 +48,7 @@ check('shell: Building the future sits above ZeusAI brand (no right panel)', () 
   assert.ok(!shell.includes('Building the AI feature'), 'old AI-feature copy must be gone');
   assert.ok(shell.includes('Building the future'), 'future line missing');
   const futureIdx = shell.indexOf('Building the future');
-  const brandIdx = shell.indexOf('hero-brand');
+  const brandIdx = shell.indexOf('class="hero-brand"');
   assert.ok(futureIdx > 0 && brandIdx > futureIdx, 'future line must precede brand headline');
 });
 check('styles: hero-future letterpress uses Orbitron + vibrant chroma', () => {

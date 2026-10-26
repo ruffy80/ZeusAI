@@ -120,6 +120,13 @@ function _toBtc(usd) {
   if (!(u > 0)) return 0;
   return Number((u / r).toFixed(8));
 }
+// Catalog figure is the list price. Bitcoin checkout multiplies by 0.90
+// (COMMERCE_BTC_DISCOUNT_PCT default). Card and PayPal pay the list price.
+function _btcPayUsd(listUsd) {
+  const cents = Math.round(Number(listUsd) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return 0;
+  return Math.round(cents * 90 / 100) / 100;
+}
 // Process-local catalog memo — SSR hits _loadCatalog on nearly every page;
 // avoid re-walking unified-catalog + dynamic-pricing on every click/partial.
 let _catalogMemo = { ts: 0, items: null };
@@ -401,7 +408,7 @@ function _catalogCard(p) {
   // World-Profit-OS: reinforce the native-BTC advantage right next to every
   // priced card. Only shown for paid items (free/activate cards omit it).
   const btcDiscountNote = price > 0
-    ? `<span class="btc-discount" style="display:block;font-size:10.5px;color:#ffd36a;font-weight:600;margin-top:2px;letter-spacing:.2px;opacity:.85">10% BTC discount applied</span>`
+    ? `<span class="btc-discount" style="display:block;font-size:10.5px;color:#ffd36a;font-weight:600;margin-top:2px;letter-spacing:.2px;opacity:.85">10% BTC discount applied · Bitcoin ${_atlasMoney(_btcPayUsd(price))}</span>`
     : '';
   // When the live pricing engine produced this number, surface a small badge
   // so the user (and ops) can tell it is the AI-negotiated value, not a
@@ -1529,6 +1536,22 @@ body.has-cookie{padding-bottom:76px}
 </style>`;
 }
 
+function _payReceiptHtml(listUsd, opts) {
+  const list = Number(listUsd) || 0;
+  if (!(list > 0)) return '';
+  const o = opts || {};
+  const btc = _btcPayUsd(list);
+  const extra = o.card
+    ? '<div><dt>Card or PayPal</dt><dd' + (o.cardId ? ' id="' + o.cardId + '"' : '') + '>' + _atlasMoney(list) + '</dd></div>'
+    : '';
+  return '<dl class="pay-receipt"' + (o.id ? ' id="' + o.id + '"' : '') + '>'
+    + '<div><dt>List</dt><dd' + (o.listId ? ' id="' + o.listId + '"' : '') + '>' + _atlasMoney(list) + '</dd></div>'
+    + '<div><dt>Bitcoin</dt><dd' + (o.btcId ? ' id="' + o.btcId + '"' : '') + '>' + _atlasMoney(btc) + '</dd></div>'
+    + extra
+    + '<div><dt>Delivery</dt><dd>$0</dd></div>'
+    + '</dl>'
+    + (o.note === false ? '' : '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>');
+}
 function _atlasMoney(n) {
   const price = Number(n) || 0;
   const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
@@ -1622,7 +1645,7 @@ function _atlasCard(p) {
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   const btcDiscountNote = price > 0
-    ? '<span class="btc-discount">10% BTC discount applied</span>'
+    ? '<span class="btc-discount">10% BTC discount applied · Bitcoin ' + _atlasMoney(_btcPayUsd(price)) + '</span>'
     : '';
   const cta = (p && p.ctaHref) ? p : _ctaForProduct(p);
   const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(id));
@@ -1675,7 +1698,7 @@ function _homeAtlasHtml() {
   </nav>
   <div id="atlasMinutes" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
-    <p>Each card names the file and the listed window. Bitcoin is live. Card and PayPal appear on the same checkout when they are configured. The price already includes the Bitcoin discount.</p></div>
+    <p>Each card names the file and the listed window. The number on the card is the list price. Bitcoin pays 10% less. Card and PayPal pay the list price when they are configured. Delivery of the file is $0.</p></div>
     <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
   </div>
   <div id="atlasDays" class="atlas-band">
@@ -2315,7 +2338,7 @@ function pageService(id) {
         ${priceTxt}${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
-      ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
+      ${price > 0 ? _payReceiptHtml(price, { id: 'svcPayReceipt', listId: 'svcPayList', btcId: 'svcPayBitcoin' }) : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
         const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
@@ -2364,8 +2387,8 @@ function pagePricing() {
 ${_homeAtlasHtml()}
 <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px">
   <span class="kicker">One door</span>
-  <h3 style="margin:6px 0 4px;font-size:20px">The price on the card is the checkout price.</h3>
-  <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Ask what you do and what you want. The reply uses this shelf only.</p>
+  <h3 style="margin:6px 0 4px;font-size:20px">The list price on the card is the checkout amount.</h3>
+  <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Bitcoin on the card is 10% under that list. Card and PayPal pay the list price when they are configured. Delivery of the file is $0. Ask what you do and what you want. The reply uses this shelf only.</p>
   <p style="margin:12px 0 0"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn btn-ghost" href="/services" data-link>Open one-time catalog →</a></p>
 </div>`;
 }
@@ -2441,6 +2464,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
+        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
