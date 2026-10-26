@@ -57,12 +57,17 @@ check('TRUST footer stays off robots-disallowed /status and /origin', () => {
 
 check('DEVELOPERS footer does not dump raw OpenAPI/snapshot/stream as primary CTAs', () => {
   const f = footerBlock();
-  assert.ok(f.includes('data-live-inspect="/openapi.json"'), 'OpenAPI via live-inspect');
-  assert.ok(f.includes('data-live-inspect="/snapshot"'), 'snapshot via live-inspect');
-  assert.ok(f.includes('data-live-inspect="/health"') || f.includes('/api-explorer?endpoint=/health'), 'health inspectable');
+  assert.ok(!f.includes('data-live-inspect='), 'public footer has no operator inspect buttons');
+  assert.ok(!f.includes('href="/seo"'), 'SEO desk stays off the public footer');
+  assert.ok(!f.includes('href="/operator"'), 'operator console stays off the public footer');
+  assert.ok(!f.includes('>/health<'), 'raw health label stays off the public footer');
   assert.ok(!/<a href="\/stream"/.test(f), 'raw /stream SSE link must not be in footer');
   assert.ok(!/<a href="\/openapi\.json"/.test(f), 'raw openapi anchor must not be in footer');
   assert.ok(!/<a href="\/snapshot"/.test(f), 'raw snapshot anchor must not be in footer');
+  assert.ok(shell.includes('data-live-inspect="/openapi.json"'), 'OpenAPI inspect remains on the operator page');
+  assert.ok(shell.includes('data-live-inspect="/snapshot"'), 'snapshot inspect remains on the operator page');
+  assert.ok(shell.includes('data-live-inspect="/health"'), 'health inspect remains on the operator page');
+  assert.ok(shell.includes('href="/seo"'), 'SEO desk remains reachable from the operator page');
 });
 
 check('PRODUCT store tab no longer promises Instant <60s on-chain', () => {

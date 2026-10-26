@@ -1248,8 +1248,15 @@ html[data-route="/"] .cost-demo{margin:0}
 .foot-rest{list-style:none}
 .foot-rest details summary{cursor:pointer;color:var(--ink-dim);font-size:13px;margin-top:8px}
 .foot-rest details ul{margin-top:8px}
+.foot-rest details summary{min-height:44px;display:flex;align-items:center}
 @media(max-width:980px){
   .foot-lead{align-items:flex-start}
+}
+body:has(#zeus-cookie:not([hidden])) .concierge{bottom:108px}
+@media(max-width:768px){
+  .concierge{right:12px;bottom:96px}
+  .concierge-btn{width:52px;height:52px;font-size:22px}
+  body:has(#zeus-cookie:not([hidden])) .concierge{bottom:210px}
 }
 
 `;
