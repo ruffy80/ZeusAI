@@ -878,6 +878,14 @@ footer{padding:48px 7vw 28px}
 }
 </style>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
+<style${nonceAttr}>
+html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
+html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
+html[data-route="/"] #costDemoSection{padding:0;margin:0}
+html[data-route="/"] .cost-demo{margin:0}
+@media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
+@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
+</style>
 ${gtPrimer}
 </head>
 <body>
@@ -911,25 +919,33 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/solutions/model-routing', 'Model Routing')}${L('/solutions/self-healing', 'Self-Healing')}${L('/solutions/autonomous-agents', 'Autonomous Agents')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/dropship" data-link>Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>${L('/pricing', 'Pricing')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
-    ${L('/social-network', 'ZeusAI Social')}
-    ${L('/frontier', 'Frontier')}
-    ${L('/innovations', 'Innovations')}
-    ${L('/agents', 'Agents')}
-    ${L('/wizard', 'Find my plan')}
+    <div class="nav-more-label" role="presentation">Solutions</div>
+    ${L('/solutions/model-routing', 'Model Routing')}
+    ${L('/solutions/self-healing', 'Self-Healing')}
+    ${L('/solutions/autonomous-agents', 'Autonomous Agents')}
+    <div class="nav-more-label" role="presentation">Buy</div>
+    ${L('/buy', 'Buy')}
+    <a class="nav-link nav-link-zacc" href="/dropship" data-link>Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:rgba(255,176,32,.22);color:#ffb020;border:1px solid rgba(255,176,32,.45);vertical-align:middle">DESK</span></a>
     ${L('/store', 'Store')}
-    ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/enterprise', 'Enterprise')}
+    ${L('/wizard', 'Find my plan')}
+    <div class="nav-more-label" role="presentation">Workspace</div>
     ${L('/account', 'Account')}
     ${L('/docs', 'API &amp; Docs')}
+    ${L('/agents', 'Agents')}
+    ${L('/innovations', 'Innovations')}
+    ${L('/frontier', 'Frontier')}
+    ${L('/social-network', 'ZeusAI Social')}
+    ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/live-actions', 'Live actions')}
     ${L('/trust', 'Trust Center')}
   </div>
@@ -949,28 +965,37 @@ function footer(route, opts) {
   const N = nonce ? ` nonce="${nonce}"` : '';
   return `</main>
 <footer>
+  <div class="foot-lead">
+    <p>Route a task to a cheaper model, or buy a deliverable from the marketplace. Property of ${OWNER.name}.</p>
+    <div class="foot-lead-cta">
+      <a class="btn btn-primary" href="/services" data-link>Marketplace</a>
+      <a class="btn" href="/contact" data-link>Book Demo</a>
+    </div>
+  </div>
   <div class="foot-grid">
     <div>
-      <div class="brand" style="margin-bottom:14px"><div class="brand-logo brand-logo-photo" aria-hidden="true"><img src="${assetPath('/assets/zeus/brand-176.avif')}" alt="" width="72" height="72" decoding="async" data-fallback="hide"/></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
-      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
+      <div class="brand" style="margin-bottom:14px"><div class="brand-logo brand-logo-photo" aria-hidden="true"><img src="${assetPath('/assets/zeus/brand-176.avif')}" alt="" width="72" height="72" decoding="async" data-fallback="hide"/></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">The public shelf is the marketplace. Engagement packs are scoped on their own pages. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
-      <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
+      <li><a href="/services" data-link>Marketplace</a></li>
+      <li><a href="/pricing" data-link>Pricing</a></li>
       <li><a href="/solutions/model-routing" data-link>Model Routing</a></li>
       <li><a href="/solutions/self-healing" data-link>Self-Healing</a></li>
       <li><a href="/solutions/autonomous-agents" data-link>Autonomous Agents</a></li>
+      <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
+      <li class="foot-rest"><details><summary>More product pages</summary><ul>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
-      <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/outcomes" data-link>Outcomes</a></li>
       <li><a href="/twin" data-link>Buyer twin</a></li>
       <li><a href="/vom" data-link>Vertical machines</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
-      <li><a href="/pricing" data-link>Pricing</a></li>
       <li><a href="/how" data-link>How it works</a></li>
       <li><a href="/dashboard" data-link>Dashboard</a></li>
       <li><a href="/store" data-link>Instant Store</a></li>
       <li><a href="/gift" data-link>Gift</a></li>
       <li><a href="/social-network" data-link style="color:var(--ink-dim)">Social (optional)</a></li>
+      </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
@@ -979,9 +1004,11 @@ function footer(route, opts) {
       <li><a href="/seo" data-link>SEO desk</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
+      <li class="foot-rest"><details><summary>Live inspect</summary><ul>
       <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
       <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
+      </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
       <li><a href="/rails" data-link>Payment rails</a></li>
@@ -993,17 +1020,23 @@ function footer(route, opts) {
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/refund" data-link>Refund Guarantee</a></li>
       <li><a href="/sla" data-link>SLA</a></li>
+      <li class="foot-rest"><details><summary>More trust pages</summary><ul>
       <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
       <li><a href="/aura" data-link>Live Aura</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
+      </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
       <li><a href="/contact" data-link>Contact</a></li>
       <li><a href="/faq" data-link>FAQ</a></li>
+      <li><a href="/legal" data-link>Legal</a></li>
+      <li><a href="/privacy" data-link>Privacy</a></li>
+      <li><a href="/terms" data-link>Terms</a></li>
+      <li class="foot-rest"><details><summary>More company pages</summary><ul>
       <li><a href="/blog" data-link>Insights</a></li>
       <li><a href="/roadmap" data-link>Roadmap</a></li>
       <li><a href="/partners" data-link>Partners</a></li>
@@ -1011,13 +1044,11 @@ function footer(route, opts) {
       <li><a href="/careers" data-link>Careers</a></li>
       <li><a href="/press" data-link>Press</a></li>
       <li><a href="/changelog" data-link>Changelog</a></li>
-      <li><a href="/legal" data-link>Legal</a></li>
-      <li><a href="/terms" data-link>Terms</a></li>
-      <li><a href="/privacy" data-link>Privacy</a></li>
       <li><a href="/dpa" data-link>DPA</a></li>
       <li><a href="/payment-terms" data-link>Payment Terms</a></li>
       <li><a href="/operator" data-link>Operator Console</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
+      </ul></details></li>
     </ul></div>
   </div>
   <div class="foot-bot">
@@ -1384,9 +1415,10 @@ function globalChrome(N) {
   // Cookie banner
   try {
     var c = document.getElementById('zeus-cookie');
-    if (c && !document.cookie.match(/zeus_consent=/)) c.hidden = false;
-    document.getElementById('zeus-cookie-accept').onclick = function(){ document.cookie='zeus_consent=1; path=/; max-age=31536000; samesite=lax'; c.hidden=true; };
-    document.getElementById('zeus-cookie-deny').onclick = function(){ document.cookie='zeus_consent=0; path=/; max-age=31536000; samesite=lax'; c.hidden=true; };
+    function hideCookie(){ if (c) c.hidden = true; document.body.classList.remove('has-cookie'); }
+    if (c && !document.cookie.match(/zeus_consent=/)) { c.hidden = false; document.body.classList.add('has-cookie'); }
+    document.getElementById('zeus-cookie-accept').onclick = function(){ document.cookie='zeus_consent=1; path=/; max-age=31536000; samesite=lax'; hideCookie(); };
+    document.getElementById('zeus-cookie-deny').onclick = function(){ document.cookie='zeus_consent=0; path=/; max-age=31536000; samesite=lax'; hideCookie(); };
   } catch(_){ }
   // Live aura strip — pull every 30s
   function pullAura(){
@@ -1504,7 +1536,7 @@ function globalChrome(N) {
 })();
 </script>
 <style>
-.zeus-cookie{position:fixed;left:18px;right:18px;bottom:18px;z-index:90;background:rgba(8,10,18,.94);backdrop-filter:blur(18px);border:1px solid rgba(120,140,200,.25);border-radius:14px;padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font:13.5px/1.5 system-ui;color:#cdd6e4;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+.zeus-cookie{position:fixed;left:12px;right:12px;bottom:12px;z-index:90;background:#0c101c;border:1px solid rgba(120,140,200,.25);border-radius:14px;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font:13px/1.4 system-ui;color:#cdd6e4;box-shadow:0 14px 40px rgba(0,0,0,.5)}
 .zeus-cookie-text{flex:1;min-width:240px}.zeus-cookie-cta{display:flex;gap:8px}
 .zeus-aura-strip{position:fixed;left:14px;top:74px;z-index:60;background:rgba(8,10,18,.7);backdrop-filter:blur(12px);border:1px solid rgba(120,140,200,.18);border-radius:999px;padding:6px 12px;font:12px/1 'JetBrains Mono',monospace;color:#cdd6e4;display:none;align-items:center;gap:8px}
 @media (min-width: 920px){.zeus-aura-strip{display:inline-flex}}
@@ -1516,6 +1548,7 @@ function globalChrome(N) {
 [hidden]{display:none !important}
 /* .zeus-buy-bar[hidden] removed — buy bar element itself removed (2026-06-09) */
 .zeus-cookie[hidden]{display:none !important}
+body.has-cookie{padding-bottom:76px}
 /* .zeus-exit*: removed (founders' brief popup eliminated) */
 /* Heading-rename visual preservation (a11y h2→h3 chain, no visual regression) */
 .pillar-title{margin:8px 0 6px;font-size:16px;font-weight:600;line-height:1.25;letter-spacing:.01em}
@@ -2092,17 +2125,17 @@ ${_zaccBanner}
       </ul>
       <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
     </div>
+    <section id="costDemoSection" aria-labelledby="costDemoLabel">
+      <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
+        <h2 id="costDemoLabel">Test the Router Live</h2>
+        <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
+        <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
+        <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
+        <p class="cost-trust-note">Simulated route. No model provider is called. The prompt is not stored.</p>
+        <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
+      </form>
+    </section>
   </div>
-</section>
-<section id="costDemoSection" aria-labelledby="costDemoLabel">
-  <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
-    <h2 id="costDemoLabel">Test the Router Live</h2>
-    <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
-    <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
-    <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
-    <p class="cost-trust-note">Simulated route. No model provider is called. The prompt is not stored.</p>
-    <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
-  </form>
 </section>
 <section id="unicornEcosystem">
   <div class="section-title">
