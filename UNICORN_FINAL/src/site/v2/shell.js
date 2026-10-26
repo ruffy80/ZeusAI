@@ -911,13 +911,11 @@ function navBar(route, opts) {
   //   English or revert to the auto-detected language.
   const showingEnglish = curLang === 'en';
   const targetLang = showingEnglish ? autoLang : 'en';
-  const targetLabel = showingEnglish
-    ? (autoLang === 'en' ? 'EN' : autoLang.toUpperCase())
-    : 'EN';
+  const currentLabel = String(curLang || 'en').toUpperCase();
   const targetTitle = showingEnglish
-    ? `Display in ${autoLang.toUpperCase()} (auto-detected)`
-    : 'Display in English';
-  const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
+    ? `Page is English. Switch to ${String(autoLang || 'en').toUpperCase()}`
+    : 'Page is translated. Switch to English';
+  const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${currentLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
 <div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
@@ -1000,27 +998,20 @@ function footer(route, opts) {
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
-      <li><button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">OpenAPI 3.1</button></li>
-      <li><a href="/seo" data-link>SEO desk</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
-      <li class="foot-rest"><details><summary>Live inspect</summary><ul>
-      <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
-      <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
-      <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
-      </ul></details></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
-      <li><a href="/rails" data-link>Payment rails</a></li>
-      <li><a href="/continuity" data-link>Continuity attestation</a></li>
-      <li><a href="/standard" data-link>Merchant standard</a></li>
       <li><a href="/trust" data-link>Trust Center</a></li>
-      <li><a href="/trust-safety" data-link>Trust and safety</a></li>
       <li><a href="/security" data-link>Security</a></li>
-      <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/refund" data-link>Refund Guarantee</a></li>
       <li><a href="/sla" data-link>SLA</a></li>
       <li class="foot-rest"><details><summary>More trust pages</summary><ul>
+      <li><a href="/rails" data-link>Payment rails</a></li>
+      <li><a href="/continuity" data-link>Continuity attestation</a></li>
+      <li><a href="/standard" data-link>Merchant standard</a></li>
+      <li><a href="/trust-safety" data-link>Trust and safety</a></li>
+      <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
@@ -1046,7 +1037,6 @@ function footer(route, opts) {
       <li><a href="/changelog" data-link>Changelog</a></li>
       <li><a href="/dpa" data-link>DPA</a></li>
       <li><a href="/payment-terms" data-link>Payment Terms</a></li>
-      <li><a href="/operator" data-link>Operator Console</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
       </ul></details></li>
     </ul></div>
@@ -2614,9 +2604,9 @@ function pageDashboard() {
     <h3 style="margin:6px 0 10px">Next best actions</h3>
     <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
-      <a class="btn" href="/status" data-link>Live status</a>
-      <a class="btn" href="/innovations" data-link>Innovation map</a>
+      <a class="btn btn-primary" href="/services" data-link>Open marketplace</a>
+      <a class="btn" href="/trust" data-link>Trust Center</a>
+      <a class="btn" href="/docs" data-link>API &amp; Docs</a>
     </div>
   </div>
   <div class="grid" id="dashServices"><div class="card"><p>Loading services…</p><p class="dash-offline" style="color:var(--ink-dim);font-size:12px;margin:8px 0 0">If this stays blank, open <a href="/services" data-link>Marketplace</a>.</p></div></div>
@@ -2670,62 +2660,37 @@ function pageDocs() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
-    <p>All endpoints live on the same server that rendered this page. Everything is JSON. Auth where required is capability token (CBAT) — issued per action.</p>
+    <p>Public buyers and integrators use the rows below. Operator consoles (health, snapshot, deploy) stay on <a href="/operator" data-link>/operator</a> and are not linked from the public footer. Auth, where a route requires it, is a capability token issued per action.</p>
   </div>
   <table class="doc">
     <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/health</code></td><td>Liveness</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/snapshot</code></td><td>Full snapshot of modules/verticals/telemetry</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/stream</code></td><td>SSE stream of snapshots (5s)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/unicorn/events</code></td><td>Realtime ZeusAI events stream (SSE)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/services</code></td><td>Live service catalogue (marketplace + verticals)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/services/list</code></td><td>Catalogue alias for API clients</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/services/:id</code></td><td>Service detail</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/services/buy</code></td><td>Unified buy flow (BTC / PayPal)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/user/services</code></td><td>User active/purchased services</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/checkout/btc</code></td><td>Create BTC invoice + signed receipt</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/checkout/paypal</code></td><td>Create PayPal link + signed receipt</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/payments/btc/confirm</code></td><td>Confirm BTC payment settlement</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/payments/paypal/confirm</code></td><td>Confirm PayPal capture/settlement</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/delivery/:receiptId</code></td><td>Delivery registry package: API key, workspace, report, onboarding, downloads</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/customer/me</code></td><td>Customer portal: orders, licenses, services, pending payments, deliverables</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/admin/commerce</code></td><td>Protected commerce cockpit: receipts, paid/unpaid, delivery state</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/admin/commerce/refund</code></td><td>Protected refund for a receipt whose file was never issued. An issued file returns 409.</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/security/pq/status</code></td><td>Post-quantum readiness + payment confirmation security mode</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/future/standard</code></td><td>30-year readiness manifest and architecture guarantees</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/evolution/loop</code></td><td>Autonomous optimization loop status + guardrails</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/trust/ledger</code></td><td>Integrity + receipt trust ledger snapshot</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/revenue/proof</code></td><td>Owner revenue proof (paid receipts + payout channels)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/resilience/drill</code></td><td>Resilience drill status and recovery metrics</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/resilience/drill/run</code></td><td>Trigger a live failover drill run</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/ui/autotune</code></td><td>Adaptive cinematic UI profile (performance-aware)</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/performance/governance</code></td><td>p95/p99 telemetry with adaptive cinematic downgrade policy</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/ai/registry</code></td><td>Live AI registry (current + future adapters)</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/ai/use</code></td><td>Unified AI gateway with automatic model selection</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/activate</code></td><td>Activate a purchased service</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/autonomy/verify</code></td><td>Verify Merkle chain integrity</td></tr>
-      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/autonomy/did</code></td><td>List registered module DIDs</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/revenue/route</code></td><td>Route a revenue event (signed)</td></tr>
-      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/outcome/record</code></td><td>Record proven outcome → auto‑invoice</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/catalog</code></td><td>Public marketplace catalogue</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/services</code></td><td>Same shelf for API clients</td></tr>
+      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/checkout/create</code></td><td>Start an order for a shelf id, quantity, and email</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/order/:orderId/status</code></td><td>Order status after checkout</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/delivery/:receiptId</code></td><td>The file the paid order unlocked</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/customer/me</code></td><td>The signed-in buyer's orders and downloads</td></tr>
+      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/demo/optimize</code></td><td>Homepage router demo. Simulated. The prompt is not stored</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/openapi-public.json</code></td><td>Public OpenAPI 3.1 document</td></tr>
     </tbody>
   </table>
 
-  <div class="section-title" style="margin-top:40px"><div><h2 style="font-size:22px">Example: create BTC invoice</h2></div></div>
-  <pre class="code">curl -s -X POST https://zeusai.pro/api/checkout/btc \\
+  <div class="section-title" style="margin-top:40px"><div><h2 style="font-size:22px">Example: start a shelf checkout</h2></div></div>
+  <pre class="code">curl -s -X POST https://zeusai.pro/api/checkout/create \\
   -H 'Content-Type: application/json' \\
-  -d '{"amount":49,"currency":"USD","plan":"starter","email":"you@company.com"}'</pre>
+  -d '{"serviceId":"instant-website-audit","qty":1,"email":"you@company.com"}'</pre>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:14px;margin-top:22px">
-    <div class="card"><span class="tag">Node SDK quickstart</span><pre class="code">const order = await fetch('https://zeusai.pro/api/checkout/btc', {
+    <div class="card"><span class="tag">Node quickstart</span><pre class="code">const order = await fetch('https://zeusai.pro/api/checkout/create', {
   method: 'POST', headers: {'Content-Type':'application/json'},
-  body: JSON.stringify({ plan:'starter', amountUSD:49, customer:{ email:'you@company.com' } })
+  body: JSON.stringify({ serviceId:'instant-website-audit', qty:1, email:'you@company.com' })
 }).then(r => r.json());
-console.log(order.receiptId || order.orderId, order.btcUri || order.bip21);</pre></div>
-    <div class="card"><span class="tag">Python SDK quickstart</span><pre class="code">import requests
-order = requests.post('https://zeusai.pro/api/checkout/btc', json={
-  'plan':'starter', 'amountUSD':49, 'customer':{'email':'you@company.com'}
+console.log(order.orderId || order.receiptId);</pre></div>
+    <div class="card"><span class="tag">Python quickstart</span><pre class="code">import requests
+order = requests.post('https://zeusai.pro/api/checkout/create', json={
+  'serviceId':'instant-website-audit', 'qty':1, 'email':'you@company.com'
 }).json()
-print(order.get('receiptId') or order.get('orderId'), order.get('btcUri') or order.get('bip21'))</pre></div>
+print(order.get('orderId') or order.get('receiptId'))</pre></div>
     <div class="card"><span class="tag">Webhook verification</span><pre class="code"># NOWPayments IPN
 GET  /api/payment/nowpayments/security
 POST /api/payment/nowpayments/webhook
@@ -2745,8 +2710,8 @@ function pageAbout() {
   <span class="kicker">About</span>
   <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">A sovereign AI operating system, <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">hand‑forged</span> by its owner.</h1>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI began as one question: what if every action inside a SaaS platform could be cryptographically proven, and every dollar routed without a custodian?</p>
-  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Today it is a running operating system for the AI era. <span id="aboutModules">—</span> living modules. <span id="aboutVerticals">—</span> pre‑wired vertical industries. Hyperscaler integrations and marketplaces under one Zeus core. All of it owned by one person — ${OWNER.name} — and designed so that no one else can silently take a slice.</p>
-  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">It is not a product. It is a sovereign thesis: that intelligence, value, and property can finally be unified inside a single cryptographic chassis. This is the chassis.</p>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The public site is two doors: a model router you can try on the homepage, and a marketplace of files and engagement packs. Both are owned by ${OWNER.name}. Bitcoin is the live payment rail. Card and PayPal appear on checkout only when they are configured.</p>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">There is no published customer count, no published revenue, and no claim that a module file on the server is a product for sale.</p>
   <ul id="aboutIdentity" style="color:var(--ink-dim);font-size:15.5px;line-height:1.8;padding-left:18px">
     <li>Founder: ${OWNER.name}</li>
     <li>Email: <a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
@@ -2754,24 +2719,7 @@ function pageAbout() {
     <li>Phone: Not published</li>
     <li>Company registration: Not published</li>
   </ul>
-  <div style="display:flex;gap:14px;margin-top:30px"><a class="btn btn-primary" href="/services" data-link>See the fabric</a><a class="btn" href="mailto:${OWNER.email}">Contact the owner</a></div>
-  <script>
-  (function(){
-    function set(id,v){ var el=document.getElementById(id); if(el && v!=null && v!=='') el.textContent=v; }
-    fetch('/api/innovation/coverage',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-      var s=d&&d.summary||{};
-      if (s.total!=null) set('aboutModules', s.total);
-    }).catch(function(){});
-    fetch('/health',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-      var n = d && d.unicornSync && d.unicornSync.modulesMirror && d.unicornSync.modulesMirror.count;
-      if (n!=null) set('aboutModules', n);
-    }).catch(function(){});
-    fetch('/api/trust/center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-      var n = d && (d.verticalCount != null ? d.verticalCount : (Array.isArray(d && d.verticals) ? d.verticals.length : null));
-      if (typeof n === 'number') set('aboutVerticals', n);
-    }).catch(function(){});
-  })();
-  </script>
+  <div style="display:flex;gap:14px;margin-top:30px;flex-wrap:wrap"><a class="btn btn-primary" href="/services" data-link>Open the marketplace</a><a class="btn" href="/contact" data-link>Contact the owner</a></div>
 </section>`;
 }
 
@@ -2890,7 +2838,14 @@ function pageOperator() {
   return `<section style="padding-top:140px;max-width:1180px">
   <span class="kicker">Operator Console · public-safe</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Commerce, health and deploy <span class="grad">in one cockpit.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected. These consoles are not in the public footer.</p>
+  <div class="card" style="margin-top:16px;padding:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1">OpenAPI 3.1</button>
+    <button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot">Live snapshot</button>
+    <a class="btn" href="/api-explorer?endpoint=/health" data-link>Health explorer</a>
+    <button type="button" class="btn" data-live-inspect="/health" data-live-title="Health">/health</button>
+    <a class="btn" href="/seo" data-link>SEO desk</a>
+  </div>
   <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Operator snapshot will appear here.</p></div></div>
   <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Operator summary will appear here.</pre>
   <div class="card" style="margin-top:18px;padding:14px">
@@ -3086,7 +3041,7 @@ function pageObservability() {
   return `<section style="padding-top:140px;max-width:1120px">
   <span class="kicker">Observability</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">SLOs, probes and <span class="grad">self-healing signals.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Measured probes when armed: checkout path, robots/sitemap, payment rails, and alert readiness. Latency and 90-day SLO percentages stay unpublished until sampled — see <a href="/status" data-link>/status</a>.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Measured probes when armed: checkout path, robots/sitemap, payment rails, and alert readiness. Latency and 90-day SLO percentages stay unpublished until they are sampled. The public proof page is <a href="/trust" data-link>/trust</a>.</p>
   <div class="grid" id="obsGrid" style="margin-top:22px"><div class="card"><p>Observability probes will appear here.</p></div></div>
   <pre class="code" id="obsRaw" style="margin-top:18px">Observability summary will appear here.</pre>
   <script>
@@ -6151,7 +6106,7 @@ function pageLiveActions(params = {}) {
     <span class="kicker">Why you see nothing on Facebook / X / TikTok</span>
     <ul id="larWhyList" style="margin:12px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.7"><li>Loading live receipts…</li></ul>
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn" href="/status" data-link>Autonomy OS scores</a>
+      <a class="btn" href="/trust" data-link>Trust Center</a>
       <a class="btn btn-ghost" href="/visible" data-link>Visible social rails</a>
       <button type="button" class="btn btn-ghost" data-live-inspect="/api/autonomy/live-receipts" data-live-title="Live receipts JSON">Raw JSON</button>
     </div>
@@ -6909,7 +6864,7 @@ function pageRefund(params)  {
 </section>`; }
 function pageSla() { return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Service Level Agreement</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">SLA · <span class="grad">99.99% sovereign.</span></h1>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">The service target, <span class="grad">in writing.</span></h1>
   <ul style="color:var(--ink-dim);font-size:15.5px;line-height:1.9;padding-left:20px">
     <li><b style="color:#fff">Uptime</b> · 99.99% target for /api · 99.9% for /</li>
     <li><b style="color:#fff">Latency</b> · p95 &lt; 800ms global, p99 &lt; 1500ms</li>
@@ -6917,7 +6872,7 @@ function pageSla() { return `<section style="padding-top:140px;max-width:880px">
     <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
     <li><b style="color:#fff">Refund</b> · closed once the file is issued. An unissued order can be reported within 30 days (see /refund)</li>
   </ul>
-  <a class="btn btn-primary" href="/status" data-link>Live status →</a>
+  <a class="btn btn-primary" href="/trust" data-link>Trust Center</a>
 </section>`; }
 
 function pagePledge() {
@@ -7573,7 +7528,7 @@ function pagePress() {
   <p style="color:var(--ink-dim);max-width:640px">Everything below is independently verifiable on this domain — link to the proofs, not to us.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">A sovereign autonomous AI operating system: live catalog at /services, vertical OSes at /verticals, BTC-native checkout, Ed25519-signed receipts, self-healing operations. Owner-operated by ${OWNER.name}, no external custodians. Counts are measured, never invented.</p></div>
-    <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Live status: <a href="/status" data-link>/status</a> · Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Pricing experiments: <a href="/transparency" data-link>/transparency</a> · Signed catalog: <a href="/agents.json">/agents.json</a></p></div>
+    <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Pricing experiments: <a href="/transparency" data-link>/transparency</a> · Signed catalog: <a href="/agents.json">/agents.json</a></p></div>
     <div class="card" style="padding:20px"><span class="tag">Brand</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Name: <b>ZeusAI</b> (one word, capital Z + AI) · Logo: <a href="/assets/icons/icon-512.png">icon-512.png</a> · Domain: ${OWNER.domain.replace(/^https?:\/\//,'')} · Palette: violet #8a5cff / gold #ffd36a on deep space.</p></div>
     <div class="card" style="padding:20px"><span class="tag">Media contact</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">${OWNER.name} — <a href="mailto:${OWNER.email}">${OWNER.email}</a> (or the <a href="/contact" data-link>contact form</a>, topic "Press"). Interviews, technical deep-dives and architecture walkthroughs welcome.</p></div>
   </div>
