@@ -372,8 +372,8 @@ async function integrationTest() {
       ehLink.indexOf('</services>; rel=prefetch') !== -1
     );
     expect(
-      '103 link bundles css preload',
-      /rel=preload[^,]*as=style/i.test(ehLink) || ehLink.indexOf('rel=preload; as=style') !== -1
+      'homepage 103 does not preload unused app.css',
+      ehLink.indexOf('as=style') === -1 && ehLink.indexOf('app.css') === -1
     );
 
     // 2. The final Link response header should also include the prefetch

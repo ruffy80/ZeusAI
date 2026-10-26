@@ -99,7 +99,7 @@ check('phase4: lead hunter outreach metrics + await honesty', () => {
   assert.ok(src.includes("lead.outreachDelivery = 'sent'"));
 });
 
-check('phase5: lead hunter gated under stable; three.js home-only', () => {
+check('phase5: lead hunter gated under stable; three.js stays off the homepage', () => {
   const idx = read('backend/index.js');
   assert.ok(idx.includes('LEAD_HUNTER_FORCE'));
   assert.ok(idx.includes('_stableRuntime'));
