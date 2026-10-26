@@ -4924,10 +4924,48 @@ async function hydrateOwnerRevenue(){
 })();
 
 // ================= ENTERPRISE =================
+let entShelfPacks = [];
+
+function entMoney(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '—';
+  return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function readRenderedEntPacks() {
+  return Array.from(document.querySelectorAll('#entProductsGrid [data-product-id]')).map((el) => ({
+    id: el.getAttribute('data-product-id') || '',
+    title: (el.querySelector('h3') && el.querySelector('h3').textContent) || '',
+    priceUSD: Number(el.getAttribute('data-price-usd') || 0),
+    billing: el.getAttribute('data-billing') || '',
+  })).filter((p) => p.id);
+}
+
+function entPackNote(id) {
+  if (id === 'ent-engagement-kickoff') {
+    return 'The file is the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement.';
+  }
+  return 'Payment buys this engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in the download.';
+}
+
+function entPackCard(p) {
+  const id = String(p.id || '');
+  const price = Number(p.priceUSD != null ? p.priceUSD : p.priceUsd);
+  const per = p.billing === 'annual' ? '/yr' : (p.billing === 'monthly' ? '/mo' : '');
+  const href = '/checkout/?plan=' + encodeURIComponent(id);
+  return `
+    <article class="card" data-product-id="${escapeHtml(id)}" data-price-usd="${escapeHtml(String(price > 0 ? price : 0))}" data-billing="${escapeHtml(p.billing || '')}" style="padding:22px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <h3 style="margin:0;font-size:20px;line-height:1.25">${escapeHtml(p.title || id)}</h3>
+        <div style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right;white-space:nowrap">${escapeHtml(entMoney(price))}${per ? `<small style="color:var(--ink-dim)"> ${escapeHtml(per)}</small>` : ''}</div>
+      </div>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.5;flex:1">${escapeHtml(entPackNote(id))}</p>
+      <a class="btn btn-gold" href="${href}" data-link style="justify-content:center">Buy the engagement pack →</a>
+    </article>`;
+}
+
 async function hydrateEnterprise(){
-  // Wire contact form first — must work even if catalog fails
   wireEnterpriseContactForm();
-  // Wire module CTAs (scroll to form + preselect interest)
   document.querySelectorAll('.ent-module-cta').forEach(btn => {
     btn.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -4936,66 +4974,32 @@ async function hydrateEnterprise(){
       if (form) {
         const sel = form.querySelector('select[name="interest"]');
         if (sel && moduleId) sel.value = moduleId;
-        document.getElementById('enterprise-contact').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const box = document.getElementById('enterprise-contact');
+        if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
   });
 
+  entShelfPacks = readRenderedEntPacks();
   const cat = await api('/api/enterprise/catalog');
-  if (!cat || !cat.products) return;
-  const s = cat.summary || {};
-  const setT = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setT('entProducts', s.products || cat.products.length);
-  setT('entAccounts', s.addressableAccounts || '—');
-  setT('entAnchor', s.anchorPortfolioFmt || '—');
-  setT('entTop', s.topstonePortfolioFmt || '—');
-
-  const tierColor = { kickoff:'#a3ffce', enterprise:'#6fd3ff', diamond:'#8a5cff', platinum:'#6fd3ff', gold:'#ffd36a' };
+  const products = (cat && Array.isArray(cat.products) ? cat.products : [])
+    .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD != null ? p.priceUSD : p.priceUsd) > 0);
+  if (!products.length) return;
+  entShelfPacks = products.map((p) => ({
+    id: String(p.id),
+    title: p.title || p.id,
+    priceUSD: Number(p.priceUSD != null ? p.priceUSD : p.priceUsd),
+    billing: p.billing || '',
+  }));
   const grid = document.getElementById('entProductsGrid');
-  if (grid) {
-    grid.innerHTML = cat.products.map(p => {
-      const isKickoff = p.id === 'ent-engagement-kickoff' || p.tier === 'kickoff';
-      const isPack = /^ent-/i.test(String(p.id || ''));
-      const accounts = Array.isArray(p.accounts) ? p.accounts : [];
-      const ctaHref = p.ctaHref || (isPack ? ('/checkout/?plan=' + encodeURIComponent(p.id)) : '/enterprise#enterprise-contact');
-      const ctaLabel = p.ctaLabel || (isKickoff ? 'Pay engagement kickoff →' : (isPack ? 'Buy the engagement pack →' : 'Start autonomous deal →'));
-      const border = isKickoff ? 'rgba(163,255,206,.35)' : 'rgba(255,255,255,.08)';
-      return `
-      <div class="card" style="padding:26px;display:flex;flex-direction:column;gap:14px;border:1px solid ${border};background:linear-gradient(180deg,rgba(20,12,40,.6),rgba(8,6,18,.6));position:relative;overflow:hidden">
-        <div style="position:absolute;top:14px;right:16px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:${tierColor[p.tier]||'#fff'};font-weight:600">${p.tier || 'enterprise'}</div>
-        <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${p.segment || 'Enterprise SOW'}</div>
-        <h3 style="font-size:22px;line-height:1.15;margin:0;letter-spacing:-0.01em">${p.title || p.id}</h3>
-        <p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.55">${p.tagline || p.description || ''}</p>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 0;border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06)">
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Floor</div><div style="font-weight:600;font-size:15px;margin-top:3px">${p.floorFmt || '—'}</div></div>
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Anchor</div><div style="font-weight:700;font-size:17px;margin-top:3px;color:#fff">${p.anchorFmt || '—'}</div></div>
-          <div><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase">Topstone</div><div style="font-weight:700;font-size:15px;margin-top:3px;color:#ffd36a">${p.topstoneFmt || '—'}</div></div>
-        </div>
-        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Model:</b> ${p.model || p.billing || 'proposal'}</div>
-        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Value captured:</b> ${p.valueCaptured || p.sla || 'SOW delivery'}</div>
-        ${accounts.length ? `<div style="font-size:12px;color:var(--ink-dim);line-height:1.55"><b style="color:#fff">Target accounts:</b> ${accounts.slice(0,4).join(' · ')}${accounts.length>4?' …':''}</div>` : ''}
-        ${p.honesty ? `<div style="font-size:11px;color:#a3ffce;line-height:1.45">${p.honesty}</div>` : ''}
-        <a class="btn btn-gold" href="${ctaHref}" data-link data-pid="${p.id}" data-kickoff="${isPack ? '1' : '0'}" style="margin-top:auto;justify-content:center">${ctaLabel}</a>
-      </div>`;
-    }).join('');
-    grid.querySelectorAll('a[data-pid]').forEach(btn => {
-      btn.addEventListener('click', (ev) => {
-        if (btn.dataset.kickoff === '1') return; // let checkout navigation proceed
-        ev.preventDefault();
-        const sel = document.querySelector('#entContactForm select[name="interest"]');
-        if (sel && btn.dataset.pid) {
-          try { sel.value = btn.dataset.pid; } catch (_) {}
-        }
-        const card = btn.closest ? btn.closest('.card') : null;
-        const h3 = card && card.querySelector ? card.querySelector('h3') : null;
-        openEntNegotiator(btn.dataset.pid, (h3 && h3.textContent) || btn.dataset.pid);
-        const el = document.getElementById('enterprise-contact');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
+  if (grid) grid.innerHTML = entShelfPacks.map(entPackCard).join('');
+  const sel = document.querySelector('#entContactForm select[name="interest"]');
+  if (sel) {
+    const current = sel.value;
+    sel.innerHTML = entShelfPacks.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.title || p.id)}</option>`).join('')
+      + '<option value="custom">Something else on the shelf</option>';
+    if ([...sel.options].some((o) => o.value === current)) sel.value = current;
   }
-  await renderEntDeals();
-  await renderEntOps();
 }
 
 function wireEnterpriseContactForm(){
@@ -5041,8 +5045,9 @@ function wireEnterpriseContactForm(){
       return;
     }
     const submitBtn = form.querySelector('button[type="submit"]');
+    const sendLabel = 'Send to the owner';
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
-    showStatus('Submitting your request…', 'info');
+    showStatus('Sending your note to the owner…', 'info');
     try {
       const r = await fetch('/api/enterprise/contact', {
         method: 'POST',
@@ -5051,49 +5056,32 @@ function wireEnterpriseContactForm(){
       });
       const data = await r.json().catch(() => ({}));
       if (r.ok && data.ok) {
-        const q = data.quote || {};
-        const offer = data.offer || {};
-        const rail = (data.rail && data.rail.rail) || (offer.rail && offer.rail.rail) || 'enterprise';
-        const acvMid = offer.acv && offer.acv.mid;
-        const kickPct = (q.kickoff && q.kickoff.percentageLabel) || (offer.kickoff && offer.kickoff.percentageLabel) || '';
-        const payHref = q.checkoutHref || ('/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(payload.email));
-        showStatus('✅ ' + (data.message || 'AEDO ready.') + ' Lead ' + (data.leadId || '—')
-          + ' · Rail ' + String(rail).toUpperCase()
-          + (q.netUsd != null ? ' · Kickoff $' + Number(q.netUsd).toLocaleString('en-US') : '')
-          + (kickPct ? ' (' + kickPct + ')' : ''), 'ok');
+        const pack = entShelfPacks.find((p) => p.id === payload.interest) || null;
         const payBox = document.getElementById('entKickoffPay');
-        if (payBox) {
+        showStatus('Sent. The owner has this note'
+          + (data.leadId ? ' (' + data.leadId + ')' : '')
+          + '. Payment is a separate checkout.', 'ok');
+        if (payBox && pack) {
+          const href = '/checkout/?plan=' + encodeURIComponent(pack.id) + '&email=' + encodeURIComponent(payload.email);
           payBox.style.display = 'block';
           payBox.innerHTML = `
             <div style="margin-top:8px;padding:18px 20px;border:1px solid rgba(163,255,206,.4);border-radius:10px;background:rgba(163,255,206,.08)">
-              <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a3ffce;font-weight:700">AEDO · Rail ${String(rail).toUpperCase()} · Pay kickoff</div>
-              <p style="margin:8px 0 6px;color:#eee;font-size:14px;line-height:1.5">Kickoff <b>$${(q.netUsd != null ? Number(q.netUsd) : 2500).toLocaleString('en-US')}</b>${kickPct ? ' · ' + kickPct + ' of ACV' : ''}${acvMid ? ' · ACV mid $' + Number(acvMid).toLocaleString('en-US') : ''}.</p>
-              <p style="margin:0 0 14px;color:var(--ink-dim);font-size:13px;line-height:1.5">Unlocks MSA · SOW · Technical Appendix · Security Pack · Timeline · Payment Schedule. Full license closes under SOW — not instant delivery.</p>
-              <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <a class="btn btn-gold" href="${payHref}" data-link style="padding:12px 22px">Pay kickoff →</a>
-                ${q.btcUri ? `<a class="btn btn-ghost" href="${q.btcUri}" style="padding:12px 22px">Open BTC URI</a>` : ''}
-                <button type="button" class="btn btn-ghost" id="entOpenNegBtn" data-pid="${payload.interest || 'ent-platform-license'}" style="padding:12px 22px">Negotiate ACV →</button>
-              </div>
+              <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a3ffce;font-weight:700">Catalog checkout</div>
+              <p style="margin:8px 0 14px;color:#eee;font-size:14px;line-height:1.5">The note is with the owner. The payable price for <b>${escapeHtml(pack.title || pack.id)}</b> is the catalog price <b>${escapeHtml(entMoney(pack.priceUSD))}</b>. This form did not compute a private contract value.</p>
+              <a class="btn btn-gold" href="${href}" data-link style="padding:12px 22px">Open checkout →</a>
             </div>`;
-          const negBtn = document.getElementById('entOpenNegBtn');
-          if (negBtn) {
-            negBtn.addEventListener('click', () => {
-              openEntNegotiator(negBtn.dataset.pid, payload.interest || 'Enterprise package');
-              const emailEl = document.getElementById('entBuyerEmail');
-              if (emailEl) emailEl.value = payload.email;
-              const buyerEl = document.getElementById('entBuyer');
-              if (buyerEl && !buyerEl.value) buyerEl.value = payload.company || payload.name;
-            });
-          }
+        } else if (payBox) {
+          payBox.style.display = 'none';
+          payBox.innerHTML = '';
         }
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = sendLabel; }
       } else {
         showStatus('❌ ' + (data.error || 'Submission failed. Please email us at vladoi_ionut@yahoo.com'), 'err');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = sendLabel; }
       }
     } catch (e) {
       showStatus('❌ Network error. Please try again or email vladoi_ionut@yahoo.com', 'err');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Start Autonomous Deal'; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = sendLabel; }
     }
   });
 }

@@ -4007,7 +4007,46 @@ function pageAccount(opts) {
 </script>`;
 }
 
+function _enterprisePacks() {
+  try {
+    return require('../../commerce/enterprise-catalog').publicView()
+      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0);
+  } catch (_) {
+    return [];
+  }
+}
+
+function _enterprisePackCard(p) {
+  const id = String(p.id || '');
+  const price = Number(p.priceUSD || 0);
+  const priceTxt = price > 0
+    ? ('$' + price.toLocaleString('en-US', { maximumFractionDigits: 2 }))
+    : '—';
+  const per = p.billing === 'annual' ? '/yr' : (p.billing === 'monthly' ? '/mo' : '');
+  const note = id === 'ent-engagement-kickoff'
+    ? 'The file is the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement.'
+    : 'Payment buys this engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in the download.';
+  return `<article class="card" data-product-id="${_esc(id)}" data-price-usd="${_esc(String(price))}" style="padding:22px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+      <h3 style="margin:0;font-size:20px;line-height:1.25">${_esc(p.title || id)}</h3>
+      <div style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right;white-space:nowrap">${_esc(priceTxt)}${per ? `<small style="color:var(--ink-dim)"> ${_esc(per)}</small>` : ''}</div>
+    </div>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.5;flex:1">${_esc(note)}</p>
+    <a class="btn btn-gold" href="/checkout/?plan=${encodeURIComponent(id)}" data-link style="justify-content:center">Buy the engagement pack →</a>
+  </article>`;
+}
+
 function pageEnterprise() {
+  const packs = _enterprisePacks();
+  const packCards = packs.length
+    ? packs.map(_enterprisePackCard).join('')
+    : '<p style="color:var(--ink-dim);margin:0">Catalog did not return a pack. The price stays a dash.</p>';
+  const packOptions = (packs.length ? packs : [
+    { id: 'ent-engagement-kickoff', title: 'Engagement kickoff' },
+    { id: 'ent-acquisition-pack', title: 'Acquisition pack' },
+    { id: 'ent-sovereign-deployment', title: 'Sovereign deployment pack' },
+  ]).map((p) => `<option value="${_esc(p.id)}">${_esc(p.title || p.id)}</option>`).join('')
+    + '<option value="custom">Something else on the shelf</option>';
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:980px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">Enterprise · engagement packs</span>
@@ -4025,7 +4064,7 @@ function pageEnterprise() {
     </div>
     <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
-    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px"></div>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px">${packCards}</div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>
       <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 20px">This form reaches the owner. It does not mint a contract, compute a private ACV, or start a deployment. Pay a pack from the marketplace when the card matches the work.</p>
@@ -4044,10 +4083,7 @@ function pageEnterprise() {
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Pack
           <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
-            <option value="ent-engagement-kickoff">Engagement kickoff</option>
-            <option value="ent-acquisition-pack">Acquisition pack</option>
-            <option value="ent-sovereign-deployment">Sovereign deployment pack</option>
-            <option value="custom">Something else on the shelf</option>
+            ${packOptions}
           </select>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Message *
