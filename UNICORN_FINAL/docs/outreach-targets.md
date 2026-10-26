@@ -31,9 +31,9 @@ Nothing in this file is posted or emailed by the server. Drafts are produced by 
 
 Five drafts. `sent` is false. Reach is not invented. A person copies one and posts it.
 
-1. LinkedIn — ZeusAI prices a named deliverable on a public shelf. The guide, the card, and checkout use the same number. Bitcoin is live. Buyer count is on /origin. https://zeusai.pro/guides
+1. LinkedIn — ZeusAI prices a named deliverable on a public shelf. The guide, the card, and checkout use the same number. Bitcoin is live. No published buyer count. https://zeusai.pro/guides
 2. LinkedIn — I wrote a plain note on what AI orchestration means here: one sentence in, one shelf offer out. No hidden router. https://zeusai.pro/insights/ai-orchestration-on-a-public-shelf
-3. X — Public shelf. Same price on the guide and at checkout. Bitcoin is the live rail. The buyer ledger is on /origin. https://zeusai.pro/buy
+3. X — Public shelf. Same price on the guide and at checkout. Bitcoin is the live rail. No published buyer count. https://zeusai.pro/buy
 4. Reddit — Showing the work, not a launch thread with fake users. ZeusAI is an owner-operated checkout for named AI deliverables. Refund contract: https://zeusai.pro/refund — questions go to the owner email on /contact.
 5. Reddit — If you want the long version of how a Bitcoin checkout is supposed to match the card, this note stays specific: https://zeusai.pro/insights/bitcoin-checkout-for-ai-services
 

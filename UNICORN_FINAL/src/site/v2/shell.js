@@ -4025,7 +4025,7 @@ function pageEnterprise() {
     </div>
     <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
-    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:18px;margin-bottom:40px"></div>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px"></div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>
       <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 20px">This form reaches the owner. It does not mint a contract, compute a private ACV, or start a deployment. Pay a pack from the marketplace when the card matches the work.</p>
