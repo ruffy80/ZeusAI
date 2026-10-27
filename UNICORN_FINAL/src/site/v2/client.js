@@ -4848,7 +4848,7 @@ async function hydrateOwnerRevenue(){
       if (!resp.ok || !j || j.ok === false || !j.reply) return false;
       addMsg(mdToHtml(j.reply), 'bot', { userMsg: q });
       const offer = j.client && j.client.offer;
-      if (offer) renderShelfOffers([offer].concat(j.also || []).concat(j.limits || []));
+      if (offer) renderShelfOffers([offer].concat(j.limits || []));
       history.push({ role: 'user', content: q }, { role: 'assistant', content: j.reply });
       saveHistory();
       maybeSpeak(j.reply);
@@ -5889,7 +5889,7 @@ function bindConcierge(){
         if (!reply) return;
         const spoken = (j && (j.reply || j.question)) || '';
         const primary = (j && j.client && j.client.offer) || (j && j.primary) || null;
-        const cards = (j && j.limits || []).map(renderConciergeCard).concat([renderConciergeCard(primary)]).concat((j && j.also || []).map(renderConciergeCard)).join('');
+        const cards = (j && j.limits || []).map(renderConciergeCard).concat([renderConciergeCard(primary)]).join('');
         reply.innerHTML = spoken.split('\n').filter(Boolean).map(function(line){ return '<p>' + escConcierge(line) + '</p>'; }).join('') + '<div class="concierge-grid">' + cards + '</div>';
         try {
           reply.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' });
