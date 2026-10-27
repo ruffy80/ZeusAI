@@ -1012,6 +1012,7 @@ function footer(route, opts) {
       <li><a href="/learn" data-link>Engineering guides</a></li>
       <li><a href="/what-is-zeus-ai" data-link>What ZeusAI is</a></li>
       <li><a href="/tools" data-link>Worksheets</a></li>
+      <li><a href="/declare" data-allow-raw="1">Declare a repository</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>

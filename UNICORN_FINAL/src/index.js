@@ -1182,6 +1182,82 @@ app.get(['/share', '/post'], (req, res) => {
     return res.status(503).type('html').send('<!doctype html><title>share</title><p>HSDP unavailable</p>');
   }
 });
+// DECL/1.0 — self-reported checklist. The server does not open a repository.
+function __declSend(res, code, html, noindex) {
+  res.status(code);
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Protocol', 'DECL/1.0');
+  if (noindex) res.set('X-Robots-Tag', 'noindex');
+  return res.send(html);
+}
+app.get('/declare', (req, res) => {
+  try {
+    return __declSend(res, 200, require('./commerce/declaration-desk').formHtml(), false);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+  }
+});
+app.post('/declare', express.urlencoded({ extended: false, limit: '8kb' }), (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const out = desk.publish(req.body || {});
+    if (!out.ok) return __declSend(res, 400, desk.formHtml({ error: out.error }), false);
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    return res.redirect(303, '/d/' + out.id);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+  }
+});
+app.get('/declarations', (req, res) => {
+  try {
+    const q = req.query && req.query.q ? String(req.query.q) : '';
+    return __declSend(res, 200, require('./commerce/declaration-desk').feedHtml({ q }), true);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declarations</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)\/badge\.svg$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    res.set('X-Robots-Tag', 'noindex');
+    return res.send(desk.badgeSvg(row));
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>badge</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)\/card\.pdf$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    const buf = desk.cardPdf(row);
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'inline; filename="declaration.pdf"');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    res.set('X-Robots-Tag', 'noindex');
+    return res.send(buf);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>pdf</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    return __declSend(res, 200, desk.cardHtml(row), true);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declaration</title><p>DECL unavailable</p>');
+  }
+});
 app.get(['/.well-known/share-surface.json', '/api/share/targets'], (req, res) => {
   try {
     const hsdp = require('./commerce/share-surface');
@@ -9078,6 +9154,81 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end('<!doctype html><title>share</title><p>HSDP unavailable</p>');
     }
+  }
+
+  if (urlPath === '/declare' || urlPath === '/declarations' || /^\/d\/[a-f0-9]+(?:\/badge\.svg|\/card\.pdf)?$/.test(urlPath)) {
+    let desk;
+    try { desk = require('./commerce/declaration-desk'); }
+    catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+    }
+    const sendHtml = (code, html, noindex) => {
+      const headers = {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+      };
+      if (noindex) headers['X-Robots-Tag'] = 'noindex';
+      res.writeHead(code, headers);
+      res.end(html);
+    };
+    if (urlPath === '/declare' && req.method === 'POST') {
+      let body = '';
+      let tooBig = false;
+      req.on('data', (chunk) => {
+        if (tooBig) return;
+        body += chunk;
+        if (body.length > 8 * 1024) tooBig = true;
+      });
+      req.on('end', () => {
+        if (tooBig) return sendHtml(413, desk.formHtml({ error: 'That form is too large.' }), false);
+        const out = desk.publish(desk.parseForm(body));
+        if (!out.ok) return sendHtml(400, desk.formHtml({ error: out.error }), false);
+        res.writeHead(303, { Location: '/d/' + out.id, 'Cache-Control': 'no-store', 'X-Protocol': 'DECL/1.0' });
+        res.end();
+      });
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', Allow: 'GET, HEAD' });
+      return res.end('method not allowed');
+    }
+    if (urlPath === '/declare') return sendHtml(200, desk.formHtml(), false);
+    if (urlPath === '/declarations') {
+      const q = (requestUrl && requestUrl.searchParams && requestUrl.searchParams.get('q')) || '';
+      return sendHtml(200, desk.feedHtml({ q }), true);
+    }
+    const badge = urlPath.match(/^\/d\/([a-f0-9]+)\/badge\.svg$/);
+    if (badge) {
+      const row = desk.get(badge[1]);
+      if (!row) return sendHtml(404, desk.missingHtml(), true);
+      res.writeHead(200, {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+        'X-Robots-Tag': 'noindex',
+      });
+      return res.end(desk.badgeSvg(row));
+    }
+    const pdf = urlPath.match(/^\/d\/([a-f0-9]+)\/card\.pdf$/);
+    if (pdf) {
+      const row = desk.get(pdf[1]);
+      if (!row) return sendHtml(404, desk.missingHtml(), true);
+      const buf = desk.cardPdf(row);
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="declaration.pdf"',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+        'X-Robots-Tag': 'noindex',
+      });
+      return res.end(buf);
+    }
+    const card = urlPath.match(/^\/d\/([a-f0-9]+)$/);
+    const row = card ? desk.get(card[1]) : null;
+    if (!row) return sendHtml(404, desk.missingHtml(), true);
+    return sendHtml(200, desk.cardHtml(row), true);
   }
 
   if (urlPath === '/.well-known/share-surface.json' || urlPath === '/api/share/targets') {
