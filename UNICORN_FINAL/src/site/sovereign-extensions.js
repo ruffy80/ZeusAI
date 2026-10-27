@@ -244,6 +244,14 @@ async function handle(req, res, ctx) {
 
   // Guides, comparisons, and checklists. Not part of the seven-URL
   // marketing sitemap and not part of IndexNow.
+  const geoDoc = require('./v2/geo-desk').documentFor(urlPath);
+  if (geoDoc) {
+    res.writeHead(200, { 'Content-Type': geoDoc.type, 'Cache-Control': 'public, max-age=600' });
+    res.end(geoDoc.body);
+    recordMetric(urlPath, 200, Buffer.byteLength(geoDoc.body));
+    return true;
+  }
+
   if (urlPath === '/sitemap-authority.xml') {
     const xml = require('./v2/authority-desk').urlsetXml(OWNER.domain);
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
@@ -550,6 +558,8 @@ async function handle(req, res, ctx) {
       `- DID: did:web:${OWNER.domain.replace(/^https?:\/\//, '')} — [${OWNER.domain}/.well-known/did.json]`,
       `- Security: ${OWNER.domain}/.well-known/security.txt`,
       `- Receipts are W3C Verifiable Credentials signed Ed25519`,
+      '',
+      require('./v2/geo-desk').llmsExtra(OWNER.domain),
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);

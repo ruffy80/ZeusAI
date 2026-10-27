@@ -51,7 +51,7 @@ ${require('../../seo/merchant-offer').contractHtml()}
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
   <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:0;padding-left:18px">
     <li>The public sitemap lists /, /about, /pricing, /contact, /solutions/model-routing, /solutions/self-healing, and /solutions/autonomous-agents. /api/, /status, /health, /origin, /admin, /dashboard, /internal/, shelf URLs, and insight articles are excluded.</li>
-    <li>Engineering guides live in <a href="/sitemap-authority.xml" data-allow-raw="1">/sitemap-authority.xml</a>. They are not in the seven-URL marketing sitemap and IndexNow does not submit them.</li>
+    <li>Engineering guides live in <a href="/sitemap-authority.xml" data-allow-raw="1">/sitemap-authority.xml</a>. Facts and worksheets live in <a href="/sitemap-geo.xml" data-allow-raw="1">/sitemap-geo.xml</a>. Neither is in the seven-URL marketing sitemap, and IndexNow does not submit them.</li>
     <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>

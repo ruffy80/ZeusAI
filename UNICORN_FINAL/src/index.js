@@ -13194,7 +13194,7 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || require('./site/v2/authority-desk').has(v2Path);
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
@@ -13363,7 +13363,23 @@ a{color:#8a5cff;text-decoration:none}
     // Nonce is rewritten per response so CSP stays correct.
     // /account is intentionally memoized: auth chrome is client-side cryptoauth;
     // the SSR shell is identical for every visitor (Instant Identity Continuum).
-    const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath)
+    try {
+      const geoDesk = require('./site/v2/geo-desk');
+      if (geoDesk.has(route) && requestUrl.search) {
+        const toolQuery = {};
+        requestUrl.searchParams.forEach((value, key) => {
+          const name = String(key).slice(0, 24);
+          const clean = String(value).slice(0, 180);
+          if (toolQuery[name] == null) toolQuery[name] = clean;
+          else if (Array.isArray(toolQuery[name])) {
+            if (toolQuery[name].length < 12) toolQuery[name].push(clean);
+          } else toolQuery[name] = [toolQuery[name], clean];
+        });
+        ssrParams.toolQuery = toolQuery;
+      }
+    } catch (_) { /* geo desk is optional for routes it does not own */ }
+    const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath || ssrParams.toolQuery)
+      && !requestUrl.search
       && !/^\/(dashboard|admin|checkout|order)\b/.test(route);
     // Buy-click instant: short-TTL memo for checkout chooser shells keyed by
     // lang + plan + rounded USD so SPA navigations hit warm HTML.
