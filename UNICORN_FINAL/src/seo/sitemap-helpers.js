@@ -64,24 +64,14 @@ const BLOCKED_PREFIXES = [
 ];
 
 /** robots.txt Disallow lines. Googlebot gets the same list, because a
- *  more specific user-agent group replaces the * group. */
+ *  more specific user-agent group replaces the * group.
+ *  HTML that already sends noindex is not listed: a Disallow hides that
+ *  tag, and Google can still show the URL. /api/, /admin, /internal, and
+ *  /metrics are not pages for the index. */
 const ROBOTS_DISALLOW_LINES = Object.freeze([
   'Disallow: /api/',
   'Disallow: /admin',
   'Disallow: /admin/',
-  'Disallow: /dashboard',
-  'Disallow: /dashboard/',
-  'Disallow: /account',
-  'Disallow: /status',
-  'Disallow: /health',
-  'Disallow: /origin',
-  'Disallow: /checkout',
-  'Disallow: /checkout/',
-  'Disallow: /login',
-  'Disallow: /signup',
-  'Disallow: /auth',
-  'Disallow: /operator',
-  'Disallow: /outreach-desk',
   'Disallow: /metrics',
   'Disallow: /internal',
   'Disallow: /internal/',

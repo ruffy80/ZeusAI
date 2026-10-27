@@ -255,9 +255,9 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(missing.includes('noindex, nofollow'));
 });
 
-check('robots disallow the desk and the client logs variants', () => {
+check('the outreach desk is crawlable so its noindex can be read', () => {
   const robots = require('../src/seo/sitemap-helpers').robotsTxt('https://zeusai.pro');
-  assert.ok(robots.includes('Disallow: /outreach-desk'));
+  assert.ok(!robots.includes('Disallow: /outreach-desk'));
   const client = fs.readFileSync(path.join(__dirname, '../src/site/v2/client.js'), 'utf8');
   assert.ok(client.includes('initDiscoverTrust'));
   assert.ok(client.includes("postDiscoverTrust('impression'"));
