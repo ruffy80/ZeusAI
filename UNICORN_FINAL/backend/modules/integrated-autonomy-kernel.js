@@ -34,6 +34,7 @@ const externalSense = require('./iak/external-sense');
 const tenantQueue = require('./iak/tenant-queue');
 const guardianEngines = require('./iak/guardian-engines');
 const moduleDiscovery = require('./iak/module-discovery');
+const moduleCoverage = require('./iak/module-coverage');
 
 const HARMONIC_MS = parseInt(process.env.IAK_HARMONIC_MS || '15000', 10);
 const REPORT_EVERY = Math.max(1, parseInt(process.env.IAK_REPORT_EVERY || '20', 10)); // every N ticks
@@ -603,6 +604,18 @@ class IntegratedAutonomyKernel extends EventEmitter {
     this._discovery.lastScan = new Date().toISOString();
     this._discovery.registered += registered;
     this._discovery.skipped += skipped;
+    try {
+      this._discovery.coverage = moduleCoverage.summarize(
+        [...this.registry.keys()],
+        moduleDiscovery.loadErrors(),
+      );
+    } catch (e) {
+      this._discovery.coverage = {
+        id: 'MCOV/1.0',
+        ok: false,
+        error: String(e && e.message || e).slice(0, 180),
+      };
+    }
     this._log(`🔎 Discovery: ${manifest.count} found · +${registered} registered · ${skipped} skipped · soft=${manifest.softRequires}`);
     this.emit('iak:discovered', { found: manifest.count, registered, skipped });
     return { found: manifest.count, registered, skipped, softRequires: manifest.softRequires, totalModules: this.registry.size };
@@ -954,6 +967,16 @@ class IntegratedAutonomyKernel extends EventEmitter {
     }
 
     const lastCausal = this._discovery.lastCausalStart;
+    let coverage = this._discovery.coverage || null;
+    try {
+      coverage = moduleCoverage.summarize([...this.registry.keys()], moduleDiscovery.loadErrors());
+    } catch (e) {
+      coverage = coverage || {
+        id: 'MCOV/1.0',
+        ok: false,
+        error: String(e && e.message || e).slice(0, 180),
+      };
+    }
 
     const unhealthy = moduleList
       .filter((m) => m && !m.healthy)
@@ -1007,6 +1030,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
         at: lastCausal && lastCausal.at,
       },
       organs,
+      coverage,
       policy: {
         inventGmv: 'never',
         fileMutators: 'never_under_safe_autonomy',
@@ -1022,6 +1046,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
         'organ_status_collapse',
         'safe_autonomy_plane',
         'taac_master_activation',
+        'module_coverage_ledger',
       ],
     };
   }
