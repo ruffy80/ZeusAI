@@ -942,8 +942,16 @@ html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
 html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
 html[data-route="/"] #costDemoSection{padding:0;margin:0}
 html[data-route="/"] .cost-demo{margin:0}
+#homeOffer{margin:0 0 12px;max-width:40rem}
+#homeOfferWhat{margin:0 0 6px;color:var(--ink);font-size:16px;line-height:1.4}
+#homeOfferPrice{margin:0 0 10px;font-size:18px;color:var(--gold)}
+#sendText{white-space:pre-wrap;word-break:break-word;margin:0;font:13px/1.45 ui-monospace,monospace}
+#homeOffer #sendDoor{margin-top:10px;padding:10px 12px}
+#homeOffer #sendDoor h2{font-size:15px;margin:0 0 4px}
+#homeOffer #sendDoor>p{font-size:12px;line-height:1.35;margin:0 0 6px}
+#homeOffer #sendText{font-size:12px;line-height:1.35;max-height:3.9em;overflow:auto}
 @media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
-@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
+@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}#homeOffer .hero-cta .btn{display:block;text-align:center}#homeOffer #sendDoor .btn{display:inline-flex;width:auto}}
 </style>
 </head>
 <body>
@@ -1554,6 +1562,89 @@ function _payReceiptHtml(listUsd, opts) {
     + '</dl>'
     + (o.note === false ? '' : '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>');
 }
+function _publicOrigin() {
+  return String(OWNER.domain || 'https://zeusai.pro').replace(/\/$/, '');
+}
+function _offerFacts(id) {
+  let item = null;
+  try { item = require('../../commerce/public-shelf').byId(id); } catch (_) { item = null; }
+  if (!item || !(Number(item.priceUsd) > 0)) return null;
+  const list = Number(item.priceUsd);
+  const safe = encodeURIComponent(item.id);
+  return {
+    id: item.id,
+    title: String(item.title || item.id),
+    list,
+    btc: _btcPayUsd(list),
+    href: '/services/' + safe,
+    url: _publicOrigin() + '/services/' + safe,
+  };
+}
+function _sendSentence(facts) {
+  if (!facts) return '';
+  if (facts.id === 'ent-engagement-kickoff') {
+    return 'I opened ' + facts.title + '. ZeusAI showed the proposal pack and the list price, and it has not taken payment and has not issued the pack. It does not deliver the license, the source, or a private cloud. ' + facts.url;
+  }
+  return 'I opened ' + facts.title + '. ZeusAI showed the file and the list price, and it has not taken payment and has not issued the file. ' + facts.url;
+}
+function _pageSend(path, sentence, nonce) {
+  const url = _publicOrigin() + path;
+  const line = String(sentence || '').trim();
+  return _sendDoorHtml({
+    url,
+    sentence: line.indexOf(url) === -1 ? (line + ' ' + url) : line,
+  }, nonce);
+}
+function _sendDoorHtml(facts, nonce) {
+  if (!facts || !facts.url) return '';
+  const sentence = facts.sentence || _sendSentence(facts);
+  const enc = encodeURIComponent;
+  const links = [
+    ['X', 'https://twitter.com/intent/tweet?text=' + enc(sentence)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + enc(facts.url)],
+    ['Reddit', 'https://www.reddit.com/submit?url=' + enc(facts.url) + '&title=' + enc(sentence)],
+    ['Medium', 'https://medium.com/new-story'],
+    ['Dev.to', 'https://dev.to/new'],
+    ['Hacker News', 'https://news.ycombinator.com/submitlink?u=' + enc(facts.url) + '&t=' + enc(sentence)],
+  ];
+  const buttons = links.map(([label, href]) => (
+    '<a class="btn" href="' + _esc(href) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+  )).join('');
+  const nonceAttr = nonce ? ' nonce="' + _esc(nonce) + '"' : '';
+  return '<section id="sendDoor" class="card" style="margin-top:18px;padding:16px">'
+    + '<h2 style="margin:0 0 8px;font-size:20px">Send this page</h2>'
+    + '<p style="margin:0 0 8px;color:var(--ink-dim);font-size:14px">The sentence is what happened. A click opens the composer in your browser. The server does not post.</p>'
+    + '<pre id="sendText">' + _esc(sentence) + '</pre>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
+    + '<button type="button" class="btn btn-primary" id="sendCopy">Copy this sentence</button>'
+    + buttons
+    + '</div>'
+    + '<script' + nonceAttr + '>(function(){var btn=document.getElementById("sendCopy");var pre=document.getElementById("sendText");if(!btn||!pre)return;btn.addEventListener("click",function(){var text=pre.textContent||"";var range=document.createRange();range.selectNodeContents(pre);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);var copied=false;try{copied=document.execCommand("copy");}catch(e){copied=false;}btn.textContent=copied?"Copied":"Selected — copy it";if(!copied&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){btn.textContent="Copied";},function(){});}});})();</script>'
+    + '</section>';
+}
+function _namedDoorHtml(id) {
+  const facts = _offerFacts(id);
+  if (!facts) return '';
+  const what = id === 'ent-engagement-kickoff'
+    ? 'You receive the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement. It does not deliver the license, the source, or a private cloud.'
+    : 'You receive a Markdown audit: scorecard, SEO, performance, accessibility, and a 30-day plan, written from your URL. No score is filled in unless a provider key is armed.';
+  return '<article class="card" id="namedOffer" data-offer-id="' + _esc(facts.id) + '" style="margin:0 0 16px;padding:16px">'
+    + '<h2 style="margin:0 0 8px;font-size:22px">' + _esc(facts.title) + '</h2>'
+    + '<p id="namedOfferWhat" style="margin:0 0 8px">' + what + '</p>'
+    + _payReceiptHtml(facts.list, { id: 'namedOfferReceipt' })
+    + '<p style="margin:12px 0 0"><a class="btn btn-primary" id="namedOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
+    + '</article>';
+}
+function _homeFirstScreen(nonce) {
+  const facts = _offerFacts('instant-website-audit');
+  if (!facts) return '';
+  return '<div id="homeOffer">'
+    + '<p id="homeOfferWhat">You receive a Markdown website audit: scorecard, SEO, performance, accessibility, and a 30-day plan. No score is filled in unless a provider key is armed.</p>'
+    + '<p id="homeOfferPrice">List <b>' + _atlasMoney(facts.list) + '</b> · Delivery $0. Bitcoin on the next page is 10% under this list.</p>'
+    + '<p class="hero-cta"><a class="btn btn-primary" id="homeOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
+    + _pageSend('/', 'I opened ZeusAI. The first screen names a website audit and its list price. ZeusAI has not taken payment and has not issued the file.', nonce)
+    + '</div>';
+}
 function _atlasMoney(n) {
   const price = Number(n) || 0;
   const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
@@ -1733,7 +1824,7 @@ function _homeAtlasHtml(opts) {
 </section>`;
 }
 
-function pageHome() {
+function pageHome(params) {
   // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
   // from each tier so the page always shows a buyable price range without
   // depending on JS hydration.
@@ -2128,9 +2219,10 @@ ${_zaccBanner}
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <p class="hero-brand">ZeusAI</p>
       <h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</h1>
+      ${_homeFirstScreen(params && params.nonce)}
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Get Enterprise Access</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/ent-engagement-kickoff" data-link>Get Enterprise Access</a>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
         <li>Secure</li>
@@ -2179,7 +2271,7 @@ ${authorityDesk.homeDoorsHtml()}
 `;
 }
 
-function pageEnterpriseLanding(route) {
+function pageEnterpriseLanding(route, params) {
   const row = enterpriseLanding(route);
   if (!row) return pageNotFound(route);
   const others = ENTERPRISE_LANDINGS.filter((item) => item.path !== row.path);
@@ -2188,6 +2280,8 @@ function pageEnterpriseLanding(route) {
     <div><span class="kicker">${_esc(row.kicker)}</span><h1>${_esc(row.h1)}</h1></div>
     <p>${_esc(row.lead)}</p>
   </div>
+  ${_namedDoorHtml('ent-engagement-kickoff')}
+  ${_pageSend(row.path, 'I opened ' + row.title + '. ZeusAI described the work and showed the engagement kickoff, and it has not taken payment and has not issued the pack.', params && params.nonce)}
   <section id="howItWorks">
     <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps.</h2></div></div>
     <div class="grid how-steps">
@@ -2263,7 +2357,7 @@ function pageServices(params) {
 </section>`;
 }
 
-function pageService(id) {
+function pageService(id, params) {
   // First paint is the shelf card. A real module file stays on the server.
   // An id that is neither a shelf offer nor a module file is not found.
   const safeId = String(id || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 120);
@@ -2397,6 +2491,7 @@ function pageService(id) {
       </label>
       <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
       })()}
+      ${_sendDoorHtml(_offerFacts(safeId), params && params.nonce)}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
     </aside>
@@ -2405,13 +2500,15 @@ function pageService(id) {
 </section>`;
 }
 
-function pagePricing() {
+function pagePricing(params) {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
     <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. There is no separate Starter or Growth plan. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
-  <p style="margin:0 0 12px"><a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
+  ${_namedDoorHtml('instant-website-audit')}
+  ${_pageSend('/pricing', 'I opened ZeusAI pricing. ZeusAI showed the shelf list price, and it has not taken payment and has not issued a file.', params && params.nonce)}
+  <p style="margin:0 0 12px">The enterprise conversation is <a href="/services/ent-engagement-kickoff" data-link>Enterprise Engagement Kickoff</a>. <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
 </section>
 ${_homeAtlasHtml()}
 <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px">
@@ -2473,8 +2570,8 @@ function pageCheckout(params) {
   const humanFirst = paypalLive || nowLive;
   const defaultRail = paypalLive ? 'paypal' : (nowLive ? 'nowpayments' : 'btc');
   const btcBtn = `<button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1;background:#f7931a;border-color:#f7931a;color:#1a1004">⚡ Pay with Bitcoin</button>`;
-  const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
-  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
+  const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal"${paypalLive ? '' : ' hidden'} style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
+  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments"${nowLive ? '' : ' hidden'} style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
   const railBtns = humanFirst ? (ppBtn + npBtn + btcBtn) : (btcBtn + ppBtn + npBtn);
   const railHint = humanFirst
     ? 'PayPal and card/crypto are live on this server. Bitcoin stays available and quotes a 10% discount. Your last choice is remembered on this device.'
@@ -2494,7 +2591,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
+        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', card: humanFirst }) : ''}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
@@ -2502,6 +2599,7 @@ function pageCheckout(params) {
       ${contactOnly ? `<a class="btn btn-primary" href="/api/shelf/proposal/${encodeURIComponent(shelfItem.id)}" download>Download the proposal</a> <a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a>` : railBtns}
     </div>
     <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
+    ${contactOnly ? '' : _sendDoorHtml(_offerFacts(ssrPlan), p.nonce)}
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
@@ -2512,8 +2610,8 @@ function pageCheckout(params) {
     <div class="co-box">
       <div class="co-method" aria-label="Payment method">
         <button type="button" class="chip${chipOn('btc')}" data-method="btc">₿ Bitcoin</button>
-        <button type="button" class="chip${chipOn('paypal')}" data-method="paypal">PayPal</button>
-        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments">Card / crypto</button>
+        <button type="button" class="chip${chipOn('paypal')}" data-method="paypal"${paypalLive ? '' : ' hidden'}>PayPal</button>
+        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments"${nowLive ? '' : ' hidden'}>Card / crypto</button>
       </div>
       <div id="coPanelBtc"${show('btc')}>
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
@@ -2746,10 +2844,12 @@ GET  /api/delivery/{receiptId}</pre></div>
 </section>`;
 }
 
-function pageAbout() {
+function pageAbout(params) {
   return `<section style="padding-top:140px;max-width:900px">
   <span class="kicker">About</span>
   <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">Two doors. <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">One owner.</span></h1>
+  ${_namedDoorHtml('instant-website-audit')}
+  ${_pageSend('/about', 'I opened the ZeusAI about page. ZeusAI showed the owner and a file you can buy, and it has not taken payment and has not issued a file.', params && params.nonce)}
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI is the model-router demo and the marketplace. Both are operated by ${OWNER.name}. A module file on the server is not a product.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The public site is two doors: a model router you can try on the homepage, and a marketplace of files and engagement packs. Both are owned by ${OWNER.name}. Bitcoin is the live payment rail. Card and PayPal appear on checkout only when they are configured.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">There is no published customer count, no published revenue, and no claim that a module file on the server is a product for sale.</p>
@@ -4707,7 +4807,7 @@ function renderRoute(route, params = {}) {
     return pageFrom(Object.assign({}, params, { channel: route.slice('/from/'.length).split('/')[0] }));
   }
   switch (route) {
-    case '/': return pageHome();
+    case '/': return pageHome(params);
     case '/origin': return pageOrigin(params);
     case '/from': return pageFrom(params);
     case '/buy': return sellSurface.pageBuy();
@@ -4720,20 +4820,20 @@ function renderRoute(route, params = {}) {
     case '/seo': return seoSurface.pageSeo();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices(params);
-    case '/pricing': return pagePricing();
+    case '/pricing': return pagePricing(params);
     case '/solutions/ai-pricing': return pageSolution('pricing');
     case '/solutions/ai-checkout': return pageSolution('checkout');
     case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
     case '/solutions/model-routing':
     case '/solutions/self-healing':
     case '/solutions/autonomous-agents':
-    case '/solutions/continuous-rd': return pageEnterpriseLanding(route);
+    case '/solutions/continuous-rd': return pageEnterpriseLanding(route, params);
     case '/checkout':
     case '/checkout/': return pageCheckout(params);
     case '/dashboard': return pageDashboard();
     case '/how': return pageHow();
     case '/docs': return pageDocs();
-    case '/about': return pageAbout();
+    case '/about': return pageAbout(params);
     case '/legal': return pageLegal();
     case '/trust': return pageTrustCenter();
     case '/security': return pageSecurity();
@@ -4775,7 +4875,7 @@ function renderRoute(route, params = {}) {
     case '/frontier': return pageFrontier();
     case '/deepseek-cockpit': return pageDeepseekCockpit();
     case '/marketplace': return pageServices();
-    case '/contact': return pageContact();
+    case '/contact': return pageContact(params);
     case '/faq': return pageFaq();
     case '/blog': return pageBlog();
     case '/guides': return pageGuides();
@@ -4796,9 +4896,9 @@ function renderRoute(route, params = {}) {
     default:
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
       if (route.startsWith('/blog/') && route !== '/blog') return discoverTrust.pageArticle(route.slice('/blog/'.length));
-      if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
-      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
-      if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
+      if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length), params);
+      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10), params);
+      if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7), params.nonce);
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
       return pageNotFound(route);
   }
@@ -7339,11 +7439,14 @@ function pageFrontier() {
 //   • /api/uaic/affiliate/track → logs referral hits to affiliate-track.jsonl
 // RO: pagini reale, conectate la API-uri reale, zero conținut fals.
 
-function pageContact() {
+function pageContact(params) {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Contact</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Talk to the <span class="grad">owner-operator.</span></h1>
-  <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door.</p>
+  <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door. A message stays with the owner. It does not become a public page.</p>
+  ${_namedDoorHtml('ent-engagement-kickoff')}
+  <p style="margin:0 0 12px">The file on the shelf is <a href="/services/instant-website-audit" data-link>Instant Website Audit (AI)</a>.</p>
+  ${_pageSend('/contact', 'I opened the ZeusAI contact page. A message stays with the owner and is not a public page. ZeusAI has not taken payment and has not issued a file.', params && params.nonce)}
   <div class="grid phone-stack" style="grid-template-columns:1.4fr 1fr;gap:18px;margin-top:26px;align-items:start">
     <form id="contactForm" class="card" style="padding:22px;display:grid;gap:12px">
       <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -7408,16 +7511,17 @@ function pageGuides() {
   }
 }
 
-function pageGuide(id) {
+function pageGuide(id, params) {
   try {
-    const html = require('../../../backend/modules/discovery-seven').guideHtml(id);
-    const guide = require('../../../backend/modules/discovery-seven').guideFor(id);
-    const share = require('../../commerce/share-surface').pageShareHtml({
-      path: (guide && guide.path) || ('/guides/' + id),
-      title: (guide && guide.title) || 'Offer guide',
-      text: (guide && guide.metaDescription) || (guide && guide.description) || '',
-    });
-    return html + share;
+    const desk = require('../../../backend/modules/discovery-seven');
+    const html = desk.guideHtml(id);
+    const guide = desk.guideFor(id);
+    if (!guide) return html;
+    return html + _pageSend(
+      guide.path,
+      'This guide answers one question and links to one file. ZeusAI has not taken payment and has not issued the file.',
+      params && params.nonce
+    );
   } catch (_) {
     return `<section style="padding-top:140px"><h1>Offer guide</h1><p>The discovery desk is offline.</p></section>`;
   }
@@ -7636,7 +7740,7 @@ function pageAgents() {
 // hydration polls /api/order/:id/status and refreshes the timeline until
 // settlement (paid → activated). Never fakes a "paid" state.
 // RO: pasaport digital pentru comenzi — receipt + livrare + verificare.
-function pageOrderPassport(id) {
+function pageOrderPassport(id, nonce) {
   const safeId = String(id || '').replace(/[^A-Za-z0-9_\-:]/g, '').slice(0, 120);
   if (!safeId) {
     return `<section style="padding-top:140px;max-width:720px"><div class="card"><h1 style="margin:0 0 10px">Missing order id</h1><p style="color:var(--ink-dim)">Return to <a href="/account" data-link>your account</a> to find your recent orders.</p></div></section>`;
@@ -7677,6 +7781,7 @@ function pageOrderPassport(id) {
     <div id="opDeliveryLinks" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"></div>
   </div>
   <p style="color:var(--ink-dim);font-size:12.5px;margin-top:18px">Passport is bookmarkable. Refresh anytime — the status is fetched live.</p>
+  ${_pageSend('/order/' + encodeURIComponent(safeId), 'I opened ZeusAI order ' + safeId + '. ZeusAI has not confirmed payment on this page until the ledger says paid, and it has not issued the file until delivery is shown.', nonce)}
   <script>
   (function(){
     var ORDER_ID = ${JSON.stringify(safeId)};

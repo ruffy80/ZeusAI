@@ -367,18 +367,17 @@ async function hydratePaymentRails(){
     + (paypalActive ? ' · PayPal armed' : ' · PayPal idle')
     + (nowActive ? ' · NOWPayments armed' : ' · NOWPayments idle')
     + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
-  const paypalPanel = document.getElementById('coPanelPaypal');
-  const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
-  if (paypalChip) paypalChip.style.display = paypalActive ? '' : 'none';
-  if (paypalPanel && paypalPanel.style.display !== 'none' && !paypalActive) paypalPanel.style.display = 'none';
-  const nowPanel = document.getElementById('coPanelNow');
-  const nowChip = document.querySelector('.co-method .chip[data-method="nowpayments"]');
-  if (nowChip) nowChip.style.display = nowActive ? '' : 'none';
-  if (nowPanel && nowPanel.style.display !== 'none' && !nowActive) nowPanel.style.display = 'none';
-  const topPp = document.getElementById('coBuyPaypalTop');
-  const topNp = document.getElementById('coBuyNowTop');
-  if (topPp) topPp.style.display = paypalActive ? '' : 'none';
-  if (topNp) topNp.style.display = nowActive ? '' : 'none';
+  const showRail = (el, on) => {
+    if (!el) return;
+    el.hidden = !on;
+    el.style.display = on ? '' : 'none';
+  };
+  showRail(document.getElementById('coPanelPaypal'), paypalActive);
+  showRail(document.querySelector('.co-method .chip[data-method="paypal"]'), paypalActive);
+  showRail(document.getElementById('coPanelNow'), nowActive);
+  showRail(document.querySelector('.co-method .chip[data-method="nowpayments"]'), nowActive);
+  showRail(document.getElementById('coBuyPaypalTop'), paypalActive);
+  showRail(document.getElementById('coBuyNowTop'), nowActive);
   const hint = document.getElementById('checkoutRailHint');
   if (hint) {
     hint.textContent = paypalActive || nowActive
@@ -3514,6 +3513,39 @@ function payReceiptHtml(listUsd) {
     + '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>';
 }
 
+function serviceSendDoor(service){
+  const id = String((service && service.id) || '');
+  const price = Number(service && (service.priceUsd != null ? service.priceUsd : service.price));
+  if (!id || !(price > 0)) return '';
+  const url = 'https://zeusai.pro/services/' + encodeURIComponent(id);
+  const title = String((service && service.title) || id);
+  const sentence = id === 'ent-engagement-kickoff'
+    ? ('I opened ' + title + '. ZeusAI showed the proposal pack and the list price, and it has not taken payment and has not issued the pack. It does not deliver the license, the source, or a private cloud. ' + url)
+    : ('I opened ' + title + '. ZeusAI showed the file and the list price, and it has not taken payment and has not issued the file. ' + url);
+  const enc = encodeURIComponent;
+  const links = [
+    ['X', 'https://twitter.com/intent/tweet?text=' + enc(sentence)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + enc(url)],
+    ['Reddit', 'https://www.reddit.com/submit?url=' + enc(url) + '&title=' + enc(sentence)],
+    ['Medium', 'https://medium.com/new-story'],
+    ['Dev.to', 'https://dev.to/new'],
+    ['Hacker News', 'https://news.ycombinator.com/submitlink?u=' + enc(url) + '&t=' + enc(sentence)],
+  ];
+  const buttons = links.map(function(pair){
+    return '<a class="btn" href="' + escapeHtml(pair[1]) + '" target="_blank" rel="noopener noreferrer">' + pair[0] + '</a>';
+  }).join('');
+  return '<section id="sendDoor" class="card" style="margin-top:18px;padding:16px">'
+    + '<h2 style="margin:0 0 8px;font-size:20px">Send this page</h2>'
+    + '<p style="margin:0 0 8px;color:var(--ink-dim);font-size:14px">The sentence is what happened. A click opens the composer in your browser. The server does not post.</p>'
+    + '<pre id="sendText">' + escapeHtml(sentence) + '</pre>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
+    + '<button type="button" class="btn btn-primary" id="sendCopy">Copy this sentence</button>'
+    + buttons
+    + '</div>'
+    + '<script>(function(){var btn=document.getElementById("sendCopy");var pre=document.getElementById("sendText");if(!btn||!pre)return;btn.addEventListener("click",function(){var text=pre.textContent||"";var range=document.createRange();range.selectNodeContents(pre);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);var copied=false;try{copied=document.execCommand("copy");}catch(e){copied=false;}btn.textContent=copied?"Copied":"Selected — copy it";if(!copied&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){btn.textContent="Copied";},function(){});}});})();</script>'
+    + '</section>';
+}
+
 async function hydrateServiceDetail(id){
   const marked = document.getElementById('servicePage');
   if (marked && (marked.getAttribute('data-server-module') === '1' || marked.getAttribute('data-missing-service') === '1')) return;
@@ -3622,10 +3654,12 @@ async function hydrateServiceDetail(id){
           const label = cta.ctaLabel || 'Buy → choose payment';
           return '<button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="' + escapeHtml(s.id) + '" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</button>';
         })()}
+        ${serviceSendDoor(s)}
         <div id="svcUpsell" data-upsell-anchor="${escapeHtml(s.id)}" style="margin-top:12px"></div>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
+    runAppInlineScripts(root);
   }
   fetchLivePricing(sid, { /* no onSlow placeholder — first paint already shows the SSR price */ }).then(function(live){
     if (!live || !Number.isFinite(Number(live.price_usd))) return;

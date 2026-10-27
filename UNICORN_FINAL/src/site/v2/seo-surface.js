@@ -39,7 +39,7 @@ function pageSeo() {
   <div class="card" style="padding:16px">
     <span class="kicker">/robots.txt</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Crawl policy</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Googlebot is blocked from /api/, /origin, /status, /health, /metrics, /admin, /dashboard, /internal/, and the other private prefixes. Public pages stay allowed.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">robots.txt disallows /api/, /admin, /metrics, and /internal/. Pages that send noindex, including /origin, /status, /health, and /dashboard, stay crawlable so Google can read that tag.</p>
   </div>
 </section>
 
@@ -52,7 +52,7 @@ ${require('../../seo/merchant-offer').contractHtml()}
   <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:0;padding-left:18px">
     <li>The public sitemap lists /, /about, /pricing, /contact, /solutions/model-routing, /solutions/self-healing, and /solutions/autonomous-agents. /api/, /status, /health, /origin, /admin, /dashboard, /internal/, shelf URLs, and insight articles are excluded.</li>
     <li>Engineering guides live in <a href="/sitemap-authority.xml" data-allow-raw="1">/sitemap-authority.xml</a>. Facts and worksheets live in <a href="/sitemap-geo.xml" data-allow-raw="1">/sitemap-geo.xml</a>. Neither is in the seven-URL marketing sitemap, and IndexNow does not submit them.</li>
-    <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
+    <li>/dashboard and /account stay out of the sitemap. They send noindex. robots.txt does not disallow them.</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>
     <li>IndexNow pings Bing/Yandex. A 403 from Bing means the host is not verified yet — add <code>BING_WEBMASTER_API_KEY</code>.</li>
     <li>Google ranking needs <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> so Search Console gets the sitemap. Google retired the ping API in 2023. This desk does not claim the site is indexed.</li>
