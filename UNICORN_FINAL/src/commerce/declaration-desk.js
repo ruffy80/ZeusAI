@@ -384,9 +384,16 @@ function cardHtml(record) {
     if (!btn || !pre) return;
     btn.addEventListener('click', function () {
       var text = pre.textContent || '';
-      var done = function () { btn.textContent = 'Copied'; };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done, function () {});
+      var range = document.createRange();
+      range.selectNodeContents(pre);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      var copied = false;
+      try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+      btn.textContent = copied ? 'Copied' : 'Selected — copy it';
+      if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { btn.textContent = 'Copied'; }, function () {});
       }
     });
   }());

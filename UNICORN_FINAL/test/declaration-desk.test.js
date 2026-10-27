@@ -48,6 +48,7 @@ check('a signed checklist is a card, not a grade', () => {
   const html = desk.cardHtml(out.record);
   assert.ok(html.includes('You declared 3 of 8. Zeus did not open the repository.'));
   assert.ok(html.includes('Share this declaration'));
+  assert.ok(html.includes('Selected — copy it'));
   assert.ok(html.includes('name="robots" content="noindex"'));
   assert.ok(!html.includes('Architecture Score'));
   assert.ok(!html.includes('Top 1%'));
