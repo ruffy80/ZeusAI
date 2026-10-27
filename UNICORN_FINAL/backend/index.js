@@ -16855,7 +16855,9 @@ app.get('/crypto-bridge', (req, res) => {
   return res.redirect(302, '/crypto-fiat-bridge');
 });
 
-app.get('/{*path}', (req, res) => {
+app.get('/{*path}', (req, res, next) => {
+  const reqPath = String(req.path || '');
+  if (reqPath === '/api' || reqPath.startsWith('/api/')) return next();
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
@@ -18127,6 +18129,15 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', new Date().toISOString(), msg);
   if (reason instanceof Error && reason.stack) console.error(reason.stack);
   // Do NOT call process.exit() — keep the server alive
+});
+
+// API routes registered after the HTML catch-all still run because that
+// catch-all calls next() for /api/*. Anything still unmatched stays JSON.
+app.use((req, res, next) => {
+  const reqPath = String(req.path || '');
+  if (reqPath !== '/api' && !reqPath.startsWith('/api/')) return next();
+  if (res.headersSent) return;
+  res.status(404).json({ ok: false, error: 'not_found' });
 });
 
 // Only bind to a port when run directly (not when imported by tests)

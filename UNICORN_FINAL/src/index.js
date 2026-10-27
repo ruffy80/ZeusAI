@@ -3568,8 +3568,15 @@ function fetchBackendJson(backendBaseUrl, routePath) {
     signal: controller.signal
   }).then(async (response) => {
     clearTimeout(timeout);
+    const text = await response.text();
+    const trimmed = String(text || '').replace(/^\uFEFF/, '').trim();
+    const ctype = String(response.headers.get('content-type') || '');
     if (!response.ok) throw new Error(routePath + ' ' + response.status);
-    return response.json();
+    if (ctype.includes('text/html') || trimmed.startsWith('<')) {
+      throw new Error(routePath + ' returned_html');
+    }
+    try { return JSON.parse(trimmed); }
+    catch (_) { throw new Error(routePath + ' invalid_json'); }
   }).catch((error) => {
     clearTimeout(timeout);
     throw error;
@@ -3625,10 +3632,15 @@ function refreshBackendRuntimeState(force) {
     if (launchpadStatusRes.status === 'fulfilled') runtimeSyncState.launchpadStatus = launchpadStatusRes.value;
     if (launchpadPlanRes.status === 'fulfilled') runtimeSyncState.launchpadPlan = launchpadPlanRes.value;
     if (moduleRegistryRes.status === 'fulfilled') runtimeSyncState.moduleRegistry = moduleRegistryRes.value;
-    runtimeSyncState.lastError = results
+    const rawSyncError = results
       .filter((entry) => entry.status === 'rejected')
       .map((entry) => entry.reason && entry.reason.message)
       .filter(Boolean)[0] || null;
+    runtimeSyncState.lastError = rawSyncError
+      ? (String(rawSyncError).indexOf('<') !== -1 || /doctype/i.test(String(rawSyncError))
+        ? 'upstream_returned_html'
+        : String(rawSyncError).replace(/[<>]/g, '').slice(0, 180))
+      : null;
     runtimeSyncState.lastSyncAt = Date.now();
     return runtimeSyncState;
   }).finally(() => {
@@ -8206,21 +8218,31 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   // Public storefront catalogue — ONE builder for /api/services and
   // /api/services/list so homepage Sync Drift stays at 0 mismatch.
   if (urlPath === '/api/services/list' || urlPath === '/api/services') {
-    if (process.env.BACKEND_API_URL) {
-      await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
+    try {
+      if (process.env.BACKEND_API_URL) {
+        await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
+      }
+      const built = await buildPublicStorefrontServices(requestUrl);
+      if (!built || !Array.isArray(built.services)) throw new Error('Invalid services format');
+      const snapshot = buildSnapshot();
+      const sync = snapshot && snapshot.source ? Object.assign({}, snapshot.source) : { mode: 'local-fallback', backendConfigured: false, syncedAt: null, lastError: null };
+      if (sync.lastError) sync.lastError = String(sync.lastError).replace(/[<>]/g, '').slice(0, 180);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({
+        ok: true,
+        updatedAt: new Date().toISOString(),
+        source: built.source,
+        sourceLegacy: 'unicorn',
+        sync,
+        count: built.services.length,
+        includeSynthetic: built.includeSynthetic,
+        services: built.services,
+      }));
+    } catch (err) {
+      const message = String((err && err.message) || 'services_unavailable').replace(/[<>]/g, '').slice(0, 180) || 'services_unavailable';
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: false, error: message, services: [] }));
     }
-    const built = await buildPublicStorefrontServices(requestUrl);
-    const snapshot = buildSnapshot();
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({
-      updatedAt: new Date().toISOString(),
-      source: built.source,
-      sourceLegacy: 'unicorn',
-      sync: snapshot.source,
-      count: built.services.length,
-      includeSynthetic: built.includeSynthetic,
-      services: built.services,
-    }));
   }
 
   if (urlPath === '/api/unicorn-commerce/status') {

@@ -258,7 +258,7 @@ function _priceCacheGet(sid){
   const m = _priceMem[sid];
   if (m && (now - m.ts) < _PRICE_CACHE_TTL_MS) return m.value;
   try {
-    const raw = sessionStorage.getItem('zeus.price.' + sid);
+    const raw = localStorage.getItem('zeus.price.' + sid) || sessionStorage.getItem('zeus.price.' + sid);
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj || (now - Number(obj.ts || 0)) >= _PRICE_CACHE_TTL_MS) return null;
@@ -269,7 +269,9 @@ function _priceCacheGet(sid){
 function _priceCacheSet(sid, value){
   const ts = Date.now();
   _priceMem[sid] = { ts, value };
-  try { sessionStorage.setItem('zeus.price.' + sid, JSON.stringify({ ts, value })); } catch (_) {}
+  const packed = JSON.stringify({ ts, value });
+  try { localStorage.setItem('zeus.price.' + sid, packed); } catch (_) {}
+  try { sessionStorage.setItem('zeus.price.' + sid, packed); } catch (_) {}
 }
 async function fetchLivePricing(serviceId, opts){
   const options = opts || {};
@@ -288,7 +290,7 @@ async function fetchLivePricing(serviceId, opts){
   let slowTimer = null;
   try {
     if (typeof options.onSlow === 'function') {
-      slowTimer = setTimeout(function(){ try { options.onSlow(); } catch(_){} }, 2000);
+      slowTimer = setTimeout(function(){ try { options.onSlow(); } catch(_){} }, 1000);
     }
     let r = await fetch(priceUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!r.ok) {
@@ -2104,6 +2106,91 @@ function initCinematicInteractions(){
     if (zeusScene) zeusScene.style.transform = 'translate3d(' + (x*8).toFixed(2) + 'px,' + (y*6).toFixed(2) + 'px,0)';
     if (zeusImg) zeusImg.style.transform = 'scale(1.06) translate3d(' + (x*5).toFixed(2) + 'px,' + (y*4).toFixed(2) + 'px,0)';
   }, { passive:true });
+}
+
+function _storefrontCacheGet(key){
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || (Date.now() - Number(obj.ts || 0)) >= _PRICE_CACHE_TTL_MS) return null;
+    return obj.value;
+  } catch (_) { return null; }
+}
+function _storefrontCacheSet(key, value){
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), value })); } catch (_) {}
+}
+function fillLiveBtc(id, el){
+  if (!id || !el || String(el.textContent || '').trim()) return;
+  const hit = _priceCacheGet(id);
+  const cachedBtc = hit && (hit.price_btc != null ? hit.price_btc : hit.btc);
+  if (cachedBtc != null && String(cachedBtc) !== '') {
+    el.textContent = String(cachedBtc) + ' BTC';
+    return;
+  }
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, 1000);
+  fetch('/api/price/' + encodeURIComponent(id), { headers: { Accept: 'application/json' }, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    .then(function(res){
+      clearTimeout(timer);
+      if (String(el.textContent || '').trim()) return;
+      if (!res.ok || !res.body) throw new Error('price');
+      const btc = res.body.btc != null ? res.body.btc : res.body.price_btc;
+      if (btc == null || String(btc) === '') throw new Error('price');
+      el.textContent = String(btc) + ' BTC';
+      try { _priceCacheSet(id, normalizeLivePricing(id, res.body)); } catch (_) {}
+    })
+    .catch(function(){
+      clearTimeout(timer);
+      if (!String(el.textContent || '').trim()) el.textContent = 'Price temporarily unavailable';
+    });
+}
+function paintEmptyServiceMount(services){
+  const host = document.getElementById('unicornServiceMount');
+  if (!host || host.childElementCount || String(host.textContent || '').trim()) return;
+  const rows = (services || []).filter(function(s){ return s && s.id && Number(s.priceUsd || s.price) > 0; }).slice(0, 12);
+  if (!rows.length) {
+    host.textContent = 'Price temporarily unavailable';
+    return;
+  }
+  rows.forEach(function(service){
+    const line = document.createElement('p');
+    line.appendChild(document.createTextNode(String(service.title || service.id) + ' '));
+    const price = document.createElement('span');
+    price.setAttribute('data-price-for', String(service.id));
+    line.appendChild(price);
+    host.appendChild(line);
+    fillLiveBtc(String(service.id), price);
+  });
+}
+function warmUnicornStorefront(){
+  const cached = _storefrontCacheGet('zeus.services.v1');
+  if (Array.isArray(cached)) paintEmptyServiceMount(cached);
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, 1000);
+  fetch('/api/services', { headers: { Accept: 'application/json' }, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error('services'); return j; }); })
+    .then(function(body){
+      clearTimeout(timer);
+      const services = body && Array.isArray(body.services) ? body.services : null;
+      if (!services) throw new Error('services');
+      _storefrontCacheSet('zeus.services.v1', services.map(function(service){
+        return { id: service.id, title: service.title, priceUsd: service.priceUsd, price: service.price };
+      }));
+      paintEmptyServiceMount(services);
+      document.querySelectorAll('[data-price-for]').forEach(function(el){
+        if (String(el.textContent || '').trim()) return;
+        fillLiveBtc(el.getAttribute('data-price-for'), el);
+      });
+    })
+    .catch(function(){
+      clearTimeout(timer);
+      const host = document.getElementById('unicornServiceMount');
+      if (host && !host.childElementCount && !String(host.textContent || '').trim() && !Array.isArray(cached)) {
+        host.textContent = 'Price temporarily unavailable';
+      }
+    });
 }
 
 async function loadServices(){
@@ -5517,6 +5604,7 @@ window.addEventListener('DOMContentLoaded', () => {
   openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
+  warmUnicornStorefront();
   // Real visitor counting: one page_view beacon per load → durable funnel.
   // RO: un beacon page_view per încărcare — vizitatori reali, durabili.
   trackFunnel('page_view', {});
