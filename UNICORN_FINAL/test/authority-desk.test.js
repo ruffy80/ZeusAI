@@ -41,6 +41,7 @@ const EXPECTED = {
   use: [
     'startups', 'saas', 'agencies', 'enterprise', 'freelancers',
     'open-source', 'devops', 'qa-teams', 'engineering-managers', 'tech-leads',
+    'founders', 'product-teams',
   ],
   framework: [
     'react', 'nextjs', 'vue', 'angular', 'nodejs', 'express', 'nest', 'laravel',
@@ -58,7 +59,7 @@ async function main() {
 
   await check('registry covers the guide library', () => {
     const paths = authority.paths();
-    assert.strictEqual(paths.length, 182);
+    assert.strictEqual(paths.length, 184);
     assert.ok(paths.includes('/learn'));
     assert.ok(paths.includes('/testimonials'));
     assert.ok(paths.includes('/use-cases'));
@@ -211,7 +212,7 @@ async function main() {
     assert.ok(robots.includes('Sitemap: https://zeusai.pro/sitemap-authority.xml'));
     assert.ok(!robots.includes('sitemap-services.xml'));
     const authorityXml = authority.urlsetXml('https://zeusai.pro');
-    assert.strictEqual((authorityXml.match(/<loc>/g) || []).length, 182);
+    assert.strictEqual((authorityXml.match(/<loc>/g) || []).length, 184);
     assert.ok(authorityXml.includes('https://zeusai.pro/learn</loc>'));
     assert.ok(authorityXml.includes('https://zeusai.pro/blog/what-is-ai-code-review</loc>'));
     const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
@@ -234,7 +235,7 @@ async function main() {
     assert.strictEqual(status, 200);
     assert.ok(type.includes('xml'));
     assert.ok(body.includes('/learn</loc>'));
-    assert.strictEqual((body.match(/<loc>/g) || []).length, 182);
+    assert.strictEqual((body.match(/<loc>/g) || []).length, 184);
     const indexJs = fs.readFileSync(path.join(ROOT, 'src', 'index.js'), 'utf8');
     assert.ok(indexJs.includes("require('./site/v2/authority-desk').has(v2Path)"));
     const nginx = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-unicorn.conf'), 'utf8');

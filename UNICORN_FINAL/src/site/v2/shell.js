@@ -11,6 +11,7 @@ const merchantStandardSurface = require('./merchant-standard-surface');
 const seoSurface = require('./seo-surface');
 const discoverTrust = require('./discover-trust-os');
 const authorityDesk = require('./authority-desk');
+const geoDesk = require('./geo-desk');
 const merchantOffer = require('../../seo/merchant-offer');
 
 const OWNER = {
@@ -683,7 +684,7 @@ function _robotsMeta(route) {
   if (path === '/innovations' || path === '/frontier' || path === '/aura' || path === '/gift' || path === '/transparency' || path === '/crypto-fiat-bridge' || path === '/social-network' || path === '/store') return 'noindex, nofollow';
   if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
   if (path === '/outreach-desk') return 'noindex, nofollow';
-  if (authorityDesk.has(path)) return '';
+  if (authorityDesk.has(path) || geoDesk.has(path)) return '';
   if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
   if (_serverOnlyService(path)) return 'noindex, nofollow';
   // Invoice checkout and the empty chooser stay out of the index. A plan
@@ -1009,6 +1010,8 @@ function footer(route, opts) {
       <li><a href="/agents" data-link>Agents</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
       <li><a href="/learn" data-link>Engineering guides</a></li>
+      <li><a href="/what-is-zeus-ai" data-link>What ZeusAI is</a></li>
+      <li><a href="/tools" data-link>Worksheets</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
@@ -4684,6 +4687,8 @@ ${_homeAtlasHtml()}
 function renderRoute(route, params = {}) {
   const authored = authorityDesk.render(route);
   if (authored) return authored;
+  const geoAuthored = geoDesk.render(route, params);
+  if (geoAuthored) return geoAuthored;
   if (route.startsWith('/origin/')) {
     return pageOrigin(Object.assign({}, params, { originIndex: route.slice('/origin/'.length) }));
   }
@@ -7832,7 +7837,7 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return HOME_TITLE;
-  const authoredTitle = authorityDesk.meta(route);
+  const authoredTitle = authorityDesk.meta(route) || geoDesk.meta(route);
   if (authoredTitle && authoredTitle.title) return authoredTitle.title;
   const landingTitle = enterpriseLanding(route);
   if (landingTitle) return landingTitle.title;
@@ -7881,7 +7886,7 @@ function routeTitle(route) {
 }
 
 function routeDescription(route) {
-  const authoredDesc = authorityDesk.meta(route);
+  const authoredDesc = authorityDesk.meta(route) || geoDesk.meta(route);
   if (authoredDesc && authoredDesc.description) return authoredDesc.description;
   const landingDesc = enterpriseLanding(route);
   if (landingDesc) return landingDesc.description;

@@ -264,6 +264,8 @@ const USES = [
   ['qa-teams', 'QA teams', 'QA still owns the cases and the bug reports. ZeusAI does not execute a suite.'],
   ['engineering-managers', 'Engineering managers', 'A manager can read the guides and buy a file. There is no team dashboard of repository health.'],
   ['tech-leads', 'Tech leads', 'A tech lead who wants an architecture review still holds that review. This site does not attend it.'],
+  ['founders', 'Founders', 'A founder can buy a kickoff file or a site audit. The company repository stays on the founder’s forge.'],
+  ['product-teams', 'Product teams', 'A product team can buy a file that names a scope. The team still writes the product.'],
 ];
 
 add({
@@ -573,6 +575,9 @@ add({
     { href: '/cursor-vs-zeus-ai', label: 'Cursor and ZeusAI' },
     { href: '/react-ai-code-review', label: 'React and AI code review' },
     { href: '/docs/getting-started', label: 'Getting started' },
+    { href: '/what-is-zeus-ai', label: 'What ZeusAI is' },
+    { href: '/tools', label: 'Worksheets' },
+    { href: '/benchmarks', label: 'Benchmarks' },
   ],
   faq: faq([]),
   sections: [
@@ -768,7 +773,7 @@ function offerBlock(route) {
 }
 
 function homeGuideLine() {
-  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. The three files you can buy are under this demo.</p>';
+  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. Facts an answer engine can cite are at <a href="/what-is-zeus-ai" data-link>/what-is-zeus-ai</a>. The three files you can buy are under this demo.</p>';
 }
 
 function homeDoorsHtml() {
