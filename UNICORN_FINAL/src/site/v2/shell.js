@@ -946,8 +946,12 @@ html[data-route="/"] .cost-demo{margin:0}
 #homeOfferWhat{margin:0 0 6px;color:var(--ink);font-size:16px;line-height:1.4}
 #homeOfferPrice{margin:0 0 10px;font-size:18px;color:var(--gold)}
 #sendText{white-space:pre-wrap;word-break:break-word;margin:0;font:13px/1.45 ui-monospace,monospace}
+#homeOffer #sendDoor{margin-top:10px;padding:10px 12px}
+#homeOffer #sendDoor h2{font-size:15px;margin:0 0 4px}
+#homeOffer #sendDoor>p{font-size:12px;line-height:1.35;margin:0 0 6px}
+#homeOffer #sendText{font-size:12px;line-height:1.35;max-height:3.9em;overflow:auto}
 @media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
-@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}#homeOffer .btn{display:block;text-align:center}}
+@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}#homeOffer .hero-cta .btn{display:block;text-align:center}#homeOffer #sendDoor .btn{display:inline-flex;width:auto}}
 </style>
 </head>
 <body>
@@ -1583,9 +1587,17 @@ function _sendSentence(facts) {
   }
   return 'I opened ' + facts.title + '. ZeusAI showed the file and the list price, and it has not taken payment and has not issued the file. ' + facts.url;
 }
+function _pageSend(path, sentence, nonce) {
+  const url = _publicOrigin() + path;
+  const line = String(sentence || '').trim();
+  return _sendDoorHtml({
+    url,
+    sentence: line.indexOf(url) === -1 ? (line + ' ' + url) : line,
+  }, nonce);
+}
 function _sendDoorHtml(facts, nonce) {
-  if (!facts) return '';
-  const sentence = _sendSentence(facts);
+  if (!facts || !facts.url) return '';
+  const sentence = facts.sentence || _sendSentence(facts);
   const enc = encodeURIComponent;
   const links = [
     ['X', 'https://twitter.com/intent/tweet?text=' + enc(sentence)],
@@ -1623,13 +1635,14 @@ function _namedDoorHtml(id) {
     + '<p style="margin:12px 0 0"><a class="btn btn-primary" id="namedOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
     + '</article>';
 }
-function _homeFirstScreen() {
+function _homeFirstScreen(nonce) {
   const facts = _offerFacts('instant-website-audit');
   if (!facts) return '';
   return '<div id="homeOffer">'
     + '<p id="homeOfferWhat">You receive a Markdown website audit: scorecard, SEO, performance, accessibility, and a 30-day plan. No score is filled in unless a provider key is armed.</p>'
     + '<p id="homeOfferPrice">List <b>' + _atlasMoney(facts.list) + '</b> · Delivery $0. Bitcoin on the next page is 10% under this list.</p>'
     + '<p class="hero-cta"><a class="btn btn-primary" id="homeOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
+    + _pageSend('/', 'I opened ZeusAI. The first screen names a website audit and its list price. ZeusAI has not taken payment and has not issued the file.', nonce)
     + '</div>';
 }
 function _atlasMoney(n) {
@@ -1811,7 +1824,7 @@ function _homeAtlasHtml(opts) {
 </section>`;
 }
 
-function pageHome() {
+function pageHome(params) {
   // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
   // from each tier so the page always shows a buyable price range without
   // depending on JS hydration.
@@ -2206,7 +2219,7 @@ ${_zaccBanner}
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <p class="hero-brand">ZeusAI</p>
       <h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</h1>
-      ${_homeFirstScreen()}
+      ${_homeFirstScreen(params && params.nonce)}
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
         <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/ent-engagement-kickoff" data-link>Get Enterprise Access</a>
@@ -2258,7 +2271,7 @@ ${authorityDesk.homeDoorsHtml()}
 `;
 }
 
-function pageEnterpriseLanding(route) {
+function pageEnterpriseLanding(route, params) {
   const row = enterpriseLanding(route);
   if (!row) return pageNotFound(route);
   const others = ENTERPRISE_LANDINGS.filter((item) => item.path !== row.path);
@@ -2267,13 +2280,14 @@ function pageEnterpriseLanding(route) {
     <div><span class="kicker">${_esc(row.kicker)}</span><h1>${_esc(row.h1)}</h1></div>
     <p>${_esc(row.lead)}</p>
   </div>
+  ${_namedDoorHtml('ent-engagement-kickoff')}
+  ${_pageSend(row.path, 'I opened ' + row.title + '. ZeusAI described the work and showed the engagement kickoff, and it has not taken payment and has not issued the pack.', params && params.nonce)}
   <section id="howItWorks">
     <div class="section-title"><div><span class="kicker">How it works</span><h2>Three steps.</h2></div></div>
     <div class="grid how-steps">
       ${row.steps.map((step, i) => `<article class="card glass-card"><span class="tag">${i + 1} · ${_esc(step[0])}</span><h3>${_esc(step[0])}</h3><p>${_esc(step[1])}</p></article>`).join('')}
     </div>
   </section>
-  ${_namedDoorHtml('ent-engagement-kickoff')}
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
     <a class="btn btn-primary" href="/contact" data-link>Contact Sales</a>
     <a class="btn" href="/pricing" data-link>See pricing</a>
@@ -2477,22 +2491,23 @@ function pageService(id, params) {
       </label>
       <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
       })()}
+      ${_sendDoorHtml(_offerFacts(safeId), params && params.nonce)}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
     </aside>
   </div>
 </div>
-${_sendDoorHtml(_offerFacts(safeId), params && params.nonce)}
 </section>`;
 }
 
-function pagePricing() {
+function pagePricing(params) {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
     <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. There is no separate Starter or Growth plan. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
   ${_namedDoorHtml('instant-website-audit')}
+  ${_pageSend('/pricing', 'I opened ZeusAI pricing. ZeusAI showed the shelf list price, and it has not taken payment and has not issued a file.', params && params.nonce)}
   <p style="margin:0 0 12px">The enterprise conversation is <a href="/services/ent-engagement-kickoff" data-link>Enterprise Engagement Kickoff</a>. <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
 </section>
 ${_homeAtlasHtml()}
@@ -2829,10 +2844,12 @@ GET  /api/delivery/{receiptId}</pre></div>
 </section>`;
 }
 
-function pageAbout() {
+function pageAbout(params) {
   return `<section style="padding-top:140px;max-width:900px">
   <span class="kicker">About</span>
   <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">Two doors. <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">One owner.</span></h1>
+  ${_namedDoorHtml('instant-website-audit')}
+  ${_pageSend('/about', 'I opened the ZeusAI about page. ZeusAI showed the owner and a file you can buy, and it has not taken payment and has not issued a file.', params && params.nonce)}
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI is the model-router demo and the marketplace. Both are operated by ${OWNER.name}. A module file on the server is not a product.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The public site is two doors: a model router you can try on the homepage, and a marketplace of files and engagement packs. Both are owned by ${OWNER.name}. Bitcoin is the live payment rail. Card and PayPal appear on checkout only when they are configured.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">There is no published customer count, no published revenue, and no claim that a module file on the server is a product for sale.</p>
@@ -4790,7 +4807,7 @@ function renderRoute(route, params = {}) {
     return pageFrom(Object.assign({}, params, { channel: route.slice('/from/'.length).split('/')[0] }));
   }
   switch (route) {
-    case '/': return pageHome();
+    case '/': return pageHome(params);
     case '/origin': return pageOrigin(params);
     case '/from': return pageFrom(params);
     case '/buy': return sellSurface.pageBuy();
@@ -4803,20 +4820,20 @@ function renderRoute(route, params = {}) {
     case '/seo': return seoSurface.pageSeo();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices(params);
-    case '/pricing': return pagePricing();
+    case '/pricing': return pagePricing(params);
     case '/solutions/ai-pricing': return pageSolution('pricing');
     case '/solutions/ai-checkout': return pageSolution('checkout');
     case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
     case '/solutions/model-routing':
     case '/solutions/self-healing':
     case '/solutions/autonomous-agents':
-    case '/solutions/continuous-rd': return pageEnterpriseLanding(route);
+    case '/solutions/continuous-rd': return pageEnterpriseLanding(route, params);
     case '/checkout':
     case '/checkout/': return pageCheckout(params);
     case '/dashboard': return pageDashboard();
     case '/how': return pageHow();
     case '/docs': return pageDocs();
-    case '/about': return pageAbout();
+    case '/about': return pageAbout(params);
     case '/legal': return pageLegal();
     case '/trust': return pageTrustCenter();
     case '/security': return pageSecurity();
@@ -4858,7 +4875,7 @@ function renderRoute(route, params = {}) {
     case '/frontier': return pageFrontier();
     case '/deepseek-cockpit': return pageDeepseekCockpit();
     case '/marketplace': return pageServices();
-    case '/contact': return pageContact();
+    case '/contact': return pageContact(params);
     case '/faq': return pageFaq();
     case '/blog': return pageBlog();
     case '/guides': return pageGuides();
@@ -4879,9 +4896,9 @@ function renderRoute(route, params = {}) {
     default:
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
       if (route.startsWith('/blog/') && route !== '/blog') return discoverTrust.pageArticle(route.slice('/blog/'.length));
-      if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
+      if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length), params);
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10), params);
-      if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
+      if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7), params.nonce);
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
       return pageNotFound(route);
   }
@@ -7422,11 +7439,14 @@ function pageFrontier() {
 //   • /api/uaic/affiliate/track → logs referral hits to affiliate-track.jsonl
 // RO: pagini reale, conectate la API-uri reale, zero conținut fals.
 
-function pageContact() {
+function pageContact(params) {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Contact</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Talk to the <span class="grad">owner-operator.</span></h1>
-  <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door.</p>
+  <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door. A message stays with the owner. It does not become a public page.</p>
+  ${_namedDoorHtml('ent-engagement-kickoff')}
+  <p style="margin:0 0 12px">The file on the shelf is <a href="/services/instant-website-audit" data-link>Instant Website Audit (AI)</a>.</p>
+  ${_pageSend('/contact', 'I opened the ZeusAI contact page. A message stays with the owner and is not a public page. ZeusAI has not taken payment and has not issued a file.', params && params.nonce)}
   <div class="grid phone-stack" style="grid-template-columns:1.4fr 1fr;gap:18px;margin-top:26px;align-items:start">
     <form id="contactForm" class="card" style="padding:22px;display:grid;gap:12px">
       <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -7491,16 +7511,17 @@ function pageGuides() {
   }
 }
 
-function pageGuide(id) {
+function pageGuide(id, params) {
   try {
-    const html = require('../../../backend/modules/discovery-seven').guideHtml(id);
-    const guide = require('../../../backend/modules/discovery-seven').guideFor(id);
-    const share = require('../../commerce/share-surface').pageShareHtml({
-      path: (guide && guide.path) || ('/guides/' + id),
-      title: (guide && guide.title) || 'Offer guide',
-      text: (guide && guide.metaDescription) || (guide && guide.description) || '',
-    });
-    return html + share;
+    const desk = require('../../../backend/modules/discovery-seven');
+    const html = desk.guideHtml(id);
+    const guide = desk.guideFor(id);
+    if (!guide) return html;
+    return html + _pageSend(
+      guide.path,
+      'This guide answers one question and links to one file. ZeusAI has not taken payment and has not issued the file.',
+      params && params.nonce
+    );
   } catch (_) {
     return `<section style="padding-top:140px"><h1>Offer guide</h1><p>The discovery desk is offline.</p></section>`;
   }
@@ -7719,7 +7740,7 @@ function pageAgents() {
 // hydration polls /api/order/:id/status and refreshes the timeline until
 // settlement (paid → activated). Never fakes a "paid" state.
 // RO: pasaport digital pentru comenzi — receipt + livrare + verificare.
-function pageOrderPassport(id) {
+function pageOrderPassport(id, nonce) {
   const safeId = String(id || '').replace(/[^A-Za-z0-9_\-:]/g, '').slice(0, 120);
   if (!safeId) {
     return `<section style="padding-top:140px;max-width:720px"><div class="card"><h1 style="margin:0 0 10px">Missing order id</h1><p style="color:var(--ink-dim)">Return to <a href="/account" data-link>your account</a> to find your recent orders.</p></div></section>`;
@@ -7760,6 +7781,7 @@ function pageOrderPassport(id) {
     <div id="opDeliveryLinks" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"></div>
   </div>
   <p style="color:var(--ink-dim);font-size:12.5px;margin-top:18px">Passport is bookmarkable. Refresh anytime — the status is fetched live.</p>
+  ${_pageSend('/order/' + encodeURIComponent(safeId), 'I opened ZeusAI order ' + safeId + '. ZeusAI has not confirmed payment on this page until the ledger says paid, and it has not issued the file until delivery is shown.', nonce)}
   <script>
   (function(){
     var ORDER_ID = ${JSON.stringify(safeId)};

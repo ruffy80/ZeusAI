@@ -45,6 +45,11 @@ check('the first screen names the file, the list price, and the next button', ()
   assert.match(hero, /id="homeOfferNext"[^>]*href="\/services\/instant-website-audit"/);
   assert.ok(hero.includes('>Open this file<'));
   assert.match(hero, /id="dtHeroCta"[^>]*href="\/services\/ent-engagement-kickoff"[^>]*>Get Enterprise Access</);
+  assert.ok(hero.includes('id="sendText"'));
+  assert.ok(hero.includes('The first screen names a website audit and its list price.'));
+  assert.ok(hero.includes('has not taken payment and has not issued the file.'));
+  assert.ok(hero.includes('https://zeusai.pro/'));
+  assert.strictEqual(hero.split('id="sendDoor"').length - 1, 1);
   assert.ok(!/resume/i.test(hero));
   assert.ok(!home.includes('id="homeAtlas"'));
   assert.ok(!home.includes('hreflang'));
@@ -59,9 +64,23 @@ check('pricing and the three solution pages open one named shelf offer', () => {
   assert.ok(pricing.includes('href="/services/instant-website-audit"'));
   assert.ok(pricing.includes('<dt>List</dt><dd>' + money(audit.priceUsd) + '</dd>'));
   assert.ok(pricing.includes('href="/services/ent-engagement-kickoff"'));
+  assert.ok(pricing.includes('I opened ZeusAI pricing.'));
+  assert.ok(pricing.includes('has not taken payment and has not issued a file.'));
+  const about = shell.getHtml('/about');
+  assert.ok(about.includes('data-offer-id="instant-website-audit"'));
+  assert.ok(about.includes('I opened the ZeusAI about page.'));
+  const contact = shell.getHtml('/contact');
+  assert.ok(contact.includes('data-offer-id="ent-engagement-kickoff"'));
+  assert.ok(contact.includes('A message stays with the owner and is not a public page.'));
+  assert.ok(contact.includes('I opened the ZeusAI contact page.'));
   for (const path of ['/solutions/model-routing', '/solutions/self-healing', '/solutions/autonomous-agents']) {
     const html = shell.getHtml(path);
     assert.ok(html.includes('Contact Sales'), path);
+    const offerAt = html.indexOf('id="namedOffer"');
+    const howAt = html.indexOf('id="howItWorks"');
+    assert.ok(offerAt > -1 && offerAt < howAt, path);
+    assert.ok(html.includes('has not taken payment and has not issued the pack.'), path);
+    assert.strictEqual(html.split('id="sendDoor"').length - 1, 1, path);
     assert.ok(html.includes('data-offer-id="ent-engagement-kickoff"'), path);
     assert.ok(html.includes('href="/services/ent-engagement-kickoff"'), path);
     assert.ok(html.includes('<dt>List</dt><dd>' + money(kick.priceUsd) + '</dd>'), path);
@@ -73,7 +92,9 @@ check('pricing and the three solution pages open one named shelf offer', () => {
 
 check('the offer and the checkout leave a sentence the visitor can send', () => {
   const offer = shell.getHtml('/services/instant-website-audit');
-  assert.ok(offer.includes('id="sendDoor"'));
+  assert.strictEqual(offer.split('id="sendDoor"').length - 1, 1);
+  const aside = offer.slice(offer.indexOf('<aside'), offer.indexOf('</aside>'));
+  assert.ok(aside.includes('id="sendDoor"'));
   assert.ok(offer.includes('id="sendText"'));
   assert.ok(offer.includes('has not taken payment and has not issued the file'));
   assert.ok(offer.includes('https://zeusai.pro/services/instant-website-audit'));
@@ -107,6 +128,15 @@ check('the offer and the checkout leave a sentence the visitor can send', () => 
   const kick = shell.getHtml('/services/ent-engagement-kickoff');
   assert.ok(kick.includes('has not issued the pack'));
   assert.ok(kick.includes('does not deliver the license, the source, or a private cloud'));
+  const order = shell.getHtml('/order/ord_test');
+  assert.ok(order.includes('has not confirmed payment on this page until the ledger says paid'));
+  assert.ok(order.includes('has not issued the file until delivery is shown'));
+  assert.ok(order.includes('https://zeusai.pro/order/ord_test'));
+  const guide = shell.getHtml('/guides/instant-website-audit');
+  assert.ok(guide.includes('This guide answers one question and links to one file.'));
+  assert.ok(guide.includes('has not taken payment and has not issued the file.'));
+  assert.ok(guide.includes('https://zeusai.pro/guides/instant-website-audit'));
+  assert.strictEqual(guide.split('id="sendDoor"').length - 1, 1);
 });
 
 check('the marketing sitemap stays the seven pages and traffic is not invented', () => {
