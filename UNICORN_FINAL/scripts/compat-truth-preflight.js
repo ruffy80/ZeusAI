@@ -2,10 +2,15 @@
 'use strict';
 
 /**
- * Compat Truth Preflight (CTOS/1.1)
+ * Compat Truth Preflight (CTOS/1.1, workflow rule CTOS/1.2)
  * ---------------------------------
  * Innovation: never let a site/commerce regression masquerade as a
  * "Node 22/24 compatibility" failure in GitHub Actions.
+ *
+ * CTOS/1.2: the Node compatibility matrix does not run the application
+ * suite. That suite is the "Application tests" job, once, on the .nvmrc
+ * pin. A footer or assertion failure must not be reported as Node 22 and
+ * Node 24 compatibility.
  *
  * On SITE_CTA_REGRESSION: runs compat-truth-autofix.js INSTANTLY, re-verifies.
  * Default CTOS_INSTANT_FIX=on (set CTOS_INSTANT_FIX=0 to disable).
@@ -15,10 +20,11 @@
  *     commits+pushes the repair — never green while tip still has the CTA)
  *   - Local: 0 (files already rewritten; lint-staged stages them on commit)
  *
- * Classes: SITE_CTA_REGRESSION | COMMERCE_CONTRACT | NGINX_CONTRACT | ENGINE_CONTRACT
+ * Classes: SITE_CTA_REGRESSION | COMMERCE_CONTRACT | NGINX_CONTRACT | ENGINE_CONTRACT | WORKFLOW_CONTRACT
  */
 
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
@@ -88,11 +94,46 @@ function instantFixSiteCta() {
   return { fixCode: fix.status == null ? 1 : fix.status, recheck };
 }
 
+function workflowContract() {
+  const wfPath = path.join(ROOT, '..', '.github/workflows/node-compatibility.yml');
+  const wf = fs.readFileSync(wfPath, 'utf8');
+  const matrixStart = wf.indexOf('name: Node ${{ matrix.node }} compatibility');
+  const appStart = wf.indexOf('name: Application tests');
+  if (matrixStart < 0 || appStart < matrixStart) {
+    return 'Node compatibility matrix job must stay above the Application tests job';
+  }
+  const matrixJob = wf.slice(matrixStart, appStart);
+  if (matrixJob.includes('npm run test:ci') || matrixJob.includes('npm test') || matrixJob.includes('npm run lint')) {
+    return 'application suite must not run inside the Node compatibility matrix';
+  }
+  const appJob = wf.slice(appStart);
+  if (!appJob.includes('npm run test:ci')) {
+    return 'Application tests must run npm run test:ci once, on the .nvmrc pin';
+  }
+  if (/node-version:\s*\$\{\{\s*matrix\.node\s*\}\}/.test(appJob)) {
+    return 'Application tests must not use the Node matrix';
+  }
+  return '';
+}
+
 function main() {
   const matrix = process.env.NODE_COMPAT_MATRIX || process.versions.node.split('.')[0];
-  console.log('[compat-truth] CTOS/1.1 preflight · node=' + process.versions.node
+  console.log('[compat-truth] CTOS/1.2 preflight · node=' + process.versions.node
     + ' · matrix=' + matrix + ' · instant_fix=' + (INSTANT_FIX ? 'on' : 'off'));
   console.log('[compat-truth] Failures are classified contracts — NOT Node ABI breaks.\n');
+
+  const workflowError = workflowContract();
+  if (workflowError) {
+    console.error('\n════════════════════════════════════════════════════════════');
+    console.error('COMPAT_TRUTH FAILURE — not a Node ' + matrix + ' ABI / runtime break');
+    console.error('════════════════════════════════════════════════════════════');
+    console.error('  class=WORKFLOW_CONTRACT');
+    console.error('  title=' + workflowError);
+    console.error('::error title=COMPAT_TRUTH WORKFLOW_CONTRACT::'
+      + workflowError + ' — NOT a Node ' + matrix + ' compatibility/ABI failure');
+    process.exit(1);
+  }
+  console.log('[compat-truth] → WORKFLOW_CONTRACT · application suite is outside the matrix … ok');
 
   const failures = [];
   let autofixed = false;

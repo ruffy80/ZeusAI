@@ -117,6 +117,30 @@ check('CTOS/1.1 instant autofix + GitHub repair workflow are forever-wired', () 
   assert.ok(aw.includes('compat-truth-autofix.js'));
 });
 
+check('CTOS/1.2 keeps the application suite out of the Node matrix', () => {
+  const preflight = fs.readFileSync(path.join(ROOT, 'scripts/compat-truth-preflight.js'), 'utf8');
+  assert.ok(preflight.includes('CTOS/1.1'), 'instant autofix contract stays');
+  assert.ok(preflight.includes('CTOS/1.2'));
+  assert.ok(preflight.includes('WORKFLOW_CONTRACT'));
+  assert.ok(preflight.includes('Application tests'));
+  const matrixStart = wf.indexOf('name: Node ${{ matrix.node }} compatibility');
+  const appStart = wf.indexOf('name: Application tests');
+  assert.ok(matrixStart > 0 && appStart > matrixStart, 'matrix job then Application tests');
+  const matrixJob = wf.slice(matrixStart, appStart);
+  assert.ok(!matrixJob.includes('npm run test:ci'),
+    'Node 22/24 compatibility must not run the application suite');
+  assert.ok(!matrixJob.includes('npm run lint'),
+    'lint is an application check, not a Node ABI check');
+  const appJob = wf.slice(appStart);
+  assert.ok(appJob.includes('npm run test:ci'), 'Application tests runs the suite once');
+  assert.ok(appJob.includes('node-version-file: UNICORN_FINAL/.nvmrc'),
+    'Application tests uses the production Node pin');
+  assert.ok(!/node-version:\s*\$\{\{\s*matrix\.node\s*\}\}/.test(appJob),
+    'Application tests must not fan out across the Node matrix');
+  assert.ok(wf.includes('node-immortality.js'));
+  assert.ok(wf.includes('better-sqlite3'));
+});
+
 check('NIX/1.0 Node Immortality is forever-wired (seal undici/fetch + engines + cron)', () => {
   assert.ok(fs.existsSync(path.join(ROOT, 'backend/lib/node-immortality.js')));
   const nix = fs.readFileSync(path.join(ROOT, 'backend/lib/node-immortality.js'), 'utf8');
