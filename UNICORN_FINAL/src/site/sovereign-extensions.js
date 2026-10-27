@@ -242,6 +242,16 @@ async function handle(req, res, ctx) {
     return true;
   }
 
+  // Guides, comparisons, and checklists. Not part of the seven-URL
+  // marketing sitemap and not part of IndexNow.
+  if (urlPath === '/sitemap-authority.xml') {
+    const xml = require('./v2/authority-desk').urlsetXml(OWNER.domain);
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
+    res.end(xml);
+    recordMetric(urlPath, 200, xml.length);
+    return true;
+  }
+
   // ── /manifest.webmanifest ──────────────────────────────────────────────
   if (urlPath === '/manifest.webmanifest' || urlPath === '/site.webmanifest') {
     const manifest = {

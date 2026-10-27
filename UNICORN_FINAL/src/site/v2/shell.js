@@ -10,6 +10,7 @@ const continuityAttestation = require('./continuity-attestation');
 const merchantStandardSurface = require('./merchant-standard-surface');
 const seoSurface = require('./seo-surface');
 const discoverTrust = require('./discover-trust-os');
+const authorityDesk = require('./authority-desk');
 const merchantOffer = require('../../seo/merchant-offer');
 
 const OWNER = {
@@ -671,6 +672,7 @@ function _robotsMeta(route) {
   if (path === '/innovations' || path === '/frontier' || path === '/aura' || path === '/gift' || path === '/transparency' || path === '/crypto-fiat-bridge' || path === '/social-network' || path === '/store') return 'noindex, nofollow';
   if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
   if (path === '/outreach-desk') return 'noindex, nofollow';
+  if (authorityDesk.has(path)) return '';
   if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
   if (_serverOnlyService(path)) return 'noindex, nofollow';
   // Invoice checkout and the empty chooser stay out of the index. A plan
@@ -995,6 +997,7 @@ function footer(route, opts) {
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><a href="/agents" data-link>Agents</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
+      <li><a href="/learn" data-link>Engineering guides</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
@@ -2669,6 +2672,9 @@ function pageDocs() {
     <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
     <p>Public buyers and integrators use the rows below. Health, snapshot, and deploy consoles are not linked from the public site. Auth, where a route requires it, is a capability token issued per action.</p>
   </div>
+  <h2 style="font-size:22px;margin-top:28px">Pages that are not features</h2>
+  <p style="color:var(--ink-dim)">These notes say what the site does not ship. They are not extra API routes.</p>
+  <ul>${authorityDesk.docLinks().map((item) => `<li><a href="${item.href}" data-link>${item.label}</a></li>`).join('')}</ul>
   <table class="doc">
     <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
     <tbody>
@@ -2726,6 +2732,16 @@ function pageAbout() {
     <li>Phone: Not published</li>
     <li>Company registration: Not published</li>
   </ul>
+  <h2>Founder</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${OWNER.name} operates both doors. That is the founder record. Street, phone, and a registration number stay unpublished.</p>
+  <h2>Mission</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Show the cost-router demo and sell a named file. The site does not review a repository and does not invent a customer.</p>
+  <h2>Product philosophy</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The card names the file and the list price. Bitcoin pays 10% under that list. Card and PayPal pay the list price when they are configured. Delivery of the file is $0. The buyer keeps the file.</p>
+  <h2>Security</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Public pages do not ask for a model-provider key. Operator secrets stay off the site. The posture page is <a href="/security" data-link>/security</a>.</p>
+  <h2>Engineering principles</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">A module file on the server is not a product. A guide that explains code review is not a code-review feature. Illustrations are labeled at <a href="/case-studies" data-link>/case-studies</a>. No testimonial is published at <a href="/testimonials" data-link>/testimonials</a>.</p>
   <div style="display:flex;gap:14px;margin-top:30px;flex-wrap:wrap"><a class="btn btn-primary" href="/services" data-link>Open the marketplace</a><a class="btn" href="/contact" data-link>Contact the owner</a></div>
 </section>`;
 }
@@ -4652,6 +4668,8 @@ ${_homeAtlasHtml()}
 }
 
 function renderRoute(route, params = {}) {
+  const authored = authorityDesk.render(route);
+  if (authored) return authored;
   if (route.startsWith('/origin/')) {
     return pageOrigin(Object.assign({}, params, { originIndex: route.slice('/origin/'.length) }));
   }
@@ -7385,7 +7403,7 @@ function pageBlog() {
     tag: g.priceLabel || 'Shelf',
     title: g.title,
     sub: g.metaDescription || g.description,
-  })).concat(discoverTrust.blogCards()).concat([
+  })).concat(discoverTrust.blogCards()).concat(authorityDesk.blogCards()).concat([
     { href: '/trust', tag: 'Trust', title: 'The wallet and the deploy signature', sub: 'The Trust Center shows the owner wallet and the integrity manifest. It does not publish a customer count.' },
     { href: '/changelog', tag: 'Shipping', title: 'The changelog is the shipping note', sub: 'What changed in the product, written as a note you can read.' },
     { href: '/services', tag: 'Shelf', title: 'The marketplace is the catalog', sub: 'Every payable offer is a card with a price and a file or an engagement pack.' },
@@ -7800,6 +7818,8 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return HOME_TITLE;
+  const authoredTitle = authorityDesk.meta(route);
+  if (authoredTitle && authoredTitle.title) return authoredTitle.title;
   const landingTitle = enterpriseLanding(route);
   if (landingTitle) return landingTitle.title;
   if (route === '/trust-safety') return 'Trust and safety';
@@ -7847,6 +7867,8 @@ function routeTitle(route) {
 }
 
 function routeDescription(route) {
+  const authoredDesc = authorityDesk.meta(route);
+  if (authoredDesc && authoredDesc.description) return authoredDesc.description;
   const landingDesc = enterpriseLanding(route);
   if (landingDesc) return landingDesc.description;
   const map = {
