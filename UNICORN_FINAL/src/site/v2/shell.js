@@ -701,7 +701,9 @@ function _robotsMeta(route) {
 
 function head(title, route, opts) {
   opts = opts || {};
-  const lang = opts.lang || 'en';
+  // The authored page is English. A passed lang does not create a second
+  // document, and this head does not emit hreflang for a URL that does not exist.
+  const lang = 'en';
   const nonce = opts.nonce || '';
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   const base = OWNER.domain.replace(/\/$/, '');
@@ -716,17 +718,6 @@ function head(title, route, opts) {
   const desc = homeDocument ? HOME_DESCRIPTION : routeDescription(route);
   const jsonLdBlocks = buildJsonLd(documentTitle, route, canonical, desc, opts)
     .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
-  // SSR is English. ?lang= only sets a translate cookie, so those URLs are
-  // not separate language documents and must not be advertised as hreflang.
-  // Auto-translate priming: when the visitor's effective language is not
-  // English we set the `googtrans` cookie BEFORE loading the Google Translate
-  // widget so the page is translated in-place into the country's language
-  // without a flicker. Source language is always English (`en`) — that is the
-  // language the SSR HTML is authored in.
-  const gtTarget = (lang && lang !== 'en') ? lang : '';
-  const gtPrimer = gtTarget
-    ? `<script${nonceAttr}>(function(){try{var p='/en/${gtTarget}';var d=document.cookie;if(d.indexOf('googtrans=')<0){document.cookie='googtrans='+p+'; path=/; samesite=lax';var h=location.hostname.split('.');if(h.length>=2){document.cookie='googtrans='+p+'; path=/; domain=.'+h.slice(-2).join('.')+'; samesite=lax';}}}catch(_){}})();</script>`
-    : '';
   return `<!doctype html>
 <html lang="${lang}" data-route="${route}">
 <head>
@@ -750,7 +741,7 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="ZeusAI — Sovereign AI OS"/>
-<meta property="og:locale" content="${lang}_${(lang === 'en' ? 'US' : lang.toUpperCase())}"/>
+<meta property="og:locale" content="en_US"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${homeDocument ? documentTitle : `${title} — ZeusAI`}"/>
 <meta name="twitter:description" content="${desc}"/>
@@ -882,7 +873,8 @@ footer{padding:48px 7vw 28px}
 .concierge-foot{display:flex;gap:8px;align-items:flex-end}
 .concierge-foot textarea{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:8px;font:inherit}
 .chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
-.lang-toggle{background:transparent;border:1px solid var(--stroke);color:var(--ink);border-radius:12px;padding:8px 10px;font:inherit;cursor:pointer}
+.lang-mark{display:inline-flex;align-items:center;border:1px solid var(--stroke);color:var(--ink-dim);border-radius:12px;padding:8px 10px;font-size:12px;letter-spacing:.06em}
+.home-locale{margin:12px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
 .nav-more{position:relative}
 .nav-more-btn{background:transparent;border:0;color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}
 .nav-more-menu{position:absolute;top:100%;right:0;min-width:200px;background:#0b0a12;border:1px solid var(--stroke);border-radius:14px;padding:8px;z-index:60}
@@ -911,7 +903,6 @@ html[data-route="/"] .cost-demo{margin:0}
 @media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
 @media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
 </style>
-${gtPrimer}
 </head>
 <body>
 <a class="skip-link" href="#app">Skip to content</a>
@@ -924,23 +915,9 @@ ${navBar(route, opts)}
 <main id="app">`;
 }
 
-function navBar(route, opts) {
-  opts = opts || {};
-  const curLang = opts.lang || 'en';
-  const autoLang = (opts.autoLang || curLang || 'en');
+function navBar(route) {
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
-  // 30Y-LTS: country-aware auto-translate.
-  //   The site is detected and translated automatically into the visitor's
-  //   country's language (Google Translate widget, primed via the `googtrans`
-  //   cookie set in `<head>`). The small toggle below lets the visitor force
-  //   English or revert to the auto-detected language.
-  const showingEnglish = curLang === 'en';
-  const targetLang = showingEnglish ? autoLang : 'en';
-  const currentLabel = String(curLang || 'en').toUpperCase();
-  const targetTitle = showingEnglish
-    ? `Page is English. Switch to ${String(autoLang || 'en').toUpperCase()}`
-    : 'Page is translated. Switch to English';
-  const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${currentLabel}</button>`;
+  const langMark = `<span class="lang-mark" title="English. One page for every country. This address is not redirected.">EN</span>`;
   return `<nav class="nav" data-nav-open="false">
 <div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
@@ -967,7 +944,7 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
 </div>
 </div>
 <div class="nav-cta">
-${langToggle}
+${langMark}
 <a class="btn btn-primary" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
@@ -1091,74 +1068,6 @@ ${globalChrome(N)}
   }); } catch(_) { /* already registered — allow-duplicates in CSP is set */ }
 })();
 </script>
-<script${N}>
-// 30Y-LTS — country-aware language toggle.
-// The site is auto-translated into the visitor's country's language via the
-// Google Translate widget (primed by the googtrans cookie set server-side
-// in head). The small "EN / auto" button toggles between English and the
-// auto-detected language without flicker.
-(function(){
-  function setCookie(name, value, days){
-    var d = new Date(); d.setTime(d.getTime() + (days||365) * 86400000);
-    var base = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;samesite=lax';
-    document.cookie = base;
-    // Also write on the registrable domain so subdomains share the choice.
-    try {
-      var h = location.hostname.split('.');
-      if (h.length >= 2) {
-        document.cookie = base + ';domain=.' + h.slice(-2).join('.');
-      }
-    } catch(_) {}
-  }
-  function clearCookie(name){
-    setCookie(name, '', -1);
-    // Clear googtrans on every variant Google may have written.
-    if (name === 'googtrans') {
-      try {
-        var h = location.hostname.split('.');
-        for (var i=0; i<h.length-1; i++) {
-          var dom = h.slice(i).join('.');
-          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + dom;
-          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + dom;
-        }
-      } catch(_) {}
-      document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-    }
-  }
-  document.addEventListener('click', function(ev){
-    var b = ev.target && ev.target.closest && ev.target.closest('.lang-toggle');
-    if (!b) return;
-    ev.preventDefault();
-    var target = b.getAttribute('data-target-lang') || 'en';
-    if (target === 'en') {
-      // User wants English — clear translation cookie and remember the choice.
-      setCookie('lang', 'en', 365);
-      clearCookie('googtrans');
-    } else {
-      // User wants the auto-detected language — clear the override and let
-      // the server-side detection pick it up on reload.
-      clearCookie('lang');
-      setCookie('googtrans', '/en/' + target, 365);
-    }
-    location.reload();
-  }, false);
-})();
-// Google Translate widget bootstrap. The googtrans cookie (set in head
-// when the visitor's country language is not English) drives the in-place
-// translation; the banner is hidden via CSS, so the page is translated
-// silently.
-window.googleTranslateElementInit = function(){
-  try {
-    new google.translate.TranslateElement({
-      pageLanguage: 'en',
-      autoDisplay: false,
-      layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-    }, 'google_translate_element');
-  } catch(_){ }
-};
-</script>
-<div id="google_translate_element" aria-hidden="true"></div>
-
 <script${N}>
 /* SWNOS/1.0 — Service-Worker Never-Stale OS + CCG auto-heal.
    Legacy SWs and build-SHA drift heal themselves via a one-shot /sw-heal bounce
@@ -2171,6 +2080,7 @@ ${_zaccBanner}
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
       <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
+      <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
       ${authorityDesk.homeGuideLine()}
     </div>
     <section id="costDemoSection" aria-labelledby="costDemoLabel">
