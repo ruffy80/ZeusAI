@@ -1025,6 +1025,25 @@ app.post('/api/native-desk/assign', express.json({ limit: '32kb' }), (req, res) 
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
+app.get('/api/request-solution', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Protocol', 'RCLK/1.0');
+  try {
+    res.json(require('./modules/iak/request-clock').getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+app.post('/api/request-solution', express.json({ limit: '32kb' }), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Protocol', 'RCLK/1.0');
+  try {
+    const text = (req.body && (req.body.text || req.body.message || req.body.q)) || '';
+    res.json(require('./modules/iak/request-clock').solve(text));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
 app.get('/api/omega/vault', (req, res) => {
   try {
     const proof = readBuyerRecord(req, req.query.email);
