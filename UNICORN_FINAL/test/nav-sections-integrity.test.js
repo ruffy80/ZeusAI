@@ -118,10 +118,17 @@ check('renderRoute covers all data-link footer paths (or explicit redirects)', (
   // Extract case arms from renderRoute switch
   const rrStart = shell.indexOf('function renderRoute');
   const rr = shell.slice(rrStart, rrStart + 2500);
+  // Authority pages return before the switch, so a later case '/learn' would
+  // never run. The desk registration plus that early return is the handler.
+  const authority = require('../src/site/v2/authority-desk');
+  const authorityDispatch = shell.includes('const authored = authorityDesk.render(route)')
+    && shell.includes('if (authored) return authored;');
+  assert.ok(authorityDispatch, 'renderRoute must serve authority pages before the switch');
   for (const href of hrefs) {
     if (allowedOutsideRender.has(href)) continue;
     if (href.startsWith('mailto:')) continue;
-    const ok = rr.includes(`'${href}'`) || rr.includes(`"${href}"`) || shell.includes(`case '${href}'`) || indexJs.includes(`urlPath === '${href}'`);
+    const ok = rr.includes(`'${href}'`) || rr.includes(`"${href}"`) || shell.includes(`case '${href}'`) || indexJs.includes(`urlPath === '${href}'`)
+      || (authorityDispatch && authority.has(href));
     assert.ok(ok, `footer href ${href} must have a page/route handler`);
   }
 });
