@@ -367,18 +367,17 @@ async function hydratePaymentRails(){
     + (paypalActive ? ' · PayPal armed' : ' · PayPal idle')
     + (nowActive ? ' · NOWPayments armed' : ' · NOWPayments idle')
     + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
-  const paypalPanel = document.getElementById('coPanelPaypal');
-  const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
-  if (paypalChip) paypalChip.style.display = paypalActive ? '' : 'none';
-  if (paypalPanel && paypalPanel.style.display !== 'none' && !paypalActive) paypalPanel.style.display = 'none';
-  const nowPanel = document.getElementById('coPanelNow');
-  const nowChip = document.querySelector('.co-method .chip[data-method="nowpayments"]');
-  if (nowChip) nowChip.style.display = nowActive ? '' : 'none';
-  if (nowPanel && nowPanel.style.display !== 'none' && !nowActive) nowPanel.style.display = 'none';
-  const topPp = document.getElementById('coBuyPaypalTop');
-  const topNp = document.getElementById('coBuyNowTop');
-  if (topPp) topPp.style.display = paypalActive ? '' : 'none';
-  if (topNp) topNp.style.display = nowActive ? '' : 'none';
+  const showRail = (el, on) => {
+    if (!el) return;
+    el.hidden = !on;
+    el.style.display = on ? '' : 'none';
+  };
+  showRail(document.getElementById('coPanelPaypal'), paypalActive);
+  showRail(document.querySelector('.co-method .chip[data-method="paypal"]'), paypalActive);
+  showRail(document.getElementById('coPanelNow'), nowActive);
+  showRail(document.querySelector('.co-method .chip[data-method="nowpayments"]'), nowActive);
+  showRail(document.getElementById('coBuyPaypalTop'), paypalActive);
+  showRail(document.getElementById('coBuyNowTop'), nowActive);
   const hint = document.getElementById('checkoutRailHint');
   if (hint) {
     hint.textContent = paypalActive || nowActive

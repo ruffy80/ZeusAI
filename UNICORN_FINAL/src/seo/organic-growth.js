@@ -502,9 +502,13 @@ function deskHtml() {
       '<li>' + esc(row.query) + ' · position ' + esc(row.position) + '</li>'
     )).join('') + '</ul>'
     : '<p style="margin:8px 0 0;color:var(--ink-dim)">No query has been measured yet. Search Console has to return one before a keyword can be called potential.</p>';
+  const trafficLine = search.armed
+    ? ''
+    : '<p id="trafficUnmeasured">Traffic is not measured.</p>';
   return '<section id="organicGrowth" style="margin:8px 0 28px">'
     + '<span class="kicker">OGD/1.0 · Search Console</span>'
     + '<h2 style="margin:8px 0 10px">Clicks, impressions, CTR, position</h2>'
+    + trafficLine
     + '<p style="color:var(--ink-dim);font-size:14px;max-width:46rem">Reason: ' + esc(search.reason || 'not_read_yet')
     + (range ? ' · ' + esc(range) : '')
     + '. A number appears only when Google measured it. Estimated traffic is not available. Lighthouse is unmeasured.</p>'

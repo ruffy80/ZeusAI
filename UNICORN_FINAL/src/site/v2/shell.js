@@ -942,8 +942,12 @@ html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
 html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
 html[data-route="/"] #costDemoSection{padding:0;margin:0}
 html[data-route="/"] .cost-demo{margin:0}
+#homeOffer{margin:0 0 12px;max-width:40rem}
+#homeOfferWhat{margin:0 0 6px;color:var(--ink);font-size:16px;line-height:1.4}
+#homeOfferPrice{margin:0 0 10px;font-size:18px;color:var(--gold)}
+#sendText{white-space:pre-wrap;word-break:break-word;margin:0;font:13px/1.45 ui-monospace,monospace}
 @media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
-@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
+@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}#homeOffer .btn{display:block;text-align:center}}
 </style>
 </head>
 <body>
@@ -1554,6 +1558,80 @@ function _payReceiptHtml(listUsd, opts) {
     + '</dl>'
     + (o.note === false ? '' : '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>');
 }
+function _publicOrigin() {
+  return String(OWNER.domain || 'https://zeusai.pro').replace(/\/$/, '');
+}
+function _offerFacts(id) {
+  let item = null;
+  try { item = require('../../commerce/public-shelf').byId(id); } catch (_) { item = null; }
+  if (!item || !(Number(item.priceUsd) > 0)) return null;
+  const list = Number(item.priceUsd);
+  const safe = encodeURIComponent(item.id);
+  return {
+    id: item.id,
+    title: String(item.title || item.id),
+    list,
+    btc: _btcPayUsd(list),
+    href: '/services/' + safe,
+    url: _publicOrigin() + '/services/' + safe,
+  };
+}
+function _sendSentence(facts) {
+  if (!facts) return '';
+  if (facts.id === 'ent-engagement-kickoff') {
+    return 'I opened ' + facts.title + '. ZeusAI showed the proposal pack and the list price, and it has not taken payment and has not issued the pack. It does not deliver the license, the source, or a private cloud. ' + facts.url;
+  }
+  return 'I opened ' + facts.title + '. ZeusAI showed the file and the list price, and it has not taken payment and has not issued the file. ' + facts.url;
+}
+function _sendDoorHtml(facts, nonce) {
+  if (!facts) return '';
+  const sentence = _sendSentence(facts);
+  const enc = encodeURIComponent;
+  const links = [
+    ['X', 'https://twitter.com/intent/tweet?text=' + enc(sentence)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + enc(facts.url)],
+    ['Reddit', 'https://www.reddit.com/submit?url=' + enc(facts.url) + '&title=' + enc(sentence)],
+    ['Medium', 'https://medium.com/new-story'],
+    ['Dev.to', 'https://dev.to/new'],
+    ['Hacker News', 'https://news.ycombinator.com/submitlink?u=' + enc(facts.url) + '&t=' + enc(sentence)],
+  ];
+  const buttons = links.map(([label, href]) => (
+    '<a class="btn" href="' + _esc(href) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+  )).join('');
+  const nonceAttr = nonce ? ' nonce="' + _esc(nonce) + '"' : '';
+  return '<section id="sendDoor" class="card" style="margin-top:18px;padding:16px">'
+    + '<h2 style="margin:0 0 8px;font-size:20px">Send this page</h2>'
+    + '<p style="margin:0 0 8px;color:var(--ink-dim);font-size:14px">The sentence is what happened. A click opens the composer in your browser. The server does not post.</p>'
+    + '<pre id="sendText">' + _esc(sentence) + '</pre>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
+    + '<button type="button" class="btn btn-primary" id="sendCopy">Copy this sentence</button>'
+    + buttons
+    + '</div>'
+    + '<script' + nonceAttr + '>(function(){var btn=document.getElementById("sendCopy");var pre=document.getElementById("sendText");if(!btn||!pre)return;btn.addEventListener("click",function(){var text=pre.textContent||"";var range=document.createRange();range.selectNodeContents(pre);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);var copied=false;try{copied=document.execCommand("copy");}catch(e){copied=false;}btn.textContent=copied?"Copied":"Selected — copy it";if(!copied&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){btn.textContent="Copied";},function(){});}});})();</script>'
+    + '</section>';
+}
+function _namedDoorHtml(id) {
+  const facts = _offerFacts(id);
+  if (!facts) return '';
+  const what = id === 'ent-engagement-kickoff'
+    ? 'You receive the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement. It does not deliver the license, the source, or a private cloud.'
+    : 'You receive a Markdown audit: scorecard, SEO, performance, accessibility, and a 30-day plan, written from your URL. No score is filled in unless a provider key is armed.';
+  return '<article class="card" id="namedOffer" data-offer-id="' + _esc(facts.id) + '" style="margin:0 0 16px;padding:16px">'
+    + '<h2 style="margin:0 0 8px;font-size:22px">' + _esc(facts.title) + '</h2>'
+    + '<p id="namedOfferWhat" style="margin:0 0 8px">' + what + '</p>'
+    + _payReceiptHtml(facts.list, { id: 'namedOfferReceipt' })
+    + '<p style="margin:12px 0 0"><a class="btn btn-primary" id="namedOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
+    + '</article>';
+}
+function _homeFirstScreen() {
+  const facts = _offerFacts('instant-website-audit');
+  if (!facts) return '';
+  return '<div id="homeOffer">'
+    + '<p id="homeOfferWhat">You receive a Markdown website audit: scorecard, SEO, performance, accessibility, and a 30-day plan. No score is filled in unless a provider key is armed.</p>'
+    + '<p id="homeOfferPrice">List <b>' + _atlasMoney(facts.list) + '</b> · Delivery $0. Bitcoin on the next page is 10% under this list.</p>'
+    + '<p class="hero-cta"><a class="btn btn-primary" id="homeOfferNext" href="' + _esc(facts.href) + '" data-link>Open this file</a></p>'
+    + '</div>';
+}
 function _atlasMoney(n) {
   const price = Number(n) || 0;
   const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
@@ -2128,9 +2206,10 @@ ${_zaccBanner}
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <p class="hero-brand">ZeusAI</p>
       <h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</h1>
+      ${_homeFirstScreen()}
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Get Enterprise Access</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/ent-engagement-kickoff" data-link>Get Enterprise Access</a>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
         <li>Secure</li>
@@ -2194,6 +2273,7 @@ function pageEnterpriseLanding(route) {
       ${row.steps.map((step, i) => `<article class="card glass-card"><span class="tag">${i + 1} · ${_esc(step[0])}</span><h3>${_esc(step[0])}</h3><p>${_esc(step[1])}</p></article>`).join('')}
     </div>
   </section>
+  ${_namedDoorHtml('ent-engagement-kickoff')}
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
     <a class="btn btn-primary" href="/contact" data-link>Contact Sales</a>
     <a class="btn" href="/pricing" data-link>See pricing</a>
@@ -2263,7 +2343,7 @@ function pageServices(params) {
 </section>`;
 }
 
-function pageService(id) {
+function pageService(id, params) {
   // First paint is the shelf card. A real module file stays on the server.
   // An id that is neither a shelf offer nor a module file is not found.
   const safeId = String(id || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 120);
@@ -2402,6 +2482,7 @@ function pageService(id) {
     </aside>
   </div>
 </div>
+${_sendDoorHtml(_offerFacts(safeId), params && params.nonce)}
 </section>`;
 }
 
@@ -2411,7 +2492,8 @@ function pagePricing() {
     <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
     <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. There is no separate Starter or Growth plan. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
-  <p style="margin:0 0 12px"><a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
+  ${_namedDoorHtml('instant-website-audit')}
+  <p style="margin:0 0 12px">The enterprise conversation is <a href="/services/ent-engagement-kickoff" data-link>Enterprise Engagement Kickoff</a>. <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
 </section>
 ${_homeAtlasHtml()}
 <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px">
@@ -2473,8 +2555,8 @@ function pageCheckout(params) {
   const humanFirst = paypalLive || nowLive;
   const defaultRail = paypalLive ? 'paypal' : (nowLive ? 'nowpayments' : 'btc');
   const btcBtn = `<button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1;background:#f7931a;border-color:#f7931a;color:#1a1004">⚡ Pay with Bitcoin</button>`;
-  const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
-  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
+  const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal"${paypalLive ? '' : ' hidden'} style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
+  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments"${nowLive ? '' : ' hidden'} style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
   const railBtns = humanFirst ? (ppBtn + npBtn + btcBtn) : (btcBtn + ppBtn + npBtn);
   const railHint = humanFirst
     ? 'PayPal and card/crypto are live on this server. Bitcoin stays available and quotes a 10% discount. Your last choice is remembered on this device.'
@@ -2494,7 +2576,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
-        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
+        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', card: humanFirst }) : ''}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
@@ -2502,6 +2584,7 @@ function pageCheckout(params) {
       ${contactOnly ? `<a class="btn btn-primary" href="/api/shelf/proposal/${encodeURIComponent(shelfItem.id)}" download>Download the proposal</a> <a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a>` : railBtns}
     </div>
     <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
+    ${contactOnly ? '' : _sendDoorHtml(_offerFacts(ssrPlan), p.nonce)}
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
@@ -2512,8 +2595,8 @@ function pageCheckout(params) {
     <div class="co-box">
       <div class="co-method" aria-label="Payment method">
         <button type="button" class="chip${chipOn('btc')}" data-method="btc">₿ Bitcoin</button>
-        <button type="button" class="chip${chipOn('paypal')}" data-method="paypal">PayPal</button>
-        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments">Card / crypto</button>
+        <button type="button" class="chip${chipOn('paypal')}" data-method="paypal"${paypalLive ? '' : ' hidden'}>PayPal</button>
+        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments"${nowLive ? '' : ' hidden'}>Card / crypto</button>
       </div>
       <div id="coPanelBtc"${show('btc')}>
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
@@ -4797,7 +4880,7 @@ function renderRoute(route, params = {}) {
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
       if (route.startsWith('/blog/') && route !== '/blog') return discoverTrust.pageArticle(route.slice('/blog/'.length));
       if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
-      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
+      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10), params);
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
       return pageNotFound(route);

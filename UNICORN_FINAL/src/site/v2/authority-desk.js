@@ -773,7 +773,7 @@ function offerBlock(route) {
 }
 
 function homeGuideLine() {
-  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. Facts an answer engine can cite are at <a href="/what-is-zeus-ai" data-link>/what-is-zeus-ai</a>. The three files you can buy are under this demo.</p>';
+  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. Facts an answer engine can cite are at <a href="/what-is-zeus-ai" data-link>/what-is-zeus-ai</a>. The website audit on this screen is one file you can buy. Two more files are under this demo.</p>';
 }
 
 function homeDoorsHtml() {
