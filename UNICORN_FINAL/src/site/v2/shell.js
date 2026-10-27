@@ -1477,8 +1477,8 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Homepage dock. app.js owns the live concierge on every other route.
-  // This toggle does not open a stream and does not send the typed text.
+  // Homepage dock. app.js owns the concierge on every other route.
+  // This toggle posts the typed text to the request clock. It does not open a model stream.
   try {
     if (location.pathname === '/') {
       var dockBtn = document.getElementById('conciergeBtn');
@@ -1494,11 +1494,44 @@ function globalChrome(N) {
         var dockBody = document.getElementById('conciergeBody');
         var dockInput = document.getElementById('conciergeInput');
         var dockReply = function(){
-          if (!dockBody) return;
+          if (!dockBody || !dockInput) return;
+          var text = String(dockInput.value || '').replace(/^\s+|\s+$/g, '');
+          if (!text) return;
+          var mine = document.createElement('div');
+          mine.className = 'msg user';
+          mine.textContent = text;
+          dockBody.appendChild(mine);
           var note = document.createElement('div');
           note.className = 'msg bot';
-          note.textContent = 'This page does not open a live model. Use Get Enterprise Access or Contact Sales.';
+          note.style.whiteSpace = 'pre-wrap';
+          note.textContent = 'Reading the shelf…';
           dockBody.appendChild(note);
+          dockBody.scrollTop = dockBody.scrollHeight;
+          fetch('/api/request-solution', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+          }).then(function(r){ return r.json(); }).then(function(j){
+            if (!j || !j.reply) {
+              note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+              return;
+            }
+            note.textContent = j.reply;
+            var href = j.client && j.client.checkout;
+            var label = j.client && j.client.title;
+            if (href && label) {
+              note.appendChild(document.createElement('br'));
+              var link = document.createElement('a');
+              link.href = href;
+              link.setAttribute('data-link', '');
+              link.textContent = label;
+              note.appendChild(link);
+            }
+            dockInput.value = '';
+            dockBody.scrollTop = dockBody.scrollHeight;
+          }).catch(function(){
+            note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+          });
         };
         var dockSend = document.getElementById('conciergeSend');
         if (dockSend) dockSend.addEventListener('click', dockReply);

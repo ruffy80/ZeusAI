@@ -4835,6 +4835,31 @@ async function hydrateOwnerRevenue(){
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
 
+  async function askSolution(q){
+    const typing = showTyping();
+    try {
+      const resp = await fetch('/api/request-solution', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: q })
+      });
+      const j = await resp.json();
+      typing.remove();
+      if (!resp.ok || !j || j.ok === false || !j.reply) return false;
+      addMsg(mdToHtml(j.reply), 'bot', { userMsg: q });
+      const offer = j.client && j.client.offer;
+      if (offer) renderShelfOffers([offer].concat(j.limits || []));
+      history.push({ role: 'user', content: q }, { role: 'assistant', content: j.reply });
+      saveHistory();
+      maybeSpeak(j.reply);
+      if (metaEl) metaEl.textContent = j.orchestrator || 'IAK/1.1';
+      return true;
+    } catch (_) {
+      try { typing.remove(); } catch (__) {}
+      return false;
+    }
+  }
+
   async function askShelf(q){
     const typing = showTyping();
     try {
@@ -4876,7 +4901,8 @@ async function hydrateOwnerRevenue(){
     if (chipsBox && !chipsBox.dataset.dynamic) chipsBox.style.display = 'none';
     addMsg(esc(q), 'user', {withTools:false});
     inp.value = ''; if (inp.style) inp.style.height = 'auto';
-    const shelved = await askShelf(q);
+    const solved = await askSolution(q);
+    const shelved = solved ? true : await askShelf(q);
     if (!shelved) {
       const ok = await askStream(q);
       if (!ok) await askFallback(q);
@@ -5857,12 +5883,14 @@ function bindConcierge(){
     const reply = document.getElementById('conciergeReply');
     const text = field ? field.value : '';
     if (reply) reply.textContent = 'Reading the shelf…';
-    fetch('/api/shelf/advise', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) })
+    fetch('/api/request-solution', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!reply) return;
-        const cards = (j && j.limits || []).map(renderConciergeCard).concat([renderConciergeCard(j && j.primary)]).concat((j && j.also || []).map(renderConciergeCard)).join('');
-        reply.innerHTML = '<p>' + escConcierge((j && j.question) || '') + '</p><div class="concierge-grid">' + cards + '</div>';
+        const spoken = (j && (j.reply || j.question)) || '';
+        const primary = (j && j.client && j.client.offer) || (j && j.primary) || null;
+        const cards = (j && j.limits || []).map(renderConciergeCard).concat([renderConciergeCard(primary)]).join('');
+        reply.innerHTML = spoken.split('\n').filter(Boolean).map(function(line){ return '<p>' + escConcierge(line) + '</p>'; }).join('') + '<div class="concierge-grid">' + cards + '</div>';
         try {
           reply.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' });
           const cookie = document.getElementById('zeus-cookie');

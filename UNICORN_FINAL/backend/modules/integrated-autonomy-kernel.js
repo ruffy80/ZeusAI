@@ -75,6 +75,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
       skipped: 0,
       continuumCycles: 0,
       lastCausalStart: null,
+      lastSolution: null,
     };
     this._startedByIak = new Set();
     this._healthCursor = 0;
@@ -890,6 +891,21 @@ class IntegratedAutonomyKernel extends EventEmitter {
     if (this.eventLog.length > 200) this.eventLog.shift();
   }
 
+  /**
+   * One request, six beats, one published offer. Does not start the mesh.
+   */
+  solveRequest(text) {
+    const clock = require('./iak/request-clock');
+    const out = clock.solve(text);
+    this._discovery.lastSolution = {
+      at: out.at,
+      fit: out.fit,
+      action: out.action,
+      offerId: out.client && out.client.offerId || null,
+    };
+    return out;
+  }
+
   // ------------------------------------------------------------------ public API
 
   getStatus() {
@@ -1047,6 +1063,7 @@ class IntegratedAutonomyKernel extends EventEmitter {
         'safe_autonomy_plane',
         'taac_master_activation',
         'module_coverage_ledger',
+        'request_solution_clock',
       ],
     };
   }
