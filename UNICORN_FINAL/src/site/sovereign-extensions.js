@@ -157,7 +157,7 @@ function sendJson(res, code, obj) {
 async function handle(req, res, ctx) {
   const urlPath = (req.url || '/').split('?')[0];
   res.__pathForMetric = urlPath;
-  const lang = detectLang(req);
+  const browserLang = detectLang(req);
 
   // Retired matrix: a generated sitemap listed these URLs and no page exists.
   // 410 lets a crawler drop them. /indexing.json is the ledger, not a count.
@@ -190,7 +190,7 @@ async function handle(req, res, ctx) {
 
   // Inject green score header on every sovereign route
   res.setHeader('X-Green-GCO2', METRICS.gco2.toFixed(6));
-  res.setHeader('X-Unicorn-Lang', lang);
+  res.setHeader('X-Unicorn-Lang', 'en');
 
   // ── /snapshot — ETag + short cache (intercept to add caching) ──────────
   if (urlPath === '/snapshot' && ctx && typeof ctx.buildSnapshot === 'function') {
@@ -271,7 +271,7 @@ async function handle(req, res, ctx) {
       orientation: 'any',
       background_color: '#05040a',
       theme_color: '#05040a',
-      lang,
+      lang: 'en',
       scope: '/',
       icons: [
         { src: assetPath('/assets/icons/icon-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -378,7 +378,13 @@ async function handle(req, res, ctx) {
 
   // ── /api/i18n/detect ───────────────────────────────────────────────────
   if (urlPath === '/api/i18n/detect') {
-    sendJson(res, 200, { lang, supported: SUPPORTED_LANGS, accept: req.headers['accept-language'] || null });
+    sendJson(res, 200, {
+      lang: browserLang,
+      document: 'en',
+      separateUrls: false,
+      supported: SUPPORTED_LANGS,
+      accept: req.headers['accept-language'] || null,
+    });
     return true;
   }
 
@@ -710,7 +716,7 @@ async function handle(req, res, ctx) {
       home_page_url: OWNER.domain,
       feed_url: `${OWNER.domain}/feed.json`,
       description: 'Current catalog of Unicorn services.',
-      language: lang,
+      language: 'en',
       authors: [{ name: OWNER.name, url: OWNER.domain }],
       items,
     };
@@ -788,7 +794,7 @@ async function handle(req, res, ctx) {
         name: 'ZeusAI',
         publisher: { '@id': `${OWNER.domain}#org` },
         potentialAction: { '@type': 'SearchAction', target: `${OWNER.domain}/services?q={query}`, 'query-input': 'required name=query' },
-        inLanguage: SUPPORTED_LANGS,
+        inLanguage: 'en',
       },
       {
         '@context': 'https://schema.org',
@@ -945,8 +951,10 @@ async function handle(req, res, ctx) {
       owner: OWNER.name,
       domain: OWNER.domain,
       uptime_seconds: Number(uptimeSec.toFixed(2)),
-      lang,
-      supported_langs: SUPPORTED_LANGS,
+      lang: 'en',
+      published_language: 'en',
+      separate_language_urls: false,
+      supported_langs: ['en'],
       pay_rails: PAY_RAILS.map(r => ({ id: r.id, currency: r.currency, live: r.live, feePct: r.feePct, finalitySec: r.finalitySec })),
       post_quantum_ready: { kyber768: 'roadmap-2027', dilithium3: 'roadmap-2027', ed25519: 'live' },
       integrity: '/integrity.json',
