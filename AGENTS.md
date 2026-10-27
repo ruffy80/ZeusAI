@@ -1,5 +1,34 @@
 # AGENTS.md
 
+## Standing contract
+
+This file is the memory a new agent has on the first message. Chat history is
+not carried over. Do not drop these facts, and do not invent customers, GMV,
+buyer counts, or an unmeasured Lighthouse score.
+
+- ZeusAI (`zeusai.pro`) is the public storefront. Code lives in `UNICORN_FINAL/`.
+  The homepage is the cost-optimizer landing. The public shelf is `/services`
+  and `/pricing`.
+- Bitcoin is the live payment rail. The number on the card is the list price
+  and the merchant `itemprop=price`. Bitcoin pays 10% under that list
+  (`COMMERCE_BTC_DISCOUNT_PCT`, default 10). Card and PayPal pay the list price
+  only when they are configured. File delivery is $0. The buyer keeps the file.
+  Merchant listings omit `returnMethod` (`KeepProduct` and `ReturnByMail` are
+  refused) and state `availability` and `itemCondition` once per offer.
+- Operator desks stay reachable by URL, `noindex`, and unlinked from the public
+  header and footer. The public sitemap stays the marketing URLs already shipped.
+- Owner: Vladoi Ionut (`vladoi_ionut@yahoo.com`).
+- Never commit `UNICORN_FINAL/data/**`. Start the backend with
+  `DISABLE_SELF_MUTATION=1` or it rewrites module source.
+
+Cloud agents boot from the latest active environment build of
+[the ZeusAI environment](https://cursor.com/dashboard/cloud-agents/environments/e/8d12b95c-7d1a-11f1-ba66-0e7d0216e441).
+`install` (`.cursor/cloud-install.sh`) is `npm ci` and is baked into that
+snapshot, so a new agent already has `node_modules`. `start`
+(`.cursor/cloud-start.sh`) only materializes the optional deploy key. It does
+not launch the site or the backend. A draft build does not apply until it is
+activated after merge.
+
 ## Cursor Cloud specific instructions
 
 ZeusAI / "Unicorn Platform" is a Node.js autonomous AI-commerce platform. The
