@@ -461,6 +461,46 @@ function _ssrCatalogGrid(items, opts) {
   return `<div class="grid" id="${_esc(o.gridId || 'catalogGrid')}" style="grid-template-columns:repeat(auto-fill,minmax(min(${cols}px,100%),1fr));gap:16px">${cards}</div>`;
 }
 
+const PRICING_FAQ = Object.freeze([
+  { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
+  { q: 'Is there a refund?', a: 'The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement is an owner action, not an automatic clawback. See /refund.' },
+  { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' },
+]);
+
+const HOW_FAQ = Object.freeze([
+  { q: 'What is ZeusAI?', a: 'A sovereign autonomous AI operating system that ships signed outcomes, BTC-native commerce, and self-healing automation.' },
+  { q: 'How does delivery work?', a: 'Each purchase mints a verifiable capability credential. Delivery runs autonomously and posts proof to your account.' },
+  { q: 'Can I cancel anytime?', a: 'Yes. /cancel records a signed cancellation intent with no dark patterns; the owner processes active subscriptions against that intent.' },
+]);
+
+function breadcrumbTrail(route) {
+  const path = String(route || '/');
+  if (path === '/' || path === '/__not-found__') return [{ name: 'Home', href: '/' }];
+  const items = [{ name: 'Home', href: '/' }];
+  if (path.startsWith('/services/') && path !== '/services') items.push({ name: 'Marketplace', href: '/services' });
+  else if (path.startsWith('/insights/') && path !== '/insights') items.push({ name: 'Buyer insights', href: '/insights' });
+  else if (path.startsWith('/guides/') && path !== '/guides') items.push({ name: 'Offer guides', href: '/guides' });
+  else if (path.startsWith('/blog/') && path !== '/blog') items.push({ name: 'Insights', href: '/blog' });
+  else if (path.startsWith('/learn/') && path !== '/learn') items.push({ name: 'Learn', href: '/learn' });
+  items.push({ name: routeTitle(path), href: path });
+  return items;
+}
+
+function breadcrumbHtml(route) {
+  const items = breadcrumbTrail(route);
+  if (items.length < 2) return '';
+  const lis = items.map((item, i) => {
+    if (i === items.length - 1) return `<li aria-current="page">${_esc(item.name)}</li>`;
+    return `<li><a href="${_esc(item.href)}" data-link>${_esc(item.name)}</a></li>`;
+  }).join('');
+  return `<nav class="crumbs" aria-label="Breadcrumb"><ol>${lis}</ol></nav>`;
+}
+
+function faqSection(items) {
+  const rows = items.map((row) => `<h3>${_esc(row.q)}</h3><p>${_esc(row.a)}</p>`).join('');
+  return `<section id="pageFaq"><h2>Questions</h2>${rows}</section>`;
+}
+
 function buildJsonLd(title, route, canonical, desc, opts) {
   const base = OWNER.domain.replace(/\/$/, '');
   const blocks = [];
@@ -507,15 +547,14 @@ function buildJsonLd(title, route, canonical, desc, opts) {
       'query-input': 'required name=search_term_string'
     }
   });
-  // 4) BreadcrumbList — derived from path segments.
-  const segs = (route || '/').split('/').filter(Boolean);
-  const items = [{ '@type': 'ListItem', position: 1, name: 'Home', item: base + '/' }];
-  let acc = '';
-  segs.forEach((s, i) => {
-    acc += '/' + s;
-    items.push({ '@type': 'ListItem', position: i + 2, name: s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), item: base + acc });
-  });
-  blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items });
+  // 4) BreadcrumbList — the same names as the visible trail.
+  const crumbItems = breadcrumbTrail(route).map((item, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: item.name,
+    item: base + item.href,
+  }));
+  blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbItems });
   // 5) FAQPage on /how, /pricing and /faq — small but valuable for rich results.
   try {
     if (route === '/services' || route === '/pricing') {
@@ -564,16 +603,9 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     }
   } catch (_) { /* structured data is additive */ }
   if (route === '/how' || route === '/pricing' || route === '/faq' || route === '/trust-safety') {
-    const faq = (route === '/faq' || route === '/trust-safety') ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
-    : route === '/pricing' ? [
-      { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
-      { q: 'Is there a refund?', a: 'The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement is an owner action, not an automatic clawback. See /refund.' },
-      { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
-    ] : [
-      { q: 'What is ZeusAI?', a: 'A sovereign autonomous AI operating system that ships signed outcomes, BTC-native commerce, and self-healing automation.' },
-      { q: 'How does delivery work?', a: 'Each purchase mints a verifiable capability credential. Delivery runs autonomously and posts proof to your account.' },
-      { q: 'Can I cancel anytime?', a: 'Yes. /cancel records a signed cancellation intent with no dark patterns; the owner processes active subscriptions against that intent.' }
-    ];
+    const faq = (route === '/faq' || route === '/trust-safety')
+      ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
+      : (route === '/pricing' ? PRICING_FAQ : HOW_FAQ);
     blocks.push({
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
@@ -875,6 +907,16 @@ footer{padding:48px 7vw 28px}
 .chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
 .lang-mark{display:inline-flex;align-items:center;border:1px solid var(--stroke);color:var(--ink-dim);border-radius:12px;padding:8px 10px;font-size:12px;letter-spacing:.06em}
 .home-locale{margin:12px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
+.crumbs{padding:118px 7vw 0;margin-bottom:-118px}
+.crumbs ol{display:flex;flex-wrap:wrap;align-items:center;list-style:none;margin:0;padding:0;font-size:13px;line-height:1.4;color:var(--ink-dim)}
+.crumbs li+li::before{content:" / ";margin:0 6px}
+.crumbs a{color:#d5e4ff}
+#pageFaq{max-width:980px;margin:22px 0 0}
+#pageFaq h2{margin:0 0 8px;font-size:22px}
+#pageFaq h3{margin:16px 0 4px;font-size:16px}
+#pageFaq p{margin:0;color:var(--ink-dim);line-height:1.6}
+.shelf-search{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 18px}
+.shelf-search input{flex:1;min-width:180px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:10px 12px;font:inherit}
 .nav-more{position:relative}
 .nav-more-btn{background:transparent;border:0;color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}
 .nav-more-menu{position:absolute;top:100%;right:0;min-width:200px;background:#0b0a12;border:1px solid var(--stroke);border-radius:14px;padding:8px;z-index:60}
@@ -1636,9 +1678,15 @@ function _atlasCard(p) {
     <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
-function _homeAtlasHtml() {
+function _homeAtlasHtml(opts) {
+  const o = opts || {};
+  const q = String(o.q || '').replace(/\s+/g, ' ').trim().slice(0, 80);
   let shelfItems = [];
   try { shelfItems = require('../../commerce/public-shelf').publicShelf(); } catch (_) { shelfItems = []; }
+  if (q) {
+    const needle = q.toLowerCase();
+    shelfItems = shelfItems.filter((p) => [p.title, p.id, p.description, p.name].join(' ').toLowerCase().includes(needle));
+  }
   const instant = shelfItems.filter(p => p.clock === 'minutes');
   const professional = shelfItems.filter(p => p.clock === 'days');
   const enterprise = shelfItems.filter(p => p.clock === 'contract');
@@ -1646,31 +1694,41 @@ function _homeAtlasHtml() {
   const kickPrice = kick ? _atlasMoney(kick.priceUsd || kick.priceUSD || 2500) : '$2,500';
   const total = instant.length + professional.length + enterprise.length;
   const cards = (items) => items.map(_atlasCard).join('');
+  const queryNote = q
+    ? `<p id="shelfQuery">${total
+      ? `${total} shelf ${total === 1 ? 'offer matches' : 'offers match'} “${_esc(q)}”.`
+      : `No shelf offer matches “${_esc(q)}”.`} <a href="/services" data-link>Show the full shelf</a>.</p>`
+    : '';
+  if (q && total === 0) {
+    return `<section id="homeAtlas">${queryNote}</section>`;
+  }
+  const band = (id, items, html) => (items.length ? html : '');
   return `<section id="homeAtlas">
+  ${queryNote}
   <div class="section-title">
     <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
     <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is not a second product. A contract figure can be paid. The download is the engagement pack.</p>
   </div>
   <nav class="atlas-clocks" aria-label="Delivery clocks">
-    <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
-    <a class="atlas-clock" href="#atlasDays"><b>Days</b><span>${professional.length} engagements · ${_esc(_atlasRange(professional))}</span></a>
-    <a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} figures · ${_esc(_atlasRange(enterprise))} listed</span></a>
+    ${instant.length ? `<a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>` : ''}
+    ${professional.length ? `<a class="atlas-clock" href="#atlasDays"><b>Days</b><span>${professional.length} engagements · ${_esc(_atlasRange(professional))}</span></a>` : ''}
+    ${enterprise.length ? `<a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} figures · ${_esc(_atlasRange(enterprise))} listed</span></a>` : ''}
   </nav>
-  <div id="atlasMinutes" class="atlas-band">
+  ${band('minutes', instant, `<div id="atlasMinutes" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
     <p>Each card names the file and the listed window. The number on the card is the list price. Bitcoin pays 10% less. Card and PayPal pay the list price when they are configured. Delivery of the file is $0.</p></div>
     <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
-  </div>
-  <div id="atlasDays" class="atlas-band">
+  </div>`)}
+  ${band('days', professional, `<div id="atlasDays" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Days</span><h2>The file is the delivery.</h2></div>
     <p>Payment unlocks the file named on the card. The finished build is not in that file. It is not an instant download of a finished system.</p></div>
     <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
-  </div>
-  <div id="atlasContract" class="atlas-band">
+  </div>`)}
+  ${band('contract', enterprise, `<div id="atlasContract" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Contract</span><h2>Pay the listed figure. The download is the engagement pack.</h2></div>
     <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock buys the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The license, the source, and a private cloud are milestones in that pack. They are not in the download.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
-  </div>
+  </div>`)}
   <p class="atlas-footnote">This is the public shelf. The listing desk, the frontier tool packs, and the industry architecture packs are files on this page. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
 </section>`;
 }
@@ -2146,18 +2204,25 @@ function pageEnterpriseLanding(route) {
 </section>`;
 }
 
-function pageServices() {
+function pageServices(params) {
+  const p = params || {};
+  const q = String(p.q || '').replace(/\s+/g, ' ').trim().slice(0, 80);
   let catalog = [];
   try {
-    catalog = require('../../commerce/public-shelf').publicShelf().map(p => Object.assign({}, p, { priceUSD: p.priceUsd }));
+    catalog = require('../../commerce/public-shelf').publicShelf().map(item => Object.assign({}, item, { priceUSD: item.priceUsd }));
   } catch (_) { catalog = _loadCatalog(); }
-  const counts = catalog.reduce((acc, p) => { const t = String(p.tier || 'professional'); acc[t] = (acc[t] || 0) + 1; return acc; }, {});
+  const counts = catalog.reduce((acc, item) => { const t = String(item.tier || 'professional'); acc[t] = (acc[t] || 0) + 1; return acc; }, {});
   const summary = `${catalog.length} live products · ${counts.instant || 0} instant · ${counts.professional || 0} professional · ${counts.enterprise || 0} enterprise`;
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
     <p>The same public shelf as the homepage. Minute files can be paid now, including the listing desk, frontier tool packs, and industry architecture packs. Day engagements reserve a kickoff. Enterprise figures buy the engagement pack. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
   </div>
+  <form class="shelf-search" action="/services" method="get" role="search">
+    <label for="shelfQ">Search the shelf</label>
+    <input id="shelfQ" name="q" type="search" maxlength="80" value="${_esc(q)}" placeholder="resume, audit, routing"/>
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2194,7 +2259,7 @@ function pageServices() {
     <button class="chip" data-group="industry" type="button">Industry (${counts.industry || 0})</button>
     <button class="chip" data-group="dropship" type="button">Listing desk (${counts.dropship || 0})</button>
   </div>
-  ${_homeAtlasHtml()}
+  ${_homeAtlasHtml({ q })}
 </section>`;
 }
 
@@ -2354,7 +2419,8 @@ ${_homeAtlasHtml()}
   <h3 style="margin:6px 0 4px;font-size:20px">The list price on the card is the checkout amount.</h3>
   <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Bitcoin on the card is 10% under that list. Card and PayPal pay the list price when they are configured. Delivery of the file is $0. Ask what you do and what you want. The reply uses this shelf only.</p>
   <p style="margin:12px 0 0"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn btn-ghost" href="/services" data-link>Open one-time catalog →</a></p>
-</div>`;
+</div>
+${faqSection(PRICING_FAQ)}`;
 }
 
 function pageCheckout(params) {
@@ -2624,7 +2690,8 @@ ${discoverTrust.howBuyerHtml()}
                  Revenue Router (Ed25519)  →  BTC / PayPal
                                  ↓
                        Marketplace Mesh  →  public catalog (no invented reach)</pre>
-</section>`;
+</section>
+${faqSection(HOW_FAQ)}`;
 }
 
 function pageDocs() {
@@ -4652,7 +4719,7 @@ function renderRoute(route, params = {}) {
     case '/standard': return merchantStandardSurface.pageStandard();
     case '/seo': return seoSurface.pageSeo();
     case '/social-network': return pageSocialNetwork();
-    case '/services': return pageServices();
+    case '/services': return pageServices(params);
     case '/pricing': return pagePricing();
     case '/solutions/ai-pricing': return pageSolution('pricing');
     case '/solutions/ai-checkout': return pageSolution('checkout');
@@ -7936,7 +8003,7 @@ function routeDescription(route) {
 function getHtml(route = '/', params = {}) {
   // Backward-compat: accept either getHtml(url) or getHtml(url, { lang, nonce })
   const normalized = route === '/' ? '/' : String(route || '/').replace(/\/$/, '') || '/';
-  return head(routeTitle(normalized), normalized, params) + renderRoute(normalized, params) + footer(normalized, params);
+  return head(routeTitle(normalized), normalized, params) + breadcrumbHtml(normalized) + renderRoute(normalized, params) + footer(normalized, params);
 }
 
 // ── UNIFIED CHROME BRIDGE ──────────────────────────────────────────────────

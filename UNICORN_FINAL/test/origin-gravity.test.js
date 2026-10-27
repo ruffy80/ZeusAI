@@ -217,7 +217,9 @@ check('llms.txt tells agents Origin #1 is open and not to invent counts', () => 
 check('sitemap and IndexNow omit /origin', () => {
   const seo = require('../src/seo/sitemap-helpers');
   assert.ok(!seo.corePublicPaths().includes('/origin'));
-  assert.ok(seo.robotsTxt('https://zeusai.pro').includes('Disallow: /origin'));
+  assert.ok(!seo.robotsTxt('https://zeusai.pro').includes('Disallow: /origin'));
+  const originHtml = require('../src/site/v2/shell').getHtml('/origin');
+  assert.ok(originHtml.includes('name="robots" content="noindex, nofollow"'));
   const urls = require('../backend/modules/traffic-engine').urlsToSubmit();
   assert.ok(!urls.some((u) => /\/origin$/.test(u)));
 });

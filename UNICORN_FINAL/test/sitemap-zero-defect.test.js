@@ -103,7 +103,7 @@ async function main() {
     assert.ok(!body.includes('/api/'));
   });
 
-  await check('robots.txt blocks internal prefixes for Googlebot', async () => {
+  await check('robots.txt blocks machine prefixes and leaves noindex pages crawlable', async () => {
     const sov = require('../src/site/sovereign-extensions');
     let body = '';
     let status = 0;
@@ -115,8 +115,11 @@ async function main() {
     const handled = await sov.handle({ url: '/robots.txt', method: 'GET', headers: {} }, res, {});
     assert.equal(handled, true);
     assert.equal(status, 200);
-    for (const line of ['Disallow: /api/', 'Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /metrics', 'Disallow: /admin', 'Disallow: /dashboard', 'Disallow: /internal', 'Disallow: /internal/']) {
+    for (const line of ['Disallow: /api/', 'Disallow: /metrics', 'Disallow: /admin', 'Disallow: /internal', 'Disallow: /internal/']) {
       assert.ok(body.includes(line), line);
+    }
+    for (const line of ['Disallow: /status', 'Disallow: /health', 'Disallow: /origin', 'Disallow: /dashboard', 'Disallow: /checkout']) {
+      assert.ok(!body.includes(line), 'noindex pages stay crawlable: ' + line);
     }
     assert.ok(body.includes('User-agent: Googlebot'));
     assert.ok(body.includes('Sitemap: https://zeusai.pro/sitemap.xml'));

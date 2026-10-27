@@ -13383,6 +13383,10 @@ a{color:#8a5cff;text-decoration:none}
     // $0 flows that are not a real free pledge/cancel do not render a payment
     // page with a blank amount. POST /api/checkout/create is unchanged.
     const ssrParams = { lang, autoLang, country: '', nonce };
+    if (route === '/services') {
+      const shelfQ = String(requestUrl.searchParams.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (shelfQ) ssrParams.q = shelfQ;
+    }
     if (route === '/checkout') {
       const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 160);
       if (planQ) {
@@ -13587,7 +13591,10 @@ a{color:#8a5cff;text-decoration:none}
       || route === '/dashboard' || route === '/account'
       || route === '/admin' || route.indexOf('/admin/') === 0
       || route === '/login' || route === '/signup' || route === '/auth'
-      || route === '/outreach-desk';
+      || route === '/outreach-desk'
+      || route === '/status' || route === '/health'
+      || route === '/origin' || route.indexOf('/origin/') === 0
+      || route === '/operator';
     if (__noindexRoute) {
       responseHeaders['X-Robots-Tag'] = (route === '/checkout' || route.indexOf('/checkout/') === 0)
         ? 'noindex'
