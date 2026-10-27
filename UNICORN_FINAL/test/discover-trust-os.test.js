@@ -155,7 +155,9 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(!home.includes('Show me the offer'));
   assert.ok(!home.includes('id="resumeSample"'));
   assert.ok(!home.includes('No published buyer quotes yet.'));
-  assert.ok(!/resume/i.test(home));
+  const hero = home.slice(home.indexOf('id="costHero"'), home.indexOf('id="homeDoors"'));
+  assert.ok(!/resume/i.test(hero));
+  assert.ok(home.includes('href="/services/instant-resume-makeover"'));
   assert.ok(!home.includes('Is this a scam?'));
   assert.ok(!home.includes('unpaid-delivery'));
   assert.ok(!home.includes('low automated trust score'));

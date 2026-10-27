@@ -128,6 +128,17 @@ function _btcPayUsd(listUsd) {
   if (!Number.isFinite(cents) || cents <= 0) return 0;
   return Math.round(cents * 90 / 100) / 100;
 }
+function _guideBack(id) {
+  const map = {
+    'instant-website-audit': ['/learn', 'Engineering guides'],
+    'instant-resume-makeover': ['/use-cases/freelancers', 'Freelancers'],
+    'professional-saas-mvp': ['/use-cases/startups', 'Startups'],
+    'ent-engagement-kickoff': ['/use-cases/enterprise', 'Enterprise'],
+  };
+  const row = map[String(id || '')];
+  if (!row) return '';
+  return '<p style="color:var(--ink-dim);font-size:15px;line-height:1.6">Readers who searched for a coding assistant start at <a href="' + row[0] + '" data-link>' + _esc(row[1]) + '</a>. This page is the file, not that product.</p>';
+}
 // Process-local catalog memo — SSR hits _loadCatalog on nearly every page;
 // avoid re-walking unified-catalog + dynamic-pricing on every click/partial.
 let _catalogMemo = { ts: 0, items: null };
@@ -2123,6 +2134,7 @@ ${_zaccBanner}
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
       <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
+      ${authorityDesk.homeGuideLine()}
     </div>
     <section id="costDemoSection" aria-labelledby="costDemoLabel">
       <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
@@ -2136,6 +2148,7 @@ ${_zaccBanner}
     </section>
   </div>
 </section>
+${authorityDesk.homeDoorsHtml()}
 <section id="unicornEcosystem">
   <div class="section-title">
     <div><h2>Powered by UNICORN Ecosystem</h2></div>
@@ -2322,6 +2335,7 @@ function pageService(id) {
       </div>
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${_esc(desc)}</p>
+      ${_guideBack(safeId)}
       ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>

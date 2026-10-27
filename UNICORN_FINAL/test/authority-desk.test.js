@@ -130,6 +130,46 @@ async function main() {
     assert.ok(checklist.includes('No ranking is published'));
   });
 
+  await check('each guide names one shelf file and the live price', () => {
+    const shelf = require('../src/commerce/public-shelf');
+    const pairs = [
+      ['/blog/what-is-ai-code-review', 'instant-website-audit'],
+      ['/use-cases/freelancers', 'instant-resume-makeover'],
+      ['/use-cases/startups', 'professional-saas-mvp'],
+      ['/use-cases/enterprise', 'ent-engagement-kickoff'],
+      ['/react-ai-code-review', 'instant-website-audit'],
+      ['/cursor-vs-zeus-ai', 'instant-website-audit'],
+      ['/best-ai-tool-for/react', 'instant-website-audit'],
+    ];
+    pairs.forEach((pair) => {
+      const pick = authority.offerIdFor(pair[0]);
+      assert.strictEqual(pick.id, pair[1], pair[0]);
+      const item = shelf.byId(pair[1]);
+      assert.ok(item && item.priceUsd > 0, pair[1]);
+      const html = authority.render(pair[0]);
+      assert.ok(html.includes('data-offer-id="' + pair[1] + '"'), pair[0]);
+      assert.ok(html.includes('href="/services/' + pair[1] + '"'), pair[0]);
+      assert.ok(html.includes('<dt>List</dt><dd>' + shelf.money(item.priceUsd) + '</dd>'), pair[0]);
+      assert.ok(html.includes('<dt>Bitcoin</dt><dd>' + shelf.money(authority.btcPayUsd(item.priceUsd)) + '</dd>'), pair[0]);
+      assert.ok(html.includes('<dt>Delivery</dt><dd>$0</dd>'), pair[0]);
+      assert.ok(!html.includes('itemprop="price"'), pair[0]);
+      assert.ok(html.includes('The other door is'), pair[0]);
+    });
+    const home = require('../src/site/v2/shell').getHtml('/');
+    assert.ok(home.indexOf('id="dtHeroH1"') < home.indexOf('id="homeGuideLine"'));
+    assert.ok(home.indexOf('id="costDemoSection"') < home.indexOf('id="homeDoors"'));
+    assert.ok(home.indexOf('id="homeDoors"') < home.indexOf('id="unicornEcosystem"'));
+    assert.ok(home.includes('href="/services/instant-website-audit"'));
+    assert.ok(home.includes('href="/services/instant-resume-makeover"'));
+    assert.ok(home.includes('href="/services/ent-engagement-kickoff"'));
+    assert.ok(home.includes('href="/learn"'));
+    const auditPage = require('../src/site/v2/shell').getHtml('/services/instant-website-audit');
+    assert.ok(auditPage.includes('href="/learn"'));
+    assert.ok(auditPage.includes('This page is the file, not that product.'));
+    const resumePage = require('../src/site/v2/shell').getHtml('/services/instant-resume-makeover');
+    assert.ok(resumePage.includes('href="/use-cases/freelancers"'));
+  });
+
   await check('blog guides are indexable and the homepage hero stays', () => {
     const shell = require('../src/site/v2/shell');
     const home = shell.getHtml('/');

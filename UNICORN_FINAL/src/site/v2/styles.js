@@ -1222,6 +1222,15 @@ html[data-zeus-api-fallback="1"] .nav{top:34px}
 .cost-trust{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
 .cost-trust li,.cost-trust a{border:1px solid rgba(0,232,160,.45);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);text-decoration:none}
 .cost-trust-note{margin:10px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
+.home-doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+#homeDoors{padding:4px 0 28px}
+.guide-offer{margin:0;padding:16px 18px;border:1px solid var(--stroke);border-radius:14px;background:rgba(8,6,18,.72)}
+.guide-offer h3{margin:0 0 8px;font-size:18px}
+.guide-offer .pay-receipt{margin-top:10px}
+#guideOffer{margin:8px 0 18px}
+@media(max-width:640px){
+  .home-doors{grid-template-columns:1fr}
+}
 .cost-modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media(max-width:640px){
   .cost-demo{padding:14px}

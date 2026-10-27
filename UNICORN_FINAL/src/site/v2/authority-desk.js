@@ -80,6 +80,7 @@ function layout(page) {
     const list = items ? `<ul>${items}</ul>` : '';
     return `<h2>${esc(section.h2)}</h2>${blocks}${h3s}${list}`;
   }).join('');
+  const offer = offerBlock(page.path);
   const related = linksFor(page.path, page.links);
   const faqHtml = faq.map((item) => `<h3>${esc(item.q)}</h3><p>${esc(item.a)}</p>`).join('');
   const linkHtml = related.map((item) => `<li><a href="${esc(item.href)}" data-link>${esc(item.label)}</a></li>`).join('');
@@ -91,6 +92,7 @@ function layout(page) {
 <span class="kicker">${esc(page.kicker || 'Guide')}</span>
 <h1 style="font-size:clamp(32px,4vw,52px);margin:10px 0 16px;line-height:1.08">${esc(page.h1)}</h1>
 <p>${esc(DISCLAIMER)}</p>
+${offer}
 ${sections}
 <h2>Questions</h2>
 ${faqHtml}
@@ -638,12 +640,144 @@ function urlsetXml(origin) {
 }
 
 function blogCards() {
-  return ARTICLES.map((row) => ({
-    href: '/blog/' + row[0],
-    tag: 'Guide',
-    title: row[1],
-    sub: 'A guide. ZeusAI does not run this practice on your repository.',
-  }));
+  return ARTICLES.map((row) => {
+    const pick = offerIdFor('/blog/' + row[0]);
+    const name = OFFER_TITLES[pick.id] || 'a shelf file';
+    return {
+      href: '/blog/' + row[0],
+      tag: 'Guide',
+      title: row[1],
+      sub: 'The file on this page is ' + name + '. ZeusAI does not run this practice on your repository.',
+    };
+  });
+}
+
+const OFFER_TITLES = {
+  'instant-website-audit': 'Instant Website Audit (AI)',
+  'instant-resume-makeover': 'Instant Resume + LinkedIn Makeover',
+  'professional-saas-mvp': 'SaaS MVP Kickoff File',
+  'ent-engagement-kickoff': 'Enterprise Engagement Kickoff',
+};
+
+const OFFER_WHY = {
+  'instant-website-audit': 'The file is a Markdown audit of a URL you send. It does not open a repository and it does not fill in a score unless a provider key is armed.',
+  'instant-resume-makeover': 'The file is a resume and a LinkedIn headline written from text you supply. It does not invent an employer.',
+  'professional-saas-mvp': 'The file is a kickoff: scope, an architecture sketch, and milestones. The finished product is not in the file.',
+  'ent-engagement-kickoff': 'The file is a discovery brief, a proposal, and a draft statement of work. It does not include a license, a private cloud, or a code review.',
+};
+
+const RESUME_PATHS = new Set([
+  '/use-cases/freelancers',
+  '/case-studies/resume-file',
+  '/best-ai-tool-for/freelancers',
+  '/best-ai-tool-for/indie',
+]);
+
+const SAAS_PATHS = new Set([
+  '/use-cases/startups',
+  '/use-cases/saas',
+  '/blog/ai-for-startups',
+  '/best-ai-tool-for/startups',
+  '/best-ai-tool-for/saas',
+  '/best-ai-tool-for/greenfield',
+]);
+
+const KICKOFF_PATHS = new Set([
+  '/use-cases/enterprise',
+  '/use-cases/agencies',
+  '/use-cases/engineering-managers',
+  '/use-cases/tech-leads',
+  '/blog/ai-for-software-agencies',
+  '/blog/ai-for-enterprise-development',
+  '/blog/ai-architecture-review',
+  '/blog/complete-guide-to-ai-software-engineering',
+  '/case-studies/kickoff-file',
+  '/case-studies/proposal',
+  '/best-ai-tool-for/enterprise',
+  '/best-ai-tool-for/agencies',
+  '/best-ai-tool-for/managers',
+  '/best-ai-tool-for/tech-leads',
+  '/best-ai-tool-for/platform',
+]);
+
+function offerIdFor(route) {
+  const path = String(route || '');
+  if (RESUME_PATHS.has(path)) return { id: 'instant-resume-makeover', also: 'instant-website-audit' };
+  if (SAAS_PATHS.has(path)) return { id: 'professional-saas-mvp', also: 'instant-website-audit' };
+  if (KICKOFF_PATHS.has(path)) return { id: 'ent-engagement-kickoff', also: 'instant-website-audit' };
+  return { id: 'instant-website-audit', also: 'ent-engagement-kickoff' };
+}
+
+function usdText(n) {
+  const price = Number(n) || 0;
+  const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
+  return '$' + price.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+function btcPayUsd(listUsd) {
+  const cents = Math.round(Number(listUsd) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return 0;
+  return Math.round(cents * 90 / 100) / 100;
+}
+
+const shelfMemo = new Map();
+
+function shelfOffer(id) {
+  if (shelfMemo.has(id)) return shelfMemo.get(id);
+  let item = null;
+  try { item = require('../../commerce/public-shelf').byId(id); } catch (_) { item = null; }
+  shelfMemo.set(id, item || null);
+  return item || null;
+}
+
+function receiptHtml(listUsd) {
+  const list = Number(listUsd) || 0;
+  if (!(list > 0)) return '';
+  return '<dl class="pay-receipt"><div><dt>List</dt><dd>' + usdText(list) + '</dd></div>'
+    + '<div><dt>Bitcoin</dt><dd>' + usdText(btcPayUsd(list)) + '</dd></div>'
+    + '<div><dt>Delivery</dt><dd>$0</dd></div></dl>'
+    + '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. You keep the file.</p>';
+}
+
+function offerCard(id) {
+  const item = shelfOffer(id);
+  const title = (item && item.title) || OFFER_TITLES[id] || id;
+  const href = '/services/' + encodeURIComponent(id);
+  const why = OFFER_WHY[id] || 'This is a named file on the shelf.';
+  const price = item ? Number(item.priceUsd) : 0;
+  const priceHtml = price > 0
+    ? receiptHtml(price)
+    : '<p>The live price is on the file page. This guide does not invent one.</p>';
+  return '<article class="guide-offer" data-offer-id="' + esc(id) + '">'
+    + '<h3><a href="' + esc(href) + '" data-link>' + esc(title) + '</a></h3>'
+    + '<p>' + esc(why) + '</p>'
+    + priceHtml
+    + '<p><a class="btn btn-primary" href="' + esc(href) + '" data-link>Open this file</a></p>'
+    + '</article>';
+}
+
+function offerBlock(route) {
+  const pick = offerIdFor(route);
+  const also = shelfOffer(pick.also);
+  const alsoTitle = (also && also.title) || OFFER_TITLES[pick.also] || pick.also;
+  const alsoHref = '/services/' + encodeURIComponent(pick.also);
+  return '<div id="guideOffer">'
+    + offerCard(pick.id)
+    + '<p>The other door is <a href="' + esc(alsoHref) + '" data-link>' + esc(alsoTitle) + '</a>.</p>'
+    + '</div>';
+}
+
+function homeGuideLine() {
+  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. The three files you can buy are under this demo.</p>';
+}
+
+function homeDoorsHtml() {
+  const ids = ['instant-website-audit', 'instant-resume-makeover', 'ent-engagement-kickoff'];
+  return '<section id="homeDoors" aria-label="Files you can buy">'
+    + '<div class="section-title"><div><h2>Three files you can buy</h2></div></div>'
+    + '<p class="cost-trust-note">Each card is a file. The list price is the price on the shelf. A guide is not a code review.</p>'
+    + '<div class="home-doors">' + ids.map(offerCard).join('') + '</div>'
+    + '</section>';
 }
 
 function docLinks() {
@@ -659,4 +793,8 @@ module.exports = {
   urlsetXml,
   blogCards,
   docLinks,
+  offerIdFor,
+  btcPayUsd,
+  homeGuideLine,
+  homeDoorsHtml,
 };
