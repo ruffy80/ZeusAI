@@ -65,6 +65,13 @@ check('register + getStatus tracks modules', () => {
   assert.ok(st.innovations.includes('total_module_continuum'));
   assert.ok(st.innovations.includes('honesty_fence'));
   assert.ok(st.innovations.includes('organ_status_collapse'));
+  assert.ok(st.innovations.includes('module_coverage_ledger'));
+  assert.ok(st.coverage && st.coverage.files > 600);
+  assert.strictEqual(
+    st.coverage.runtime + st.coverage.libraries + st.coverage.aliases,
+    st.coverage.files,
+  );
+  assert.strictEqual(st.coverage.policy.healthSlice, 'at most 48 status calls');
 });
 
 check('conflict quarantine blocks duplicate capability', () => {
