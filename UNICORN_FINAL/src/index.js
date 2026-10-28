@@ -5906,6 +5906,14 @@ async function unicornHandler(req, res) {
     return;
   }
 
+  // Measured commercial counts. The desk copies no price. nginx /api/ goes to
+  // the backend, which registers the same path; this answers a direct site hit.
+  if (urlPath === '/api/commercial/status' && req.method === 'GET') {
+    const desk = require('./site/v2/commercial-desk');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(desk.status()));
+  }
+
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
   const forceLocalApi = urlPath.startsWith('/api/onboarding/recommendations/');
@@ -13383,6 +13391,7 @@ a{color:#8a5cff;text-decoration:none}
     '/standard',
     // Human SEO desk
     '/seo',
+    '/commercial',
     // Origin Gravity — signed zero-customer genesis + founding passport
     '/origin',
     '/live-actions', '/autonomy', '/innovation-log',

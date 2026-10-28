@@ -164,6 +164,9 @@ function nextArticle(articles, posted) {
 
 function nextGrowthPost(input) {
   const o = input || {};
+  if (o.stopped === true || String(process.env.GROWTH_EMERGENCY_STOP || '') === '1') {
+    return { action: 'wait', reason: 'emergency_stop' };
+  }
   if (o.silenced) return { action: 'wait', reason: 'silenced' };
   const maxPosts = Number(o.maxPosts) > 0 ? Number(o.maxPosts) : 6;
   const postsToday = Number(o.postsToday) || 0;

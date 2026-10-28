@@ -400,6 +400,7 @@ function robotsTxt(base) {
   return block.concat([''], google, [
     '',
     'Sitemap: ' + b + '/sitemap.xml',
+    'Sitemap: ' + b + '/seo/sitemap-services.xml',
     'Sitemap: ' + b + '/sitemap-authority.xml',
     'Sitemap: ' + b + '/sitemap-geo.xml',
     '',

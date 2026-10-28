@@ -5782,6 +5782,15 @@ function _livenessHealthHandler(req, res) {
 }
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
+app.get('/api/commercial/status', (req, res) => {
+  try {
+    const desk = require('../src/site/v2/commercial-desk');
+    res.set('Cache-Control', 'no-store');
+    res.json(desk.status());
+  } catch (e) {
+    res.status(500).json({ ok: false, invented: false, error: 'commercial_desk_unavailable' });
+  }
+});
 app.get('/api/orchestrator/health', (req, res) => {
   try {
     const fs = require('fs');

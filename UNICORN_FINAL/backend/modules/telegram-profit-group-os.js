@@ -825,6 +825,9 @@ async function handleCommand(msg) {
 }
 
 async function tick() {
+  if (String(process.env.GROWTH_EMERGENCY_STOP || '') === '1') {
+    return { ok: false, reason: 'emergency_stop' };
+  }
   if (DISABLED || state.silenced) return { ok: false, reason: 'disabled_or_silenced' };
   if (!token() || !groupChatId()) return { ok: false, reason: 'not_configured' };
   _computeProfitScore();
