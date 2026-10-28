@@ -142,6 +142,13 @@ class GlobalApiGateway extends EventEmitter {
   // ── Gateway middleware ────────────────────────────────────────────────────
   middleware() {
     return (req, res, next) => {
+      const fwd = req.headers['x-forwarded-for'] || req.headers.forwarded;
+      const remote = req.socket && req.socket.remoteAddress;
+      const loopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+      // This process polls itself on loopback without X-Forwarded-For.
+      // nginx sets that header, so public clients still share the tenant budget.
+      if (loopback && !fwd) return next();
+
       const start = Date.now();
       stats.totalRequests++;
 
