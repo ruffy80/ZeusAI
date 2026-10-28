@@ -44,6 +44,7 @@
     "node-domexception": "1.0.0",
     "node-fetch": "3.3.2",
     "nodemailer": "^9.0.3",
+    "nostr-tools": "^2.25.2",
     "qrcode": "^1.5.4",
     "secrets.js-grempe": "^2.0.0",
     "sentiment": "^5.0.2",
@@ -51,7 +52,9 @@
     "ssh2": "^1.17.0",
     "stripe": "^17.7.0",
     "undici": "^6.21.1",
-    "web-streams-polyfill": "3.3.3"
+    "web-push": "^3.6.7",
+    "web-streams-polyfill": "3.3.3",
+    "ws": "^8.22.0"
   },
   "overrides": {
     "smol-toml": ">=1.6.1"
