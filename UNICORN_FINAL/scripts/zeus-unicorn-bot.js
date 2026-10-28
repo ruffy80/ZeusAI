@@ -222,7 +222,7 @@ async function handleCommand(msg) {
   }
 
   // Public group commands (no owner gate) — TPG + MobDial
-  if (['/value', '/drop', '/profit', '/group', '/invite', '/lead', '/cta',
+  if (['/value', '/drop', '/profit', '/group', '/invite', '/lead', '/cta', '/spread',
     '/dial', '/udial', '/rank', '/leaderboard', '/claim', '/swarm', '/mobdial', '/echo'].includes(cmd)) {
     await groupOs.handleCommand(msg);
     return;
@@ -345,7 +345,7 @@ async function pollLoop() {
       const data = await tg('getUpdates', {
         offset,
         timeout: POLL_TIMEOUT,
-        allowed_updates: ['message', 'my_chat_member', 'channel_post', 'chat_member'],
+        allowed_updates: ['message', 'my_chat_member', 'channel_post', 'chat_member', 'inline_query'],
       });
       if (!data.ok) {
         log(`getUpdates: ${data.description || data.error_code}`);
@@ -355,6 +355,14 @@ async function pollLoop() {
       for (const u of data.result || []) {
         offset = u.update_id + 1;
         saveOffset(offset);
+        if (u.inline_query) {
+          try {
+            const spread = require('../backend/modules/telegram-world-spread');
+            // eslint-disable-next-line no-await-in-loop
+            await spread.answerInline(tg, u.inline_query);
+          } catch (e) { log(`inline: ${e && e.message}`); }
+          continue;
+        }
         if (u.my_chat_member) {
           // eslint-disable-next-line no-await-in-loop
           await handleMyChatMember(u);
@@ -395,6 +403,7 @@ async function main() {
         { command: 'claim', description: 'Claim dial + email lead' },
         { command: 'echo', description: 'Force Causal Echo post' },
         { command: 'value', description: 'Force a Profit Group value drop' },
+        { command: 'spread', description: 'Post the live shelf and a share card' },
         { command: 'profit', description: 'Group profit score' },
         { command: 'invite', description: 'Auto invite link' },
         { command: 'lead', description: 'Capture email lead' },

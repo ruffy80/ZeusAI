@@ -382,6 +382,11 @@ const VALUE_TEMPLATES = [
       `Enter the marketplace → ${cta}`,
     ].join('\n')),
   },
+  {
+    id: 'live_shelf',
+    stages: ['convert', 'monetize', 'traffic', 'expand', 'capture'],
+    build: (cta) => cta,
+  },
 ];
 
 function pickValueTemplate() {
@@ -426,8 +431,26 @@ async function postValue(force) {
   }
   const tmpl = pickValueTemplate();
   let cta = buildCta(tmpl.id);
-  const invite = tmpl.id === 'invite_gravity' ? await ensureInviteLink() : null;
+  const invite = (tmpl.id === 'invite_gravity' || tmpl.id === 'live_shelf') ? await ensureInviteLink() : null;
   let text = tmpl.build(cta, invite);
+  let buttons = [[
+    { text: 'Open ZeusAI catalog', url: cta },
+    { text: 'Live site', url: SITE },
+  ]];
+  if (tmpl.id === 'live_shelf') {
+    try {
+      const spread = require('./telegram-world-spread');
+      const built = await spread.buildLivePost({
+        cta,
+        invite,
+        members: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
+      });
+      if (built && built.text) {
+        text = built.text;
+        buttons = built.buttons;
+      }
+    } catch (_) { /* keep the plain CTA */ }
+  }
   try {
     const vuk = require('./viral-unification-os');
     const gate = vuk.admit({ channel: 'telegram', source: 'tpg', kind: 'group-value', force: !!force });
@@ -435,10 +458,6 @@ async function postValue(force) {
     const canon = vuk.canonicalizeIntent({ body: text, url: cta, source: 'tpg' }, 'telegram');
     if (canon && canon.body) text = canon.body;
   } catch (_) { /* VUK optional */ }
-  const buttons = [[
-    { text: 'Open ZeusAI catalog', url: cta },
-    { text: 'Live site', url: SITE },
-  ]];
   const r = await sendGroup(text, { kind: 'value', buttons });
   try {
     const vuk = require('./viral-unification-os');
@@ -455,6 +474,42 @@ async function postValue(force) {
     _append(LEDGER, { ts: new Date().toISOString(), type: 'value_post', template: tmpl.id, cta });
   }
   return { ok: !!(r && r.ok), template: tmpl.id, result: r, cta };
+}
+
+async function postLiveShelf(force) {
+  _rollDay();
+  if (!force) {
+    if (state.silenced) return { ok: false, reason: 'silenced' };
+    if (state.postsToday >= MAX_VALUE_POSTS_DAY) return { ok: false, reason: 'daily_cap' };
+    if (Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
+  }
+  const cta = buildCta('live_shelf');
+  const invite = await ensureInviteLink();
+  let text = cta;
+  let buttons = [[{ text: 'Open zeusai.pro', url: cta }]];
+  try {
+    const spread = require('./telegram-world-spread');
+    const built = await spread.buildLivePost({
+      cta,
+      invite,
+      members: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
+    });
+    if (built && built.text) {
+      text = built.text;
+      buttons = built.buttons;
+    }
+  } catch (e) {
+    return { ok: false, reason: e && e.message || 'spread_unavailable' };
+  }
+  const r = await sendGroup(text, { kind: 'live_shelf', buttons, skipGovernor: !!force });
+  if (r && r.ok) {
+    state.postsToday += 1;
+    state.lastValueAt = Date.now();
+    state.lastPost = { id: 'live_shelf', at: new Date().toISOString(), cta };
+    _saveState();
+    _append(LEDGER, { ts: new Date().toISOString(), type: 'live_shelf', cta });
+  }
+  return { ok: !!(r && r.ok), template: 'live_shelf', result: r, cta };
 }
 
 /**
@@ -641,8 +696,8 @@ async function handleCommand(msg) {
   const mid = msg.message_id;
   state.commands += 1;
 
-  if (cmd === '/value' || cmd === '/drop') {
-    const r = await postValue(true);
+  if (cmd === '/value' || cmd === '/drop' || cmd === '/spread') {
+    const r = cmd === '/spread' ? await postLiveShelf(true) : await postValue(true);
     if (!(r && r.ok)) {
       await sendGroup(`⏸ Value post: ${r.reason || 'failed'}`, { chatId: chat.id, replyTo: mid });
     }
@@ -720,6 +775,11 @@ async function tick() {
   if (DISABLED || state.silenced) return { ok: false, reason: 'disabled_or_silenced' };
   if (!token() || !groupChatId()) return { ok: false, reason: 'not_configured' };
   _computeProfitScore();
+  try {
+    const counted = await tg('getChatMemberCount', { chat_id: groupChatId() });
+    const members = counted && counted.ok ? Number(counted.result) : NaN;
+    if (Number.isFinite(members)) state.memberCount = members;
+  } catch (_) { /* count is optional */ }
   // Profit Gravity: when score high OR funnel starving convert/monetize → post value
   const hunger = _funnelHunger();
   const forceHungry = ['convert', 'monetize', 'capture'].includes(hunger.stage);
@@ -814,7 +874,7 @@ function getStatus() {
     messages: state.messages,
     leads: state.leads,
     moderated: state.moderated,
-    lastPost: state.lastPost,
+    memberCount: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
     lastInviteLink: state.lastInviteLink ? { url: state.lastInviteLink.url, expiresAt: state.lastInviteLink.expiresAt } : null,
     mobdial: mobdial ? {
       protocol: mobdial.protocol,
@@ -885,6 +945,7 @@ module.exports = {
   stop,
   tick,
   postValue,
+  postLiveShelf,
   postMoneyOffers,
   welcomeMember,
   handleUpdate,
