@@ -89,6 +89,8 @@ check('server-rendered entitlement links contain the access token, not "${TOK}"'
   );
   assert.ok(html.includes('data-live-inspect="/api/entitlements/' + ACCESS_TOKEN + '"'), 'verify must use live-inspect (no raw JSON tab)');
   assert.ok(html.includes('data-live-inspect="/api/delivery/' + ORDER_ID + '?access_token=' + ACCESS_TOKEN + '"'), 'delivery must use live-inspect with access token');
+  assert.ok(html.includes('id="deliveryFile" href="/api/delivery/' + ORDER_ID + '?format=artifact&amp;access_token=' + ACCESS_TOKEN + '"'), 'the file link works without email');
+  assert.ok(html.includes('Email is optional'));
   // Preferred: /checkout/:id/qr.svg (nginx ^~ /checkout/ → site). Legacy /api/ path also OK.
   assert.ok(
     html.includes('src="/checkout/' + ORDER_ID + '/qr.svg"')
@@ -216,6 +218,14 @@ async function runHandlerIntegration() {
   console.log('  ✔ commerce.handle serves /checkout/:orderId end-to-end');
   passed++;
 }
+
+check('a paid order shows the file link without waiting for email', () => {
+  const paid = Object.assign({}, baseOrder, { status: 'paid' });
+  const html = commerce.checkoutHtml(paid);
+  assert.ok(html.includes('class="grant on"'), 'paid checkout must show the delivery block');
+  assert.ok(html.includes('Download the file'));
+  assert.ok(html.includes('No email is required'));
+});
 
 runHandlerIntegration()
   .then(() => {

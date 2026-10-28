@@ -1815,6 +1815,15 @@ function _homeAtlasHtml() {
 </section>`;
 }
 
+function _auditPriceLabel() {
+  try {
+    const item = require('../../commerce/public-shelf').byId('instant-website-audit');
+    const n = Number(item && item.priceUsd);
+    if (Number.isFinite(n) && n > 0) return ' · $' + n.toFixed(2);
+  } catch (_) { /* the offer page still shows the live quote */ }
+  return '';
+}
+
 function pageHome() {
   // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
   // from each tier so the page always shows a buyable price range without
@@ -2216,11 +2225,12 @@ ${_zaccBanner}
       </aside>
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Get Enterprise Access</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditPriceLabel()}</a>
+        <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
         <li>Secure</li>
-        <li>No Data Retention</li>
+        <li>Demo prompt not stored</li>
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
       <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>

@@ -257,6 +257,9 @@ process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.Q
       path.join(__dirname, '..', '.env'),
       path.join(__dirname, '..', '.env.local'),
       '/etc/zeusai/social.env',
+      '/etc/zeusai/secrets/ai-keys.env',
+      '/var/www/unicorn/shared/.env',
+      '/var/www/unicorn/shared/search-console.env',
     ];
     let restored = 0;
     for (const file of candidates) {
