@@ -9757,6 +9757,25 @@ function _closCloseDelivered(payload) {
   return null;
 }
 
+function _snmNotify(notification) {
+  const flag = String(process.env.SNM_ENABLED || '').trim().toLowerCase();
+  const on = flag === '1' || flag === 'true' || flag === 'on' || (flag === '' && process.env.NODE_ENV !== 'test');
+  if (!on) return;
+  try {
+    const snm = require('../modules/notificationMesh');
+    const note = Object.assign({}, notification, {
+      userId: notification.userId || notification.email || notification.orderId || 'anonymous',
+      email: notification.email || null,
+    });
+    Promise.resolve(snm.deliver(note)).then((result) => {
+      const chain = (result.attempts || []).map((row) => row.channel + ':' + (row.ok ? 'ok' : 'fail')).join(' -> ');
+      console.log('[SNM]', note.type, result.delivered ? ('delivered via ' + result.channel) : 'undelivered', chain || 'no-attempt');
+    }).catch((err) => console.warn('[SNM]', note.type, err && err.message));
+  } catch (err) {
+    console.warn('[SNM] unavailable', err && err.message);
+  }
+}
+
 function _onPaidInvoice(invoice) {
   // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
   // persisted, idempotent. The buyer gets access with ZERO human steps.
@@ -9783,6 +9802,24 @@ function _onPaidInvoice(invoice) {
     Promise.resolve(paidDelivery.queueDeliveryEmail(invoice)).catch((err) => {
       console.warn('[BTC/Paid] delivery email failed:', err && err.message);
     });
+    const paidEmail = invoice && (invoice.customerEmail || (invoice.metadata && invoice.metadata.email) || null);
+    const paidOrderId = invoice && (invoice.orderId || invoice.id);
+    _snmNotify({
+      type: 'payment_confirmed',
+      orderId: paidOrderId,
+      userId: paidEmail || String(paidOrderId || ''),
+      email: paidEmail,
+      amountBtc: invoice && invoice.amountBtc,
+    });
+    if (written && written.ok) {
+      _snmNotify({
+        type: 'service_delivered',
+        orderId: paidOrderId,
+        userId: paidEmail || String(paidOrderId || ''),
+        email: paidEmail,
+        deliveryUrl: '/api/delivery/' + encodeURIComponent(String(paidOrderId || '')),
+      });
+    }
   } catch (e) { console.warn('[BTC/Paid] delivery file failed:', e && e.message); }
   // CLOS: open commercial cycle; close immediately when digital activation succeeds.
   try {
@@ -9974,6 +10011,12 @@ app.post('/api/invoice/create', async (req, res) => {
 // POST /api/order — creează comanda: preț canonic (priceNegotiator, marjă
 // 30%) → factură BTC cu sats unici → așteaptă confirmarea on-chain
 // (btcPaymentVerifier) → activare automată (API key + licență).
+try {
+  require('../modules/notificationMesh/routes').mount(app);
+} catch (err) {
+  console.warn('[SNM] routes not mounted', err && err.message);
+}
+
 app.post('/api/order', async (req, res) => {
   try {
     const body = req.body || {};
@@ -9987,6 +10030,13 @@ app.post('/api/order', async (req, res) => {
     });
     if (!out.ok) return res.status(out.error === 'serviceId_required' ? 400 : 422).json(out);
     const order = out.order || {};
+    _snmNotify({
+      type: 'order_created',
+      orderId: order.id,
+      userId: email || String(order.id || ''),
+      email,
+      productName: serviceId,
+    });
     const invoice = out.invoice || {};
     let qrCode = null;
     try {
