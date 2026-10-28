@@ -5716,6 +5716,21 @@ function _composePublicHealthBody() {
     runtimeProfile: full.runtimeProfile,
     quantumIntegrityShield: full.quantumIntegrityShield,
     dbConnected: full.dbConnected === true,
+    modules: full.modules || [],
+    modulesTotal: full.modulesTotal || 0,
+    registryTotal: (function () {
+      try { return getModuleRegistryStatus().total; } catch (_) { return 0; }
+    })(),
+    registryModules: (function () {
+      try {
+        const reg = getModuleRegistryStatus();
+        const names = [];
+        for (const cat of Object.values(reg.categories || {})) {
+          if (cat && Array.isArray(cat.modules)) names.push(...cat.modules.map(String));
+        }
+        return names;
+      } catch (_) { return []; }
+    })(),
     neverDown: full.neverDown,
     totalAutonomy: full.totalAutonomy,
     neuralAutonomy: full.neuralAutonomy,
@@ -9739,6 +9754,19 @@ function _onPaidInvoice(invoice) {
       }
     }
   } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
+  // Delivery file + email. SMTP missing → email.js persists the outbox.
+  // A simulated txid still writes a file marked mock. It is not revenue
+  // unless btcInvoiceLedger.markPaid already ran for a real payment.
+  try {
+    const paidDelivery = require('./modules/paid-delivery');
+    const written = paidDelivery.writePaidDelivery(invoice, activated ? salesOrchestrator.getActivationByInvoice(invoice && invoice.id) : null);
+    if (written && written.ok && !written.already) {
+      console.log('[BTC/Paid] delivery file', written.file, written.mock ? '(mock)' : '');
+    }
+    Promise.resolve(paidDelivery.queueDeliveryEmail(invoice)).catch((err) => {
+      console.warn('[BTC/Paid] delivery email failed:', err && err.message);
+    });
+  } catch (e) { console.warn('[BTC/Paid] delivery file failed:', e && e.message); }
   // CLOS: open commercial cycle; close immediately when digital activation succeeds.
   try {
     const closPay = _closPayloadFromInvoice(invoice, { rail: 'btc' });
@@ -9931,15 +9959,69 @@ app.post('/api/invoice/create', async (req, res) => {
 // (btcPaymentVerifier) → activare automată (API key + licență).
 app.post('/api/order', async (req, res) => {
   try {
-    const { serviceId, service, email, qty, metadata } = req.body || {};
+    const body = req.body || {};
+    const serviceId = body.serviceId || body.service || body.productId;
+    const email = body.email || body.userEmail || null;
     const out = await salesOrchestrator.createOrder({
-      serviceId: serviceId || service,
+      serviceId,
       email,
-      qty,
-      metadata: metadata || {},
+      qty: body.qty,
+      metadata: body.metadata || {},
     });
     if (!out.ok) return res.status(out.error === 'serviceId_required' ? 400 : 422).json(out);
-    res.status(201).json(out);
+    const order = out.order || {};
+    const invoice = out.invoice || {};
+    let qrCode = null;
+    try {
+      const QRCode = require('qrcode');
+      const uri = order.bip21 || ('bitcoin:' + order.payoutAddress + '?amount=' + order.amountBtc);
+      qrCode = await QRCode.toDataURL(uri, { width: 320, margin: 2 });
+    } catch (_) { qrCode = null; }
+    res.status(201).json({
+      ...out,
+      orderId: order.id,
+      btcAddress: order.payoutAddress || invoice.payoutAddress || null,
+      amountBtc: order.amountBtc,
+      qrCode,
+      expiresAt: invoice.expiresAt || null,
+    });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Read-only buyer status. Unknown email stays not_found. No API keys.
+app.get('/api/user/status/:email', (req, res) => {
+  try {
+    const email = decodeURIComponent(String(req.params.email || '')).trim().toLowerCase();
+    if (!email || email.indexOf('@') < 0) return res.status(400).json({ ok: false, error: 'email_required' });
+    const invoices = btcLedger.listInvoices({ limit: 5000 }).filter((inv) => (
+      String(inv.customerEmail || '').toLowerCase() === email
+    ));
+    const activations = salesOrchestrator.listActivations({ limit: 5000 })
+      .filter((row) => String(row.email || '').toLowerCase() === email)
+      .map((row) => ({
+        activationId: row.activationId,
+        invoiceId: row.invoiceId,
+        serviceId: row.serviceId,
+        activatedAt: row.activatedAt,
+        validUntil: row.validUntil,
+      }));
+    if (!invoices.length && !activations.length) {
+      return res.status(404).json({ ok: false, error: 'not_found', email });
+    }
+    res.json({
+      ok: true,
+      email,
+      orders: invoices.map((inv) => ({
+        orderId: inv.id,
+        status: inv.status,
+        serviceId: inv.service,
+        amountBtc: inv.amountBtc,
+        priceUsd: inv.priceUsd,
+        expiresAt: inv.expiresAt,
+        paidAt: inv.paidAt,
+      })),
+      activations,
+    });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
@@ -16874,7 +16956,9 @@ app.get('/crypto-bridge', (req, res) => {
   return res.redirect(302, '/crypto-fiat-bridge');
 });
 
-app.get('/{*path}', (req, res) => {
+app.get('/{*path}', (req, res, next) => {
+  const reqPath = String(req.path || '');
+  if (reqPath === '/api' || reqPath.startsWith('/api/')) return next();
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
@@ -18146,6 +18230,15 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', new Date().toISOString(), msg);
   if (reason instanceof Error && reason.stack) console.error(reason.stack);
   // Do NOT call process.exit() — keep the server alive
+});
+
+// API routes registered after the HTML catch-all still run because that
+// catch-all calls next() for /api/*. Anything still unmatched stays JSON.
+app.use((req, res, next) => {
+  const reqPath = String(req.path || '');
+  if (reqPath !== '/api' && !reqPath.startsWith('/api/')) return next();
+  if (res.headersSent) return;
+  res.status(404).json({ ok: false, error: 'not_found' });
 });
 
 // Only bind to a port when run directly (not when imported by tests)

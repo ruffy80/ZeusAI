@@ -1172,6 +1172,92 @@ window.addEventListener('securitypolicyviolation', function(e){
   }catch(_){ }
 });
 </script>
+<script${N}>
+document.addEventListener('DOMContentLoaded', function(){
+  var TTL = 300000;
+  function read(key){
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || (Date.now() - Number(obj.ts || 0)) >= TTL) return null;
+      return obj.value;
+    } catch (e) { return null; }
+  }
+  function write(key, value){
+    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), value: value })); } catch (e) {}
+  }
+  function fill(id, el){
+    if (!id || !el || String(el.textContent || '').trim()) return;
+    var hit = read('zeus.price.' + id);
+    var btc = hit && (hit.btc != null ? hit.btc : hit.price_btc);
+    if (btc != null && String(btc) !== '') { el.textContent = String(btc) + ' BTC'; return; }
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, 1000);
+    fetch('/api/price/' + encodeURIComponent(id), { headers: { Accept: 'application/json' }, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+      .then(function(res){
+        clearTimeout(timer);
+        if (String(el.textContent || '').trim()) return;
+        var coin = res.ok && res.body ? (res.body.btc != null ? res.body.btc : res.body.price_btc) : null;
+        if (coin == null || String(coin) === '') throw new Error('price');
+        el.textContent = String(coin) + ' BTC';
+        write('zeus.price.' + id, { btc: String(coin), price_btc: String(coin), price_usd: res.body.usd || res.body.price_usd });
+      })
+      .catch(function(){
+        clearTimeout(timer);
+        if (!String(el.textContent || '').trim()) el.textContent = 'Price temporarily unavailable';
+      });
+  }
+  function paint(services){
+    var host = document.getElementById('unicornServiceMount');
+    if (!host || host.childElementCount || String(host.textContent || '').trim()) return;
+    var rows = (services || []).filter(function(s){ return s && s.id && Number(s.priceUsd || s.price) > 0; }).slice(0, 12);
+    if (!rows.length) { host.textContent = 'Price temporarily unavailable'; return; }
+    rows.forEach(function(service){
+      var line = document.createElement('p');
+      line.appendChild(document.createTextNode(String(service.title || service.id) + ' '));
+      var price = document.createElement('span');
+      price.setAttribute('data-price-for', String(service.id));
+      line.appendChild(price);
+      host.appendChild(line);
+      fill(String(service.id), price);
+    });
+  }
+  var cached = read('zeus.services.v1');
+  if (cached) paint(cached);
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); }, 1000);
+  fetch('/api/services', { headers: { Accept: 'application/json' }, cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error('services'); return j; }); })
+    .then(function(body){
+      clearTimeout(timer);
+      var services = body && Array.isArray(body.services) ? body.services : null;
+      if (!services) throw new Error('services');
+      write('zeus.services.v1', services.map(function(service){
+        return { id: service.id, title: service.title, priceUsd: service.priceUsd, price: service.price };
+      }));
+      paint(services);
+      document.querySelectorAll('[data-price-for]').forEach(function(el){ fill(el.getAttribute('data-price-for'), el); });
+      document.querySelectorAll('a,button').forEach(function(btn){
+        if (String(btn.textContent || '').indexOf('Buy with BTC') === -1) return;
+        var id = btn.getAttribute('data-service-id') || btn.getAttribute('data-sovereign-buy') || '';
+        var slot = btn.parentNode && btn.parentNode.querySelector('[data-price-for]');
+        if (!slot) {
+          slot = document.createElement('span');
+          slot.setAttribute('data-price-for', id);
+          btn.insertAdjacentElement('afterend', slot);
+        }
+        if (id) fill(id, slot);
+      });
+    })
+    .catch(function(){
+      clearTimeout(timer);
+      var host = document.getElementById('unicornServiceMount');
+      if (host && !host.childElementCount && !String(host.textContent || '').trim() && !cached) host.textContent = 'Price temporarily unavailable';
+    });
+});
+</script>
 <script${N} src="${assetPath('/assets/aeon.js')}" defer></script>
 ${route === '/' ? '' : `<script${N} src="${assetPath('/assets/app.js')}" defer></script>`}
 </body></html>`;
@@ -4065,6 +4151,7 @@ function pageEnterprise() {
     </div>
     <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px"></div>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px">${packCards}</div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>
