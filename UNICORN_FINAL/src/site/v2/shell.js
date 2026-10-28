@@ -10,6 +10,8 @@ const continuityAttestation = require('./continuity-attestation');
 const merchantStandardSurface = require('./merchant-standard-surface');
 const seoSurface = require('./seo-surface');
 const discoverTrust = require('./discover-trust-os');
+const authorityDesk = require('./authority-desk');
+const geoDesk = require('./geo-desk');
 const merchantOffer = require('../../seo/merchant-offer');
 
 const OWNER = {
@@ -119,6 +121,24 @@ function _toBtc(usd) {
   const u = Number(usd || 0);
   if (!(u > 0)) return 0;
   return Number((u / r).toFixed(8));
+}
+// Catalog figure is the list price. Bitcoin checkout multiplies by 0.90
+// (COMMERCE_BTC_DISCOUNT_PCT default). Card and PayPal pay the list price.
+function _btcPayUsd(listUsd) {
+  const cents = Math.round(Number(listUsd) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return 0;
+  return Math.round(cents * 90 / 100) / 100;
+}
+function _guideBack(id) {
+  const map = {
+    'instant-website-audit': ['/learn', 'Engineering guides'],
+    'instant-resume-makeover': ['/use-cases/freelancers', 'Freelancers'],
+    'professional-saas-mvp': ['/use-cases/startups', 'Startups'],
+    'ent-engagement-kickoff': ['/use-cases/enterprise', 'Enterprise'],
+  };
+  const row = map[String(id || '')];
+  if (!row) return '';
+  return '<p style="color:var(--ink-dim);font-size:15px;line-height:1.6">Readers who searched for a coding assistant start at <a href="' + row[0] + '" data-link>' + _esc(row[1]) + '</a>. This page is the file, not that product.</p>';
 }
 // Process-local catalog memo — SSR hits _loadCatalog on nearly every page;
 // avoid re-walking unified-catalog + dynamic-pricing on every click/partial.
@@ -401,7 +421,7 @@ function _catalogCard(p) {
   // World-Profit-OS: reinforce the native-BTC advantage right next to every
   // priced card. Only shown for paid items (free/activate cards omit it).
   const btcDiscountNote = price > 0
-    ? `<span class="btc-discount" style="display:block;font-size:10.5px;color:#ffd36a;font-weight:600;margin-top:2px;letter-spacing:.2px;opacity:.85">10% BTC discount applied</span>`
+    ? `<span class="btc-discount" style="display:block;font-size:10.5px;color:#ffd36a;font-weight:600;margin-top:2px;letter-spacing:.2px;opacity:.85">10% BTC discount applied · Bitcoin ${_atlasMoney(_btcPayUsd(price))}</span>`
     : '';
   // When the live pricing engine produced this number, surface a small badge
   // so the user (and ops) can tell it is the AI-negotiated value, not a
@@ -664,6 +684,7 @@ function _robotsMeta(route) {
   if (path === '/innovations' || path === '/frontier' || path === '/aura' || path === '/gift' || path === '/transparency' || path === '/crypto-fiat-bridge' || path === '/social-network' || path === '/store') return 'noindex, nofollow';
   if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
   if (path === '/outreach-desk') return 'noindex, nofollow';
+  if (authorityDesk.has(path) || geoDesk.has(path)) return '';
   if ((path.indexOf('/insights/') === 0 || path.indexOf('/blog/') === 0) && !discoverTrust.article(path)) return 'noindex, nofollow';
   if (_serverOnlyService(path)) return 'noindex, nofollow';
   // Invoice checkout and the empty chooser stay out of the index. A plan
@@ -680,7 +701,9 @@ function _robotsMeta(route) {
 
 function head(title, route, opts) {
   opts = opts || {};
-  const lang = opts.lang || 'en';
+  // The authored page is English. A passed lang does not create a second
+  // document, and this head does not emit hreflang for a URL that does not exist.
+  const lang = 'en';
   const nonce = opts.nonce || '';
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   const base = OWNER.domain.replace(/\/$/, '');
@@ -695,17 +718,6 @@ function head(title, route, opts) {
   const desc = homeDocument ? HOME_DESCRIPTION : routeDescription(route);
   const jsonLdBlocks = buildJsonLd(documentTitle, route, canonical, desc, opts)
     .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
-  // SSR is English. ?lang= only sets a translate cookie, so those URLs are
-  // not separate language documents and must not be advertised as hreflang.
-  // Auto-translate priming: when the visitor's effective language is not
-  // English we set the `googtrans` cookie BEFORE loading the Google Translate
-  // widget so the page is translated in-place into the country's language
-  // without a flicker. Source language is always English (`en`) — that is the
-  // language the SSR HTML is authored in.
-  const gtTarget = (lang && lang !== 'en') ? lang : '';
-  const gtPrimer = gtTarget
-    ? `<script${nonceAttr}>(function(){try{var p='/en/${gtTarget}';var d=document.cookie;if(d.indexOf('googtrans=')<0){document.cookie='googtrans='+p+'; path=/; samesite=lax';var h=location.hostname.split('.');if(h.length>=2){document.cookie='googtrans='+p+'; path=/; domain=.'+h.slice(-2).join('.')+'; samesite=lax';}}}catch(_){}})();</script>`
-    : '';
   return `<!doctype html>
 <html lang="${lang}" data-route="${route}">
 <head>
@@ -729,7 +741,7 @@ ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="ZeusAI — Sovereign AI OS"/>
-<meta property="og:locale" content="${lang}_${(lang === 'en' ? 'US' : lang.toUpperCase())}"/>
+<meta property="og:locale" content="en_US"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${homeDocument ? documentTitle : `${title} — ZeusAI`}"/>
 <meta name="twitter:description" content="${desc}"/>
@@ -861,7 +873,8 @@ footer{padding:48px 7vw 28px}
 .concierge-foot{display:flex;gap:8px;align-items:flex-end}
 .concierge-foot textarea{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:8px;font:inherit}
 .chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
-.lang-toggle{background:transparent;border:1px solid var(--stroke);color:var(--ink);border-radius:12px;padding:8px 10px;font:inherit;cursor:pointer}
+.lang-mark{display:inline-flex;align-items:center;border:1px solid var(--stroke);color:var(--ink-dim);border-radius:12px;padding:8px 10px;font-size:12px;letter-spacing:.06em}
+.home-locale{margin:12px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
 .nav-more{position:relative}
 .nav-more-btn{background:transparent;border:0;color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}
 .nav-more-menu{position:absolute;top:100%;right:0;min-width:200px;background:#0b0a12;border:1px solid var(--stroke);border-radius:14px;padding:8px;z-index:60}
@@ -890,7 +903,6 @@ html[data-route="/"] .cost-demo{margin:0}
 @media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
 @media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
 </style>
-${gtPrimer}
 </head>
 <body>
 <a class="skip-link" href="#app">Skip to content</a>
@@ -903,23 +915,9 @@ ${navBar(route, opts)}
 <main id="app">`;
 }
 
-function navBar(route, opts) {
-  opts = opts || {};
-  const curLang = opts.lang || 'en';
-  const autoLang = (opts.autoLang || curLang || 'en');
+function navBar(route) {
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
-  // 30Y-LTS: country-aware auto-translate.
-  //   The site is detected and translated automatically into the visitor's
-  //   country's language (Google Translate widget, primed via the `googtrans`
-  //   cookie set in `<head>`). The small toggle below lets the visitor force
-  //   English or revert to the auto-detected language.
-  const showingEnglish = curLang === 'en';
-  const targetLang = showingEnglish ? autoLang : 'en';
-  const currentLabel = String(curLang || 'en').toUpperCase();
-  const targetTitle = showingEnglish
-    ? `Page is English. Switch to ${String(autoLang || 'en').toUpperCase()}`
-    : 'Page is translated. Switch to English';
-  const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${currentLabel}</button>`;
+  const langMark = `<span class="lang-mark" title="English. One page for every country. This address is not redirected.">EN</span>`;
   return `<nav class="nav" data-nav-open="false">
 <div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
@@ -946,7 +944,7 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
 </div>
 </div>
 <div class="nav-cta">
-${langToggle}
+${langMark}
 <a class="btn btn-primary" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
@@ -988,6 +986,10 @@ function footer(route, opts) {
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><a href="/agents" data-link>Agents</a></li>
       <li><a href="/guides" data-link>Offer guides</a></li>
+      <li><a href="/learn" data-link>Engineering guides</a></li>
+      <li><a href="/what-is-zeus-ai" data-link>What ZeusAI is</a></li>
+      <li><a href="/tools" data-link>Worksheets</a></li>
+      <li><a href="/declare" data-allow-raw="1">Declare a repository</a></li>
       <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
@@ -1066,74 +1068,6 @@ ${globalChrome(N)}
   }); } catch(_) { /* already registered — allow-duplicates in CSP is set */ }
 })();
 </script>
-<script${N}>
-// 30Y-LTS — country-aware language toggle.
-// The site is auto-translated into the visitor's country's language via the
-// Google Translate widget (primed by the googtrans cookie set server-side
-// in head). The small "EN / auto" button toggles between English and the
-// auto-detected language without flicker.
-(function(){
-  function setCookie(name, value, days){
-    var d = new Date(); d.setTime(d.getTime() + (days||365) * 86400000);
-    var base = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;samesite=lax';
-    document.cookie = base;
-    // Also write on the registrable domain so subdomains share the choice.
-    try {
-      var h = location.hostname.split('.');
-      if (h.length >= 2) {
-        document.cookie = base + ';domain=.' + h.slice(-2).join('.');
-      }
-    } catch(_) {}
-  }
-  function clearCookie(name){
-    setCookie(name, '', -1);
-    // Clear googtrans on every variant Google may have written.
-    if (name === 'googtrans') {
-      try {
-        var h = location.hostname.split('.');
-        for (var i=0; i<h.length-1; i++) {
-          var dom = h.slice(i).join('.');
-          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + dom;
-          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + dom;
-        }
-      } catch(_) {}
-      document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-    }
-  }
-  document.addEventListener('click', function(ev){
-    var b = ev.target && ev.target.closest && ev.target.closest('.lang-toggle');
-    if (!b) return;
-    ev.preventDefault();
-    var target = b.getAttribute('data-target-lang') || 'en';
-    if (target === 'en') {
-      // User wants English — clear translation cookie and remember the choice.
-      setCookie('lang', 'en', 365);
-      clearCookie('googtrans');
-    } else {
-      // User wants the auto-detected language — clear the override and let
-      // the server-side detection pick it up on reload.
-      clearCookie('lang');
-      setCookie('googtrans', '/en/' + target, 365);
-    }
-    location.reload();
-  }, false);
-})();
-// Google Translate widget bootstrap. The googtrans cookie (set in head
-// when the visitor's country language is not English) drives the in-place
-// translation; the banner is hidden via CSS, so the page is translated
-// silently.
-window.googleTranslateElementInit = function(){
-  try {
-    new google.translate.TranslateElement({
-      pageLanguage: 'en',
-      autoDisplay: false,
-      layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-    }, 'google_translate_element');
-  } catch(_){ }
-};
-</script>
-<div id="google_translate_element" aria-hidden="true"></div>
-
 <script${N}>
 /* SWNOS/1.0 — Service-Worker Never-Stale OS + CCG auto-heal.
    Legacy SWs and build-SHA drift heal themselves via a one-shot /sw-heal bounce
@@ -1539,8 +1473,8 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Homepage dock. app.js owns the live concierge on every other route.
-  // This toggle does not open a stream and does not send the typed text.
+  // Homepage dock. app.js owns the concierge on every other route.
+  // This toggle posts the typed text to the request clock. It does not open a model stream.
   try {
     if (location.pathname === '/') {
       var dockBtn = document.getElementById('conciergeBtn');
@@ -1556,11 +1490,44 @@ function globalChrome(N) {
         var dockBody = document.getElementById('conciergeBody');
         var dockInput = document.getElementById('conciergeInput');
         var dockReply = function(){
-          if (!dockBody) return;
+          if (!dockBody || !dockInput) return;
+          var text = String(dockInput.value || '').replace(/^\s+|\s+$/g, '');
+          if (!text) return;
+          var mine = document.createElement('div');
+          mine.className = 'msg user';
+          mine.textContent = text;
+          dockBody.appendChild(mine);
           var note = document.createElement('div');
           note.className = 'msg bot';
-          note.textContent = 'This page does not open a live model. Use Get Enterprise Access or Contact Sales.';
+          note.style.whiteSpace = 'pre-wrap';
+          note.textContent = 'Reading the shelf…';
           dockBody.appendChild(note);
+          dockBody.scrollTop = dockBody.scrollHeight;
+          fetch('/api/request-solution', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+          }).then(function(r){ return r.json(); }).then(function(j){
+            if (!j || !j.reply) {
+              note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+              return;
+            }
+            note.textContent = j.reply;
+            var href = j.client && j.client.checkout;
+            var label = j.client && j.client.title;
+            if (href && label) {
+              note.appendChild(document.createElement('br'));
+              var link = document.createElement('a');
+              link.href = href;
+              link.setAttribute('data-link', '');
+              link.textContent = label;
+              note.appendChild(link);
+            }
+            dockInput.value = '';
+            dockBody.scrollTop = dockBody.scrollHeight;
+          }).catch(function(){
+            note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+          });
         };
         var dockSend = document.getElementById('conciergeSend');
         if (dockSend) dockSend.addEventListener('click', dockReply);
@@ -1615,6 +1582,22 @@ body.has-cookie{padding-bottom:76px}
 </style>`;
 }
 
+function _payReceiptHtml(listUsd, opts) {
+  const list = Number(listUsd) || 0;
+  if (!(list > 0)) return '';
+  const o = opts || {};
+  const btc = _btcPayUsd(list);
+  const extra = o.card
+    ? '<div><dt>Card or PayPal</dt><dd' + (o.cardId ? ' id="' + o.cardId + '"' : '') + '>' + _atlasMoney(list) + '</dd></div>'
+    : '';
+  return '<dl class="pay-receipt"' + (o.id ? ' id="' + o.id + '"' : '') + '>'
+    + '<div><dt>List</dt><dd' + (o.listId ? ' id="' + o.listId + '"' : '') + '>' + _atlasMoney(list) + '</dd></div>'
+    + '<div><dt>Bitcoin</dt><dd' + (o.btcId ? ' id="' + o.btcId + '"' : '') + '>' + _atlasMoney(btc) + '</dd></div>'
+    + extra
+    + '<div><dt>Delivery</dt><dd>$0</dd></div>'
+    + '</dl>'
+    + (o.note === false ? '' : '<p class="pay-receipt-note">Bitcoin is 10% under the list price. Card and PayPal pay the list price when they are configured. The file delivery is $0. You keep the file. The refund closes once it is issued.</p>');
+}
 function _atlasMoney(n) {
   const price = Number(n) || 0;
   const frac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
@@ -1708,7 +1691,7 @@ function _atlasCard(p) {
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   const btcDiscountNote = price > 0
-    ? '<span class="btc-discount">10% BTC discount applied</span>'
+    ? '<span class="btc-discount">10% BTC discount applied · Bitcoin ' + _atlasMoney(_btcPayUsd(price)) + '</span>'
     : '';
   const cta = (p && p.ctaHref) ? p : _ctaForProduct(p);
   const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(id));
@@ -1761,7 +1744,7 @@ function _homeAtlasHtml() {
   </nav>
   <div id="atlasMinutes" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
-    <p>Each card names the file and the listed window. Bitcoin is live. Card and PayPal appear on the same checkout when they are configured. The price already includes the Bitcoin discount.</p></div>
+    <p>Each card names the file and the listed window. The number on the card is the list price. Bitcoin pays 10% less. Card and PayPal pay the list price when they are configured. Delivery of the file is $0.</p></div>
     <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
   </div>
   <div id="atlasDays" class="atlas-band">
@@ -2183,6 +2166,8 @@ ${_zaccBanner}
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
       <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
+      <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
+      ${authorityDesk.homeGuideLine()}
     </div>
     <section id="costDemoSection" aria-labelledby="costDemoLabel">
       <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
@@ -2196,6 +2181,7 @@ ${_zaccBanner}
     </section>
   </div>
 </section>
+${authorityDesk.homeDoorsHtml()}
 <section id="unicornEcosystem">
   <div class="section-title">
     <div><h2>Powered by UNICORN Ecosystem</h2></div>
@@ -2382,6 +2368,7 @@ function pageService(id) {
       </div>
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${_esc(desc)}</p>
+      ${_guideBack(safeId)}
       ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
@@ -2401,7 +2388,7 @@ function pageService(id) {
         ${priceTxt}${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
-      ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
+      ${price > 0 ? _payReceiptHtml(price, { id: 'svcPayReceipt', listId: 'svcPayList', btcId: 'svcPayBitcoin' }) : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
         const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
@@ -2450,8 +2437,8 @@ function pagePricing() {
 ${_homeAtlasHtml()}
 <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px">
   <span class="kicker">One door</span>
-  <h3 style="margin:6px 0 4px;font-size:20px">The price on the card is the checkout price.</h3>
-  <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Ask what you do and what you want. The reply uses this shelf only.</p>
+  <h3 style="margin:6px 0 4px;font-size:20px">The list price on the card is the checkout amount.</h3>
+  <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Bitcoin on the card is 10% under that list. Card and PayPal pay the list price when they are configured. Delivery of the file is $0. Ask what you do and what you want. The reply uses this shelf only.</p>
   <p style="margin:12px 0 0"><a class="btn btn-primary" href="/#concierge" data-link>Ask ZeusAI</a> <a class="btn btn-ghost" href="/services" data-link>Open one-time catalog →</a></p>
 </div>`;
 }
@@ -2527,6 +2514,7 @@ function pageCheckout(params) {
         <span class="kicker">You are buying</span>
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
+        ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
@@ -2731,6 +2719,9 @@ function pageDocs() {
     <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
     <p>Public buyers and integrators use the rows below. Health, snapshot, and deploy consoles are not linked from the public site. Auth, where a route requires it, is a capability token issued per action.</p>
   </div>
+  <h2 style="font-size:22px;margin-top:28px">Pages that are not features</h2>
+  <p style="color:var(--ink-dim)">These notes say what the site does not ship. They are not extra API routes.</p>
+  <ul>${authorityDesk.docLinks().map((item) => `<li><a href="${item.href}" data-link>${item.label}</a></li>`).join('')}</ul>
   <table class="doc">
     <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
     <tbody>
@@ -2788,6 +2779,16 @@ function pageAbout() {
     <li>Phone: Not published</li>
     <li>Company registration: Not published</li>
   </ul>
+  <h2>Founder</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${OWNER.name} operates both doors. That is the founder record. Street, phone, and a registration number stay unpublished.</p>
+  <h2>Mission</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Show the cost-router demo and sell a named file. The site does not review a repository and does not invent a customer.</p>
+  <h2>Product philosophy</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">The card names the file and the list price. Bitcoin pays 10% under that list. Card and PayPal pay the list price when they are configured. Delivery of the file is $0. The buyer keeps the file.</p>
+  <h2>Security</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Public pages do not ask for a model-provider key. Operator secrets stay off the site. The posture page is <a href="/security" data-link>/security</a>.</p>
+  <h2>Engineering principles</h2>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">A module file on the server is not a product. A guide that explains code review is not a code-review feature. Illustrations are labeled at <a href="/case-studies" data-link>/case-studies</a>. No testimonial is published at <a href="/testimonials" data-link>/testimonials</a>.</p>
   <div style="display:flex;gap:14px;margin-top:30px;flex-wrap:wrap"><a class="btn btn-primary" href="/services" data-link>Open the marketplace</a><a class="btn" href="/contact" data-link>Contact the owner</a></div>
 </section>`;
 }
@@ -4093,7 +4094,46 @@ function pageAccount(opts) {
 </script>`;
 }
 
+function _enterprisePacks() {
+  try {
+    return require('../../commerce/enterprise-catalog').publicView()
+      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0);
+  } catch (_) {
+    return [];
+  }
+}
+
+function _enterprisePackCard(p) {
+  const id = String(p.id || '');
+  const price = Number(p.priceUSD || 0);
+  const priceTxt = price > 0
+    ? ('$' + price.toLocaleString('en-US', { maximumFractionDigits: 2 }))
+    : '—';
+  const per = p.billing === 'annual' ? '/yr' : (p.billing === 'monthly' ? '/mo' : '');
+  const note = id === 'ent-engagement-kickoff'
+    ? 'The file is the discovery brief, the commercial proposal, and a draft statement of work. The amount is credited toward a signed engagement.'
+    : 'Payment buys this engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in the download.';
+  return `<article class="card" data-product-id="${_esc(id)}" data-price-usd="${_esc(String(price))}" style="padding:22px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+      <h3 style="margin:0;font-size:20px;line-height:1.25">${_esc(p.title || id)}</h3>
+      <div style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right;white-space:nowrap">${_esc(priceTxt)}${per ? `<small style="color:var(--ink-dim)"> ${_esc(per)}</small>` : ''}</div>
+    </div>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.5;flex:1">${_esc(note)}</p>
+    <a class="btn btn-gold" href="/checkout/?plan=${encodeURIComponent(id)}" data-link style="justify-content:center">Buy the engagement pack →</a>
+  </article>`;
+}
+
 function pageEnterprise() {
+  const packs = _enterprisePacks();
+  const packCards = packs.length
+    ? packs.map(_enterprisePackCard).join('')
+    : '<p style="color:var(--ink-dim);margin:0">Catalog did not return a pack. The price stays a dash.</p>';
+  const packOptions = (packs.length ? packs : [
+    { id: 'ent-engagement-kickoff', title: 'Engagement kickoff' },
+    { id: 'ent-acquisition-pack', title: 'Acquisition pack' },
+    { id: 'ent-sovereign-deployment', title: 'Sovereign deployment pack' },
+  ]).map((p) => `<option value="${_esc(p.id)}">${_esc(p.title || p.id)}</option>`).join('')
+    + '<option value="custom">Something else on the shelf</option>';
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:980px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">Enterprise · engagement packs</span>
@@ -4112,6 +4152,7 @@ function pageEnterprise() {
     <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px"></div>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px">${packCards}</div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>
       <p style="color:var(--ink-dim);font-size:15px;max-width:740px;margin:0 0 20px">This form reaches the owner. It does not mint a contract, compute a private ACV, or start a deployment. Pay a pack from the marketplace when the card matches the work.</p>
@@ -4130,10 +4171,7 @@ function pageEnterprise() {
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Pack
           <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
-            <option value="ent-engagement-kickoff">Engagement kickoff</option>
-            <option value="ent-acquisition-pack">Acquisition pack</option>
-            <option value="ent-sovereign-deployment">Sovereign deployment pack</option>
-            <option value="custom">Something else on the shelf</option>
+            ${packOptions}
           </select>
         </label>
         <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Message *
@@ -4678,6 +4716,10 @@ ${_homeAtlasHtml()}
 }
 
 function renderRoute(route, params = {}) {
+  const authored = authorityDesk.render(route);
+  if (authored) return authored;
+  const geoAuthored = geoDesk.render(route, params);
+  if (geoAuthored) return geoAuthored;
   if (route.startsWith('/origin/')) {
     return pageOrigin(Object.assign({}, params, { originIndex: route.slice('/origin/'.length) }));
   }
@@ -7411,7 +7453,7 @@ function pageBlog() {
     tag: g.priceLabel || 'Shelf',
     title: g.title,
     sub: g.metaDescription || g.description,
-  })).concat(discoverTrust.blogCards()).concat([
+  })).concat(discoverTrust.blogCards()).concat(authorityDesk.blogCards()).concat([
     { href: '/trust', tag: 'Trust', title: 'The wallet and the deploy signature', sub: 'The Trust Center shows the owner wallet and the integrity manifest. It does not publish a customer count.' },
     { href: '/changelog', tag: 'Shipping', title: 'The changelog is the shipping note', sub: 'What changed in the product, written as a note you can read.' },
     { href: '/services', tag: 'Shelf', title: 'The marketplace is the catalog', sub: 'Every payable offer is a card with a price and a file or an engagement pack.' },
@@ -7826,6 +7868,8 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return HOME_TITLE;
+  const authoredTitle = authorityDesk.meta(route) || geoDesk.meta(route);
+  if (authoredTitle && authoredTitle.title) return authoredTitle.title;
   const landingTitle = enterpriseLanding(route);
   if (landingTitle) return landingTitle.title;
   if (route === '/trust-safety') return 'Trust and safety';
@@ -7873,6 +7917,8 @@ function routeTitle(route) {
 }
 
 function routeDescription(route) {
+  const authoredDesc = authorityDesk.meta(route) || geoDesk.meta(route);
+  if (authoredDesc && authoredDesc.description) return authoredDesc.description;
   const landingDesc = enterpriseLanding(route);
   if (landingDesc) return landingDesc.description;
   const map = {

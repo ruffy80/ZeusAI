@@ -510,10 +510,18 @@ function serviceListJsonLd(base) {
             '@id': abs + '#offer',
             price: Number(live.price).toFixed(2),
             priceCurrency: 'USD',
-            availability: 'https://schema.org/InStock',
             url: abs,
           }, (() => {
-            try { return require('../../seo/merchant-offer').offerFields({ deliveryDays: live.deliveryDays }, origin); }
+            // The shelf card microdata uses this same offer @id and already
+            // states availability and itemCondition once. Repeating either
+            // field here is the Search Console duplicate.
+            try {
+              return require('../../seo/merchant-offer').offerFields(
+                { deliveryDays: live.deliveryDays },
+                origin,
+                { itemCondition: false }
+              );
+            }
             catch (_) { return {}; }
           })()),
         },

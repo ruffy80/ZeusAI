@@ -52,7 +52,8 @@ check('the public report refuses invented traffic and a Lighthouse score', () =>
   assert.strictEqual(body.publishedBriefs, 0);
   assert.strictEqual(body.merchantContract.inventsRatings, false);
   assert.strictEqual(body.merchantContract.inventsTraffic, false);
-  assert.strictEqual(body.merchantContract.returnMethod, 'https://schema.org/KeepProduct');
+  assert.strictEqual(body.merchantContract.returnMethod, null);
+  assert.strictEqual(body.merchantContract.buyerKeepsFile, true);
   assert.strictEqual(body.briefCount, 50);
   const text = JSON.stringify(body);
   assert.ok(!/PRIVATE KEY|ya29\.|1,200 visits|low competition/i.test(text));

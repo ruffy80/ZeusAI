@@ -240,6 +240,20 @@ function listGeneratedModuleFiles() {
 }
 
 const _looksLikeCache = new Map(); // abs -> { mtimeMs, size, ok }
+const _loadErrors = [];
+let _runtimeCursor = 0;
+
+function _pushLoadError(file, err) {
+  if (_loadErrors.length >= 30) _loadErrors.shift();
+  _loadErrors.push({
+    file: String(file || ''),
+    error: String(err && err.message ? err.message : err).slice(0, 180),
+  });
+}
+
+function loadErrors() {
+  return _loadErrors.slice();
+}
 
 function looksLikeModuleSource(filePath) {
   try {
@@ -313,36 +327,50 @@ function scan(opts = {}) {
     } catch (_) { /* skip */ }
   }
 
-  // 2) Soft-require gaps from disk (surgical — only files that look like modules)
+  // 2) Soft-require a bounded cursor of ledger runtime candidates, including
+  // nested files. Already-managed names advance the cursor without a require.
   let softCount = 0;
   if (softRequireMissing) {
-    for (const file of listTopLevelModuleFiles()) {
-      const name = baseName(file);
-      if (byName.has(name)) continue;
-      const abs = path.join(MODULES_DIR, file);
-      if (!looksLikeModuleSource(abs)) continue;
-      if (softCount >= maxSoftRequires) break;
-      try {
-        softCount++;
-        // Dynamic path from MODULES_DIR scan — intentional soft-require of gaps.
-        const mod = require(abs); // eslint-disable-line global-require
-        const instance = unwrapExport(mod);
-        if (!instance) continue;
-        const statusFn = detectStatusFn(instance);
-        if (!statusFn && typeof instance.start !== 'function' && typeof instance.heal !== 'function') continue;
-        const cls = classify(name);
-        byName.set(name, {
-          name,
-          file,
-          instance,
-          statusFn,
-          hasStart: typeof instance.start === 'function',
-          hasInit: typeof instance.init === 'function',
-          hasHeal: typeof instance.heal === 'function',
-          ...cls,
-          source: 'soft-require',
-        });
-      } catch (_) { /* optional module */ }
+    let candidates = [];
+    try {
+      const moduleCoverage = require('./module-coverage'); // eslint-disable-line global-require
+      candidates = moduleCoverage.runtimeCandidates({ extraSkip: SKIP_FILES });
+    } catch (e) {
+      _pushLoadError('iak/module-coverage.js', e);
+      candidates = [];
+    }
+    const total = candidates.length;
+    if (total > 0) {
+      const start = _runtimeCursor % total;
+      let stepped = 0;
+      while (stepped < total && softCount < maxSoftRequires) {
+        const candidate = candidates[(start + stepped) % total];
+        stepped += 1;
+        _runtimeCursor = (start + stepped) % total;
+        if (byName.has(candidate.name)) continue;
+        try {
+          softCount += 1;
+          const mod = require(candidate.abs); // eslint-disable-line global-require
+          const instance = unwrapExport(mod);
+          if (!instance) continue;
+          const statusFn = detectStatusFn(instance);
+          if (!statusFn && typeof instance.start !== 'function' && typeof instance.heal !== 'function') continue;
+          const cls = classify(candidate.name);
+          byName.set(candidate.name, {
+            name: candidate.name,
+            file: candidate.file,
+            instance,
+            statusFn,
+            hasStart: typeof instance.start === 'function',
+            hasInit: typeof instance.init === 'function',
+            hasHeal: typeof instance.heal === 'function',
+            ...cls,
+            source: 'soft-require',
+          });
+        } catch (e) {
+          _pushLoadError(candidate.file, e);
+        }
+      }
     }
 
     // 2b) OCC-managed capabilities in backend/generated/
@@ -376,7 +404,9 @@ function scan(opts = {}) {
           ...tier,
           source: 'generated',
         });
-      } catch (_) { /* optional */ }
+      } catch (e) {
+        _pushLoadError(entry.file, e);
+      }
     }
   }
 
@@ -384,6 +414,8 @@ function scan(opts = {}) {
     modulesDir: MODULES_DIR,
     count: byName.size,
     softRequires: softCount,
+    coverageCursor: _runtimeCursor,
+    loadErrors: loadErrors(),
     modules: [...byName.values()],
   };
 }
@@ -448,4 +480,5 @@ module.exports = {
   camelFromKebab,
   listTopLevelModuleFiles,
   listGeneratedModuleFiles,
+  loadErrors,
 };

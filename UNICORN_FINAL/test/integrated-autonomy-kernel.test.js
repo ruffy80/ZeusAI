@@ -65,6 +65,21 @@ check('register + getStatus tracks modules', () => {
   assert.ok(st.innovations.includes('total_module_continuum'));
   assert.ok(st.innovations.includes('honesty_fence'));
   assert.ok(st.innovations.includes('organ_status_collapse'));
+  assert.ok(st.innovations.includes('module_coverage_ledger'));
+  assert.ok(st.innovations.includes('request_solution_clock'));
+  const solved = iak.solveRequest('I need a resume');
+  assert.strictEqual(solved.protocol, 'RCLK/1.0');
+  assert.strictEqual(solved.orchestrator, 'IAK/1.1');
+  assert.strictEqual(solved.client.offerId, 'instant-resume-makeover');
+  assert.strictEqual(solved.owner.marginMeasured, false);
+  assert.strictEqual(solved.owner.marginUsd, null);
+  assert.strictEqual(solved.applied, false);
+  assert.ok(st.coverage && st.coverage.files > 600);
+  assert.strictEqual(
+    st.coverage.runtime + st.coverage.libraries + st.coverage.aliases,
+    st.coverage.files,
+  );
+  assert.strictEqual(st.coverage.policy.healthSlice, 'at most 48 status calls');
 });
 
 check('conflict quarantine blocks duplicate capability', () => {

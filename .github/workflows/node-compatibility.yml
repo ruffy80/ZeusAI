@@ -130,10 +130,61 @@ jobs:
           NODE_COMPAT_MATRIX: ${{ matrix.node }}
         run: |
           set -euo pipefail
-          # CTOS/1.0: classify SITE_CTA / COMMERCE / NGINX / ENGINE contracts
-          # BEFORE npm test so a raw-JSON CTA or QR regression never shows up
-          # as "Node 22/24 compatibility failed".
+          # CTOS classifies commerce, nginx, engine, and workflow contracts.
+          # The application suite is the separate "Application tests" job.
+          # A route assertion must not fail this job on Node 22 and Node 24.
           node scripts/compat-truth-preflight.js
+
+      - name: 🧱 better-sqlite3 + NIX boot (the ABI check)
+        working-directory: ./UNICORN_FINAL
+        env:
+          NODE_COMPAT_MATRIX: ${{ matrix.node }}
+          NIX_QUIET: '1'
+          NODE_OPTIONS: --no-deprecation --require=./backend/lib/node-immortality.js
+        run: |
+          set -euo pipefail
+          node -e 'const Database=require("better-sqlite3"); const db=new Database(":memory:"); const row=db.prepare("select 1 as ok").get(); db.close(); if(!row||row.ok!==1) process.exit(1); const nix=require("./backend/lib/node-immortality"); if(nix.ENGINE_FLOOR!==22||nix.ENGINE_CEIL!==26) process.exit(1); console.log("[compat] ABI ok", process.versions.node);'
+
+  # One application run, on the production pin (.nvmrc → 22).
+  # The matrix above only proves Node 22 and Node 24 can install and boot.
+  # Running the suite on both majors labeled every assertion as
+  # "Node 22 compatibility" and "Node 24 compatibility" and left PRs unfinished.
+  app-tests:
+    name: Application tests
+    needs: supersede-gate
+    if: needs.supersede-gate.outputs.run_compat == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v5
+
+      - name: 🟦 Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: UNICORN_FINAL/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
+
+      - name: 🧰 Native build toolchain (better-sqlite3 fallback)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential python3
+
+      - name: 📦 Install backend deps
+        working-directory: ./UNICORN_FINAL
+        run: |
+          set -e
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "[app] npm ci attempt $i failed — retrying in $((i*8))s"
+            sleep $((i*8))
+            rm -rf node_modules
+          done
+          echo "[app] npm ci failed after 3 attempts" >&2
+          exit 1
 
       - name: 🔍 Lint backend + site
         working-directory: ./UNICORN_FINAL
@@ -151,13 +202,11 @@ jobs:
           # fetch/ECONNRESET flakes. Real assertion failures still fail fast.
           npm run test:ci --if-present
         env:
-          # Surface which Node major failed in job summaries / annotations.
-          NODE_COMPAT_MATRIX: ${{ matrix.node }}
           DISABLE_SELF_MUTATION: '1'
           NODE_ENV: test
           UNICORN_RUNTIME_PROFILE: stable
           ZACC_ENABLE_ESCUELA: '0'
-          # NIX/1.0 — hermetic Node seal (undici/fetch timeouts) for matrix runs.
+          # NIX/1.0 — hermetic Node seal (undici/fetch timeouts).
           NODE_OPTIONS: --no-deprecation --require=./backend/lib/node-immortality.js
           NIX_QUIET: '1'
 
@@ -167,7 +216,7 @@ jobs:
           set -e
           for i in 1 2 3; do
             npm ci && break
-            echo "[compat] client npm ci attempt $i failed — retrying"
+            echo "[app] client npm ci attempt $i failed — retrying"
             sleep $((i*5))
             rm -rf node_modules
             if [ "$i" = "3" ]; then exit 1; fi

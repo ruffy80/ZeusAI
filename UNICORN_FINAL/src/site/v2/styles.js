@@ -850,6 +850,11 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .immersive-strip{gap:8px}
 }
 
+.pay-receipt{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin:10px 0 0}
+.pay-receipt div{padding:8px 10px;border:1px solid var(--stroke);border-radius:10px;background:rgba(5,4,10,.35)}
+.pay-receipt dt{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+.pay-receipt dd{margin:4px 0 0;font-family:var(--mono);font-size:14px;color:var(--gold)}
+.pay-receipt-note{margin:8px 0 0;color:var(--ink-dim);font-size:12.5px;line-height:1.45}
 /* ============ PHONE FIT (≤768px) — kill horizontal overflow from inline grids ============
    Many SSR/client templates use fixed minmax(320|380px) or 1.xfr/1fr two-column
    layouts. On a ~390px phone those force overflow. Collapse to one column and
@@ -863,6 +868,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   #serviceMain > .svc-grid-ssr,#orderPassport > .op-grid-ssr{
     grid-template-columns:1fr!important
   }
+  #serviceMain > .svc-grid-ssr > .co-box{order:-1}
   #entProductsGrid,#entModulesGrid,#entSummary,
   .store-tier-block .grid,details.store-tier-block > div.grid{
     grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))!important
@@ -1216,6 +1222,15 @@ html[data-zeus-api-fallback="1"] .nav{top:34px}
 .cost-trust{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
 .cost-trust li,.cost-trust a{border:1px solid rgba(0,232,160,.45);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);text-decoration:none}
 .cost-trust-note{margin:10px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
+.home-doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+#homeDoors{padding:4px 0 28px}
+.guide-offer{margin:0;padding:16px 18px;border:1px solid var(--stroke);border-radius:14px;background:rgba(8,6,18,.72)}
+.guide-offer h3{margin:0 0 8px;font-size:18px}
+.guide-offer .pay-receipt{margin-top:10px}
+#guideOffer{margin:8px 0 18px}
+@media(max-width:640px){
+  .home-doors{grid-template-columns:1fr}
+}
 .cost-modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media(max-width:640px){
   .cost-demo{padding:14px}

@@ -1182,6 +1182,82 @@ app.get(['/share', '/post'], (req, res) => {
     return res.status(503).type('html').send('<!doctype html><title>share</title><p>HSDP unavailable</p>');
   }
 });
+// DECL/1.0 — self-reported checklist. The server does not open a repository.
+function __declSend(res, code, html, noindex) {
+  res.status(code);
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Protocol', 'DECL/1.0');
+  if (noindex) res.set('X-Robots-Tag', 'noindex');
+  return res.send(html);
+}
+app.get('/declare', (req, res) => {
+  try {
+    return __declSend(res, 200, require('./commerce/declaration-desk').formHtml(), false);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+  }
+});
+app.post('/declare', express.urlencoded({ extended: false, limit: '8kb' }), (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const out = desk.publish(req.body || {});
+    if (!out.ok) return __declSend(res, 400, desk.formHtml({ error: out.error }), false);
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    return res.redirect(303, '/d/' + out.id);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+  }
+});
+app.get('/declarations', (req, res) => {
+  try {
+    const q = req.query && req.query.q ? String(req.query.q) : '';
+    return __declSend(res, 200, require('./commerce/declaration-desk').feedHtml({ q }), true);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declarations</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)\/badge\.svg$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    res.set('X-Robots-Tag', 'noindex');
+    return res.send(desk.badgeSvg(row));
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>badge</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)\/card\.pdf$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    const buf = desk.cardPdf(row);
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'inline; filename="declaration.pdf"');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'DECL/1.0');
+    res.set('X-Robots-Tag', 'noindex');
+    return res.send(buf);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>pdf</title><p>DECL unavailable</p>');
+  }
+});
+app.get(/^\/d\/([a-f0-9]+)$/, (req, res) => {
+  try {
+    const desk = require('./commerce/declaration-desk');
+    const row = desk.get(req.params[0]);
+    if (!row) return __declSend(res, 404, desk.missingHtml(), true);
+    return __declSend(res, 200, desk.cardHtml(row), true);
+  } catch (e) {
+    return res.status(503).type('html').send('<!doctype html><title>declaration</title><p>DECL unavailable</p>');
+  }
+});
 app.get(['/.well-known/share-surface.json', '/api/share/targets'], (req, res) => {
   try {
     const hsdp = require('./commerce/share-surface');
@@ -5264,7 +5340,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/iic') || urlPath.startsWith('/api/identity/') || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath === '/api/frontier' || urlPath === '/api/shelf' || urlPath === '/api/shelf/advise' || urlPath.startsWith('/api/shelf/proposal/') || urlPath.startsWith('/api/dropship/listing/') || urlPath.startsWith('/api/discover-trust') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/aethermail') || urlPath.startsWith('/api/native-desk') || urlPath === '/api/service-integrity' || urlPath === '/api/module-duty' || urlPath.startsWith('/api/omega') || urlPath === '/.well-known/omega.json' || urlPath.startsWith('/api/genome') || urlPath === '/.well-known/genome.json' || urlPath.startsWith('/api/dna') || urlPath === '/.well-known/dna.json' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/iic') || urlPath.startsWith('/api/identity/') || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath === '/api/frontier' || urlPath === '/api/shelf' || urlPath === '/api/shelf/advise' || urlPath.startsWith('/api/shelf/proposal/') || urlPath.startsWith('/api/dropship/listing/') || urlPath.startsWith('/api/discover-trust') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/tpg/') || urlPath === '/api/tpg/status' || urlPath.startsWith('/api/aethermail') || urlPath.startsWith('/api/native-desk') || urlPath === '/api/request-solution' || urlPath === '/api/service-integrity' || urlPath === '/api/module-duty' || urlPath.startsWith('/api/omega') || urlPath === '/.well-known/omega.json' || urlPath.startsWith('/api/genome') || urlPath === '/.well-known/genome.json' || urlPath.startsWith('/api/dna') || urlPath === '/.well-known/dna.json' || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -9102,6 +9178,81 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  if (urlPath === '/declare' || urlPath === '/declarations' || /^\/d\/[a-f0-9]+(?:\/badge\.svg|\/card\.pdf)?$/.test(urlPath)) {
+    let desk;
+    try { desk = require('./commerce/declaration-desk'); }
+    catch (e) {
+      res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><title>declare</title><p>DECL unavailable</p>');
+    }
+    const sendHtml = (code, html, noindex) => {
+      const headers = {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+      };
+      if (noindex) headers['X-Robots-Tag'] = 'noindex';
+      res.writeHead(code, headers);
+      res.end(html);
+    };
+    if (urlPath === '/declare' && req.method === 'POST') {
+      let body = '';
+      let tooBig = false;
+      req.on('data', (chunk) => {
+        if (tooBig) return;
+        body += chunk;
+        if (body.length > 8 * 1024) tooBig = true;
+      });
+      req.on('end', () => {
+        if (tooBig) return sendHtml(413, desk.formHtml({ error: 'That form is too large.' }), false);
+        const out = desk.publish(desk.parseForm(body));
+        if (!out.ok) return sendHtml(400, desk.formHtml({ error: out.error }), false);
+        res.writeHead(303, { Location: '/d/' + out.id, 'Cache-Control': 'no-store', 'X-Protocol': 'DECL/1.0' });
+        res.end();
+      });
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', Allow: 'GET, HEAD' });
+      return res.end('method not allowed');
+    }
+    if (urlPath === '/declare') return sendHtml(200, desk.formHtml(), false);
+    if (urlPath === '/declarations') {
+      const q = (requestUrl && requestUrl.searchParams && requestUrl.searchParams.get('q')) || '';
+      return sendHtml(200, desk.feedHtml({ q }), true);
+    }
+    const badge = urlPath.match(/^\/d\/([a-f0-9]+)\/badge\.svg$/);
+    if (badge) {
+      const row = desk.get(badge[1]);
+      if (!row) return sendHtml(404, desk.missingHtml(), true);
+      res.writeHead(200, {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+        'X-Robots-Tag': 'noindex',
+      });
+      return res.end(desk.badgeSvg(row));
+    }
+    const pdf = urlPath.match(/^\/d\/([a-f0-9]+)\/card\.pdf$/);
+    if (pdf) {
+      const row = desk.get(pdf[1]);
+      if (!row) return sendHtml(404, desk.missingHtml(), true);
+      const buf = desk.cardPdf(row);
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="declaration.pdf"',
+        'Cache-Control': 'no-store',
+        'X-Protocol': 'DECL/1.0',
+        'X-Robots-Tag': 'noindex',
+      });
+      return res.end(buf);
+    }
+    const card = urlPath.match(/^\/d\/([a-f0-9]+)$/);
+    const row = card ? desk.get(card[1]) : null;
+    if (!row) return sendHtml(404, desk.missingHtml(), true);
+    return sendHtml(200, desk.cardHtml(row), true);
+  }
+
   if (urlPath === '/.well-known/share-surface.json' || urlPath === '/api/share/targets') {
     try {
       const hsdp = require('./commerce/share-surface');
@@ -9312,6 +9463,29 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       try {
         const out = require('./site/native-desk-http').handle(req, urlPath, parsed);
         return send(out.status, out.body);
+      } catch (e) { return send(500, { ok: false, error: e.message }); }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/request-solution') {
+    const send = (code, obj) => {
+      res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Protocol': 'RCLK/1.0' });
+      res.end(JSON.stringify(obj));
+    };
+    if (req.method === 'GET') {
+      try { return send(200, require('../backend/modules/iak/request-clock').getStatus()); }
+      catch (e) { return send(500, { ok: false, error: e.message }); }
+    }
+    if (req.method !== 'POST') return send(405, { ok: false, error: 'method_not_allowed' });
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; if (body.length > 32 * 1024) req.destroy(); });
+    req.on('end', () => {
+      let parsed = {};
+      try { parsed = JSON.parse(body || '{}'); } catch (_) { parsed = {}; }
+      try {
+        const text = parsed.text || parsed.message || parsed.q || '';
+        return send(200, require('../backend/modules/iak/request-clock').solve(text));
       } catch (e) { return send(500, { ok: false, error: e.message }); }
     });
     return;
@@ -13216,108 +13390,21 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
-    // 30Y-LTS: language preference.
-    //   1) Explicit user override via `lang` cookie wins (set when the visitor
-    //      taps the small "English / Auto" toggle button).
-    //   2) Otherwise auto-detect from the visitor's country (CDN/proxy geo
-    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`).
-    //      Country → language map covers ~80
-    //      jurisdictions; the entire site is then auto-translated client-side
-    //      into that language via the embedded Google Translate widget.
-    //   3) Fall back to the browser Accept-Language header.
-    //   4) Final fallback: English.
-    const cookieLang = (() => {
-      const ck = String(req.headers.cookie || '');
-      const m = ck.match(/(?:^|;\s*)lang=([a-z]{2}(?:-[A-Za-z]{2})?)/i);
-      return m ? m[1].toLowerCase() : '';
-    })();
-    const country = String(
-      req.headers['cf-ipcountry']
-      || req.headers['x-country']
-      || req.headers['x-geo-country']
-      || req.headers['x-appengine-country']
-      || ''
-    ).toUpperCase();
-    // ISO-3166 country → BCP-47 language code (Google-Translate compatible).
-    const COUNTRY_TO_LANG = {
-      RO: 'ro', MD: 'ro',
-      ES: 'es', MX: 'es', AR: 'es', CO: 'es', CL: 'es', PE: 'es', VE: 'es',
-      EC: 'es', GT: 'es', CU: 'es', BO: 'es', DO: 'es', HN: 'es', PY: 'es',
-      NI: 'es', SV: 'es', CR: 'es', PA: 'es', UY: 'es', PR: 'es',
-      FR: 'fr', BE: 'fr', LU: 'fr', MC: 'fr', SN: 'fr', CI: 'fr', CM: 'fr',
-      DE: 'de', AT: 'de', LI: 'de', CH: 'de',
-      IT: 'it', SM: 'it', VA: 'it',
-      PT: 'pt', BR: 'pt', AO: 'pt', MZ: 'pt', CV: 'pt',
-      NL: 'nl',
-      PL: 'pl',
-      RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru', TJ: 'ru',
-      UA: 'uk',
-      TR: 'tr',
-      JP: 'ja',
-      KR: 'ko',
-      CN: 'zh-CN', SG: 'zh-CN',
-      TW: 'zh-TW', HK: 'zh-TW', MO: 'zh-TW',
-      IN: 'hi',
-      ID: 'id',
-      TH: 'th',
-      VN: 'vi',
-      SA: 'ar', AE: 'ar', EG: 'ar', MA: 'ar', DZ: 'ar', TN: 'ar', IQ: 'ar',
-      JO: 'ar', KW: 'ar', LB: 'ar', LY: 'ar', OM: 'ar', QA: 'ar', SY: 'ar',
-      YE: 'ar', BH: 'ar', SD: 'ar', PS: 'ar',
-      IL: 'iw',
-      GR: 'el', CY: 'el',
-      SE: 'sv',
-      NO: 'no',
-      DK: 'da',
-      FI: 'fi',
-      IS: 'is',
-      CZ: 'cs',
-      SK: 'sk',
-      HU: 'hu',
-      BG: 'bg',
-      HR: 'hr',
-      RS: 'sr', ME: 'sr', BA: 'sr',
-      SI: 'sl',
-      MK: 'mk',
-      AL: 'sq', XK: 'sq',
-      EE: 'et',
-      LV: 'lv',
-      LT: 'lt',
-      PH: 'tl',
-      MY: 'ms', BN: 'ms',
-      PK: 'ur',
-      BD: 'bn',
-      IR: 'fa', AF: 'fa',
-      LK: 'si',
-      NP: 'ne',
-      MM: 'my',
-      KH: 'km',
-      LA: 'lo',
-      GE: 'ka',
-      AM: 'hy',
-      AZ: 'az',
-      ET: 'am',
-      KE: 'sw', TZ: 'sw', UG: 'sw',
-      ZA: 'en'
-    };
-    const geoLang = COUNTRY_TO_LANG[country] || '';
-    const acceptLang = (() => {
-      const al = String(req.headers['accept-language'] || '').toLowerCase();
-      const m = al.match(/^([a-z]{2})/);
-      return m ? m[1] : '';
-    })();
-    const autoLang = geoLang || acceptLang || 'en';
-    const lang = cookieLang || autoLang;
+    // One English document on the generic URL. Country headers and
+    // Accept-Language do not change this HTML, and this URL does not
+    // redirect. A second language would need its own URL first.
+    const lang = 'en';
+    const autoLang = 'en';
     // Known plans render their canonical USD in the HTML. Unknown plans and
     // $0 flows that are not a real free pledge/cancel do not render a payment
     // page with a blank amount. POST /api/checkout/create is unchanged.
-    const ssrParams = { lang, autoLang, country, nonce };
+    const ssrParams = { lang, autoLang, country: '', nonce };
     if (route === '/checkout') {
       const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 160);
       if (planQ) {
@@ -13385,7 +13472,23 @@ a{color:#8a5cff;text-decoration:none}
     // Nonce is rewritten per response so CSP stays correct.
     // /account is intentionally memoized: auth chrome is client-side cryptoauth;
     // the SSR shell is identical for every visitor (Instant Identity Continuum).
-    const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath)
+    try {
+      const geoDesk = require('./site/v2/geo-desk');
+      if (geoDesk.has(route) && requestUrl.search) {
+        const toolQuery = {};
+        requestUrl.searchParams.forEach((value, key) => {
+          const name = String(key).slice(0, 24);
+          const clean = String(value).slice(0, 180);
+          if (toolQuery[name] == null) toolQuery[name] = clean;
+          else if (Array.isArray(toolQuery[name])) {
+            if (toolQuery[name].length < 12) toolQuery[name].push(clean);
+          } else toolQuery[name] = [toolQuery[name], clean];
+        });
+        ssrParams.toolQuery = toolQuery;
+      }
+    } catch (_) { /* geo desk is optional for routes it does not own */ }
+    const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath || ssrParams.toolQuery)
+      && !requestUrl.search
       && !/^\/(dashboard|admin|checkout|order)\b/.test(route);
     // Buy-click instant: short-TTL memo for checkout chooser shells keyed by
     // lang + plan + rounded USD so SPA navigations hit warm HTML.
@@ -13490,9 +13593,9 @@ a{color:#8a5cff;text-decoration:none}
       'X-CSP-Nonce': nonce,
       'X-Unicorn-Ssr-Cache': __ssrFromMemo ? 'hit' : 'miss',
       'Vary': __ppActive
-        ? 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink'
-        : 'Accept-Language, Accept-Encoding, Cookie',
-      'Content-Language': lang
+        ? 'Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink'
+        : 'Accept-Encoding, Cookie',
+      'Content-Language': 'en'
     };
     if (linkHeader) responseHeaders.Link = linkHeader;
     if (__ppActive) {

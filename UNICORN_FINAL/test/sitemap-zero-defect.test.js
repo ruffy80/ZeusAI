@@ -139,7 +139,9 @@ async function main() {
     assert.ok(home.includes('<title>ZeusAI | Enterprise AI Cost Optimization & Orchestration</title>'));
     assert.ok(home.includes('Reduce your LLM API costs by 70% with our autonomous model router. Enterprise-grade multi-agent orchestration and self-healing infrastructure.'));
     assert.ok(home.includes('Get Enterprise Access'));
-    assert.ok(!/resume/i.test(home));
+    const hero = home.slice(home.indexOf('id="costHero"'), home.indexOf('id="homeDoors"'));
+    assert.ok(!/resume/i.test(hero));
+    assert.ok(home.includes('id="homeDoors"'));
     assert.ok(home.includes('rel="canonical" href="https://zeusai.pro/"'));
     assert.ok(home.includes('"@type":"Organization"'));
     assert.ok(home.includes('"@type":"WebSite"'));
