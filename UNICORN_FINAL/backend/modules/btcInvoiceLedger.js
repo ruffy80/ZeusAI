@@ -141,6 +141,13 @@ function listPending() {
   return listInvoices({ status: 'pending', limit: 1000 });
 }
 
+function isCollectedSale(inv) {
+  if (!inv || inv.status !== 'paid') return false;
+  if (inv.mock === true) return false;
+  if (String(inv.txid || '').startsWith('simulated-')) return false;
+  return true;
+}
+
 function markPaid(id, { txid, confirmations = 1 }) {
   const inv = getInvoice(id);
   if (!inv) return null;
@@ -149,14 +156,16 @@ function markPaid(id, { txid, confirmations = 1 }) {
   inv.paidAt = new Date().toISOString();
   inv.txid = txid;
   inv.confirmations = confirmations;
+  if (String(txid || '').startsWith('simulated-')) inv.mock = true;
   fs.writeFileSync(path.join(DATA_DIR, `${id}.json`), JSON.stringify(inv, null, 2));
-  fs.appendFileSync(INDEX_FILE, JSON.stringify({ id, paidAt: inv.paidAt, txid, status: 'paid' }) + '\n');
+  fs.appendFileSync(INDEX_FILE, JSON.stringify({ id, paidAt: inv.paidAt, txid, status: 'paid', mock: inv.mock === true }) + '\n');
   return inv;
 }
 
 function getStatus() {
   const all = listInvoices({ limit: 10_000 });
-  const paid = all.filter((i) => i.status === 'paid');
+  const paid = all.filter(isCollectedSale);
+  const drills = all.filter((i) => i.status === 'paid' && !isCollectedSale(i));
   const pending = all.filter((i) => i.status === 'pending');
   const totalUsd = paid.reduce((s, i) => s + (i.priceUsd || 0), 0);
   const totalSats = paid.reduce((s, i) => s + (i.amountSats || 0), 0);
@@ -164,6 +173,7 @@ function getStatus() {
     payoutAddress: PAYOUT_ADDRESS,
     invoiceCount: all.length,
     paid: paid.length,
+    drills: drills.length,
     pending: pending.length,
     totalRevenueUsd: totalUsd,
     totalRevenueBtc: satsToBtc(totalSats),

@@ -5782,6 +5782,15 @@ function _livenessHealthHandler(req, res) {
 }
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
+app.get('/api/delivery-contracts', (req, res) => {
+  try {
+    const desk = require('../src/commerce/delivery-contract-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(desk.report());
+  } catch (e) {
+    res.status(500).json({ ok: false, inventsDelivery: false, error: 'delivery_contract_unavailable' });
+  }
+});
 app.get('/api/commercial/status', (req, res) => {
   try {
     const desk = require('../src/site/v2/commercial-desk');
@@ -9757,9 +9766,12 @@ function _closCloseDelivered(payload) {
 function _onPaidInvoice(invoice) {
   // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
   // persisted, idempotent. The buyer gets access with ZERO human steps.
-  // RO: plata confirmată on-chain activează serviciul instant.
+  // A simulated txid is an admin drill. It writes a mock file and stops.
+  // It does not mint a license, a paid human, or funnel revenue.
+  let drill = false;
+  try { drill = require('./modules/paid-delivery').isMock(invoice); } catch (_) { drill = false; }
   let activated = false;
-  try {
+  if (!drill) try {
     const act = salesOrchestrator.handlePaid(invoice);
     if (act && act.ok) {
       activated = true;
@@ -9777,10 +9789,13 @@ function _onPaidInvoice(invoice) {
     if (written && written.ok && !written.already) {
       console.log('[BTC/Paid] delivery file', written.file, written.mock ? '(mock)' : '');
     }
-    Promise.resolve(paidDelivery.queueDeliveryEmail(invoice)).catch((err) => {
-      console.warn('[BTC/Paid] delivery email failed:', err && err.message);
-    });
+    if (!drill) {
+      Promise.resolve(paidDelivery.queueDeliveryEmail(invoice)).catch((err) => {
+        console.warn('[BTC/Paid] delivery email failed:', err && err.message);
+      });
+    }
   } catch (e) { console.warn('[BTC/Paid] delivery file failed:', e && e.message); }
+  if (drill) return;
   // CLOS: open commercial cycle; close immediately when digital activation succeeds.
   try {
     const closPay = _closPayloadFromInvoice(invoice, { rail: 'btc' });
@@ -9823,6 +9838,8 @@ function _onPaidInvoice(invoice) {
       serviceId: invoice && (invoice.serviceId || invoice.service || invoice.plan),
       rail: (invoice && (invoice.rail || invoice.method || invoice.provider)) || 'btc',
       paidAt: invoice && (invoice.paidAt || invoice.paid_at),
+      txid: invoice && invoice.txid,
+      mock: invoice && invoice.mock === true,
     });
   } catch (e) { console.warn('[OGP] paid human record failed:', e && e.message); }
 }
@@ -10073,7 +10090,13 @@ app.post('/api/order/:id/simulate-payment', salesAdminGate, (req, res) => {
     }
     const updated = btcLedger.markPaid(inv.id, { txid: 'simulated-' + Date.now(), confirmations: 1 });
     if (updated) _onPaidInvoice(updated);
-    res.json({ ok: true, simulated: true, invoice: updated, activation: salesOrchestrator.getActivationByInvoice(inv.id) });
+    res.json({
+      ok: true,
+      simulated: true,
+      granted: false,
+      invoice: updated,
+      activation: null,
+    });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 

@@ -74,8 +74,15 @@ function hashOrderId(orderId) {
   return crypto.createHash('sha256').update('ogp-order:' + String(orderId || '')).digest('hex');
 }
 
+function _isDrill(inv) {
+  if (!inv || typeof inv !== 'object') return false;
+  if (inv.mock === true) return true;
+  return String(inv.txid || inv.txId || inv.transactionId || '').startsWith('simulated-');
+}
+
 function _isPaid(inv) {
   if (!inv || typeof inv !== 'object') return false;
+  if (_isDrill(inv)) return false;
   const st = String(inv.status || inv.payment_status || inv.paymentStatus || '').toLowerCase();
   if (['pending', 'open', 'created', 'unpaid', 'expired', 'cancelled', 'canceled', 'failed'].includes(st)) {
     return false;
@@ -208,6 +215,15 @@ function paidHumans() {
 function recordPaidHuman(invoice) {
   _hydrate();
   ensureGenesis();
+  if (_isDrill(invoice)) {
+    return {
+      ok: false,
+      recorded: false,
+      reason: 'drill',
+      inventsHumans: false,
+      paidHumans: paidHumans(),
+    };
+  }
   if (!_isPaid(invoice)) {
     return {
       ok: false,

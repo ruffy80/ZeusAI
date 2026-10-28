@@ -71,6 +71,22 @@ check('genesis is hash-chained and stable', () => {
   assert.ok(String(a.statement || '').toLowerCase().includes('zero'));
 });
 
+check('a simulated payment never mints Origin #1', () => {
+  ogp._resetForTests();
+  const out = ogp.recordPaidHuman({
+    id: 'ord_drill',
+    status: 'paid',
+    txid: 'simulated-drill',
+    serviceId: 'instant-website-audit',
+  });
+  assert.strictEqual(out.recorded, false);
+  assert.strictEqual(out.reason, 'drill');
+  assert.strictEqual(ogp.getStatus().paidHumans, 0);
+  const flagged = ogp.recordPaidHuman({ id: 'ord_mock', status: 'paid', mock: true });
+  assert.strictEqual(flagged.recorded, false);
+  assert.strictEqual(ogp.getStatus().paidHumans, 0);
+});
+
 check('unpaid invoices never mint Origin #1', () => {
   ogp._resetForTests();
   const out = ogp.recordPaidHuman({ id: 'ord_pending', status: 'pending', serviceId: 'starter' });

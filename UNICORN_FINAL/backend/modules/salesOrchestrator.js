@@ -159,6 +159,9 @@ function getOrder(id) {
  */
 function handlePaid(invoice) {
   if (!invoice || !invoice.id) return { ok: false, error: 'invoice_required' };
+  let drill = false;
+  try { drill = require('./paid-delivery').isMock(invoice); } catch (_) { drill = invoice.mock === true; }
+  if (drill) return { ok: false, error: 'drill_not_a_sale', granted: false };
   const existing = getActivationByInvoice(invoice.id);
   if (existing) return { ok: true, activation: existing, idempotent: true };
 
