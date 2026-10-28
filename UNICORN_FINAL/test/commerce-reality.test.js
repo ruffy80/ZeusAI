@@ -90,10 +90,12 @@ async function run() {
       assert.strictEqual(order.status, 200);
       assert.strictEqual(order.body.ok, true);
       const receiptId = order.body.receipt.id;
+      const accessToken = order.body.receipt.access_token;
+      assert.ok(accessToken);
 
       const confirm = await request(base, '/api/payments/btc/confirm', {
         method: 'POST',
-        body: JSON.stringify({ receiptId, txid: 'reality-test-loopback', amount: 499 })
+        body: JSON.stringify({ receiptId, txid: 'reality-test-loopback', amount: 499, access_token: accessToken })
       });
       assert.strictEqual(confirm.status, 200);
       assert.strictEqual(confirm.body.ok, true);

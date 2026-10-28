@@ -49,9 +49,14 @@ check('every census file is counted and no offer is production-ready without a c
   assert.ok(audit, 'audit offer missing');
   assert.strictEqual(audit.price, null);
   assert.ok(audit.promise.includes('Markdown'));
+  assert.ok(audit.stages.some((row) => row.id === 'automatic_file' && row.status === 'PASS'));
+  assert.ok(audit.stages.some((row) => row.id === 'buyer_isolation' && row.status === 'PASS'));
   assert.ok(audit.stages.some((row) => row.id === 'chain_payment' && row.status === 'NOT_TESTED'));
-  assert.ok(audit.stages.some((row) => row.id === 'model_output' && (row.status === 'BLOCKED' || row.status === 'NOT_TESTED')));
   assert.notStrictEqual(audit.status, 'PASS');
+  const match = require('../src/commerce/btc-amount-match');
+  assert.strictEqual(match.outputMatches(81666, 81666), true);
+  assert.strictEqual(match.outputMatches(90000, 81666), false);
+  assert.strictEqual(match.expectedSats(0.00081666), 81666);
   assert.ok(report.doNotAdvertiseAsFullyOperational.includes('instant-website-audit'));
   const sum = desk.STATUSES.reduce((total, name) => total + report.counts[name], 0);
   assert.strictEqual(sum, report.offers);

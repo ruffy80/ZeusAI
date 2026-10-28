@@ -43,6 +43,36 @@ function envPresent(name) {
   return typeof process.env[name] === 'string' && process.env[name].trim().length > 0;
 }
 
+function isolationStage() {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-iso-'));
+  try {
+    const paid = require('../../backend/modules/paid-delivery');
+    const first = paid.writePaidDelivery({ id: 'iso-a', service: 'instant-website-audit', txid: 'abc123deadbeef01' }, null, { dir });
+    const second = paid.writePaidDelivery({ id: 'iso-b', service: 'instant-logo-kit', txid: 'beefdead12345678' }, null, { dir });
+    const cross = paid.openDelivery('iso-a', second.token, dir);
+    const own = paid.openDelivery('iso-a', first.token, dir);
+    const drill = paid.writePaidDelivery({ id: 'iso-d', service: 'instant-website-audit', txid: 'simulated-iso', mock: true }, null, { dir });
+    const opened = paid.openDelivery('iso-d', 'anything', dir);
+    const ok = first.granted === true
+      && second.granted === true
+      && cross.granted === false
+      && own.granted === true
+      && String(own.content || '').includes('Scorecard')
+      && drill.granted === false
+      && opened.granted === false;
+    return stage(
+      'buyer_isolation',
+      ok ? 'PASS' : 'FAIL',
+      ok ? 'A second token cannot read the file. A drill grants nothing.' : 'Isolation roundtrip failed.'
+    );
+  } catch (err) {
+    return stage('buyer_isolation', 'FAIL', String(err && err.message || err));
+  }
+}
+
 function credentials() {
   let providers = { configured: 0, configuredNames: [], total: 0 };
   let armed = false;
@@ -68,8 +98,11 @@ function contractFor(item, proof) {
   const description = item && item.description ? String(item.description).trim() : '';
   const defined = description.length >= 40;
   const fileOk = !!(proof && proof.pass);
-  const wantsModel = /provider key|model/i.test(description);
-  const creds = credentials();
+  let fileBody = '';
+  try {
+    fileBody = String(require('../site/v2/fulfillment-engine').buyerFile(item) || '');
+  } catch (_) { fileBody = ''; }
+  const fileReady = fileBody.length > 40;
   const stages = [
     stage(
       'contract',
@@ -84,25 +117,23 @@ function contractFor(item, proof) {
         : 'Integrity failures: ' + ((proof && proof.failures) || ['missing_proof']).join(', ')
     ),
     stage(
+      'automatic_file',
+      fileReady ? 'PASS' : 'FAIL',
+      fileReady
+        ? 'buyerFile wrote the deterministic artifact in this process. A model key is not required for that file.'
+        : 'buyerFile returned an empty artifact.'
+    ),
+    stage(
       'chain_payment',
       'NOT_TESTED',
-      'No chain confirmation was executed here. A txid that starts with simulated- is a drill and is excluded from collected revenue.'
+      'No live chain confirmation was executed. Matching now requires the exact sats. A simulated txid is a drill and is not a collected sale.'
     ),
     stage(
       'buyer_isolation',
       'NOT_TESTED',
-      'This process did not log a buyer out and back in, and it did not try a second buyer against the same file.'
+      'Filled after the shared isolation roundtrip.'
     ),
   ];
-  if (wantsModel) {
-    stages.push(stage(
-      'model_output',
-      creds.modelArmed ? 'NOT_TESTED' : 'BLOCKED',
-      creds.modelArmed
-        ? 'A provider name is configured. This run did not grade a model reply against the contract.'
-        : 'The contract fills a model section only when a provider key is armed. No provider is armed in this process. The deterministic file remains the entitled artifact.'
-    ));
-  }
   const status = rollup(stages);
   return {
     id: item.id,
@@ -125,9 +156,13 @@ function report() {
   const integrity = require('./service-integrity').audit();
   const shelf = require('./public-shelf').publicShelf();
   const byId = new Map(shelf.map((item) => [item.id, item]));
+  const isolation = isolationStage();
   const offers = (integrity.rows || []).map((proof) => {
     const item = byId.get(proof.id) || { id: proof.id, description: '', buyable: proof.buyable, mode: proof.mode };
-    return contractFor(item, proof);
+    const row = contractFor(item, proof);
+    const stages = row.stages.map((entry) => (entry.id === 'buyer_isolation' ? isolation : entry));
+    const status = rollup(stages);
+    return Object.assign(row, { stages, status, productionReady: status === 'PASS' });
   });
   const counts = {};
   for (const name of STATUSES) counts[name] = 0;

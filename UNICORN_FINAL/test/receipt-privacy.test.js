@@ -64,10 +64,14 @@ check('a public receipt keeps the payment fields and drops the buyer', () => {
     email: 'buyer@example.com',
     customerId: 'cust-1',
     did: 'did:example',
+    access_token: 't_secret',
+    license: { token: 'lic_secret' },
   });
   assert.strictEqual(view.status, 'pending');
   assert.strictEqual(view.btcAddress, 'bc1qexample');
   assert.strictEqual(view.email, undefined);
+  assert.strictEqual(view.access_token, undefined);
+  assert.strictEqual(view.license, undefined);
   assert.strictEqual(view.customerId, undefined);
   assert.strictEqual(view.did, undefined);
 });

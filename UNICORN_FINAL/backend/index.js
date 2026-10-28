@@ -5782,6 +5782,13 @@ function _livenessHealthHandler(req, res) {
 }
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
+app.get('/api/paid-delivery/:id', (req, res) => {
+  const token = req.query.access_token || req.query.token || req.get('x-access-token');
+  const out = require('./modules/paid-delivery').openDelivery(req.params.id, token);
+  if (!out.ok) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.set('Cache-Control', 'no-store');
+  res.type('text/markdown; charset=utf-8').send(out.content || '');
+});
 app.get('/api/delivery-contracts', (req, res) => {
   try {
     const desk = require('../src/commerce/delivery-contract-os');
@@ -9789,8 +9796,8 @@ function _onPaidInvoice(invoice) {
     if (written && written.ok && !written.already) {
       console.log('[BTC/Paid] delivery file', written.file, written.mock ? '(mock)' : '');
     }
-    if (!drill) {
-      Promise.resolve(paidDelivery.queueDeliveryEmail(invoice)).catch((err) => {
+    if (!drill && written && written.token) {
+      Promise.resolve(paidDelivery.queueDeliveryEmail(invoice, written.token)).catch((err) => {
         console.warn('[BTC/Paid] delivery email failed:', err && err.message);
       });
     }

@@ -343,6 +343,8 @@ async function run() {
     assert.equal(uiCheckout.body.ok, true);
     assertBtcInvoice(uiCheckout.body, '/api/uaic/order');
     const receiptId = uiCheckout.body.receipt.id;
+    const accessToken = uiCheckout.body.receipt.access_token;
+    assert.ok(accessToken, 'the buyer receives an access token when the order is created');
 
     const receiptBeforePay = await request('/api/receipt/' + encodeURIComponent(receiptId));
     assert.equal(receiptBeforePay.status, 200);
@@ -350,13 +352,18 @@ async function run() {
 
     const confirm = await request('/api/payments/btc/confirm', {
       method: 'POST',
-      body: JSON.stringify({ receiptId, txid: 'smoke-test-loopback', amount: 499 })
+      body: JSON.stringify({ receiptId, txid: 'smoke-test-loopback', amount: 499, access_token: accessToken })
     });
     assert.equal(confirm.status, 200);
     assert.equal(confirm.body.ok, true);
     assert.equal(confirm.body.receipt.status, 'paid');
 
-    const license = await request('/api/license/' + encodeURIComponent(receiptId));
+    const licenseDenied = await request('/api/license/' + encodeURIComponent(receiptId));
+    assert.equal(licenseDenied.status, 401, 'a receipt id alone must not reveal the license');
+    const paidReceipt = await request('/api/receipt/' + encodeURIComponent(receiptId));
+    assert.equal(paidReceipt.body.receipt.license, undefined);
+    assert.equal(paidReceipt.body.receipt.access_token, undefined);
+    const license = await request('/api/license/' + encodeURIComponent(receiptId) + '?access_token=' + encodeURIComponent(accessToken));
     assert.equal(license.status, 200);
     assert.ok(license.body.license && license.body.license.token, 'paid receipt must deliver a license token');
     const deliveryToken = license.body.license.token;

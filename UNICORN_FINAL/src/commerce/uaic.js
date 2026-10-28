@@ -369,6 +369,7 @@ async function handle(req, res, ctx) {
         email, customerId,
         services: Array.isArray(p.services) && p.services.length ? p.services : [plan],
         createdAt: new Date().toISOString(), status: 'pending',
+        access_token: 't_' + crypto.randomBytes(24).toString('hex'),
         btcAmount,
         btcAddress: method === 'BTC' ? (process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || null) : null,
         affiliate: p.ref ? { ref: p.ref, split: 0.1 } : null,

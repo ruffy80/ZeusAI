@@ -2978,7 +2978,17 @@ function runDeliveryForReceipt(receipt, opts) {
   if (!receipt || !deliveryRegistry || typeof deliveryRegistry.deliver !== 'function') return null;
   try {
     const delivery = deliveryRegistry.deliver(receipt, opts || {});
-    receipt.delivery = delivery;
+    try {
+      const current = deliveryRegistry.get(receipt.id);
+      if (current && (!Array.isArray(current.artifacts) || current.artifacts.length === 0)) {
+        const engine = require('./site/v2/fulfillment-engine');
+        const artifacts = engine.immediateArtifacts(receipt);
+        if (artifacts.length) deliveryRegistry.attachArtifacts(receipt.id, artifacts, 'deterministic');
+      }
+    } catch (e) {
+      console.warn('[fulfillment] immediate file failed for ' + receipt.id + ':', e && e.message);
+    }
+    receipt.delivery = deliveryRegistry.get(receipt.id) || delivery;
     receipt.deliveryStatus = delivery.status;
     receipt.deliverables = delivery.items.flatMap(item => item.files || []);
     const artifactIdentity = (artifact) => {
@@ -4666,9 +4676,13 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ ok:true, receipt: view }));
   }
   if (earlyPath.startsWith('/api/license/')) {
-    const id = decodeURIComponent(earlyPath.slice('/api/license/'.length));
+    const id = decodeURIComponent(earlyPath.slice('/api/license/'.length).split('?')[0]);
     const receipt = findReceipt(id);
     if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+    if (!verifyDeliveryAccess(id, req, requestUrl.searchParams)) {
+      res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ error:'unauthorized', hint:'access_token required' }));
+    }
     if (receipt.status !== 'paid') { res.writeHead(202, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, status:receipt.status, error:'payment_pending' })); }
     receipt.license = receipt.license || issueFallbackLicense(receipt);
     receipt.delivery = receipt.delivery || runDeliveryForReceipt(receipt);
@@ -5908,6 +5922,18 @@ async function unicornHandler(req, res) {
 
   // Measured commercial counts. The desk copies no price. nginx /api/ goes to
   // the backend, which registers the same path; this answers a direct site hit.
+  if (urlPath.startsWith('/api/paid-delivery/') && req.method === 'GET') {
+    const id = decodeURIComponent(urlPath.slice('/api/paid-delivery/'.length));
+    const token = requestUrl.searchParams.get('access_token') || requestUrl.searchParams.get('token');
+    const out = require('../backend/modules/paid-delivery').openDelivery(id, token);
+    if (!out.ok) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: false, error: 'not_found' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(out.content || '');
+  }
+
   if (urlPath === '/api/delivery-contracts' && req.method === 'GET') {
     const desk = require('./commerce/delivery-contract-os');
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -12648,6 +12674,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const trusted = tokenTrusted || (openConfirmAllowed && loopback);
 
         const p = JSON.parse(body || '{}');
+        const presentedToken = String(p.access_token || p.token || '').trim();
+        const receiptForCaller = (row) => require('./commerce/receipt-privacy').viewForCaller(row, presentedToken, safeTokenEqual);
         const receiptId = String(p.receiptId || '');
         if (!receiptId) {
           res.writeHead(400, { 'Content-Type':'application/json' });
@@ -12672,8 +12700,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
                 let sats = 0;
                 for (const o of (tx.vout || [])) { if (o.scriptpubkey_address === addr) sats += Number(o.value || 0); }
                 if (!sats) continue;
-                const btc = sats / 1e8;
-                if (expectedBtc > 0 && (Math.abs(btc - expectedBtc) / expectedBtc <= 0.15 || btc >= expectedBtc)) { matched = { txid: tx.txid, btc, confirmations: tx.status && tx.status.confirmed ? 1 : 0 }; break; }
+                const confirmed = !!(tx.status && tx.status.confirmed);
+                const match = require('./commerce/btc-amount-match');
+                if (!match.acceptConfirmation(confirmed)) continue;
+                if (expectedBtc > 0 && match.outputMatches(sats, match.expectedSats(expectedBtc))) {
+                  matched = { txid: tx.txid, btc: sats / 1e8, confirmations: confirmed ? 1 : 0 };
+                  break;
+                }
               }
             }
             if (!matched) { res.writeHead(202, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, status:'awaiting_payment', receiptId, btcAddress: addr, btcAmount: expectedBtc })); }
@@ -12701,7 +12734,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
             try { const tx = require('./commerce/transactional-email'); const em = (receipt.customerEmail || receipt.email || '').toString().trim().toLowerCase(); if (tx && em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) Promise.resolve(tx.sendTransactional({ to: em, template:'payment_activated', data:{ orderId: receiptId, serviceId: receipt.serviceId || receipt.productId } })).catch(()=>{}); } catch(_){}
           }
           res.writeHead(200, { 'Content-Type':'application/json' });
-          return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
+          return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt: receiptForCaller(receipt) }));
         }
 
         // Lookup by id — getReceipts() hides smoke/test emails from public
@@ -12734,7 +12767,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           });
           if (uaicCapture && uaicCapture.receipt) {
             res.writeHead(200, { 'Content-Type':'application/json' });
-            return res.end(JSON.stringify({ ok: true, method: 'PAYPAL', receipt: uaicCapture.receipt }));
+            return res.end(JSON.stringify({ ok: true, method: 'PAYPAL', receipt: receiptForCaller(uaicCapture.receipt) }));
           }
         }
 
@@ -12759,9 +12792,11 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
               let sats = 0;
               for (const o of (tx.vout || [])) { if (o.scriptpubkey_address === addr) sats += Number(o.value || 0); }
               if (!sats) continue;
-              const btc = sats / 1e8;
-              if (Math.abs(btc - expectedBtc) / expectedBtc <= 0.15 || btc >= expectedBtc) {
-                matched = { txid: tx.txid, btc, confirmations: tx.status && tx.status.confirmed ? 1 : 0 };
+              const confirmed = !!(tx.status && tx.status.confirmed);
+              const match = require('./commerce/btc-amount-match');
+              if (!match.acceptConfirmation(confirmed)) continue;
+              if (match.outputMatches(sats, match.expectedSats(expectedBtc))) {
+                matched = { txid: tx.txid, btc: sats / 1e8, confirmations: confirmed ? 1 : 0 };
                 break;
               }
             }
@@ -12783,7 +12818,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           logTransactionEvent('payment_activated', { receiptId, method: 'BTC', amount: receipt.amount, txid: matched.txid, confirmedAmountBtc: matched.btc });
           try { const tx = require('./commerce/transactional-email'); const em = (receipt.customerEmail || receipt.email || '').toString().trim().toLowerCase(); if (tx && em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) Promise.resolve(tx.sendTransactional({ to: em, template:'payment_activated', data:{ orderId: receiptId, serviceId: receipt.serviceId || receipt.productId } })).catch(()=>{}); } catch(_){}
           res.writeHead(200, { 'Content-Type':'application/json' });
-          return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt }));
+          return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt: receiptForCaller(receipt) }));
         }
 
         // Trusted manual confirm path (webhooks / admin). BTC still needs at
@@ -12817,7 +12852,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         }
 
         res.writeHead(200, { 'Content-Type':'application/json' });
-        return res.end(JSON.stringify({ ok: true, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
+        return res.end(JSON.stringify({ ok: true, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt: receiptForCaller(receipt) }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type':'application/json' });
         res.end(JSON.stringify({ error: 'bad_request', detail: e.message }));

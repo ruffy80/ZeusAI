@@ -40,11 +40,20 @@ check('mock payment writes a marked delivery file and no second copy', () => {
   const raw = fs.readFileSync(first.file, 'utf8');
   const body = JSON.parse(raw);
   assert.strictEqual(body.mock, true);
-  assert.strictEqual(body.status, 'delivered');
+  assert.strictEqual(body.status, 'drill');
   assert.ok(raw.indexOf('zk_secret') < 0);
   assert.ok(body.note.indexOf('MOCK') === 0);
   const second = delivery.writePaidDelivery({ id: 'mock-chain-check', txid: 'simulated-drill', mock: true });
   assert.strictEqual(second.already, true);
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-paid-iso-'));
+  const own = delivery.writePaidDelivery({ id: 'iso-own', service: 'instant-website-audit', txid: 'abc123deadbeef01' }, null, { dir });
+  const other = delivery.writePaidDelivery({ id: 'iso-other', service: 'instant-logo-kit', txid: 'beefdead12345678' }, null, { dir });
+  assert.strictEqual(delivery.openDelivery('iso-own', other.token, dir).granted, false);
+  const opened = delivery.openDelivery('iso-own', own.token, dir);
+  assert.strictEqual(opened.granted, true);
+  assert.ok(String(opened.content).includes('Scorecard'));
+  assert.strictEqual(delivery.openDelivery('iso-own', 'nope', dir).granted, false);
 });
 
 check('order route accepts productId and the module list stays off public health', () => {

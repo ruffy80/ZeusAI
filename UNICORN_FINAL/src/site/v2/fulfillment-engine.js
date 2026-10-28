@@ -1044,6 +1044,37 @@ function buyerReceipt(item) {
   };
 }
 
+function immediateArtifacts(receipt) {
+  const ids = [];
+  if (receipt && Array.isArray(receipt.services)) ids.push(...receipt.services);
+  if (receipt && receipt.plan) ids.push(receipt.plan);
+  if (receipt && receipt.serviceId) ids.push(receipt.serviceId);
+  const unique = [...new Set(ids.map((value) => String(value || '').trim()).filter(Boolean))];
+  const out = [];
+  for (const serviceId of (unique.length ? unique : ['starter'])) {
+    let item = { id: serviceId, title: serviceId, priceUsd: Number(receipt && (receipt.amount || receipt.amount_usd) || 0), mode: 'btc', clock: 'minutes' };
+    try {
+      const shelfItem = require('../../commerce/public-shelf').byId(serviceId);
+      if (shelfItem) item = shelfItem;
+    } catch (_) { /* the id still produces a file */ }
+    const content = buyerFile(item);
+    if (!content) continue;
+    out.push({
+      serviceId,
+      recipe: 'deterministic',
+      title: item.title || serviceId,
+      status: 'delivered',
+      format: 'markdown',
+      filename: serviceId + '-service-activation-pack.md',
+      generatedBy: 'deterministic-engine',
+      deliverableType: 'product',
+      bytes: Buffer.byteLength(content, 'utf8'),
+      content,
+    });
+  }
+  return out;
+}
+
 function buyerFile(item) {
   const serviceId = String(item && item.id || '');
   const receipt = buyerReceipt(item);
@@ -1179,6 +1210,7 @@ async function fulfillReceipt(receipt, opts = {}) {
 
 module.exports = {
   fulfillReceipt, fulfillService, pickRecipe, offerPreview, proposalDocument, proposalHttp, isEnterprise, needsHumanFulfillment,
+  immediateArtifacts,
   buyerFile,
   shouldUseAiForSku, aiSkuAllowlist,
   fulfillmentAiOs,

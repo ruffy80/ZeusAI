@@ -23,11 +23,17 @@ function lookupByEmail(email, receipts, orderId) {
   return { status: 200, body: { ok: true, matched } };
 }
 
+const SECRET_KEYS = new Set([
+  'email', 'customerId', 'customerEmail', 'metadata', 'did',
+  'access_token', 'accessToken', 'orderAccessToken', 'license',
+  'apiKey', 'webhookSecret', 'tokenHash',
+]);
+
 function publicReceipt(receipt) {
   if (!receipt || typeof receipt !== 'object') return null;
   const out = {};
   for (const key of Object.keys(receipt)) {
-    if (key === 'email' || key === 'customerId' || key === 'customerEmail' || key === 'metadata' || key === 'did') continue;
+    if (SECRET_KEYS.has(key)) continue;
     out[key] = receipt[key];
   }
   return out;
@@ -37,10 +43,17 @@ function publicInvoice(inv) {
   if (!inv || typeof inv !== 'object') return null;
   const out = {};
   for (const key of Object.keys(inv)) {
-    if (key === 'customerEmail' || key === 'metadata') continue;
+    if (SECRET_KEYS.has(key)) continue;
     out[key] = inv[key];
   }
   return out;
 }
 
-module.exports = { lookupByEmail, publicInvoice, publicReceipt };
+function viewForCaller(receipt, token, same) {
+  const equals = typeof same === 'function' ? same : ((a, b) => a && a === b);
+  if (equals(token, receipt && receipt.access_token)) return receipt;
+  if (receipt && receipt.license && equals(token, receipt.license.token)) return receipt;
+  return publicReceipt(receipt);
+}
+
+module.exports = { lookupByEmail, publicInvoice, publicReceipt, viewForCaller, SECRET_KEYS };
