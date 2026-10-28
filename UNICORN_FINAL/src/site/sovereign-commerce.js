@@ -1679,6 +1679,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin-top:16px"><a class="cta" href="${bip21}" target="_blank" rel="noopener">Open in wallet</a>
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a></p>
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
+  <p class="note">Email is optional. When this page says paid, reload it. The file link is on this page and does not need an inbox.</p>
 </div>
 
 <div class="card" id="paypalFailBanner" style="display:none;border-color:#5c4316;background:#2a210b">
@@ -1709,7 +1710,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin:0" id="confirmWaitText">Waiting for the required confirmation depth before activation.</p>
   </div>
 
-  <div class="grant" id="grant">
+  <div class="grant${o.status === 'paid' ? ' on' : ''}" id="grant">
   <h2 style="margin:0 0 6px">✅ Payment received — service activated</h2>
   <p style="margin:0 0 12px">Your access token is ready. Keep it safe — it is the cryptographic proof of purchase.</p>
   <div class="row"><span class="k">Access token</span><span class="v mono" id="tok"></span></div>
@@ -1720,8 +1721,9 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
-  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button></p>
-  <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
+  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button>
+  <button type="button" class="cta" data-live-inspect="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" data-live-title="Download the file" style="background:#3ddc84;color:#04140c">Download the file</button></p>
+  <p class="note" style="margin-top:8px">The file is this link. No email is required. Reload this page after Bitcoin confirms if the block above is still hidden.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
     <p class="note" style="margin:0 0 8px">Mint a signed redemption code — recipient gets ZeusAI on you. Public endpoint, no login.</p>
