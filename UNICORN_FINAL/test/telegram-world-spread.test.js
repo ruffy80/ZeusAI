@@ -50,4 +50,18 @@ check('an empty shelf does not invent a price', () => {
   assert.ok(!/\$\d/.test(cards[0].input_message_content.message_text));
 });
 
+check('a quiet channel still gets an invite post', () => {
+  const decision = spread.nextGrowthPost({
+    silenced: false,
+    postsToday: 0,
+    maxPosts: 6,
+    sinceLastMs: null,
+    gapMs: 30 * 60 * 1000,
+  });
+  assert.equal(decision.action, 'live_shelf');
+  assert.equal(decision.reason, 'grow');
+  const capped = spread.nextGrowthPost({ silenced: false, postsToday: 6, maxPosts: 6, sinceLastMs: null, gapMs: 1 });
+  assert.equal(capped.reason, 'daily_cap');
+});
+
 console.log(passed + ' passed');

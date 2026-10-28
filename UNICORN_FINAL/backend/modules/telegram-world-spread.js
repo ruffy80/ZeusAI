@@ -86,7 +86,7 @@ function buildPost(input) {
       ? ('Telegram reports ' + members + ' members in this chat.')
       : 'Member count is read from Telegram when this bot is an admin. It is not estimated.',
     '',
-    'Share this card into a chat you choose. The bot does not message strangers.',
+    'Share this card into a chat you choose. One invite brings the next person.',
   ].join('\n');
   const buttons = [[
     { text: 'Open zeusai.pro', url: page },
@@ -143,6 +143,21 @@ async function measureMembers(tg, chatId) {
   return { ok: true, members };
 }
 
+function nextGrowthPost(input) {
+  const o = input || {};
+  if (o.silenced) return { action: 'wait', reason: 'silenced' };
+  const maxPosts = Number(o.maxPosts) > 0 ? Number(o.maxPosts) : 6;
+  const postsToday = Number(o.postsToday) || 0;
+  if (postsToday >= maxPosts) return { action: 'wait', reason: 'daily_cap' };
+  const gapMs = Number(o.gapMs) > 0 ? Number(o.gapMs) : 30 * 60 * 1000;
+  const sinceLastMs = o.sinceLastMs;
+  if (sinceLastMs != null && Number.isFinite(Number(sinceLastMs)) && Number(sinceLastMs) >= 0 && Number(sinceLastMs) < gapMs) {
+    return { action: 'wait', reason: 'cadence_wait' };
+  }
+  // A quiet or empty chat still posts. Waiting for engagement never starts the channel.
+  return { action: 'live_shelf', reason: 'grow' };
+}
+
 function _resetCache() { _cache = { at: 0, offers: [] }; }
 
 module.exports = {
@@ -155,5 +170,6 @@ module.exports = {
   answerInline,
   liveOffers,
   measureMembers,
+  nextGrowthPost,
   _resetCache,
 };

@@ -581,13 +581,19 @@ async function welcomeMember(member, chat) {
     `▶ Dropship shelf: ${SITE}/dropship`,
     '',
     'Commands: /dial · /rank · /swarm · /value · /profit · /lead you@email.com · /invite',
-    invite ? `\nShare the group: ${invite}` : '',
+    '',
+    'Bring the next person with the invite. That is how this channel grows.',
+    invite ? `Invite → ${invite}` : '',
   ].filter(Boolean).join('\n');
+  let share = SITE;
+  try { share = require('./telegram-world-spread').shareUrl(cta, 'Join the ZeusAI channel'); } catch (_) { share = cta; }
+  const buttons = [[{ text: 'Open zeusai.pro', url: cta }, { text: 'Share', url: share }]];
+  if (invite) buttons.push([{ text: 'Invite the next person', url: invite }]);
   const r = await sendGroup(text, {
     chatId: chat && chat.id,
     kind: 'welcome',
     skipGovernor: true,
-    buttons: [[{ text: 'Start on ZeusAI', url: cta }]],
+    buttons,
   });
   state.joins += 1;
   state.lastWelcomeAt = Date.now();
@@ -645,6 +651,15 @@ function shouldModerate(msg) {
 
 async function handleUpdate(update) {
   if (!update || DISABLED) return { ok: false, reason: 'disabled' };
+
+  if (update.chat_member && update.chat_member.new_chat_member) {
+    const neu = update.chat_member.new_chat_member;
+    const old = update.chat_member.old_chat_member;
+    const wasOut = !old || old.status === 'left' || old.status === 'kicked';
+    if (neu.status === 'member' && wasOut && neu.user) {
+      return { ok: true, welcomes: [await welcomeMember(neu.user, update.chat_member.chat)] };
+    }
+  }
 
   // New members (classic groups)
   if (update.message && Array.isArray(update.message.new_chat_members)) {
@@ -780,6 +795,23 @@ async function tick() {
     const members = counted && counted.ok ? Number(counted.result) : NaN;
     if (Number.isFinite(members)) state.memberCount = members;
   } catch (_) { /* count is optional */ }
+  let spread = null;
+  try { spread = require('./telegram-world-spread'); } catch (_) { spread = null; }
+  const decision = spread && typeof spread.nextGrowthPost === 'function'
+    ? spread.nextGrowthPost({
+      silenced: state.silenced,
+      postsToday: state.postsToday,
+      maxPosts: MAX_VALUE_POSTS_DAY,
+      sinceLastMs: state.lastValueAt ? Date.now() - state.lastValueAt : null,
+      gapMs: VALUE_GAP_MS,
+    })
+    : { action: 'live_shelf', reason: 'grow' };
+  if (decision.action === 'live_shelf') {
+    const posted = await postLiveShelf(false);
+    if (posted && (posted.ok || posted.reason === 'daily_cap' || posted.reason === 'cadence_wait' || posted.reason === 'silenced')) {
+      return posted;
+    }
+  }
   // Profit Gravity: when score high OR funnel starving convert/monetize → post value
   const hunger = _funnelHunger();
   const forceHungry = ['convert', 'monetize', 'capture'].includes(hunger.stage);
@@ -800,7 +832,7 @@ function start(opts) {
   _timer = setInterval(() => { tick().catch(() => {}); }, TICK_MS);
   if (_timer.unref) _timer.unref();
   // First value post shortly after boot (non-blocking)
-  setTimeout(() => { postValue(false).catch(() => {}); }, 45_000).unref?.();
+  setTimeout(() => { postLiveShelf(false).catch(() => {}); }, 45_000).unref?.();
   // Boot MobDial swarm (idempotent)
   const mdStart = _mobdial();
   try {
