@@ -5908,6 +5908,12 @@ async function unicornHandler(req, res) {
 
   // Measured commercial counts. The desk copies no price. nginx /api/ goes to
   // the backend, which registers the same path; this answers a direct site hit.
+  if (urlPath === '/api/delivery-contracts' && req.method === 'GET') {
+    const desk = require('./commerce/delivery-contract-os');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(desk.report()));
+  }
+
   if (urlPath === '/api/commercial/status' && req.method === 'GET') {
     const desk = require('./site/v2/commercial-desk');
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -13392,6 +13398,7 @@ a{color:#8a5cff;text-decoration:none}
     // Human SEO desk
     '/seo',
     '/commercial',
+    '/delivery-contracts',
     // Origin Gravity — signed zero-customer genesis + founding passport
     '/origin',
     '/live-actions', '/autonomy', '/innovation-log',

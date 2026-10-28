@@ -680,7 +680,7 @@ function _robotsMeta(route) {
   if (path === '/__not-found__') return 'noindex, nofollow';
   if (path === '/dashboard' || path === '/account' || path === '/admin' || path.indexOf('/admin/') === 0) return 'noindex, nofollow';
   if (path === '/origin' || path.indexOf('/origin/') === 0 || path === '/status' || path === '/health' || path === '/metrics') return 'noindex, nofollow';
-  if (path === '/operator' || path === '/seo' || path === '/commercial' || path === '/observability' || path === '/how' || path === '/live-actions' || path === '/snapshot') return 'noindex, nofollow';
+  if (path === '/operator' || path === '/seo' || path === '/commercial' || path === '/delivery-contracts' || path === '/observability' || path === '/how' || path === '/live-actions' || path === '/snapshot') return 'noindex, nofollow';
   if (path === '/dropship' || path.indexOf('/dropship/') === 0 || path === '/zacc') return 'noindex, nofollow';
   if (path === '/innovations' || path === '/frontier' || path === '/aura' || path === '/gift' || path === '/transparency' || path === '/crypto-fiat-bridge' || path === '/social-network' || path === '/store') return 'noindex, nofollow';
   if (path === '/login' || path === '/signup' || path === '/auth') return 'noindex, nofollow';
@@ -1010,6 +1010,7 @@ function footer(route, opts) {
       <li><a href="/rails" data-link>Payment rails</a></li>
       <li><a href="/trust-safety" data-link>Trust and safety</a></li>
       <li><a href="/commercial" data-link>Commercial desk</a></li>
+      <li><a href="/delivery-contracts" data-link>Delivery contracts</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
@@ -4786,6 +4787,7 @@ function renderRoute(route, params = {}) {
     case '/standard': return merchantStandardSurface.pageStandard();
     case '/seo': return seoSurface.pageSeo();
     case '/commercial': return commercialDesk.page();
+    case '/delivery-contracts': return require('../../commerce/delivery-contract-os').page();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
@@ -7960,7 +7962,7 @@ function routeTitle(route) {
   }
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
-  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/commercial':'Commercial desk', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/commercial':'Commercial desk', '/delivery-contracts':'Delivery contracts', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -7983,6 +7985,7 @@ function routeDescription(route) {
     '/standard': 'Merchant Trust Standard — signed commerce-ready envelope for humans and agents: buyable floor, rails honesty, bond and continuity.',
     '/seo': 'ZeusAI SEO desk — sitemap.xml, offer guides, IndexNow, and the seven discovery checks. Indexed status is never invented.',
     '/commercial': 'Measured visits, checkouts, payments, and deliveries from the stored funnel. Null means that store did not load. The audit price is not copied on this page.',
+    '/delivery-contracts': 'Shelf delivery contracts with PASS, FAIL, BLOCKED, NOT_IMPLEMENTED, CONTRACT_UNDEFINED, and NOT_TESTED. A file name is not a customer delivery.',
     '/guides': 'One public article per ZeusAI shelf offer: deliverable, clock, live price, and the same checkout as the card.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',

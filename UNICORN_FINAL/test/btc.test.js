@@ -40,6 +40,13 @@ async function run() {
   const status = ledger.getStatus();
   assert.ok(status.paid >= 1, 'at least one paid');
   assert.ok(status.invoiceCount >= 2);
+  const beforeUsd = status.totalRevenueUsd;
+  const drill = await ledger.createInvoice({ service: 'drill', priceUsd: 10 });
+  const drilled = ledger.markPaid(drill.id, { txid: 'simulated-drill', confirmations: 1 });
+  assert.strictEqual(drilled.mock, true);
+  const after = ledger.getStatus();
+  assert.strictEqual(after.totalRevenueUsd, beforeUsd);
+  assert.ok(after.drills >= 1);
   console.log('[ok] ledger.getStatus:', status);
 
   // --- verifier (smoke: factory shape, do not start) ---
