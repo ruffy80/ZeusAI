@@ -5716,21 +5716,6 @@ function _composePublicHealthBody() {
     runtimeProfile: full.runtimeProfile,
     quantumIntegrityShield: full.quantumIntegrityShield,
     dbConnected: full.dbConnected === true,
-    modules: full.modules || [],
-    modulesTotal: full.modulesTotal || 0,
-    registryTotal: (function () {
-      try { return getModuleRegistryStatus().total; } catch (_) { return 0; }
-    })(),
-    registryModules: (function () {
-      try {
-        const reg = getModuleRegistryStatus();
-        const names = [];
-        for (const cat of Object.values(reg.categories || {})) {
-          if (cat && Array.isArray(cat.modules)) names.push(...cat.modules.map(String));
-        }
-        return names;
-      } catch (_) { return []; }
-    })(),
     neverDown: full.neverDown,
     totalAutonomy: full.totalAutonomy,
     neuralAutonomy: full.neuralAutonomy,

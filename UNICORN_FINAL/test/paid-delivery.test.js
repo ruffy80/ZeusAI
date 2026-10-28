@@ -47,13 +47,19 @@ check('mock payment writes a marked delivery file and no second copy', () => {
   assert.strictEqual(second.already, true);
 });
 
-check('order route accepts productId and health publishes modules', () => {
+check('order route accepts productId and the module list stays off public health', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'backend', 'index.js'), 'utf8');
   assert.ok(src.includes('body.productId'));
   assert.ok(src.includes('body.userEmail'));
   assert.ok(src.includes('app.get(\'/api/user/status/:email\''));
-  assert.ok(src.includes('registryModules'));
   assert.ok(src.includes('paid-delivery'));
+  const fullStart = src.indexOf('function buildHealthResponse');
+  const pubStart = src.indexOf('function _composePublicHealthBody');
+  const full = src.slice(fullStart, pubStart);
+  const pub = src.slice(pubStart, src.indexOf('function _refreshPublicHealthCache'));
+  assert.ok(full.includes('modulesLoaded'), 'admin health still knows which modules loaded');
+  assert.ok(!pub.includes('registryModules'), 'public health must not publish the registry');
+  assert.ok(!pub.includes('modules:'), 'public health must not publish the module list');
 });
 
 console.log(passed + ' passed');
