@@ -382,6 +382,11 @@ const VALUE_TEMPLATES = [
       `Enter the marketplace → ${cta}`,
     ].join('\n')),
   },
+  {
+    id: 'live_shelf',
+    stages: ['convert', 'monetize', 'traffic', 'expand', 'capture'],
+    build: (cta) => cta,
+  },
 ];
 
 function pickValueTemplate() {
@@ -426,8 +431,26 @@ async function postValue(force) {
   }
   const tmpl = pickValueTemplate();
   let cta = buildCta(tmpl.id);
-  const invite = tmpl.id === 'invite_gravity' ? await ensureInviteLink() : null;
+  const invite = (tmpl.id === 'invite_gravity' || tmpl.id === 'live_shelf') ? await ensureInviteLink() : null;
   let text = tmpl.build(cta, invite);
+  let buttons = [[
+    { text: 'Open ZeusAI catalog', url: cta },
+    { text: 'Live site', url: SITE },
+  ]];
+  if (tmpl.id === 'live_shelf') {
+    try {
+      const spread = require('./telegram-world-spread');
+      const built = await spread.buildLivePost({
+        cta,
+        invite,
+        members: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
+      });
+      if (built && built.text) {
+        text = built.text;
+        buttons = built.buttons;
+      }
+    } catch (_) { /* keep the plain CTA */ }
+  }
   try {
     const vuk = require('./viral-unification-os');
     const gate = vuk.admit({ channel: 'telegram', source: 'tpg', kind: 'group-value', force: !!force });
@@ -435,10 +458,6 @@ async function postValue(force) {
     const canon = vuk.canonicalizeIntent({ body: text, url: cta, source: 'tpg' }, 'telegram');
     if (canon && canon.body) text = canon.body;
   } catch (_) { /* VUK optional */ }
-  const buttons = [[
-    { text: 'Open ZeusAI catalog', url: cta },
-    { text: 'Live site', url: SITE },
-  ]];
   const r = await sendGroup(text, { kind: 'value', buttons });
   try {
     const vuk = require('./viral-unification-os');
@@ -455,6 +474,80 @@ async function postValue(force) {
     _append(LEDGER, { ts: new Date().toISOString(), type: 'value_post', template: tmpl.id, cta });
   }
   return { ok: !!(r && r.ok), template: tmpl.id, result: r, cta };
+}
+
+async function postLiveShelf(force) {
+  _rollDay();
+  if (!force) {
+    if (state.silenced) return { ok: false, reason: 'silenced' };
+    if (state.postsToday >= MAX_VALUE_POSTS_DAY) return { ok: false, reason: 'daily_cap' };
+    if (Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
+  }
+  const cta = buildCta('live_shelf');
+  const invite = await ensureInviteLink();
+  let text = cta;
+  let buttons = [[{ text: 'Open zeusai.pro', url: cta }]];
+  try {
+    const spread = require('./telegram-world-spread');
+    const built = await spread.buildLivePost({
+      cta,
+      invite,
+      members: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
+    });
+    if (built && built.text) {
+      text = built.text;
+      buttons = built.buttons;
+    }
+  } catch (e) {
+    return { ok: false, reason: e && e.message || 'spread_unavailable' };
+  }
+  const r = await sendGroup(text, { kind: 'live_shelf', buttons, skipGovernor: !!force });
+  if (r && r.ok) {
+    state.postsToday += 1;
+    state.lastValueAt = Date.now();
+    state.lastPost = { id: 'live_shelf', at: new Date().toISOString(), cta };
+    _saveState();
+    _append(LEDGER, { ts: new Date().toISOString(), type: 'live_shelf', cta });
+  }
+  return { ok: !!(r && r.ok), template: 'live_shelf', result: r, cta };
+}
+
+function _postedArticles() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'posted-articles.json'), 'utf8'));
+    return Array.isArray(raw) ? raw : [];
+  } catch (_) { return []; }
+}
+
+async function postNextArticle(force) {
+  _rollDay();
+  if (!force) {
+    if (state.silenced) return { ok: false, reason: 'silenced' };
+    if (state.postsToday >= MAX_VALUE_POSTS_DAY) return { ok: false, reason: 'daily_cap' };
+    if (state.lastValueAt && Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
+  }
+  let articles = [];
+  try { articles = require('../../src/site/v2/discover-trust-os').ARTICLES || []; } catch (_) { articles = []; }
+  const spread = require('./telegram-world-spread');
+  const article = spread.nextArticle(articles, _postedArticles());
+  if (!article) return { ok: false, reason: 'no_new_article' };
+  const url = spread.articleUrl(article);
+  const r = await sendGroup(spread.articleMessage(article), {
+    kind: 'article',
+    buttons: [[{ text: 'Read on zeusai.pro', url }]],
+  });
+  if (r && r.ok) {
+    const posted = _postedArticles();
+    posted.push(article.slug);
+    try { fs.writeFileSync(path.join(DATA_DIR, 'posted-articles.json'), JSON.stringify(posted)); } catch (_) { /* ledger best-effort */ }
+    state.postsToday += 1;
+    state.lastValueAt = Date.now();
+    state.lastArticleDay = _dayKey();
+    state.lastPost = { id: 'article:' + article.slug, at: new Date().toISOString(), cta: url };
+    _saveState();
+    _append(LEDGER, { ts: new Date().toISOString(), type: 'article', slug: article.slug });
+  }
+  return { ok: !!(r && r.ok), slug: article.slug, result: r };
 }
 
 /**
@@ -526,13 +619,19 @@ async function welcomeMember(member, chat) {
     `▶ Dropship shelf: ${SITE}/dropship`,
     '',
     'Commands: /dial · /rank · /swarm · /value · /profit · /lead you@email.com · /invite',
-    invite ? `\nShare the group: ${invite}` : '',
+    '',
+    'Bring the next person with the invite. That is how this channel grows.',
+    invite ? `Invite → ${invite}` : '',
   ].filter(Boolean).join('\n');
+  let share = SITE;
+  try { share = require('./telegram-world-spread').shareUrl(cta, 'Join the ZeusAI channel'); } catch (_) { share = cta; }
+  const buttons = [[{ text: 'Open zeusai.pro', url: cta }, { text: 'Share', url: share }]];
+  if (invite) buttons.push([{ text: 'Invite the next person', url: invite }]);
   const r = await sendGroup(text, {
     chatId: chat && chat.id,
     kind: 'welcome',
     skipGovernor: true,
-    buttons: [[{ text: 'Start on ZeusAI', url: cta }]],
+    buttons,
   });
   state.joins += 1;
   state.lastWelcomeAt = Date.now();
@@ -591,6 +690,15 @@ function shouldModerate(msg) {
 async function handleUpdate(update) {
   if (!update || DISABLED) return { ok: false, reason: 'disabled' };
 
+  if (update.chat_member && update.chat_member.new_chat_member) {
+    const neu = update.chat_member.new_chat_member;
+    const old = update.chat_member.old_chat_member;
+    const wasOut = !old || old.status === 'left' || old.status === 'kicked';
+    if (neu.status === 'member' && wasOut && neu.user) {
+      return { ok: true, welcomes: [await welcomeMember(neu.user, update.chat_member.chat)] };
+    }
+  }
+
   // New members (classic groups)
   if (update.message && Array.isArray(update.message.new_chat_members)) {
     const chat = update.message.chat;
@@ -641,8 +749,8 @@ async function handleCommand(msg) {
   const mid = msg.message_id;
   state.commands += 1;
 
-  if (cmd === '/value' || cmd === '/drop') {
-    const r = await postValue(true);
+  if (cmd === '/value' || cmd === '/drop' || cmd === '/spread') {
+    const r = cmd === '/spread' ? await postLiveShelf(true) : await postValue(true);
     if (!(r && r.ok)) {
       await sendGroup(`⏸ Value post: ${r.reason || 'failed'}`, { chatId: chat.id, replyTo: mid });
     }
@@ -720,6 +828,32 @@ async function tick() {
   if (DISABLED || state.silenced) return { ok: false, reason: 'disabled_or_silenced' };
   if (!token() || !groupChatId()) return { ok: false, reason: 'not_configured' };
   _computeProfitScore();
+  try {
+    const counted = await tg('getChatMemberCount', { chat_id: groupChatId() });
+    const members = counted && counted.ok ? Number(counted.result) : NaN;
+    if (Number.isFinite(members)) state.memberCount = members;
+  } catch (_) { /* count is optional */ }
+  let spread = null;
+  try { spread = require('./telegram-world-spread'); } catch (_) { spread = null; }
+  const decision = spread && typeof spread.nextGrowthPost === 'function'
+    ? spread.nextGrowthPost({
+      silenced: state.silenced,
+      postsToday: state.postsToday,
+      maxPosts: MAX_VALUE_POSTS_DAY,
+      sinceLastMs: state.lastValueAt ? Date.now() - state.lastValueAt : null,
+      gapMs: VALUE_GAP_MS,
+    })
+    : { action: 'live_shelf', reason: 'grow' };
+  if (decision.action === 'live_shelf') {
+    if (state.lastArticleDay !== _dayKey()) {
+      const article = await postNextArticle(true);
+      if (article && article.ok) return article;
+    }
+    const posted = await postLiveShelf(false);
+    if (posted && (posted.ok || posted.reason === 'daily_cap' || posted.reason === 'cadence_wait' || posted.reason === 'silenced')) {
+      return posted;
+    }
+  }
   // Profit Gravity: when score high OR funnel starving convert/monetize → post value
   const hunger = _funnelHunger();
   const forceHungry = ['convert', 'monetize', 'capture'].includes(hunger.stage);
@@ -740,7 +874,7 @@ function start(opts) {
   _timer = setInterval(() => { tick().catch(() => {}); }, TICK_MS);
   if (_timer.unref) _timer.unref();
   // First value post shortly after boot (non-blocking)
-  setTimeout(() => { postValue(false).catch(() => {}); }, 45_000).unref?.();
+  setTimeout(() => { postLiveShelf(false).catch(() => {}); }, 45_000).unref?.();
   // Boot MobDial swarm (idempotent)
   const mdStart = _mobdial();
   try {
@@ -814,7 +948,7 @@ function getStatus() {
     messages: state.messages,
     leads: state.leads,
     moderated: state.moderated,
-    lastPost: state.lastPost,
+    memberCount: Number.isFinite(Number(state.memberCount)) ? Number(state.memberCount) : null,
     lastInviteLink: state.lastInviteLink ? { url: state.lastInviteLink.url, expiresAt: state.lastInviteLink.expiresAt } : null,
     mobdial: mobdial ? {
       protocol: mobdial.protocol,
@@ -885,6 +1019,8 @@ module.exports = {
   stop,
   tick,
   postValue,
+  postLiveShelf,
+  postNextArticle,
   postMoneyOffers,
   welcomeMember,
   handleUpdate,

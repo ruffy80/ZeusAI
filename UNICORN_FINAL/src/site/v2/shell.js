@@ -856,6 +856,11 @@ html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block;position:fi
 .nav-links{display:flex;gap:4px;align-items:center}
 .nav-links a{color:var(--ink);padding:8px 10px;font-size:14px}
 .nav-cta{display:flex;gap:8px;align-items:center}
+.tg-community{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:0 7vw;padding:10px 14px;border:1px solid rgba(0,136,204,.45);border-radius:14px;background:rgba(0,136,204,.12);color:var(--ink)}
+.tg-community p{margin:0;font-size:14px}
+.tg-join-popup{position:fixed;right:18px;bottom:88px;z-index:70;width:min(360px,calc(100vw - 32px));padding:16px;border-radius:16px;border:1px solid rgba(0,136,204,.5);background:#0b0a12;color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.tg-join-popup p{margin:0 0 10px;font-size:14px;line-height:1.45}
+.tg-join-popup .row{display:flex;gap:8px;flex-wrap:wrap}
 .nav-toggle{display:none;width:44px;height:44px;background:transparent;border:1px solid var(--stroke);border-radius:12px;flex-direction:column;gap:4px;align-items:center;justify-content:center}
 .nav-toggle-bar{display:block;width:18px;height:2px;background:#fff}
 main#app,footer{position:relative;z-index:2}
@@ -911,6 +916,7 @@ html[data-route="/"] .cost-demo{margin:0}
 ${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
+${route === '/checkout' || String(route || '').indexOf('/checkout/') === 0 ? '' : `<aside class="tg-community" role="region" aria-label="Telegram community"><p>Join the Telegram community. New articles and the live shelf are posted there.</p><a class="btn" href="/telegram" data-link data-telegram="banner">Join</a></aside>`}
 <div id="zeusHonestyBanner" class="lhos-fallback-banner" role="status">Serving a cached API response while Unicorn reconnects. Live numbers continue automatically.</div>
 <main id="app">`;
 }
@@ -945,6 +951,7 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
 </div>
 <div class="nav-cta">
 ${langMark}
+<a class="btn" href="/telegram" data-link data-telegram="header">Telegram</a>
 <a class="btn btn-primary" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
@@ -961,6 +968,7 @@ function footer(route, opts) {
     <p>Route a task to a cheaper model, or buy a deliverable from the marketplace. Property of ${OWNER.name}.</p>
     <div class="foot-lead-cta">
       <a class="btn btn-primary" href="/services" data-link>Marketplace</a>
+      <a class="btn" href="/telegram" data-link data-telegram="footer">Telegram</a>
       <a class="btn" href="/contact" data-link>Book Demo</a>
     </div>
   </div>
@@ -1007,6 +1015,7 @@ function footer(route, opts) {
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
+      <li><a href="/telegram" data-link data-telegram="footer">Telegram</a></li>
       <li><a href="/contact" data-link>Contact</a></li>
       <li><a href="/faq" data-link>FAQ</a></li>
       <li><a href="/legal" data-link>Legal</a></li>
@@ -1031,10 +1040,46 @@ function footer(route, opts) {
     <span>Powered by Zeus Core · Merkle-chained receipts · Ed25519 signatures</span>
   </div>
 </footer>
+<div id="tgJoinPopup" class="tg-join-popup" hidden>
+  <p><strong>Join the Telegram community</strong></p>
+  <p>New articles and the live shelf are posted in the channel this site runs. No messages to people who did not ask.</p>
+  <div class="row"><a class="btn btn-primary" href="/telegram" data-link data-telegram="popup">Open Telegram</a><button type="button" class="btn" data-tg-dismiss>Not now</button></div>
+</div>
 ${concierge()}
 ${globalChrome(N)}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
+<script${N}>
+(function(){
+  function send(place){
+    try {
+      var payload = JSON.stringify({ event: 'telegram_click', route: location.pathname || '/', source: 'site-v2', serviceId: String(place || 'link').slice(0, 40), ts: new Date().toISOString() });
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/analytics/funnel', new Blob([payload], { type: 'application/json' }));
+      else fetch('/api/analytics/funnel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function(){});
+    } catch (e) {}
+  }
+  document.addEventListener('click', function(ev){
+    var node = ev.target && ev.target.closest ? ev.target.closest('[data-telegram]') : null;
+    if (!node) return;
+    send(node.getAttribute('data-telegram'));
+  });
+  var popup = document.getElementById('tgJoinPopup');
+  var path = location.pathname || '/';
+  if (!popup || path === '/checkout' || path.indexOf('/checkout/') === 0 || path === '/telegram') return;
+  try { if (sessionStorage.getItem('zeus.tg.popup') === '1') return; } catch (e) { return; }
+  var timer = setTimeout(function(){
+    popup.hidden = false;
+  }, 30000);
+  function close(){
+    popup.hidden = true;
+    clearTimeout(timer);
+    try { sessionStorage.setItem('zeus.tg.popup', '1'); } catch (e) {}
+  }
+  var dismiss = popup.querySelector('[data-tg-dismiss]');
+  if (dismiss) dismiss.addEventListener('click', close);
+  popup.querySelectorAll('[data-telegram]').forEach(function(link){ link.addEventListener('click', close); });
+})();
+</script>
 <script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
 <script${N}>
 /* CIC/1.0 — hydrate brand spectrum CSS vars site-wide (40y chromatic continuum) */
@@ -7980,6 +8025,8 @@ function routeDescription(route) {
     '/contact': 'Contact ZeusAI directly — sales, enterprise licensing, partnerships and security reports land with the owner-operator within 24h.',
     '/faq': 'Straight answers about ZeusAI payments, BTC checkout, signed receipts, refunds, cancellation, privacy and agent commerce.',
     '/blog': 'ZeusAI insights: frontier inventions, 30-year cryptographic durability, public pricing transparency and sovereign commerce architecture.',
+    '/telegram': 'Join the ZeusAI Telegram community for enterprise AI model routing, the marketplace, and new articles. No invented audience counts.',
+    '/tg': 'Join the ZeusAI Telegram community for enterprise AI model routing, the marketplace, and new articles.',
     '/trust-safety': 'How to check ZeusAI before paying: operator identity, Bitcoin wallet, refund contract, WHOIS limits, and the public buyer ledger.',
     '/insights': 'Owner-written notes on autonomous AI commerce, the AI resume service, Bitcoin checkout, delivery, and the refund contract.',
     '/outreach-desk': 'Internal outreach desk. Drafts are not sent from this page.',

@@ -6899,14 +6899,14 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     if (urlPath === '/tg' || urlPath === '/telegram' || urlPath === '/profit-group' || urlPath === '/mobdial') {
       const body = `
 <section style="max-width:920px;margin:0 auto;padding:48px 20px 80px;color:#e8eef7">
-  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">MDB/1.0 · MobDial + TPG/1.1</p>
-  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI MobDial — the Telegram swarm that compounds Unicorn.</h1>
-  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Personal Dial Codes, causal echoes from live funnel hunger, swarm rank ladder, and closed-loop checkout attribution. Invented for mondial growth — not another broadcast channel.</p>
+  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">Telegram · ZeusAI</p>
+  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">Join the Telegram community</h1>
+  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Enterprise AI model routing, the marketplace, and new articles are posted in the channel this site runs. The bot does not message people who did not ask.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
-    <a id="tg-join-btn" href="#" style="display:none;padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">Join the MobDial group →</a>
+    <a id="tg-join-btn" href="https://t.me/ZEUSAIIBOT" data-telegram="page" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">Open @ZEUSAIIBOT</a>
     <button type="button" data-live-inspect="/api/telegram/mobdial" data-live-title="MobDial OS" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect MobDial live →</button>
     <button type="button" data-live-inspect="/api/telegram/group-os" data-live-title="Telegram group OS" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;background:transparent;cursor:pointer;font-weight:600">Inspect TPG</button>
-    <a href="https://t.me/ZEUSAIIBOT" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Open @ZEUSAIIBOT</a>
+    <a href="https://t.me/ZEUSAIIBOT" data-telegram="page" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Open @ZEUSAIIBOT</a>
     <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Catalog</a>
   </div>
   <p id="tg-meta" style="color:#8aa0b8;margin:0 0 18px">Loading…</p>
@@ -6948,7 +6948,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   }).catch(function(){var m=document.getElementById("tg-meta"); if(m)m.textContent="Status temporarily unreachable.";});
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'telegram-mobdial' }); } catch (_) {}
-      return res.end(renderPage('MobDial · Telegram Swarm · ZeusAI', body, js));
+      return res.end(renderPage('Join the Telegram community', body, js));
     }
     // AetherMail Continuum — autonomous email OS
     if (urlPath === '/aethermail' || urlPath === '/mail') {
@@ -13370,7 +13370,7 @@ a{color:#8a5cff;text-decoration:none}
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
-    '/contact', '/faq', '/blog', '/guides', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/module-census',
+    '/contact', '/faq', '/blog', '/telegram', '/guides', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/module-census',
     '/model-routing', '/self-improvement', '/multi-agent', '/experiment-engine',
     '/trust-safety', '/insights', '/outreach-desk',
     // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
