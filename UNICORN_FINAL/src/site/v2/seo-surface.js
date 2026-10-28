@@ -29,7 +29,7 @@ function pageSeo() {
   <div class="card" style="padding:16px">
     <span class="kicker">/seo/sitemap-services.xml</span>
     <h3 style="margin:8px 0 6px;font-size:16px">Service detail pages</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Operator file of /services/:id. It is not listed in robots.txt, so the public sitemap stays the marketing set.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0">Public shelf pages at /services/:id. robots.txt points crawlers here. The seven-URL marketing sitemap stays the company and solution set.</p>
   </div>
   <div class="card" style="padding:16px">
     <span class="kicker">/seo/sitemap-index.xml</span>
@@ -51,6 +51,7 @@ ${require('../../seo/merchant-offer').contractHtml()}
   <h2 style="margin:8px 0 10px">What we index — and what we don’t</h2>
   <ul style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:0;padding-left:18px">
     <li>The public sitemap lists /, /about, /pricing, /contact, /solutions/model-routing, /solutions/self-healing, and /solutions/autonomous-agents. /api/, /status, /health, /origin, /admin, /dashboard, /internal/, shelf URLs, and insight articles are excluded.</li>
+    <li>Shelf offer URLs live in <a href="/seo/sitemap-services.xml" data-allow-raw="1">/seo/sitemap-services.xml</a>. robots.txt lists that file. They stay out of the seven-URL marketing sitemap.</li>
     <li>Engineering guides live in <a href="/sitemap-authority.xml" data-allow-raw="1">/sitemap-authority.xml</a>. Facts and worksheets live in <a href="/sitemap-geo.xml" data-allow-raw="1">/sitemap-geo.xml</a>. Neither is in the seven-URL marketing sitemap, and IndexNow does not submit them.</li>
     <li>/dashboard and /account stay out of the sitemap (robots disallow)</li>
     <li>No fake “indexed billions of pages” claims — inventory is generated from the live catalog</li>

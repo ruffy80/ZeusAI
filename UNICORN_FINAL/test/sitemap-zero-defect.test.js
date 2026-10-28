@@ -120,7 +120,7 @@ async function main() {
     }
     assert.ok(body.includes('User-agent: Googlebot'));
     assert.ok(body.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
-    assert.ok(!body.includes('sitemap-services.xml'));
+    assert.ok(body.includes('Sitemap: https://zeusai.pro/seo/sitemap-services.xml'));
   });
 
   await check('site wires /seo desk + XSL route + footer sitemap', () => {

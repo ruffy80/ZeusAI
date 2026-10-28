@@ -210,7 +210,7 @@ async function main() {
     const robots = seo.robotsTxt('https://zeusai.pro');
     assert.ok(robots.includes('Sitemap: https://zeusai.pro/sitemap.xml'));
     assert.ok(robots.includes('Sitemap: https://zeusai.pro/sitemap-authority.xml'));
-    assert.ok(!robots.includes('sitemap-services.xml'));
+    assert.ok(robots.includes('Sitemap: https://zeusai.pro/seo/sitemap-services.xml'));
     const authorityXml = authority.urlsetXml('https://zeusai.pro');
     assert.strictEqual((authorityXml.match(/<loc>/g) || []).length, 184);
     assert.ok(authorityXml.includes('https://zeusai.pro/learn</loc>'));
