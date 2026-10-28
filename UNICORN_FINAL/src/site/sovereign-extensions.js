@@ -157,6 +157,38 @@ function sendJson(res, code, obj) {
 async function handle(req, res, ctx) {
   const urlPath = (req.url || '/').split('?')[0];
   res.__pathForMetric = urlPath;
+  if (urlPath === '/newsletter' && req.method === 'POST') {
+    const raw = await new Promise((resolve) => {
+      let data = '';
+      req.on('data', (chunk) => { data += chunk; if (data.length > 4096) req.destroy(); });
+      req.on('end', () => resolve(data));
+      req.on('error', () => resolve(''));
+    });
+    let email = '';
+    const type = String(req.headers['content-type'] || '');
+    if (type.includes('application/json')) {
+      try { email = JSON.parse(raw || '{}').email || ''; } catch (_) { email = ''; }
+    } else {
+      email = new URLSearchParams(raw).get('email') || '';
+    }
+    email = String(email).trim().slice(0, 160);
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const page = (status, title, text) => {
+      const html = '<!doctype html><meta charset="utf-8"><title>' + title + '</title><h1>' + title + '</h1><p>' + text + '</p><p><a href="/faq">Back to the FAQ</a></p>';
+      res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(html);
+      recordMetric(urlPath, status, html.length);
+      return true;
+    };
+    if (!valid) return page(400, 'Email not accepted', 'Enter one address with an @ and a domain. Nothing was stored.');
+    try {
+      const out = require('../frontier-engine').newsletterSubscribe({ email });
+      const token = String(out && out.unsubToken || '').replace(/[^a-zA-Z0-9]/g, '');
+      return page(200, 'Subscribed', 'The address is stored for this list. It is not sold. Unsubscribe token: ' + token + '.');
+    } catch (_) {
+      return page(400, 'Email not accepted', 'Nothing was stored.');
+    }
+  }
   const browserLang = detectLang(req);
 
   // Retired matrix: a generated sitemap listed these URLs and no page exists.
@@ -488,6 +520,15 @@ async function handle(req, res, ctx) {
       '# ZeusAI',
       '',
       `> Autonomous AI operating system by ${OWNER.name}. Live catalog, Bitcoin checkout, card and PayPal when their keys exist, signed receipts.`,
+      '',
+      '## Capabilities for language models',
+      '- Model router: /solutions/model-routing describes routing a request to a capable model. The homepage slogan is not a measured customer saving.',
+      '- Self-healing: /solutions/self-healing describes guarded remediation with an operator-visible record.',
+      '- Marketplace: /services lists shelf offers. /pricing groups the same shelf by delivery clock.',
+      '- Price: each offer has a USD list price. priceBtc on the card is that list price divided by the spot rate on the page. The live quote is GET /api/price/{id}. This file does not copy a dollar amount.',
+      '- Bitcoin checkout is the self-serve rail. Card and PayPal appear only when their keys exist.',
+      '- The marketing sitemap /sitemap.xml has seven URLs. Shelf URLs are listed in /seo/sitemap-services.xml.',
+      '- This document is server-rendered text. No analytics script is required to read it.',
       '',
       (() => {
         try { return require('../../backend/modules/discovery-seven').llmsOfferLines(OWNER.domain); }

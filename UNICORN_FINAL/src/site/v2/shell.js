@@ -700,6 +700,12 @@ function _robotsMeta(route) {
   return '';
 }
 
+function verificationMeta() {
+  const bing = String(process.env.BING_SITE_VERIFICATION || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  if (bing.length < 8) return '';
+  return `<meta name="msvalidate.01" content="${bing}"/>`;
+}
+
 function head(title, route, opts) {
   opts = opts || {};
   // The authored page is English. A passed lang does not create a second
@@ -733,6 +739,7 @@ function head(title, route, opts) {
 <meta name="description" content="${desc}"/>
 <link rel="canonical" href="${canonical}"/>
 ${robots ? `<meta name="robots" content="${robots}"/>` : ''}
+${verificationMeta()}
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${homeDocument ? documentTitle : `${title} — ZeusAI`}"/>
 <meta property="og:description" content="${desc}"/>
@@ -2203,6 +2210,10 @@ ${_zaccBanner}
       <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <p class="hero-brand">ZeusAI</p>
       <h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</h1>
+      <aside data-ai-summary="ZeusAI publishes a model-router sales page, a self-healing sales page, and a shelf whose prices are in the HTML. The 70 percent line is the page slogan." style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
+        <h2>What an agent can verify</h2>
+        <p>Model routing is described at /solutions/model-routing. Self-healing is described at /solutions/self-healing. Shelf prices are server-rendered from the live quote.</p>
+      </aside>
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
         <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/contact" data-link>Get Enterprise Access</a>
@@ -2766,6 +2777,13 @@ function pageDocs() {
     <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
     <p>Public buyers and integrators use the rows below. Health, snapshot, and deploy consoles are not linked from the public site. Auth, where a route requires it, is a capability token issued per action.</p>
   </div>
+  <aside data-ai-summary="Docs are server-rendered HTML. The model router and self-healing pages are sales descriptions. Checkout starts at POST /api/checkout/create." style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
+    <p>An agent can read this page without JavaScript. Prices stay on the shelf cards, not in this table.</p>
+  </aside>
+  <h2>What is the model router?</h2>
+  <p>The model router is the enterprise page at <a href="/solutions/model-routing" data-link>/solutions/model-routing</a>. It describes choosing a capable model for a request and keeping a route record. It is not a measured saving for a named customer.</p>
+  <h2>What is self-healing?</h2>
+  <p>Self-healing is the enterprise page at <a href="/solutions/self-healing" data-link>/solutions/self-healing</a>. It describes guarded remediation an operator can see. It does not publish a customer uptime percentage.</p>
   <h2 style="font-size:22px;margin-top:28px">Pages that are not features</h2>
   <p style="color:var(--ink-dim)">These notes say what the site does not ship. They are not extra API routes.</p>
   <ul>${authorityDesk.docLinks().map((item) => `<li><a href="${item.href}" data-link>${item.label}</a></li>`).join('')}</ul>
@@ -7456,6 +7474,22 @@ function pageFaq() {
   <span class="kicker">FAQ</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Questions, <span class="grad">answered straight.</span></h1>
   <p style="color:var(--ink-dim)">Every answer below is backed by a live page or API you can verify right now.</p>
+  <aside data-ai-summary="FAQ answers are in the HTML. Email signup stores the address for the list and returns an unsubscribe token. It does not claim the address is deleted." style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
+    <p>Shelf notes by email are optional. The address is stored for that list.</p>
+  </aside>
+  <h2>What does the model router do?</h2>
+  <p>It is the offer at <a href="/solutions/model-routing" data-link>/solutions/model-routing</a>: route a request to a capable model and keep a record. The homepage slogan is not a measured customer result.</p>
+  <h2>What does self-healing do?</h2>
+  <p>It is the offer at <a href="/solutions/self-healing" data-link>/solutions/self-healing</a>: guarded remediation with an operator-visible record. This page does not state a customer uptime percentage.</p>
+  <h2>Where is the list price?</h2>
+  <p>Each marketplace card renders its USD list price in the HTML. The Bitcoin amount on the card is that list price divided by the spot rate used on the page. The live quote is <code>GET /api/price/{id}</code>.</p>
+  <h2>Get shelf notes by email</h2>
+  <form method="post" action="/newsletter" style="display:grid;gap:8px;max-width:420px;margin:12px 0 22px">
+    <p style="color:var(--ink-dim);margin:0">We store the address so we can send the list you join. We do not sell it. The reply includes an unsubscribe token. This form does not claim the address is deleted.</p>
+    <label for="nlEmail">Email</label>
+    <input id="nlEmail" name="email" type="email" required maxlength="160" autocomplete="email" style="padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px">
+    <button class="btn btn-primary" type="submit">Subscribe</button>
+  </form>
   <div style="display:grid;gap:10px;margin-top:24px">
     ${FAQ_ITEMS.map((f) => `<details class="card" style="padding:16px 18px"><summary style="cursor:pointer;font-weight:600;font-size:15.5px">${f.q}</summary><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.7;margin:12px 0 0">${f.a}</p></details>`).join('')}
   </div>
@@ -7960,7 +7994,7 @@ function routeTitle(route) {
   }
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
-  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/commercial':'Commercial desk', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/commercial':'Commercial desk', '/agents':'Agent Commerce Protocol', '/services':'Enterprise AI Marketplace and Model Router', '/marketplace':'Enterprise AI Marketplace and Model Router', '/pricing':'Live LLM Cost Pricing and Bitcoin Checkout', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'Public Model Router and Self-Healing API Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -7984,15 +8018,15 @@ function routeDescription(route) {
     '/seo': 'ZeusAI SEO desk — sitemap.xml, offer guides, IndexNow, and the seven discovery checks. Indexed status is never invented.',
     '/commercial': 'Measured visits, checkouts, payments, and deliveries from the stored funnel. Null means that store did not load. The audit price is not copied on this page.',
     '/guides': 'One public article per ZeusAI shelf offer: deliverable, clock, live price, and the same checkout as the card.',
-    '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
-    '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
+    '/services': 'Browse the ZeusAI marketplace: model router offers, self-healing packs, and LLM cost tools. Each card shows the live shelf price and the file you receive.',
+    '/pricing': 'ZeusAI pricing for the model router and self-healing shelf. The list price and the Bitcoin amount come from one live quote. Receipts are signed and stored.',
     '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
     '/solutions/ai-checkout': 'AI checkout optimizer for higher completion rates, better payment reliability and faster delivery activation.',
     '/solutions/ai-self-healing': 'AI self-healing operations with SLO tracking, error pattern detection and guarded autonomous remediation.',
     '/checkout': 'Create a ZeusAI invoice, pay with BTC or supported rails, and receive signed delivery credentials instantly.',
     '/dashboard': 'Operator dashboard for ZeusAI receipts, services, revenue proof, system health and live commerce telemetry.',
     '/how': 'How ZeusAI routes quotes, invoices, receipts, AI modules and delivery through verifiable autonomous workflows.',
-    '/docs': 'ZeusAI API documentation, OpenAPI endpoints, signed catalog, receipts and agent-to-agent commerce examples.',
+    '/docs': 'ZeusAI API docs for the model router, self-healing checks, OpenAPI, and signed receipts. An agent can read the catalog and start a checkout. Rendered as HTML.',
     '/about': 'The story and ownership model behind ZeusAI, built as a sovereign AI OS by Vladoi Ionut.',
     '/legal': 'Legal terms, ownership, payments and usage rules for ZeusAI services and autonomous AI commerce.',
     '/trust': 'Public ZeusAI Trust Center with uptime, deploy SHA, integrity signature, BTC wallet proof, audit logs and security posture.',
