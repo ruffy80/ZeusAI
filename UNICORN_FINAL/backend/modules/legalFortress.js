@@ -38,6 +38,25 @@ class LegalFortress {
 
   // ==================== NOTIFICĂRI EMAIL ====================
   async sendLegalNotification(subject, content) {
+    try {
+      const bridge = require('../../modules/notificationMesh/bridge');
+      if (bridge.meshEnabled()) {
+        const email = require('../email');
+        await email.sendMail({
+          to: this.owner.email,
+          subject: `⚖️ ${subject}`,
+          text: content,
+          html: `<h2>${subject}</h2><pre>${content}</pre><p>Unicorn AI - Legal Fortress</p>`,
+          type: 'legal_notice',
+          userId: this.owner.email,
+          private: true,
+        });
+        console.log(`📧 Notificare legală prin SNM: ${subject}`);
+        return;
+      }
+    } catch (err) {
+      console.error('Eroare SNM legal:', err && err.message);
+    }
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
       console.log(`📧 [NOTIFICARE] ${subject}\n${content}`);
       return;

@@ -43,6 +43,28 @@ async function notifyOwner(event) {
   ensureDir();
   try { fs.appendFileSync(LOG_FILE, JSON.stringify(evt) + '\n'); evt.channels.push('jsonl'); } catch (e) { console.warn('[notifier] jsonl append failed:', e.message); }
 
+  try {
+    const bridge = require('../../modules/notificationMesh/bridge');
+    if (bridge.meshEnabled()) {
+      const tx = require('./transactional-email');
+      const meshTo = process.env.OWNER_EMAIL || process.env.SMTP_TO;
+      if (meshTo && tx && typeof tx.sendRaw === 'function') {
+        const sent = await tx.sendRaw({
+          to: meshTo,
+          subject: evt.subject,
+          text: evt.body,
+          type: 'owner_alert',
+          userId: meshTo,
+          private: true,
+        });
+        if (sent && sent.ok) evt.channels.push(sent.channel || 'snm');
+      }
+      return { ok: true, channels: evt.channels };
+    }
+  } catch (e) {
+    console.warn('[notifier] snm failed:', e.message);
+  }
+
   const t = getTransporter();
   const to = process.env.OWNER_EMAIL || process.env.SMTP_TO;
   const from = process.env.SMTP_FROM || process.env.OWNER_EMAIL;

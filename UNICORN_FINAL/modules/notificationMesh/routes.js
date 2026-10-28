@@ -4,6 +4,7 @@ const mesh = require('./index');
 const { getReceipt } = require('./receipt');
 
 function mount(app) {
+  try { mesh.boot(); } catch (_) { /* listener is best-effort */ }
   app.get('/api/snm/pubkey', (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json({ pubkey: mesh.getPublicKey() });
@@ -16,6 +17,8 @@ function mount(app) {
     if (pub && pub.payload) {
       pub.payload = Object.assign({}, pub.payload);
       delete pub.payload.email;
+      delete pub.payload.html;
+      delete pub.payload.text;
     }
     res.set('Cache-Control', 'no-store');
     res.json(Object.assign({}, row, { signed: pub }));

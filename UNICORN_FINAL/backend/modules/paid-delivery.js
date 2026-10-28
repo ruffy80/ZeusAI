@@ -66,11 +66,18 @@ function writePaidDelivery(invoice, activation) {
 async function queueDeliveryEmail(invoice) {
   const to = invoice && (invoice.customerEmail || (invoice.metadata && invoice.metadata.email));
   if (!to) return { ok: false, error: 'no_email' };
+  try {
+    const bridge = require('../../modules/notificationMesh/bridge');
+    if (bridge.meshEnabled()) return { ok: true, skipped: 'snm', reason: 'mesh_owns_delivery' };
+  } catch (_) { /* legacy mailer below */ }
   const mailer = require('../email');
   return mailer.sendMail({
     to: String(to),
     subject: 'ZeusAI delivery ' + (invoice.service || invoice.serviceId || invoice.id),
     text: 'Order ' + invoice.id + ' for ' + (invoice.service || invoice.serviceId || 'service') + ' is ready.',
+    type: 'service_delivered',
+    userId: String(to),
+    orderId: invoice.id,
   });
 }
 

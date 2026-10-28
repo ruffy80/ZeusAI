@@ -384,11 +384,34 @@ function isConfigured() {
   return configuredProviders().length > 0;
 }
 
-async function sendTransactional({ to, template, data }) {
+async function _routeSnm(fields) {
+  try {
+    const bridge = require('../../modules/notificationMesh/bridge');
+    return await bridge.deliverMail(fields);
+  } catch (err) {
+    console.warn('[mail] snm unavailable:', err && err.message);
+    return null;
+  }
+}
+
+async function sendTransactional({ to, template, data, direct, type, userId, orderId }) {
   if (!to) return { ok: false, error: 'missing_to' };
   const tpl = TEMPLATES[template];
   if (!tpl) return { ok: false, error: 'unknown_template' };
   const { subject, text, html } = tpl(data || {});
+  if (direct !== true) {
+    const via = await _routeSnm({
+      to,
+      subject,
+      text,
+      html,
+      type: type || template,
+      userId: userId || (data && data.userId) || to,
+      orderId: orderId || (data && data.orderId) || null,
+      private: template === 'password_reset' || template === 'delivery_artifact' || (data && data.private === true),
+    });
+    if (via) return via;
+  }
   const providers = configuredProviders();
   if (providers.length === 0) {
     // Fail-honest: nothing was sent. Callers must NOT treat this as success.
@@ -416,8 +439,21 @@ async function sendTransactional({ to, template, data }) {
 // provider cascade. Used by owner alerts (new lead, funnel drop-off).
 // Returns { ok:false, reason:'email_unconfigured' } when no transport is
 // available (fail-honest — nothing was actually sent).
-async function sendRaw({ to, subject, text, html }) {
+async function sendRaw({ to, subject, text, html, direct, type, userId, orderId, private: isPrivate }) {
   if (!to) return { ok: false, error: 'missing_to' };
+  if (direct !== true) {
+    const via = await _routeSnm({
+      to,
+      subject: subject || '(no subject)',
+      text: text || '',
+      html: html || '',
+      type: type || 'email',
+      userId: userId || to,
+      orderId: orderId || null,
+      private: isPrivate === true,
+    });
+    if (via) return via;
+  }
   const providers = configuredProviders();
   if (providers.length === 0) {
     return { ok: false, reason: 'email_unconfigured', skipped: 'unconfigured' };

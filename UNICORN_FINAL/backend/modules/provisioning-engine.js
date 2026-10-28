@@ -185,6 +185,9 @@ class ProvisioningEngine extends EventEmitter {
               to,
               subject: 'Welcome to ZeusAI',
               text: `Your tenant ${job.tenantId} is being provisioned on plan ${job.plan}.`,
+              type: 'welcome',
+              userId: to,
+              private: true,
             });
             queued = !!(r && r.queued);
             sent = !!(r && (r.accepted || r.messageId || r.ok) && !r.queued);

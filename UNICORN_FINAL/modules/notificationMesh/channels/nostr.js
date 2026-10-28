@@ -23,6 +23,14 @@ function loadSecret() {
   return secret;
 }
 
+function isPublicSafe(signed) {
+  const payload = signed && signed.payload ? signed.payload : {};
+  if (payload.private === true) return false;
+  const type = String(payload.type || '');
+  if (/password|reset|verif|token|secret/i.test(type)) return false;
+  return true;
+}
+
 function publicContent(signed) {
   const payload = signed && signed.payload ? signed.payload : {};
   return JSON.stringify({
@@ -70,6 +78,7 @@ function publishOne(url, event) {
 }
 
 async function send(signedNotification) {
+  if (!isPublicSafe(signedNotification)) return false;
   const { finalizeEvent } = require('nostr-tools');
   const secret = loadSecret();
   const event = finalizeEvent({
@@ -83,4 +92,4 @@ async function send(signedNotification) {
   return results.some(Boolean);
 }
 
-module.exports = { send, relays, KEY_FILE, publicContent };
+module.exports = { send, relays, KEY_FILE, publicContent, isPublicSafe };

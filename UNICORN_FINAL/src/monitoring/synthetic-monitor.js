@@ -42,6 +42,21 @@ async function _sendWebhookAlert(url, message, critical) {
 // ── Email alert via nodemailer (sendmail transport) ───────────────────
 function _sendEmailAlert(subject, body) {
   try {
+    const bridge = require('../../modules/notificationMesh/bridge');
+    if (bridge.meshEnabled()) {
+      const email = require('../../backend/email');
+      email.sendMail({
+        to: ALERT_EMAIL,
+        subject,
+        text: body,
+        type: 'monitor_alert',
+        userId: ALERT_EMAIL,
+        private: true,
+      }).catch((err) => process.stderr.write(`[monitor] snm alert failed: ${err && err.message}\n`));
+      return;
+    }
+  } catch (_) { /* legacy sendmail below */ }
+  try {
     const nm = require('nodemailer');
     const t  = nm.createTransport({ sendmail: true, newline: 'unix', path: '/usr/sbin/sendmail' });
     t.sendMail({ from: ALERT_EMAIL, to: ALERT_EMAIL, subject, text: body }, (err) => {

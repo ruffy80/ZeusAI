@@ -90,9 +90,18 @@ async function _sendEmail(event, payload) {
       html: '<pre style="font-family:ui-monospace,monospace;white-space:pre-wrap">'
         + String(text + ship).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
         + '</pre>',
+      type: 'zacc_' + String(event || 'notice'),
+      userId: to,
+      orderId: payload && payload.orderToken ? payload.orderToken : null,
+      private: true,
     });
-    // sendMail queues to outbox when SMTP_PASS missing — still ok:true queued
-    return { ok: true, queued: !!(r && r.queued), reason: r && r.queued ? 'smtp_outbox' : null };
+    const accepted = !!(r && (r.ok === true || r.messageId || r.queued));
+    return {
+      ok: accepted,
+      queued: !!(r && r.queued),
+      channel: r && (r.channel || r.provider) || null,
+      reason: r && r.queued ? 'smtp_outbox' : (r && r.reason) || null,
+    };
   } catch (e) {
     return { ok: false, reason: 'email_exception', message: e && e.message };
   }

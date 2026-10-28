@@ -367,7 +367,23 @@ class GlobalDigitalStandard {
   }
   async sendInvoice(platform, invoice) {
     const adminEmail = process.env.ADMIN_EMAIL || process.env.OWNER_EMAIL || '';
-    if (!adminEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+    if (!adminEmail) return;
+    try {
+      const bridge = require('../../modules/notificationMesh/bridge');
+      if (bridge.meshEnabled()) {
+        const email = require('../email');
+        await email.sendMail({
+          to: adminEmail,
+          subject: '📄 Factură ' + platform + ' - ' + invoice.period,
+          text: JSON.stringify(invoice, null, 2),
+          type: 'invoice',
+          userId: adminEmail,
+          private: true,
+        });
+        return;
+      }
+    } catch (_) { /* legacy SMTP below */ }
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
     try {
       const nodemailer = require('nodemailer');
       const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
@@ -412,7 +428,23 @@ class GlobalDigitalStandard {
   }
   async sendReportEmail(report) {
     const adminEmail = process.env.ADMIN_EMAIL || process.env.OWNER_EMAIL || '';
-    if (!adminEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+    if (!adminEmail) return;
+    try {
+      const bridge = require('../../modules/notificationMesh/bridge');
+      if (bridge.meshEnabled()) {
+        const email = require('../email');
+        await email.sendMail({
+          to: adminEmail,
+          subject: '📊 Raport zilnic Unicorn - ' + report.date,
+          text: JSON.stringify(report, null, 2),
+          type: 'daily_report',
+          userId: adminEmail,
+          private: true,
+        });
+        return;
+      }
+    } catch (_) { /* legacy SMTP below */ }
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
     try {
       const nodemailer = require('nodemailer');
       const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });

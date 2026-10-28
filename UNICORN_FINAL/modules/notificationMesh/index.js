@@ -55,6 +55,16 @@ function getStatus() {
   };
 }
 
+function boot() {
+  if (!enabled()) return false;
+  try {
+    require('./channels/websocket').ensureServer();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 module.exports = {
   deliver,
   verify: verifyNotification,
@@ -64,4 +74,5 @@ module.exports = {
   signNotification,
   CHAIN,
   enabled,
+  boot,
 };
