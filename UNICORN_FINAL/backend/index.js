@@ -5778,6 +5778,26 @@ function _livenessHealthHandler(req, res) {
 }
 app.get('/health', _publicHealthHandler);
 app.get('/api/health', _publicHealthHandler);
+app.get('/api/orchestrator/health', (req, res) => {
+  try {
+    const fs = require('fs');
+    let disk = null;
+    try {
+      disk = JSON.parse(fs.readFileSync('/opt/zeusai/state/orchestrator-status.json', 'utf8'));
+    } catch (_) { disk = null; }
+    const ageMs = disk && disk.at ? Date.now() - new Date(disk.at).getTime() : null;
+    const alive = ageMs != null && ageMs >= 0 && ageMs < 120000;
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: alive,
+      ageMs,
+      state: disk && disk.state ? disk.state : null,
+      versions: disk && Array.isArray(disk.versions) ? disk.versions : [],
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);
