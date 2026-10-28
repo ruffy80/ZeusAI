@@ -39,7 +39,8 @@ assert.match(home, /<title>ZeusAI \| Enterprise AI Cost Optimization & Orchestra
 assert.match(home, /Reduce your LLM API costs by 70% with our autonomous model router\. Enterprise-grade multi-agent orchestration and self-healing infrastructure\./);
 assert.match(home, /<h1 id="dtHeroH1">Cut Your AI API Costs by 70% Automatically<\/h1>/);
 assert.match(home, /Our autonomous Model Router dynamically selects the cheapest, fastest LLM \(Groq, DeepSeek, Claude\)/);
-assert.match(home, /id="dtHeroCta"[^>]*>Get Enterprise Access</);
+assert.match(home, /id="dtHeroCta"[^>]*href="\/services\/instant-website-audit"[^>]*>Buy the website audit/);
+assert.match(home, />Get Enterprise Access</);
 assert.match(home, />Book Demo</);
 const primaryNav = home.slice(home.indexOf('id="nav-links"'), home.indexOf('data-nav-more'));
 assert.match(primaryNav, /href="\/services"/);
@@ -57,7 +58,7 @@ assert.match(home, /data-auth-label="My Account"/);
 assert.doesNotMatch(home, />My Account</);
 assert.doesNotMatch(home, />Sign up</);
 assert.match(home, /<li>Secure<\/li>/);
-assert.match(home, /<li>No Data Retention<\/li>/);
+assert.match(home, /<li>Demo prompt not stored<\/li>/);
 assert.match(home, />GDPR Compliant</);
 assert.match(home, /id="costDemoLabel">Test the Router Live</);
 assert.match(home, /placeholder="Enter a prompt \(e\.g\., 'Write a Python script to scrape a website'\)"/);
