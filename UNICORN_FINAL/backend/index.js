@@ -2139,16 +2139,31 @@ const globalPublicRateLimit = rateLimit({
   // Altfel monitorizarea internă poate intra în buclă de "degraded" din 429.
   // Dropship product covers are also exempt: a 48-card grid would otherwise
   // 429 the image plane and look like "no product images".
+  keyGenerator: (req) => {
+    const ua = String(req.headers['user-agent'] || '');
+    const ip = rateLimit.ipKeyGenerator(req.ip || '');
+    // Boot loops call this process with Node's fetch (User-Agent: node).
+    // They get their own budget so they cannot lock out a browser or curl.
+    if (ua === 'node' || ua.startsWith('node/')) return 'self:' + ip;
+    return ip;
+  },
   skip: (req) => {
     const p = String(req.path || '');
     // /health/live + /health/ready MUST stay exempt — healers/watchdogs poll
     // them every ~20–30s and a 429 makes the box look hung and suicide-loops
     // recovery (seen live 2026-08-11).
-    return p === '/health' || p === '/api/health'
+    if (p === '/health' || p === '/api/health'
       || p === '/health/live' || p === '/health/ready'
       || p === '/api/health/live' || p === '/api/health/ready'
       || p.startsWith('/api/dropship/cover/')
-      || p.startsWith('/api/dropship/cover');
+      || p.startsWith('/api/dropship/cover')) return true;
+    // Direct loopback calls (this process polling itself, and a local curl)
+    // have no X-Forwarded-For. nginx always sets that header, so public
+    // clients stay on the limit.
+    const fwd = req.headers['x-forwarded-for'] || req.headers.forwarded;
+    const remote = req.socket && req.socket.remoteAddress;
+    const loopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+    return loopback && !fwd;
   },
   message: { error: 'Too many requests — try again later' },
 });
