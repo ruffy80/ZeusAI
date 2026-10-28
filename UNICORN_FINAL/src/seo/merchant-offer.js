@@ -46,6 +46,27 @@ function priceContent(item) {
   return priceAmount(item).toFixed(2);
 }
 
+function priceSpecifications(item) {
+  const specs = [{
+    '@type': 'UnitPriceSpecification',
+    price: priceContent(item),
+    priceCurrency: 'USD',
+    name: 'List price',
+    description: 'USD list price rendered on this shelf card.',
+  }];
+  const btc = Number(item && item.priceBtc);
+  if (Number.isFinite(btc) && btc > 0) {
+    specs.push({
+      '@type': 'UnitPriceSpecification',
+      price: btc.toFixed(8),
+      priceCurrency: 'BTC',
+      name: 'Bitcoin amount',
+      description: 'List price divided by the spot rate used on this page. A rail discount, if the invoice applies one, is not copied here.',
+    });
+  }
+  return specs;
+}
+
 function isMerchantOffer(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.notForSale === true || item.demoOnly === true) return false;
@@ -150,6 +171,7 @@ function productJson(opts) {
       url,
       priceCurrency: 'USD',
       price: priceContent(item),
+      priceSpecification: priceSpecifications(item),
       availability: 'https://schema.org/InStock',
     }, offerFields(item, base)),
   };
@@ -163,7 +185,13 @@ function offerMicrodataHtml(item, opts) {
   if (!isMerchantOffer(item)) return '';
   const window = handlingWindow(item);
   const refundUrl = originOf(opts && opts.origin) + RETURN_PATH;
-  return '<meta itemprop="priceCurrency" content="USD">'
+  const btc = Number(item && item.priceBtc);
+  const btcSpec = Number.isFinite(btc) && btc > 0
+    ? '<div itemprop="priceSpecification" itemscope itemtype="https://schema.org/UnitPriceSpecification"><meta itemprop="name" content="Bitcoin amount"><meta itemprop="priceCurrency" content="BTC"><meta itemprop="price" content="' + btc.toFixed(8) + '"></div>'
+    : '';
+  return '<div itemprop="priceSpecification" itemscope itemtype="https://schema.org/UnitPriceSpecification"><meta itemprop="name" content="List price"><meta itemprop="priceCurrency" content="USD"><meta itemprop="price" content="' + priceContent(item) + '"></div>'
+    + btcSpec
+    + '<meta itemprop="priceCurrency" content="USD">'
     + '<meta itemprop="price" content="' + priceContent(item) + '">'
     + '<link itemprop="availability" href="https://schema.org/InStock">'
     + '<link itemprop="itemCondition" href="https://schema.org/NewCondition">'
