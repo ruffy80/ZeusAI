@@ -67,9 +67,12 @@ async function send(signedNotification, userId) {
   const keys = loadVapid();
   const mailto = process.env.SNM_FROM_EMAIL || 'notifications@zeusai.pro';
   webpush.setVapidDetails('mailto:' + mailto, keys.publicKey, keys.privateKey);
+  const payload = signedNotification.payload || {};
   const body = JSON.stringify({
-    type: signedNotification.payload && signedNotification.payload.type,
-    orderId: signedNotification.payload && signedNotification.payload.orderId,
+    type: payload.type || null,
+    orderId: payload.orderId || null,
+    subject: payload.subject || null,
+    text: String(payload.text || '').slice(0, 500),
     signature: signedNotification.signature,
     pubkey: signedNotification.pubkey,
     timestamp: signedNotification.timestamp,

@@ -2018,8 +2018,23 @@ function sendFunnelDropOffAlert(dropoffPct, metrics) {
   const details = `Opens: ${metrics.opens} | Methods: ${metrics.methods} (${metrics.methodRate}%) | Confirms: ${metrics.confirms} (${metrics.confirmRate}%)`;
   
   console.warn(`[funnel-alert] ${subject} | ${details} | To: ${ownerEmail}`);
-  
-  // Best-effort email (nodemailer optional)
+
+  try {
+    const bridge = require('../modules/notificationMesh/bridge');
+    if (bridge.meshEnabled()) {
+      emailService.sendMail({
+        to: ownerEmail,
+        subject,
+        text: `Conversion funnel alert:\n${details}\n\nView stats: https://zeusai.pro/admin → A/B Testing tab`,
+        type: 'funnel_alert',
+        userId: ownerEmail,
+        private: true,
+      }).catch((err) => console.warn('[funnel-email] snm failed:', err && err.message));
+      return;
+    }
+  } catch (_) { /* mesh optional */ }
+
+  // SMTP stays available when the mesh is off.
   try {
     const nm = require('nodemailer');
     if (nm && nm.createTransport) {
@@ -6784,6 +6799,9 @@ function _recordActivatedPurchase(purchase, service) {
       } else if (mailer && typeof mailer.sendMail === 'function') {
         mailer.sendMail({
           to: clientId,
+          type: 'service_delivered',
+          userId: clientId,
+          orderId: purchase.id,
           subject: `✅ ZeusAI: ${safeService.title || purchase.serviceId} activated`,
           text: `Your service ${purchase.serviceId} has been activated. Purchase ID: ${purchase.id}.`,
         }).catch(() => {});
@@ -9810,6 +9828,8 @@ function _onPaidInvoice(invoice) {
       userId: paidEmail || String(paidOrderId || ''),
       email: paidEmail,
       amountBtc: invoice && invoice.amountBtc,
+      subject: 'ZeusAI payment confirmed',
+      text: 'Payment confirmed for order ' + (paidOrderId || '') + '.',
     });
     if (written && written.ok) {
       _snmNotify({
@@ -9818,6 +9838,8 @@ function _onPaidInvoice(invoice) {
         userId: paidEmail || String(paidOrderId || ''),
         email: paidEmail,
         deliveryUrl: '/api/delivery/' + encodeURIComponent(String(paidOrderId || '')),
+        subject: 'ZeusAI delivery ' + ((invoice && (invoice.service || invoice.serviceId)) || paidOrderId || ''),
+        text: 'Order ' + (paidOrderId || '') + ' is ready at /api/delivery/' + encodeURIComponent(String(paidOrderId || '')) + '.',
       });
     }
   } catch (e) { console.warn('[BTC/Paid] delivery file failed:', e && e.message); }
@@ -10036,6 +10058,8 @@ app.post('/api/order', async (req, res) => {
       userId: email || String(order.id || ''),
       email,
       productName: serviceId,
+      subject: 'ZeusAI order ' + (order.id || ''),
+      text: 'Order ' + (order.id || '') + ' for ' + (serviceId || 'service') + ' was created.',
     });
     const invoice = out.invoice || {};
     let qrCode = null;

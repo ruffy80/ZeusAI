@@ -18,16 +18,19 @@ async function send(signedNotification) {
   const to = payload.email;
   if (!to) return false;
   const mailer = require('../../../backend/email');
+  const text = payload.text || [
+    'type: ' + (payload.type || ''),
+    'order: ' + (payload.orderId || ''),
+    'signature: ' + signedNotification.signature,
+  ].join('\n');
   const result = await withTimeout(mailer.sendMail({
     to: String(to),
-    subject: 'ZeusAI ' + (payload.type || 'notification'),
-    text: [
-      'type: ' + (payload.type || ''),
-      'order: ' + (payload.orderId || ''),
-      'signature: ' + signedNotification.signature,
-    ].join('\n'),
+    subject: payload.subject || ('ZeusAI ' + (payload.type || 'notification')),
+    text,
+    html: payload.html || undefined,
+    direct: true,
   }), 10000);
-  return !!(result && result.ok === true);
+  return !!(result && (result.ok === true || result.messageId));
 }
 
 module.exports = { send };

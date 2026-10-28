@@ -10666,9 +10666,25 @@ setInterval(function(){loadOrder().then(render);},10000);
         // Notify owner: console + optional email via SMTP if configured
         console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest, quoteId: lead.quoteId || null }));
         const ownerEmail = process.env.OWNER_EMAIL || process.env.ZEUS_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
+        const leadText = `New enterprise lead\n\nName: ${name}\nEmail: ${email}\nCompany: ${company}\nPhone: ${phone}\nInterest: ${interest}\n\nMessage:\n${message}\n\nLead ID: ${lead.id}\nQuote: ${lead.quoteId || 'n/a'} (${lead.netUsd != null ? '$' + lead.netUsd : 'n/a'})\nBTC: ${lead.btcUri || 'n/a'}\nSubmitted: ${lead.createdAt}`;
+        let snmOn = false;
+        try { snmOn = require('../modules/notificationMesh/bridge').meshEnabled(); } catch (_) { snmOn = false; }
+        if (snmOn) {
+          try {
+            const tx = require('./commerce/transactional-email');
+            Promise.resolve(tx.sendRaw({
+              to: ownerEmail,
+              subject: `[ZeusAI Enterprise Lead] ${company || name} — ${interest || 'general'}`,
+              text: leadText,
+              type: 'enterprise_lead',
+              userId: ownerEmail,
+              private: true,
+            })).catch((err) => console.warn('[enterprise-contact] snm failed:', err && err.message));
+          } catch (e) { console.warn('[enterprise-contact] snm error:', e.message); }
+        }
         try {
           const smtpHost = process.env.SMTP_HOST;
-          if (smtpHost) {
+          if (!snmOn && smtpHost) {
             // best-effort: try nodemailer if available, else skip silently
             let nm = null; try { nm = require('nodemailer'); } catch (_) {}
             if (nm) {
@@ -13785,6 +13801,12 @@ if (require.main === module) {
   const BIND_HOST = process.env.BIND_HOST || '0.0.0.0';
   server.listen(PORT, BIND_HOST, () => {
     console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, source-of-truth=false)');
+    try {
+      const snm = require('../modules/notificationMesh');
+      if (snm && typeof snm.boot === 'function') snm.boot();
+    } catch (err) {
+      console.warn('[SNM] site boot skipped', err && err.message);
+    }
     if (BIND_HOST === '0.0.0.0') {
       console.log('[topology] site bound to 0.0.0.0 — port ' + PORT + ' reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
     }

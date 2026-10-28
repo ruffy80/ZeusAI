@@ -287,7 +287,7 @@ function _persistOutbox(entry) {
   }
 }
 
-async function sendMail({ to, subject, html, text }) {
+async function sendDirect({ to, subject, html, text }) {
   const startedAt = Date.now();
 
   // 1. Prefer HTTPS transactional providers (Resend/Brevo/Sendinblue/MailerSend).
@@ -298,7 +298,7 @@ async function sendMail({ to, subject, html, text }) {
   if (httpsIsConfigured()) {
     const m = _httpsMailer();
     try {
-      const r = await m.sendRaw({ to, subject, text, html });
+      const r = await m.sendRaw({ to, subject, text, html, direct: true });
       if (r && r.ok) {
         console.log(`[email] sent via ${r.provider} to=${to} messageId=${r.messageId || 'n/a'} latencyMs=${Date.now() - startedAt}`);
         return { ok: true, provider: r.provider, messageId: r.messageId || null, latencyMs: Date.now() - startedAt };
@@ -346,6 +346,33 @@ async function sendMail({ to, subject, html, text }) {
   return { ok: false, queued: true, persisted: queued, outbox: OUTBOX_FILE, reason: 'email_unconfigured' };
 }
 
+async function sendMail(opts) {
+  const fields = opts || {};
+  if (fields.direct !== true) {
+    try {
+      const bridge = require('../modules/notificationMesh/bridge');
+      const via = await bridge.deliverMail({
+        to: fields.to,
+        subject: fields.subject,
+        text: fields.text,
+        html: fields.html,
+        type: fields.type,
+        userId: fields.userId,
+        orderId: fields.orderId,
+        private: fields.private === true,
+      });
+      if (via) return via;
+    } catch (err) {
+      console.warn('[email] snm unavailable:', err && err.message);
+    }
+  }
+  return sendDirect(fields);
+}
+
+async function sendEmail(opts) {
+  return sendMail(opts);
+}
+
 /**
  * Replay queued outbox messages once a transport is configured.
  * Marks successfully sent lines by rewriting the JSONL without them.
@@ -368,7 +395,7 @@ async function replayOutbox({ limit = 25 } = {}) {
     try { entry = JSON.parse(lines[i]); } catch (_) { continue; }
     if (replayed >= limit) { keep.push(lines[i]); continue; }
     try {
-      const r = await sendMail({
+      const r = await sendDirect({
         to: entry.to,
         subject: entry.subject,
         html: entry.html,
@@ -415,6 +442,9 @@ async function sendVerificationEmail(user, token) {
   const link = `${appUrl}/verify-email?token=${token}`;
   return sendMail({
     to: user.email,
+    type: 'verify_email',
+    userId: user.email,
+    private: true,
     subject: 'Confirmă adresa de email – Zeus AI',
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:auto">
@@ -436,6 +466,9 @@ async function sendPasswordResetEmail(user, token) {
   const link = `${appUrl}/reset-password?token=${token}`;
   return sendMail({
     to: user.email,
+    type: 'password_reset',
+    userId: user.email,
+    private: true,
     subject: 'Resetare parolă – Zeus AI',
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:auto">
@@ -456,6 +489,9 @@ async function sendWelcomeEmail(user) {
   const { appUrl } = getSmtpConfig();
   return sendMail({
     to: user.email,
+    type: 'welcome',
+    userId: user.email,
+    private: true,
     subject: 'Contul tău Zeus AI este activ 🎉',
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:auto">
@@ -485,6 +521,8 @@ async function sendPaymentConfirmation(user, payment) {
     : `<p>Plata ta de <b>$${Number(payment.amount || 0).toFixed(2)}</b> (${payment.method || ''}) a fost confirmată.</p>`;
   return sendMail({
     to: user.email,
+    type: 'payment_confirmed',
+    userId: user.email,
     subject,
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:auto">
@@ -504,6 +542,8 @@ async function sendPaymentConfirmation(user, payment) {
 module.exports = {
   isConfigured,
   sendMail,
+  sendDirect,
+  sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,

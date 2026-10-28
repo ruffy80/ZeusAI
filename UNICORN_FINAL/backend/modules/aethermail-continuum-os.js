@@ -313,12 +313,17 @@ async function synthesizeReply(mail, classification, dial) {
 
 // ── Outbound (honest) ───────────────────────────────────────────────────────
 
+function _snmOn() {
+  try { return require('../../modules/notificationMesh').enabled() === true; }
+  catch (_) { return false; }
+}
+
 async function sendReply(to, subject, text, meta) {
   _rollDay();
   if (state.repliesToday >= MAX_REPLY_DAY) {
     return { ok: false, reason: 'daily_cap' };
   }
-  if (!smtpArmed()) {
+  if (!smtpArmed() && !_snmOn()) {
     _append(QUEUE_FILE, {
       ts: new Date().toISOString(),
       to, subject, text,
@@ -334,7 +339,15 @@ async function sendReply(to, subject, text, meta) {
   let result = { ok: false, reason: 'no_transport' };
   try {
     if (_mailer && typeof _mailer.sendRaw === 'function') {
-      result = await _mailer.sendRaw({ to, subject, text, html: `<pre style="font-family:inherit;white-space:pre-wrap">${escapeHtml(text)}</pre>` });
+      result = await _mailer.sendRaw({
+        to,
+        subject,
+        text,
+        html: `<pre style="font-family:inherit;white-space:pre-wrap">${escapeHtml(text)}</pre>`,
+        type: 'aethermail_reply',
+        userId: to,
+        private: true,
+      });
     } else if (_mailer && typeof _mailer.sendTransactional === 'function') {
       // Fallback: abuse welcome template shape is wrong — use sendRaw only
       result = { ok: false, reason: 'sendRaw_missing' };
@@ -343,8 +356,8 @@ async function sendReply(to, subject, text, meta) {
     result = { ok: false, reason: e && e.message };
   }
 
-  // Direct nodemailer fallback
-  if (!result.ok) {
+  // Direct nodemailer fallback. Skipped when SNM already tried SMTP last.
+  if (!result.ok && !_snmOn()) {
     try {
       let nodemailer;
       try { nodemailer = require('nodemailer'); } catch (_) { nodemailer = null; }
@@ -370,6 +383,18 @@ async function sendReply(to, subject, text, meta) {
     } catch (e) {
       result = { ok: false, reason: e && e.message };
     }
+  }
+
+  if (!result.ok && !smtpArmed()) {
+    _append(QUEUE_FILE, {
+      ts: new Date().toISOString(),
+      to, subject, text,
+      meta: meta || {},
+      status: 'queued_unarmed',
+    });
+    state.queued += 1;
+    _save();
+    return { ok: false, reason: 'smtp_unarmed_queued', queued: true, mesh: result.reason || null };
   }
 
   if (result && result.ok) {
