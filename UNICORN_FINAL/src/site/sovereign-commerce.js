@@ -1776,6 +1776,7 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
         var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
+        var file=document.getElementById('deliveryFile');if(file){file.href='/api/delivery/'+encodeURIComponent(ORDER_ID)+'?format=artifact&access_token='+encodeURIComponent(TOK);}
         var pack=document.getElementById('packStatus');
         if(pack){
           pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
