@@ -1722,7 +1722,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button>
-  <button type="button" class="cta" data-live-inspect="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" data-live-title="Download the file" style="background:#3ddc84;color:#04140c">Download the file</button></p>
+  <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a></p>
   <p class="note" style="margin-top:8px">The file is this link. No email is required. Reload this page after Bitcoin confirms if the block above is still hidden.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
@@ -1776,6 +1776,7 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
         var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
+        var file=document.getElementById('deliveryFile');if(file){file.href='/api/delivery/'+encodeURIComponent(ORDER_ID)+'?format=artifact&access_token='+encodeURIComponent(TOK);}
         var pack=document.getElementById('packStatus');
         if(pack){
           pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
