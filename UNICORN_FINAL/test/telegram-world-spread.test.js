@@ -50,6 +50,16 @@ check('an empty shelf does not invent a price', () => {
   assert.ok(!/\$\d/.test(cards[0].input_message_content.message_text));
 });
 
+check('the public shell carries Telegram on the header, footer, and banner', () => {
+  const shell = require('fs').readFileSync(require('path').join(__dirname, '../src/site/v2/shell.js'), 'utf8');
+  assert.ok(shell.includes('data-telegram="header"'));
+  assert.ok(shell.includes('data-telegram="footer"'));
+  assert.ok(shell.includes('data-telegram="banner"'));
+  assert.ok(shell.includes('data-telegram="popup"'));
+  assert.ok(shell.includes('telegram_click'));
+  assert.ok(shell.includes('30000'));
+});
+
 check('a quiet channel still gets an invite post', () => {
   const decision = spread.nextGrowthPost({
     silenced: false,
@@ -62,6 +72,17 @@ check('a quiet channel still gets an invite post', () => {
   assert.equal(decision.reason, 'grow');
   const capped = spread.nextGrowthPost({ silenced: false, postsToday: 6, maxPosts: 6, sinceLastMs: null, gapMs: 1 });
   assert.equal(capped.reason, 'daily_cap');
+});
+
+check('a new article is chosen once', () => {
+  const first = spread.nextArticle([
+    { slug: 'autonomous-ai-commerce', title: 'What autonomous AI commerce means' },
+    { slug: 'ai-resume-service-bitcoin', title: 'An AI resume service' },
+  ], ['autonomous-ai-commerce']);
+  assert.equal(first.slug, 'ai-resume-service-bitcoin');
+  const text = spread.articleMessage(first);
+  assert.ok(text.includes('/insights/ai-resume-service-bitcoin'));
+  assert.equal(spread.nextArticle([{ slug: 'autonomous-ai-commerce', title: 'x' }], ['autonomous-ai-commerce']), null);
 });
 
 console.log(passed + ' passed');

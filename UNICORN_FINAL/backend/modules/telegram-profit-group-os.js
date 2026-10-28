@@ -512,6 +512,44 @@ async function postLiveShelf(force) {
   return { ok: !!(r && r.ok), template: 'live_shelf', result: r, cta };
 }
 
+function _postedArticles() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'posted-articles.json'), 'utf8'));
+    return Array.isArray(raw) ? raw : [];
+  } catch (_) { return []; }
+}
+
+async function postNextArticle(force) {
+  _rollDay();
+  if (!force) {
+    if (state.silenced) return { ok: false, reason: 'silenced' };
+    if (state.postsToday >= MAX_VALUE_POSTS_DAY) return { ok: false, reason: 'daily_cap' };
+    if (state.lastValueAt && Date.now() - state.lastValueAt < VALUE_GAP_MS) return { ok: false, reason: 'cadence_wait' };
+  }
+  let articles = [];
+  try { articles = require('../../src/site/v2/discover-trust-os').ARTICLES || []; } catch (_) { articles = []; }
+  const spread = require('./telegram-world-spread');
+  const article = spread.nextArticle(articles, _postedArticles());
+  if (!article) return { ok: false, reason: 'no_new_article' };
+  const url = spread.articleUrl(article);
+  const r = await sendGroup(spread.articleMessage(article), {
+    kind: 'article',
+    buttons: [[{ text: 'Read on zeusai.pro', url }]],
+  });
+  if (r && r.ok) {
+    const posted = _postedArticles();
+    posted.push(article.slug);
+    try { fs.writeFileSync(path.join(DATA_DIR, 'posted-articles.json'), JSON.stringify(posted)); } catch (_) { /* ledger best-effort */ }
+    state.postsToday += 1;
+    state.lastValueAt = Date.now();
+    state.lastArticleDay = _dayKey();
+    state.lastPost = { id: 'article:' + article.slug, at: new Date().toISOString(), cta: url };
+    _saveState();
+    _append(LEDGER, { ts: new Date().toISOString(), type: 'article', slug: article.slug });
+  }
+  return { ok: !!(r && r.ok), slug: article.slug, result: r };
+}
+
 /**
  * Money-surface offers (BALOS/AMOS). Honors explicit text — unlike postValue(force).
  */
@@ -807,6 +845,10 @@ async function tick() {
     })
     : { action: 'live_shelf', reason: 'grow' };
   if (decision.action === 'live_shelf') {
+    if (state.lastArticleDay !== _dayKey()) {
+      const article = await postNextArticle(true);
+      if (article && article.ok) return article;
+    }
     const posted = await postLiveShelf(false);
     if (posted && (posted.ok || posted.reason === 'daily_cap' || posted.reason === 'cadence_wait' || posted.reason === 'silenced')) {
       return posted;
@@ -978,6 +1020,7 @@ module.exports = {
   tick,
   postValue,
   postLiveShelf,
+  postNextArticle,
   postMoneyOffers,
   welcomeMember,
   handleUpdate,

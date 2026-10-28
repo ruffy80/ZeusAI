@@ -143,6 +143,25 @@ async function measureMembers(tg, chatId) {
   return { ok: true, members };
 }
 
+function articleUrl(article) {
+  return SITE + '/insights/' + encodeURIComponent(article.slug);
+}
+
+function articleMessage(article) {
+  return [
+    article.title,
+    '',
+    article.description || '',
+    '',
+    articleUrl(article),
+  ].join('\n');
+}
+
+function nextArticle(articles, posted) {
+  const done = new Set(Array.isArray(posted) ? posted : []);
+  return (articles || []).find((article) => article && article.slug && article.title && !done.has(article.slug)) || null;
+}
+
 function nextGrowthPost(input) {
   const o = input || {};
   if (o.silenced) return { action: 'wait', reason: 'silenced' };
@@ -170,6 +189,9 @@ module.exports = {
   answerInline,
   liveOffers,
   measureMembers,
+  nextArticle,
+  articleMessage,
+  articleUrl,
   nextGrowthPost,
   _resetCache,
 };
