@@ -5914,6 +5914,11 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(witness.status()));
   }
 
+  if (urlPath === '/witness' || urlPath === '/witness.json' || urlPath.startsWith('/witness/') || urlPath.startsWith('/offer/') || urlPath.startsWith('/deliveries/')) {
+    const handled = require('../modules/witness/routes').handleSite(req, res, urlPath);
+    if (handled) return;
+  }
+
   if ((urlPath === '/witness' || urlPath.startsWith('/witness/')) && req.method === 'GET') {
     const witness = require('../backend/modules/sale-search-witness');
     const page = witness.render(urlPath);
