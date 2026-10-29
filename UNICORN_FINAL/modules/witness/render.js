@@ -26,6 +26,13 @@ function page(title, body) {
 
 function contractArticle(contract) {
   const payload = contract.payload || {};
+  if (payload.type === 'business_score') {
+    return '<article><h2>' + esc(payload.domain) + '</h2>'
+      + '<p>Business score: ' + esc(payload.score_total) + '/100. Signed at: ' + esc(contract.signed_at) + '.</p>'
+      + '<p>This row is a score contract, not a Search Console query.</p>'
+      + '<p>Signature: <code>' + esc(short(contract.signature)) + '</code> <a href="/witness/' + esc(contract.id) + '.json">JSON</a></p>'
+      + '</article>';
+  }
   const offer = payload.offer_id
     ? '<a href="/offer/' + esc(payload.offer_id) + '">' + esc(payload.offer_id) + '</a>'
     : 'none';

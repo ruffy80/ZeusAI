@@ -357,8 +357,40 @@ function publicLedger(limit) {
   return {
     genesis: _publicOrigin(_state.genesis),
     origins: _state.origins.slice(-cap).map(_publicOrigin),
+    deliveries: (_state.publicDeliveries || []).slice(-cap).map((row) => ({
+      id: row.id,
+      offerId: row.offerId,
+      priceBtc: row.priceBtc,
+      priceUsd: row.priceUsd,
+      deliveryFileHash: row.deliveryFileHash,
+      url: row.url,
+      at: row.at,
+      founding: row.founding === true,
+    })),
     paidHumans: paidHumans(),
   };
+}
+
+function recordPublicDelivery(entry) {
+  _hydrate();
+  ensureGenesis();
+  if (!_state.publicDeliveries) _state.publicDeliveries = [];
+  const id = String(entry && entry.id || '');
+  if (!id) return { ok: false, reason: 'missing_id', inventsHumans: false };
+  const existing = _state.publicDeliveries.find((row) => row.id === id);
+  if (existing) return { ok: true, idempotent: true, id, inventsHumans: false, paidHumans: paidHumans() };
+  _state.publicDeliveries.push({
+    id,
+    offerId: entry.offerId || null,
+    priceBtc: entry.priceBtc != null ? entry.priceBtc : null,
+    priceUsd: entry.priceUsd != null ? entry.priceUsd : null,
+    deliveryFileHash: entry.deliveryFileHash || null,
+    url: entry.url || null,
+    at: entry.at || new Date().toISOString(),
+    founding: entry.founding === true,
+  });
+  _save();
+  return { ok: true, id, inventsHumans: false, paidHumans: paidHumans() };
 }
 
 function discoveryUrls() {
@@ -522,6 +554,7 @@ function _resetForTests() {
   _state.origins = [];
   _state.invites = [];
   _state.orderIndex = Object.create(null);
+  _state.publicDeliveries = [];
   _state.lastPulse = null;
   _state.startedAt = null;
 }
@@ -537,6 +570,7 @@ module.exports = {
   ensureGenesis,
   verifyChain,
   recordPaidHuman,
+  recordPublicDelivery,
   mintInvite,
   redeemInvite,
   getPassport,
