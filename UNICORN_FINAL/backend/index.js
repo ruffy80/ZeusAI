@@ -6950,15 +6950,7 @@ function _handleUnicornEvents(req, res) {
 app.get('/api/unicorn/events', _handleUnicornEvents);
 app.get('/api/events', _handleUnicornEvents);
 
-app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
-});
-
-// Additive public alias — matches the canonical smoke-test contract (GET /api/services).
-// Returns the same payload shape as /api/services/list to keep backward compatibility.
-// NOTE: in the production stack this route is intercepted at the nginx layer and
-// routed to unicorn_site (port 3001) which serves the full master catalog.
-app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => {
+function _sendPricedUnicornServices(res) {
   try {
     const services = require('./modules/commercial-layer').priceServices(_unicornServices);
     res.set('Cache-Control', 'public, max-age=60');
@@ -6973,7 +6965,15 @@ app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => {
   } catch (error) {
     res.status(500).json({ ok: false, error: String(error && error.message || 'services_unavailable'), services: [] });
   }
-});
+}
+
+app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => _sendPricedUnicornServices(res));
+
+// Additive public alias — matches the canonical smoke-test contract (GET /api/services).
+// Same builder as /api/services/list, including the website-audit alias.
+// NOTE: in the production stack this route is intercepted at the nginx layer and
+// routed to unicorn_site (port 3001) which serves the full master catalog.
+app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => _sendPricedUnicornServices(res));
 
 app.get('/api/services/:id', (req, res) => {
   const id = String(req.params.id || '');
