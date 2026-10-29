@@ -74,14 +74,18 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-async function getPrice(productId, context = {}) {
+function getPriceSync(productId, context = {}) {
   const ids = resolveProductId(productId);
   const cost = Number(BASE_COST_USD[ids.requested] || BASE_COST_USD[ids.serviceId] || 0);
   const minUsd = cost > 0 ? round2(cost * PROFIT_MARGIN) : 0;
 
   let usd = 0;
   let source = 'fallback';
-  if (dynamicPricing && typeof dynamicPricing.getPrice === 'function') {
+  const quoted = Number(context.quotedUsd);
+  if (Number.isFinite(quoted) && quoted > 0) {
+    usd = round2(quoted);
+    source = 'priceNegotiator';
+  } else if (dynamicPricing && typeof dynamicPricing.getPrice === 'function') {
     const opts = {
       userId: context.userId || null,
       coupon: context.coupon || null,
@@ -107,7 +111,7 @@ async function getPrice(productId, context = {}) {
   if (rate > 0) {
     btc = (usd / rate).toFixed(8);
   } else {
-    const fallbackBase = Number(BASE_BTC_HINT[ids.requested] || 0);
+    const fallbackBase = Number(BASE_BTC_HINT[ids.requested] || BASE_BTC_HINT[ids.serviceId] || 0);
     const fallback = fallbackBase > 0 ? (fallbackBase * PROFIT_MARGIN) : 0.00050;
     btc = fallback.toFixed(8);
     source += '-btc-fallback';
@@ -120,7 +124,12 @@ async function getPrice(productId, context = {}) {
     btc,
     profitMargin: PROFIT_MARGIN,
     source,
+    btcRate: rate > 0 ? rate : null,
   };
 }
 
-module.exports = { getPrice, PROFIT_MARGIN, resolveProductId };
+function getPrice(productId, context = {}) {
+  return Promise.resolve(getPriceSync(productId, context));
+}
+
+module.exports = { getPrice, getPriceSync, PROFIT_MARGIN, resolveProductId };

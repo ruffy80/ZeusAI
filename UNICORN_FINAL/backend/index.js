@@ -1741,46 +1741,30 @@ app.get('/api/products', (req, res) => proxyToSite(req, res, '/api/products'));
 app.get('/api/price/:id', async (req, res) => {
   try {
     const productId = String(req.params.id || '').trim().slice(0, 120);
-    if (!productId) return res.status(400).json({ error: 'invalid_product_id' });
-
-    let btcRate = 0;
-    try {
-      const r = await Promise.race([
-        paymentGateway.getBitcoinRate(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
-      ]);
-      if (r && Number(r.rate) > 0) btcRate = Number(r.rate);
-    } catch (_) { /* fallback below */ }
-    if (btcRate <= 0 && livePricingBroker) {
-      try {
-        const snap = livePricingBroker.getSnapshot();
-        if (snap && snap.btcRate && Number(snap.btcRate.rate) > 0) btcRate = Number(snap.btcRate.rate);
-      } catch (_) { /* keep 0 */ }
-    }
-
-    const quote = await priceNegotiator.getPrice(productId, {
+    if (!productId) return res.status(400).json({ ok: false, error: 'invalid_product_id' });
+    const quote = require('./modules/commercial-layer').quoteSync(productId, {
       userId: req.query.userId || null,
       coupon: req.query.coupon || null,
-      btcRate,
     });
-    if (!quote || !(Number(quote.usd) > 0) || !quote.btc) throw new Error('Invalid price');
-
-    res.set('Cache-Control', 'no-store');
+    if (!quote || !(Number(quote.usd) > 0) || !quote.btc) {
+      return res.status(404).json({ ok: false, error: 'price_unavailable' });
+    }
+    res.set('Cache-Control', 'public, max-age=60');
     return res.json({
+      ok: true,
       productId,
       serviceId: quote.serviceId,
       usd: Number(quote.usd),
       btc: String(quote.btc),
       profitMargin: Number(quote.profitMargin || 1.30),
       source: quote.source || 'priceNegotiator',
-      // backward compatibility
       id: productId,
       price_usd: Number(quote.usd),
       price_btc: String(quote.btc),
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Price unavailable' });
+    return res.status(500).json({ ok: false, error: String(error && error.message || 'price_unavailable') });
   }
 });
 
@@ -5850,6 +5834,13 @@ app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.status(out.ok ? 200 : 400).json(out);
 });
+try {
+  const commercialLayer = require('./modules/commercial-layer');
+  commercialLayer.mount(app);
+  commercialLayer.startTimers();
+} catch (err) {
+  console.warn('[commercial] not mounted', err && err.message);
+}
 app.get('/api/health/live', _livenessHealthHandler);
 
 // LHOS/1.0 — public measured status JSON (nginx /api/* hits this process).
@@ -6968,7 +6959,20 @@ app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
 // NOTE: in the production stack this route is intercepted at the nginx layer and
 // routed to unicorn_site (port 3001) which serves the full master catalog.
 app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
+  try {
+    const services = require('./modules/commercial-layer').priceServices(_unicornServices);
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({
+      ok: true,
+      updatedAt: new Date().toISOString(),
+      source: 'zeusai-backend',
+      sourceLegacy: 'unicorn-backend',
+      count: services.length,
+      services,
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error && error.message || 'services_unavailable'), services: [] });
+  }
 });
 
 app.get('/api/services/:id', (req, res) => {
@@ -9846,6 +9850,21 @@ function _onPaidInvoice(invoice) {
       subject: 'ZeusAI payment confirmed',
       text: 'Payment confirmed for order ' + (paidOrderId || '') + '.',
     });
+    try {
+      require('./modules/commercial-layer').onConfirmedPayment({
+        email: paidEmail,
+        offerId: invoice && (invoice.serviceId || invoice.service),
+        amountUsd: invoice && invoice.priceUsd,
+        amountBtc: invoice && invoice.amountBtc,
+        orderId: paidOrderId,
+        txid: invoice && invoice.txid,
+        mock: written && written.mock === true,
+        subscriptionId: invoice && invoice.metadata && invoice.metadata.subscriptionId,
+        refCode: invoice && invoice.metadata && invoice.metadata.refCode,
+      });
+    } catch (err) {
+      console.warn('[commercial] paid hook failed', err && err.message);
+    }
     if (written && written.ok) {
       _snmNotify({
         type: 'service_delivered',

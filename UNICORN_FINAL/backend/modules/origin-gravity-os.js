@@ -354,9 +354,14 @@ function publicLedger(limit) {
   _hydrate();
   ensureGenesis();
   const cap = Math.max(1, Math.min(100, Number(limit) || 20));
+  let publicDeliveries = [];
+  try {
+    publicDeliveries = require('./commercial-layer').listPublicDeliveries();
+  } catch (_) { publicDeliveries = []; }
   return {
     genesis: _publicOrigin(_state.genesis),
     origins: _state.origins.slice(-cap).map(_publicOrigin),
+    publicDeliveries: publicDeliveries.slice(-cap),
     paidHumans: paidHumans(),
   };
 }

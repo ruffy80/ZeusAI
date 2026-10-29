@@ -1731,19 +1731,61 @@ function _atlasFile(p) {
     <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
   </div>`;
 }
+function _commercial() {
+  try { return require('../../../backend/modules/commercial-layer'); } catch (_) { return null; }
+}
+function _quoteFor(id) {
+  const layer = _commercial();
+  if (!layer || typeof layer.quoteSync !== 'function') return null;
+  try { return layer.quoteSync(id); } catch (_) { return null; }
+}
+function _trustBadgeHtml() {
+  const layer = _commercial();
+  let label = 'Be the first — founding delivery';
+  try {
+    if (layer && typeof layer.trustLine === 'function') label = layer.trustLine().label;
+  } catch (_) { /* empty ledger stays honest */ }
+  return `<p class="trust-badge"><a href="/witness.json">Signed delivery • Verifiable</a> <span>${_esc(label)}</span></p>`;
+}
+function _serviceCardHtml(item) {
+  const id = String((item && item.id) || '');
+  const quote = _quoteFor(id);
+  const price = quote && quote.usd > 0 ? Number(quote.usd) : Number(item.priceUsd || item.priceUSD || 0);
+  const btc = quote && quote.btc ? String(quote.btc) : '';
+  const uri = (quote && quote.btcUri) || (btc ? ('bitcoin:?amount=' + btc) : '');
+  const category = _esc(item.tier || item.category || item.clock || 'service');
+  const desc = _esc(String(item.description || '').split('\n')[0]);
+  const buy = uri
+    ? `<a class="btn btn-primary" href="${_esc(uri)}">Buy with BTC</a>`
+    : '';
+  return `<article class="card service-card" data-service-id="${_esc(id)}" data-category="${category}" data-name="${_esc(item.title || id)}">
+    <span class="tag">${category}</span>
+    <h3>${_esc(item.title || id)}</h3>
+    <p>${desc}</p>
+    <p class="price-line">${price > 0 ? ('$' + price.toFixed(2)) : 'Contact'} ${btc ? ('· ' + _esc(btc) + ' BTC') : ''}</p>
+    ${_trustBadgeHtml()}
+    <p><a class="btn" href="/services/${encodeURIComponent(id)}" data-link>Details</a> ${buy}</p>
+  </article>`;
+}
 function _atlasCard(p) {
   const id = String((p && p.id) || '');
   const title = _esc(p.title || p.id || 'Service');
   const desc = _esc(p.description || '');
-  const price = Number(p.priceUsd != null ? p.priceUsd : (p.priceUSD || p.price || 0));
+  const quote = _quoteFor(id);
+  const price = quote && Number(quote.usd) > 0
+    ? Number(quote.usd)
+    : Number(p.priceUsd != null ? p.priceUsd : (p.priceUSD || p.price || 0));
   const priceTxt = price > 0 ? _atlasMoney(price) : 'Custom';
   const billing = p.billing === 'annual' ? '<small style="color:var(--ink-dim);font-weight:400">/yr</small>'
     : (p.billing === 'monthly' ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '');
   const share = Number(p.revenueShare) > 0
     ? `<span class="atlas-share">then ${Math.round(Number(p.revenueShare) * 100)}% of net</span>`
     : '';
-  const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
-  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  const btcExact = quote && quote.btc ? String(quote.btc) : '';
+  const btcTxt = btcExact ? (btcExact + ' BTC') : '';
+  const buyBtc = quote && quote.btcUri
+    ? `<a class="btn" href="${_esc(quote.btcUri)}">Buy with BTC</a>`
+    : '';
   const btcDiscountNote = price > 0
     ? '<span class="btc-discount">10% BTC discount applied · Bitcoin ' + _atlasMoney(_btcPayUsd(price)) + '</span>'
     : '';
@@ -1766,14 +1808,17 @@ function _atlasCard(p) {
   const offerBlock = schema.merchant
     ? `<div itemprop="offers" itemscope itemtype="https://schema.org/Offer" itemid="${_esc(schema.url)}#offer">${schema.offerHtml}${priceFigure}</div>`
     : priceFigure;
-  return `<article class="card atlas-card" data-tier="${_esc(p.tier || '')}" data-product-id="${_esc(id)}"${productAttrs}>
+  const category = _esc(p.tier || p.category || p.clock || 'service');
+  return `<article class="card atlas-card service-card" data-tier="${_esc(p.tier || '')}" data-category="${category}" data-name="${title}" data-product-id="${_esc(id)}"${productAttrs}>
     ${identity}
+    <span class="tag">${category}</span>
     <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
     <div class="atlas-card-top">${_tierBadge(p.tier)}<div class="atlas-price">${offerBlock}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</div></div>
     <h3${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
     <p${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
+    ${_trustBadgeHtml()}
     ${_atlasFile(p)}
-    <div class="atlas-actions">${primary}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div class="atlas-actions">${primary}${buyBtc}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _homeAtlasHtml() {
@@ -1815,13 +1860,32 @@ function _homeAtlasHtml() {
 </section>`;
 }
 
-function _auditPriceLabel() {
-  try {
-    const item = require('../../commerce/public-shelf').byId('instant-website-audit');
-    const n = Number(item && item.priceUsd);
-    if (Number.isFinite(n) && n > 0) return ' · $' + n.toFixed(2);
-  } catch (_) { /* the offer page still shows the live quote */ }
-  return '';
+function _auditBtcText() {
+  const quote = _quoteFor('website-audit');
+  return quote && quote.btc ? (quote.btc + ' BTC') : '';
+}
+function _homeFeaturedServices() {
+  const ids = [
+    'instant-website-audit',
+    'instant-logo-kit',
+    'instant-landing-page',
+    'instant-seo-content-pack',
+    'instant-pitch-deck',
+    'professional-saas-mvp',
+  ];
+  let shelf = null;
+  try { shelf = require('../../commerce/public-shelf'); } catch (_) { shelf = null; }
+  const total = shelf && typeof shelf.publicShelf === 'function' ? shelf.publicShelf().length : ids.length;
+  const cards = ids.map((id) => {
+    const item = shelf && shelf.byId ? shelf.byId(id) : null;
+    if (!item) return '';
+    return _serviceCardHtml(item);
+  }).join('');
+  return `<section id="homeFeaturedServices">
+  <div class="section-title"><div><h2>Six files you can buy now</h2></div></div>
+  <div class="grid" id="homeFeaturedGrid">${cards}</div>
+  <p><a class="btn btn-primary" href="/services" data-link>See all ${total} services →</a></p>
+</section>`;
 }
 
 function pageHome() {
@@ -2225,7 +2289,7 @@ ${_zaccBanner}
       </aside>
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditPriceLabel()}</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditBtcText() ? (' · ' + _auditBtcText()) : ''}</a>
         <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
@@ -2233,7 +2297,9 @@ ${_zaccBanner}
         <li>Demo prompt not stored</li>
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
-      <p class="cost-trust-note">This demo does not store the prompt and does not call a model provider. Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
+      <p class="cost-trust-note" id="auditLiveBtc">${_esc(_auditBtcText())}</p>
+      <p class="cost-trust-note" id="auditLiveBtcLock">Price locked for 15 minutes · ${_esc(_auditBtcText())}</p>
+      <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'This demo does not store the prompt. A configured demo key calls the named model.' : 'This demo does not store the prompt and does not call a model provider.'} Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
       <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
       ${authorityDesk.homeGuideLine()}
     </div>
@@ -2243,13 +2309,14 @@ ${_zaccBanner}
         <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
         <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
         <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
-        <p class="cost-trust-note">Simulated route. No model provider is called. The prompt is not stored.</p>
+        <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'Live demo — real model, real response. The prompt is not stored.' : 'Simulated route. No model provider is called. The prompt is not stored.'}</p>
         <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
       </form>
     </section>
   </div>
 </section>
 ${authorityDesk.homeDoorsHtml()}
+${_homeFeaturedServices()}
 <section id="unicornEcosystem">
   <div class="section-title">
     <div><h2>Powered by UNICORN Ecosystem</h2></div>
@@ -2339,6 +2406,23 @@ function pageServices() {
     <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. Enterprise figures buy the engagement pack. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
+  ${(() => {
+    const layer = _commercial();
+    let bundles = [];
+    try { bundles = layer ? layer.bundlesPayload().bundles : []; } catch (_) { bundles = []; }
+    if (!bundles.length) return '';
+    const cards = bundles.map((bundle) => `<article class="card bundle-card" data-bundle-id="${_esc(bundle.id)}">
+      <span class="tag">Save ${Number(bundle.discountPct)}%</span>
+      <h3>${_esc(bundle.name)}</h3>
+      <p>${bundle.serviceIds.map((id) => _esc(id)).join(' + ')}</p>
+      <p>$${Number(bundle.usd).toFixed(2)} · ${_esc(bundle.btc)} BTC <small>sum ${bundle.sumBtc} BTC</small></p>
+      ${_trustBadgeHtml()}
+      <p><a class="btn btn-primary" href="${_esc(bundle.btcUri || '#')}">Buy with BTC</a></p>
+    </article>`).join('');
+    return `<section id="serviceBundles"><h2>Save 15-25% with bundles</h2><div class="grid">${cards}</div></section>`;
+  })()}
+  <label for="serviceSearch">Search by name</label>
+  <input id="serviceSearch" type="search" placeholder="Search services" aria-label="Search services by name"/>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
     <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
@@ -2387,13 +2471,17 @@ function pageService(id) {
 
   const title = String(s.title || s.name || s.id);
   const desc = String(s.description || 'The file named on this page is the delivery.');
-  const price = Number(s.priceUSD != null ? s.priceUSD : (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 0))) || 0;
+  const detailQuoteEarly = _quoteFor(safeId);
+  let price = detailQuoteEarly && Number(detailQuoteEarly.usd) > 0
+    ? Number(detailQuoteEarly.usd)
+    : (Number(s.priceUSD != null ? s.priceUSD : (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 0))) || 0);
   const hasFrac = Math.abs(price - Math.round(price)) > 0.0049;
   const priceTxt = price > 0
     ? ('$' + price.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 }))
     : 'Custom';
-  const priceBtcNum = Number(s.priceBtc || 0) || _toBtc(price);
-  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  const detailQuote = detailQuoteEarly;
+  const priceBtcExact = detailQuote && detailQuote.btc ? String(detailQuote.btc) : '';
+  const btcTxt = priceBtcExact ? (priceBtcExact + ' BTC') : '';
   const liveBadge = s.livePriceSource && s.livePriceSource !== 'static-fallback'
     ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(s.livePriceSource)}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live</span>`
     : '';
@@ -2456,6 +2544,8 @@ function pageService(id) {
         ${priceTxt}${s.billing === 'monthly' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : (s.billing === 'annual' ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/yr</small>' : '')}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
+      <p data-price-lock="${_esc(safeId)}">Price locked for 15 minutes</p>
+      ${_trustBadgeHtml()}
       ${price > 0 ? _payReceiptHtml(price, { id: 'svcPayReceipt', listId: 'svcPayList', btcId: 'svcPayBitcoin' }) : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
@@ -2494,12 +2584,78 @@ function pageService(id) {
 </section>`;
 }
 
+function _subscriptionPlansHtml() {
+  const layer = _commercial();
+  let plans = [];
+  try { plans = layer ? layer.plansPayload().plans : []; } catch (_) { plans = []; }
+  const cards = plans.map((plan) => {
+    if (plan.contact) {
+      return `<article class="card service-card" data-category="subscription" data-name="${_esc(plan.name)}">
+        <span class="tag">Enterprise</span>
+        <h3>${_esc(plan.name)}</h3>
+        <p>${_esc(plan.includes)}</p>
+        ${_trustBadgeHtml()}
+        <p><a class="btn" href="/contact" data-link>Contact</a></p>
+      </article>`;
+    }
+    return `<article class="card service-card" data-category="subscription" data-name="${_esc(plan.name)}">
+      <span class="tag">Monthly</span>
+      <h3>${_esc(plan.name)}</h3>
+      <p>${_esc(plan.includes)}</p>
+      <p>$${Number(plan.usd).toFixed(2)}/month · ${_esc(plan.btc)} BTC</p>
+      ${_trustBadgeHtml()}
+      <form method="post" action="/api/subscribe">
+        <input type="hidden" name="plan" value="${_esc(plan.id)}"/>
+        <label>Email <input type="email" name="email" required placeholder="you@company.com"/></label>
+        <button class="btn btn-primary" type="submit">Subscribe with BTC</button>
+      </form>
+    </article>`;
+  }).join('');
+  return `<section id="subscriptionPlans"><h2>Monthly plans</h2><div class="grid">${cards}</div></section>`;
+}
+function pageReport() {
+  const layer = _commercial();
+  let report = null;
+  try { report = layer ? layer.latestReport() : null; } catch (err) {
+    report = { ok: false, error: String(err && err.message || err) };
+  }
+  const payload = report && report.payload ? report.payload : {};
+  const sold = Number(payload.services_sold) || 0;
+  const empty = sold === 0 ? '0 this week — be the first' : String(sold);
+  return `<section style="padding-top:140px" id="weeklyReport">
+  <h1>Weekly public report</h1>
+  <p>Week ${ _esc(payload.week || '') }. Signed with the witness key. Empty counts stay zero.</p>
+  <ul>
+    <li>Services sold: ${_esc(empty)}</li>
+    <li>BTC received: ${_esc(payload.btc_received || '0.00000000')}</li>
+    <li>Signed deliveries: ${_esc(String(payload.signed_deliveries != null ? payload.signed_deliveries : 0))}</li>
+    <li>Scores generated: ${_esc(payload.notes && payload.notes.scores_generated ? payload.notes.scores_generated : '0')}</li>
+    <li>New services: ${_esc(payload.notes && payload.notes.new_services ? payload.notes.new_services : '0')}</li>
+  </ul>
+  <p><a href="/report.json">report.json</a> · <a href="/witness.json">witness.json</a></p>
+  <pre>${_esc(JSON.stringify(report, null, 2))}</pre>
+</section>`;
+}
+function pageDeliveryPreview(id) {
+  const layer = _commercial();
+  const row = layer ? layer.publicPreview(id) : null;
+  if (!row) return '';
+  return `<section style="padding-top:140px" id="deliveryPreview">
+  <h1>${_esc(row.serviceName || 'Delivery')}</h1>
+  <p>Delivery date ${_esc(row.deliveredAt || '')}</p>
+  <p>SHA256 <code>${_esc(row.sha256 || '')}</code></p>
+  <p>${_esc(row.teaser || '')}</p>
+  <p>Signature <code>${_esc(row.signature || '')}</code></p>
+  <p>This is a real, signed delivery. Verify at <a href="/witness.json">/witness.json</a></p>
+</section>`;
+}
 function pagePricing() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
-    <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. There is no separate Starter or Growth plan. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
+    <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. Monthly plans below use the same price quote. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
+  ${_subscriptionPlansHtml()}
   <p style="margin:0 0 12px"><a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
 </section>
 ${_homeAtlasHtml()}
@@ -4801,6 +4957,11 @@ function renderRoute(route, params = {}) {
   if (route.startsWith('/from/')) {
     return pageFrom(Object.assign({}, params, { channel: route.slice('/from/'.length).split('/')[0] }));
   }
+  if (route.startsWith('/delivery/')) {
+    const deliveryId = decodeURIComponent(route.slice('/delivery/'.length).split('/')[0] || '');
+    const preview = pageDeliveryPreview(deliveryId);
+    return preview || '<section style="padding-top:140px"><h1>This delivery is private.</h1></section>';
+  }
   switch (route) {
     case '/': return pageHome();
     case '/origin': return pageOrigin(params);
@@ -4817,6 +4978,7 @@ function renderRoute(route, params = {}) {
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
+    case '/report': return pageReport();
     case '/solutions/ai-pricing': return pageSolution('pricing');
     case '/solutions/ai-checkout': return pageSolution('checkout');
     case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');

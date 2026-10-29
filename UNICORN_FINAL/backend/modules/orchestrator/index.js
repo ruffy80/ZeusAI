@@ -170,6 +170,7 @@ class UnifiedOrchestrator extends EventEmitter {
       ['processPaidOrders', 'btcInvoiceLedger.listPending (read only)'],
       ['autoRepair', 'observe zac + docker; do not restart postgres'],
       ['backupDatabase', 'existing backup timer; this facade does not dump the live db'],
+      ['commercialMonitor', 'commercial-layer.status (monitoring only)'],
     ];
     for (const [capability, migratedFrom] of rows) {
       const hash = crypto.createHash('sha256').update(capability + '|' + migratedFrom).digest('hex').slice(0, 16);
@@ -239,6 +240,12 @@ class UnifiedOrchestrator extends EventEmitter {
     return { action: 'skip', reason: 'live database backup stays on the existing timer' };
   }
 
+  async commercialMonitor() {
+    const layer = require('../commercial-layer');
+    const snap = layer.status();
+    return { ok: true, monitoring: true, repaired: false, plans: snap.plans, bundles: snap.bundles, storage: snap.storage };
+  }
+
   writeStatus() {
     try {
       ensureDir(STATE_DIR);
@@ -263,6 +270,7 @@ class UnifiedOrchestrator extends EventEmitter {
       await this.withLock('prices', () => this.safeRun('syncPrices', () => this.syncPrices()));
       await this.withLock('orders', () => this.safeRun('processPaidOrders', () => this.processPaidOrders()));
       await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
+      await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
       this.state.cycles += 1;
       this.writeStatus();
       console.log(JSON.stringify({

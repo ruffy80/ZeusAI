@@ -5863,6 +5863,22 @@ async function unicornHandler(req, res) {
     }
   }
 
+  if (
+    urlPath === '/api/plans'
+    || urlPath === '/api/bundles'
+    || urlPath === '/api/subscribe'
+    || urlPath === '/api/demo/route'
+    || urlPath === '/api/ledger/stats'
+    || urlPath === '/report.json'
+    || urlPath.startsWith('/api/price-lock/')
+    || urlPath.startsWith('/api/referral/')
+    || urlPath.startsWith('/api/subscription/')
+    || /^\/api\/bundles\/[a-z0-9-]{3,64}\/checkout$/.test(urlPath)
+  ) {
+    const handled = await require('../backend/modules/commercial-layer').handleHttp(req, res, urlPath);
+    if (handled) return;
+  }
+
   // Demo router. No provider call and the prompt is not logged or stored.
   // nginx sends this exact path to the site; the backend has the same route
   // for a direct /api/ proxy miss.
@@ -8331,10 +8347,15 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       }
       const built = await buildPublicStorefrontServices(requestUrl);
       if (!built || !Array.isArray(built.services)) throw new Error('Invalid services format');
+      try {
+        built.services = require('../backend/modules/commercial-layer').priceServices(built.services);
+      } catch (priceErr) {
+        logTransactionEvent('commercial_price_failed', { error: priceErr && priceErr.message });
+      }
       const snapshot = buildSnapshot();
       const sync = snapshot && snapshot.source ? Object.assign({}, snapshot.source) : { mode: 'local-fallback', backendConfigured: false, syncedAt: null, lastError: null };
       if (sync.lastError) sync.lastError = String(sync.lastError).replace(/[<>]/g, '').slice(0, 180);
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
       return res.end(JSON.stringify({
         ok: true,
         updatedAt: new Date().toISOString(),
@@ -9687,19 +9708,16 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   if (mPrice) {
     try {
       const id = decodeURIComponent(mPrice[1]);
-      let priceNegotiator = null;
-      try { priceNegotiator = require('../backend/modules/priceNegotiator'); } catch (_) { priceNegotiator = null; }
-      const btcRate = await getBtcUsdSpot().catch(() => 0);
-      const quote = priceNegotiator && typeof priceNegotiator.getPrice === 'function'
-        ? await priceNegotiator.getPrice(id, { userId: null, btcRate })
-        : null;
+      let quote = null;
+      try { quote = require('../backend/modules/commercial-layer').quoteSync(id); } catch (_) { quote = null; }
 
       if (quote && Number(quote.usd) > 0 && quote.btc) {
-        res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+        res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
         return res.end(JSON.stringify({
           productId: id,
           serviceId: quote.serviceId,
           usd: Number(quote.usd),
+          ok: true,
           btc: String(quote.btc),
           profitMargin: Number(quote.profitMargin || 1.30),
           source: quote.source || 'priceNegotiator',
@@ -9707,9 +9725,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
           id,
           title: id,
           priceUsd: Number(quote.usd),
-          priceBtc: Number(quote.btc),
+          priceBtc: String(quote.btc),
           currency: 'USD',
-          btcUri: buildBtcUri(BTC_WALLET, Number(quote.btc), 'ZeusAI-' + id),
+          btcUri: quote.btcUri || buildBtcUri(BTC_WALLET, quote.btc, 'ZeusAI-' + id),
           buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id),
           price_usd: Number(quote.usd),
           price_btc: String(quote.btc),
@@ -13441,12 +13459,21 @@ a{color:#8a5cff;text-decoration:none}
     // Origin Gravity — signed zero-customer genesis + founding passport
     '/origin',
     '/live-actions', '/autonomy', '/innovation-log',
+    '/report',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || v2Path.startsWith('/delivery/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
   if (isV2Route) {
+    if (v2Path.startsWith('/delivery/')) {
+      const deliveryId = decodeURIComponent(v2Path.slice('/delivery/'.length).split('/')[0] || '');
+      const preview = require('../backend/modules/commercial-layer').publicPreview(deliveryId);
+      if (!preview) {
+        res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end('<!doctype html><title>Not found</title><p>This delivery is private.</p>');
+      }
+    }
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
