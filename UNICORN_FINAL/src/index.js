@@ -5908,6 +5908,24 @@ async function unicornHandler(req, res) {
 
   // Measured commercial counts. The desk copies no price. nginx /api/ goes to
   // the backend, which registers the same path; this answers a direct site hit.
+  if (urlPath === '/api/sale-search-witness' && req.method === 'GET') {
+    const witness = require('../backend/modules/sale-search-witness');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify(witness.status()));
+  }
+
+  if ((urlPath === '/witness' || urlPath.startsWith('/witness/')) && req.method === 'GET') {
+    const witness = require('../backend/modules/sale-search-witness');
+    const page = witness.render(urlPath);
+    if (!page) {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end('<!doctype html><title>Not found</title><h1>Not found</h1>');
+    }
+    witness.recordView(page.path);
+    res.writeHead(page.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(page.html);
+  }
+
   if (urlPath === '/api/commercial/status' && req.method === 'GET') {
     const desk = require('./site/v2/commercial-desk');
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -9893,6 +9911,13 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     } catch (_) {
       xml = seo.buildUrlsetXml(base, []);
     }
+    try {
+      const witness = require('../backend/modules/sale-search-witness');
+      const extra = witness.indexablePaths().map((p) => (
+        '  <url><loc>' + seo.escapeXml(base + p) + '</loc><changefreq>weekly</changefreq><priority>0.4</priority></url>'
+      )).join('\n');
+      if (extra) xml = xml.replace('</urlset>', extra + '\n</urlset>');
+    } catch (_) { /* shelf sitemap still ships */ }
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
     return res.end(xml);
   }

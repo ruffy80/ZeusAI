@@ -72,6 +72,7 @@ function desk() {
       traffic: '/api/traffic/status',
       worldIndex: '/.well-known/world-index.json',
       share: '/.well-known/share-surface.json',
+      saleSearchWitness: '/witness',
       relay: '/.well-known/relay-graft.json',
       visible: '/.well-known/visible-social.json',
     },
