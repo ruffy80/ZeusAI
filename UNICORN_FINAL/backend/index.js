@@ -10058,6 +10058,11 @@ try {
 } catch (err) {
   console.warn('[witness] routes not mounted', err && err.message);
 }
+try {
+  require('../modules/score/routes').mount(app);
+} catch (err) {
+  console.warn('[score] routes not mounted', err && err.message);
+}
 
 app.post('/api/order', async (req, res) => {
   try {

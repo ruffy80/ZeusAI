@@ -106,6 +106,33 @@ function findDeliveryForOffer(offerId) {
   };
 }
 
+function saveSigned(payload, uniqueText, uniqueDate) {
+  const text = String(uniqueText || '').trim();
+  const date = String(uniqueDate || '').slice(0, 10);
+  if (!text || !date || !payload) return { ok: false, error: 'incomplete_signed_row' };
+  const signed = signContract(payload);
+  if (!verifyContract(signed)) return { ok: false, error: 'signature_failed' };
+  const db = openDb();
+  try {
+    const existing = db.prepare('SELECT * FROM witness_contracts WHERE query_text = ? AND gsc_date = ?').get(text, date);
+    if (existing) return { ok: true, skipped: true, contract: rowToContract(existing) };
+    const id = crypto.randomUUID();
+    db.prepare(`INSERT INTO witness_contracts (
+      id, query_text, clicks, impressions, offer_id, shelf_price_btc, shelf_price_usd,
+      delivery_file_hash, delivery_file_url, gsc_date, signed_at, signature, pubkey, contract_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      id, text, 0, 0, payload.offer_id || null, null, null, payload.delivery_file_hash || null,
+      null, date, signed.signed_at, signed.signature, signed.pubkey, JSON.stringify(payload)
+    );
+    return {
+      ok: true,
+      skipped: false,
+      contract: { id, payload, signature: signed.signature, pubkey: signed.pubkey, signed_at: signed.signed_at, url: '/witness/' + id },
+    };
+  } finally {
+    db.close();
+  }
+}
 function createWitness(queryData, offerData, deliveryFile) {
   const queryText = String(queryData && queryData.query || '').trim();
   const clicks = Number(queryData && queryData.clicks);
@@ -216,6 +243,7 @@ module.exports = {
   getOffer,
   offerForQuery,
   findDeliveryForOffer,
+  saveSigned,
   createWitness,
   getWitness,
   listWitnesses,
