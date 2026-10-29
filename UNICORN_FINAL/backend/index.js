@@ -10053,6 +10053,11 @@ try {
 } catch (err) {
   console.warn('[SNM] routes not mounted', err && err.message);
 }
+try {
+  require('../modules/witness/routes').mount(app);
+} catch (err) {
+  console.warn('[witness] routes not mounted', err && err.message);
+}
 
 app.post('/api/order', async (req, res) => {
   try {

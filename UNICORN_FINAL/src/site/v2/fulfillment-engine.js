@@ -686,7 +686,10 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       '2. Week 2: the largest image and cache headers.',
       '3. Week 3: labels and focus.',
       '4. Week 4: repeat the same checks. Do not invent a score.',
-    ].join('\n');
+    ].join('\n') + (function () {
+      try { return '\n' + require('../../../modules/witness/routes').citationBlock(serviceId || 'instant-website-audit'); }
+      catch (_) { return ''; }
+    }());
   }
   if (recipeId === 'seo-content-pack') {
     return [

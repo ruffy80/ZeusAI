@@ -60,6 +60,11 @@ function writePaidDelivery(invoice, activation) {
       : 'Written automatically when the invoice was marked paid.',
   };
   fs.writeFileSync(file, JSON.stringify(body, null, 2));
+  try {
+    if (!body.mock) require('../../modules/witness/delivery').publishFromInvoice(invoice);
+  } catch (err) {
+    console.warn('[witness] public delivery not written:', err && err.message);
+  }
   return { ok: true, file, mock: body.mock };
 }
 
