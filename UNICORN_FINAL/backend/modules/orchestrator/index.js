@@ -229,9 +229,16 @@ class UnifiedOrchestrator extends EventEmitter {
   }
 
   async autoRepair() {
+    let scoreRepair = null;
+    try {
+      scoreRepair = require('../../../modules/score').repair();
+    } catch (err) {
+      scoreRepair = { ok: false, error: err && err.message };
+    }
     return {
       action: 'observe',
       restarted: [],
+      scoreRepair,
       note: 'Repair intent only. postgres and redis are not restarted from this facade.',
     };
   }

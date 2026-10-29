@@ -46,6 +46,7 @@ const BASE_COST_USD = Object.freeze({
   'instant-landing-page': 25,
   'instant-product-naming': 8,
   'instant-email-sequence': 12,
+  'score-full-report': 22.31,
   'professional-saas-mvp': 50,
   'enterprise-decima-inkathon': 80,
 });
