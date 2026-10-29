@@ -1350,6 +1350,36 @@ document.addEventListener('click', (e) => {
   try { window.dispatchEvent(new CustomEvent('unicorn:chip-filter', { detail: { group, visible } })); } catch (_) {}
 });
 
+document.addEventListener('input', (event) => {
+  const box = event.target;
+  if (!box || box.id !== 'serviceSearch') return;
+  const query = String(box.value || '').trim().toLowerCase();
+  document.querySelectorAll('.service-card').forEach((card) => {
+    const name = String(card.getAttribute('data-name') || '').toLowerCase();
+    const category = String(card.getAttribute('data-category') || '').toLowerCase();
+    card.hidden = !!(query && name.indexOf(query) === -1 && category.indexOf(query) === -1);
+  });
+});
+
+document.querySelectorAll('[data-price-lock]').forEach((node) => {
+  const id = node.getAttribute('data-price-lock');
+  if (!id) return;
+  fetch('/api/price-lock/' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+    .then((response) => response.json())
+    .then((body) => {
+      if (!body || !body.expires_at || !body.locked_price_btc) return;
+      const paint = () => {
+        const left = Math.max(0, new Date(body.expires_at).getTime() - Date.now());
+        const minutes = Math.floor(left / 60000);
+        const seconds = Math.floor((left % 60000) / 1000);
+        node.textContent = 'Price locked for 15 minutes · ' + body.locked_price_btc + ' BTC · ' + minutes + ':' + String(seconds).padStart(2, '0');
+      };
+      paint();
+      setInterval(paint, 1000);
+    })
+    .catch(() => {});
+});
+
 // ================= AUTO-AUDIT BUTTONS WITHOUT HANDLERS (2026-05-09) =================
 // Defensive runtime guard so any future regression where a CTA loses its
 // click handler (no href, no data-link, no data-action, no inline onclick)

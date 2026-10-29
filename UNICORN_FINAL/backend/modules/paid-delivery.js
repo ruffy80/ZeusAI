@@ -59,6 +59,28 @@ function writePaidDelivery(invoice, activation) {
       ? 'MOCK drill. Not a collected payment. The live path is btcPaymentVerifier → _onPaidInvoice.'
       : 'Written automatically when the invoice was marked paid.',
   };
+  try {
+    const commercial = require('./commercial-layer');
+    const email = body.email;
+    if (!body.mock && email) {
+      const issued = commercial.onConfirmedPayment({
+        email,
+        offerId: body.serviceId,
+        amountUsd: body.priceUsd,
+        amountBtc: body.amountBtc,
+        orderId: id,
+        txid: body.txid,
+        mock: false,
+      });
+      if (issued && issued.referralCode) {
+        body.referralCode = issued.referralCode;
+        body.referralUrl = 'https://zeusai.pro/?ref=' + issued.referralCode;
+        body.consentNote = 'This file stays private. A public teaser is published only when you set consent=true on the delivery.';
+      }
+    }
+  } catch (err) {
+    body.commercialError = String(err && err.message || err);
+  }
   fs.writeFileSync(file, JSON.stringify(body, null, 2));
   try {
     if (!body.mock) require('../../modules/witness/delivery').publishFromInvoice(invoice);

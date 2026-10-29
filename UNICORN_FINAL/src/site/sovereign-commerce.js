@@ -957,10 +957,27 @@ async function createOrder(ctx, input) {
     skipBtcDiscount = true;
   }
   const btcFactor = skipBtcDiscount ? 1 : ((100 - BTC_DISCOUNT_PCT) / 100);
-  const unit      = Number((unitFull * preorderFactor * btcFactor).toFixed(2));
+  let unit      = Number((unitFull * preorderFactor * btcFactor).toFixed(2));
   const q = Math.max(1, Math.min(100, Number(qty) || 1));
-  const subtotalFiat = Number((unit * q).toFixed(2));
+  let subtotalFiat = Number((unit * q).toFixed(2));
   if (!(subtotalFiat > 0)) return { error: 'service_not_priced', status: 409 };
+  let commercialRef = null;
+  try {
+    const commercial = require('../../backend/modules/commercial-layer');
+    const locked = commercial.validLock(input && input.clientIp, serviceId);
+    if (locked && locked.locked_price_usd > 0 && amountUsdOverride == null) {
+      unitFull = Number(locked.locked_price_usd);
+      skipBtcDiscount = true;
+      unit = Number((unitFull * preorderFactor).toFixed(2));
+      subtotalFiat = Number((unit * q).toFixed(2));
+    }
+    const refCode = affiliateRef;
+    const adj = commercial.previewReferral(refCode, subtotalFiat);
+    if (adj && adj.valid) {
+      subtotalFiat = adj.discountedUsd;
+      commercialRef = adj.code;
+    }
+  } catch (_) { /* checkout keeps the shelf amount when the commercial layer is absent */ }
 
   let wallet = OWNER_BTC;
   try {
@@ -1036,6 +1053,7 @@ async function createOrder(ctx, input) {
       buyMode: buyability.mode,
       requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
       affiliateRef: affiliateRef || undefined,
+      commercialRef: commercialRef || undefined,
       dial: (function () {
         try {
           const damc = require('../commerce/dial-attributed-money-continuum');
@@ -1156,6 +1174,22 @@ function markOrderPaidFromProvider(orderId, proof) {
   persistEntitlement(entitlement);
   if (order.amount_sats) AMT_INDEX.delete(order.amount_sats);
   persistOrder(order);
+  try {
+    const buyerEmail = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
+    const issued = require('../../backend/modules/commercial-layer').onConfirmedPayment({
+      email: buyerEmail,
+      offerId: order.serviceId,
+      amountUsd: order.subtotal_fiat,
+      amountBtc: order.amount_btc,
+      orderId: order.orderId,
+      refCode: order.meta && order.meta.commercialRef,
+      mock: false,
+    });
+    if (issued && issued.referralCode) order.referralCode = issued.referralCode;
+    persistOrder(order);
+  } catch (err) {
+    console.warn('[commercial] order referral failed', err && err.message);
+  }
   _metricInc('orders_paid');
   console.log('[commerce] PAID via ' + provider, order.orderId, 'service=' + order.serviceId, 'ref=' + providerRef);
   try {
@@ -1723,6 +1757,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button>
   <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a></p>
+  <p class="note" id="referralLine" style="margin-top:8px">A referral link appears here after payment is confirmed.</p>
   <p class="note" style="margin-top:8px">The file is this link. No email is required. Reload this page after Bitcoin confirms if the block above is still hidden.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
@@ -1777,6 +1812,8 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
         var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
         var file=document.getElementById('deliveryFile');if(file){file.href='/api/delivery/'+encodeURIComponent(ORDER_ID)+'?format=artifact&access_token='+encodeURIComponent(TOK);}
+        var refLine=document.getElementById('referralLine');
+        if(refLine && j.referral_url){ refLine.textContent='Your referral link: '+j.referral_url+' — 10% off for a friend, 10% credit for you.'; }
         var pack=document.getElementById('packStatus');
         if(pack){
           pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
@@ -1999,6 +2036,7 @@ async function handle(req, res, ctx) {
       }
     }
     const body = await readBody(req);
+    if (body && typeof body === 'object') body.clientIp = _clientIp(req);
     const out = await createOrder(ctx, body);
     if (out.error) {
       return sendJson(res, out.status || 400, {
@@ -2446,6 +2484,8 @@ async function handle(req, res, ctx) {
       payment_exception: latestPaymentExceptionForOrder(order.orderId),
       tx_seen: !!(order.tx_seen || (order.txids && order.txids.length)),
       entitlement_id: order.entitlement_id || null,
+      referral_code: order.status === 'paid' ? (order.referralCode || null) : null,
+      referral_url: order.status === 'paid' && order.referralCode ? ('/?ref=' + order.referralCode) : null,
       bip21: order.bip21,
       checkout_url: order.checkout_url,
     };
