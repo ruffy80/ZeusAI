@@ -12931,6 +12931,17 @@ app.get('/api/seo/growth', (req, res) => {
   }
 });
 
+app.get('/api/sale-search-witness', (req, res) => {
+  try {
+    const witness = require('./modules/sale-search-witness');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', 'SSW/1.0');
+    return res.json(witness.status());
+  } catch (e) {
+    return res.status(503).json({ ok: false, protocol: 'SSW/1.0', inventsVisitors: false, error: e && e.message });
+  }
+});
+
 app.get('/api/seo/status', (req, res) => {
   try {
     const desk = require('./modules/seo-viral-desk').desk();
