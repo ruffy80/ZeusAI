@@ -1350,11 +1350,21 @@ document.addEventListener('click', (e) => {
   try { window.dispatchEvent(new CustomEvent('unicorn:chip-filter', { detail: { group, visible } })); } catch (_) {}
 });
 
+document.addEventListener('click', (event) => {
+  const chip = event.target && event.target.closest ? event.target.closest('[data-product-filter]') : null;
+  if (!chip) return;
+  const category = String(chip.getAttribute('data-product-filter') || 'all');
+  document.querySelectorAll('.product-card').forEach((card) => {
+    const own = String(card.getAttribute('data-category') || '');
+    card.hidden = category !== 'all' && own !== category;
+  });
+});
+
 document.addEventListener('input', (event) => {
   const box = event.target;
-  if (!box || box.id !== 'serviceSearch') return;
+  if (!box || (box.id !== 'serviceSearch' && box.id !== 'productSearch')) return;
   const query = String(box.value || '').trim().toLowerCase();
-  document.querySelectorAll('.service-card').forEach((card) => {
+  document.querySelectorAll('.service-card, .product-card').forEach((card) => {
     const name = String(card.getAttribute('data-name') || '').toLowerCase();
     const category = String(card.getAttribute('data-category') || '').toLowerCase();
     card.hidden = !!(query && name.indexOf(query) === -1 && category.indexOf(query) === -1);
