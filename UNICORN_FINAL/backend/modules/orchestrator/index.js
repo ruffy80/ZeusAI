@@ -317,6 +317,42 @@ class UnifiedOrchestrator extends EventEmitter {
   }
 }
 
+async function runSandbox(ms = 60000) {
+  const orch = new UnifiedOrchestrator();
+  const log = [];
+  let overlaps = 0;
+  let active = 0;
+  const cap = async (name) => {
+    for (;;) {
+      const result = await orch.withLock('sandbox-resource', async () => {
+        active += 1;
+        if (active > 1) overlaps += 1;
+        log.push({ name, at: Date.now() });
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active -= 1;
+        return name;
+      });
+      if (result !== null) return result;
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+  };
+  const started = Date.now();
+  let rounds = 0;
+  const budget = Math.max(200, Number(ms) || 60000);
+  while (Date.now() - started < budget) {
+    await Promise.all([cap('alpha'), cap('beta')]);
+    rounds += 1;
+  }
+  return {
+    ok: overlaps === 0 && log.some((row) => row.name === 'alpha') && log.some((row) => row.name === 'beta'),
+    overlaps,
+    rounds,
+    logCount: log.length,
+    ranMs: Date.now() - started,
+    conflicts: overlaps,
+  };
+}
+
 const orchestrator = new UnifiedOrchestrator();
 
 if (require.main === module) {
@@ -329,3 +365,5 @@ if (require.main === module) {
 }
 
 module.exports = orchestrator;
+module.exports.UnifiedOrchestrator = UnifiedOrchestrator;
+module.exports.runSandbox = runSandbox;

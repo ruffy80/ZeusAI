@@ -5838,6 +5838,7 @@ try {
   const commercialLayer = require('./modules/commercial-layer');
   commercialLayer.mount(app);
   commercialLayer.startTimers();
+  require('./modules/product-offerings').mount(app);
 } catch (err) {
   console.warn('[commercial] not mounted', err && err.message);
 }
