@@ -5874,7 +5874,25 @@ async function unicornHandler(req, res) {
     || urlPath.startsWith('/api/referral/')
     || urlPath.startsWith('/api/subscription/')
     || /^\/api\/bundles\/[a-z0-9-]{3,64}\/checkout$/.test(urlPath)
+    || urlPath === '/ledger.json'
+    || urlPath === '/api/v1/pubkey'
+    || urlPath === '/api/v1/products'
+    || urlPath === '/api/v1/tiers'
+    || urlPath === '/api-product/signup'
+    || urlPath === '/api/v1/signup'
+    || urlPath === '/api/v1/leads'
+    || urlPath === '/api/v1/witness'
+    || urlPath === '/api/v1/witness/demo'
+    || urlPath === '/api/v1/notify'
+    || urlPath === '/api/v1/notify/channels'
+    || urlPath === '/api/v1/notify/verify'
+    || urlPath === '/api/v1/orchestrator/sandbox'
+    || /^\/api\/v1\/(?:witness|verify|notify)\/[0-9a-f-]{36}$/i.test(urlPath)
   ) {
+    if (urlPath.startsWith('/api/v1/') || urlPath === '/ledger.json' || urlPath === '/api-product/signup') {
+      const productHit = await require('../backend/modules/product-offerings').handleHttp(req, res, urlPath);
+      if (productHit) return;
+    }
     const handled = await require('../backend/modules/commercial-layer').handleHttp(req, res, urlPath);
     if (handled) return;
   }
@@ -13465,11 +13483,15 @@ a{color:#8a5cff;text-decoration:none}
     '/origin',
     '/live-actions', '/autonomy', '/innovation-log',
     '/report',
+    '/products', '/api-product', '/api-product/docs', '/api-product/pricing',
+    '/orchestrator', '/orchestrator/docs', '/orchestrator/playground',
+    '/snm', '/snm/docs', '/snm/verify',
+    '/ledger',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || v2Path.startsWith('/delivery/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/') || v2Path.startsWith('/origin/') || v2Path.startsWith('/from/') || v2Path.startsWith('/insights/') || v2Path.startsWith('/guides/') || v2Path.startsWith('/blog/') || v2Path.startsWith('/delivery/') || v2Path.startsWith('/products/') || v2Path.startsWith('/api-product/') || v2Path.startsWith('/orchestrator/') || v2Path.startsWith('/snm/') || require('./site/v2/authority-desk').has(v2Path) || require('./site/v2/geo-desk').has(v2Path);
   if (isV2Route) {
     if (v2Path.startsWith('/delivery/')) {
       const deliveryId = decodeURIComponent(v2Path.slice('/delivery/'.length).split('/')[0] || '');
