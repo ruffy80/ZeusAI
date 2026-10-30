@@ -3210,6 +3210,7 @@ async function buildMasterCatalog() {
       group: tier,
       tier,
       priceUsd: Number(p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0,
+      billing: p.billing || (tier === 'instant' || tier === 'professional' ? 'one-time' : null),
       kpi: p.kpi || '',
       description: p.description || ('ZeusAI ' + (p.title || p.id)),
       segment: tier,
@@ -3230,6 +3231,7 @@ async function buildMasterCatalog() {
       title: s.title,
       group: synthetic ? (rawGroup === 'zacc' || /^zacc-/i.test(id) ? 'zacc' : rawGroup) : 'strategic',
       priceUsd: Number(s.price != null ? s.price : (s.priceUsd != null ? s.priceUsd : 0)),
+      billing: s.billing || s.interval || null,
       kpi: s.kpi || 'automation',
       description: s.description || ('Sovereign service: ' + (s.title || s.id)),
       segment: s.segment || s.category || 'strategic',
@@ -6320,20 +6322,27 @@ async function unicornHandler(req, res) {
         '<p class="sub" id="pricing-update-note" style="margin:0 0 16px">Prices can update until checkout; the final quote is re-confirmed with a timestamp before you pay. Bitcoin pays 10% under the list price. File delivery is $0.</p>' +
         '<div id="pricing-grid" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
         '<div style="margin:32px 0 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--card)"><h3 style="margin:0 0 8px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.08em">Not ready to pay?</h3><p style="margin:0 0 12px;color:var(--muted)">Take the zero-upfront route — we ship the platform, you only pay 30% of the <em>incremental</em> revenue we generate.</p><a href="/revenue-share"><button class="btn-ghost">See revenue-share offer →</button></a></div>';
+      const configuredDiscountPct = Number(process.env.COMMERCE_BTC_DISCOUNT_PCT);
+      const btcDiscountPct = Number.isFinite(configuredDiscountPct)
+        ? Math.max(0, Math.min(50, configuredDiscountPct))
+        : 10;
       const js = [
         "(function(){",
+        "var BTC_DISCOUNT_PCT=" + JSON.stringify(btcDiscountPct) + ";",
         "var STATE={services:{},prices:{},btcRate:null};",
         "function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}",
         "function fmt(n){return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2});}",
         "function fmtBtc(n){return n==null?'—':Number(n).toFixed(8)+' BTC';}",
+        "function billingLabel(value){var labels={monthly:'per month',month:'per month',annual:'per year',yearly:'per year',year:'per year','one-time':'one-time','one-time-setup':'one-time setup',project:'project fee'};return labels[String(value||'').toLowerCase()]||'';}",
         "function setStatus(state,sub){var v=document.getElementById('pricing-status-v');var s=document.getElementById('pricing-status-s');if(v){if(state==='live')v.innerHTML='<span class=\"ok\">● LIVE</span>';else if(state==='polling')v.innerHTML='<span class=\"warn\">⟳ polling</span>';else v.innerHTML='<span class=\"sub\">⏳ connecting</span>';}if(s&&sub)s.textContent=sub;}",
         "function render(){var grid=document.getElementById('pricing-grid');if(!grid)return;var items=Object.values(STATE.services).sort(function(a,b){return (a.priceUsd||0)-(b.priceUsd||0);});if(!items.length){grid.innerHTML='<div class=\"card\">Pricing engine warming up. No fake numbers ever shown — real prices appear within seconds.</div>';return;}",
-        "grid.innerHTML=items.map(function(s){var p=STATE.prices[s.id]||{};var usd=Number(p.price_usd!=null?p.price_usd:(p.finalPrice!=null?p.finalPrice:s.priceUsd))||0;var btc=p.price_btc!=null?p.price_btc:null;var surge=p.surgeActive?'<span class=\"pill\" style=\"background:#ff4444;color:#fff;border-color:#ff4444\">⚡ SURGE</span>':'';var demand=p.demandFactor&&p.demandFactor!==1?'<div class=\"sub\">Demand ×'+Number(p.demandFactor).toFixed(2)+'</div>':'';return '<div class=\"card\" style=\"padding:24px\" data-sid=\"'+esc(s.id)+'\"><h3 style=\"font-size:12px;letter-spacing:.08em\">'+esc(s.group||'service')+' '+surge+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0 8px\">'+esc(s.title||s.id)+'</div><div class=\"price\" data-price-for=\"'+esc(s.id)+'\">$'+fmt(usd)+'<span style=\"font-size:14px;color:var(--muted)\">/mo</span></div>'+(btc!=null?'<div class=\"sub\" style=\"font-family:monospace\">≈ '+fmtBtc(btc)+'</div>':'')+demand+'<p style=\"color:var(--muted);font-size:12px;margin:10px 0 14px;min-height:34px\">'+esc(s.description||'')+'</p><a href=\"/services?buy='+encodeURIComponent(s.id)+'\" style=\"text-decoration:none\"><button style=\"width:100%\">Buy now →</button></a></div>';}).join('');}",
-        "function applySnapshot(snap){if(!snap)return;if(snap.btcRate)STATE.btcRate=Number(snap.btcRate.rate||snap.btcRate);var prices=snap.prices||snap.items||{};if(Array.isArray(prices))prices.forEach(function(p){if(p&&p.serviceId)STATE.prices[p.serviceId]=p;});else Object.keys(prices).forEach(function(k){STATE.prices[k]=prices[k];});render();setStatus('live','Last update: '+new Date().toLocaleTimeString());}",
-        "async function loadCatalog(){try{var r=await fetch('/api/products',{cache:'no-store'});var d=await r.json();var arr=Array.isArray(d)?d:(d.products||d.items||[]);arr.forEach(function(x){STATE.services[x.id]={id:x.id,title:x.title||x.name||x.id,description:x.description||'',group:x.group||x.category||'AI',priceUsd:Number(x.priceUsd||x.price||0)};});render();}catch(e){}}",
+        "grid.innerHTML=items.map(function(s){var p=STATE.prices[s.id]||{};var usd=Number(p.price_usd!=null?p.price_usd:(p.finalPrice!=null?p.finalPrice:s.priceUsd))||0;var btc=STATE.btcRate>0&&usd>0?(usd*(1-BTC_DISCOUNT_PCT/100))/STATE.btcRate:null;var billing=billingLabel(s.billing);var cadence=billing?'<span style=\"font-size:14px;color:var(--muted)\"> · '+esc(billing)+'</span>':'';var btcHtml=btc!=null?'<div class=\"sub\" style=\"font-family:monospace\">≈ '+fmtBtc(btc)+' · BTC'+(BTC_DISCOUNT_PCT>0?' · save '+fmt(BTC_DISCOUNT_PCT)+'%':'')+'</div>':'';var surge=p.surgeActive?'<span class=\"pill\" style=\"background:#ff4444;color:#fff;border-color:#ff4444\">⚡ SURGE</span>':'';var demand=p.demandFactor&&p.demandFactor!==1?'<div class=\"sub\">Demand ×'+Number(p.demandFactor).toFixed(2)+'</div>':'';return '<div class=\"card\" style=\"padding:24px\" data-sid=\"'+esc(s.id)+'\"><h3 style=\"font-size:12px;letter-spacing:.08em\">'+esc(s.group||'service')+' '+surge+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0 8px\">'+esc(s.title||s.id)+'</div><div class=\"price\" data-price-for=\"'+esc(s.id)+'\">$'+fmt(usd)+cadence+'</div>'+btcHtml+demand+'<p style=\"color:var(--muted);font-size:12px;margin:10px 0 14px;min-height:34px\">'+esc(s.description||'')+'</p><a href=\"/services?buy='+encodeURIComponent(s.id)+'\" style=\"text-decoration:none\"><button style=\"width:100%\">Buy now →</button></a></div>';}).join('');}",
+        "function applySnapshot(snap){if(!snap)return;if(snap.btcRate){var rate=Number(snap.btcRate.rate||snap.btcRate.usdPerBtc||snap.btcRate);if(rate>0)STATE.btcRate=rate;}var prices=snap.prices||snap.items||{};if(Array.isArray(prices))prices.forEach(function(p){if(p&&p.serviceId)STATE.prices[p.serviceId]=p;});else Object.keys(prices).forEach(function(k){STATE.prices[k]=prices[k];});render();setStatus('live','Last update: '+new Date().toLocaleTimeString());}",
+        "async function loadCatalog(){try{var r=await fetch('/api/products',{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);var d=await r.json();var arr=Array.isArray(d)?d:(d.products||d.items||[]);arr.forEach(function(x){STATE.services[x.id]={id:x.id,title:x.title||x.name||x.id,description:x.description||'',group:x.group||x.category||'AI',billing:x.billing||'',priceUsd:Number(x.priceUsd||x.price||0)};});render();}catch(e){}}",
+        "async function loadBtcRate(){try{var r=await fetch('/api/payment/btc-rate',{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);var d=await r.json();var rate=Number(d.usdPerBtc||d.rate||0);if(rate>0){STATE.btcRate=rate;render();}}catch(e){}}",
         "async function pollAll(){try{var r=await fetch('/api/pricing/all',{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);var d=await r.json();var prices=d&&d.prices||{};Object.keys(prices).forEach(function(k){STATE.prices[k]={price_usd:prices[k].finalPrice,finalPrice:prices[k].finalPrice,surgeActive:prices[k].surgeActive,demandFactor:prices[k].demandFactor};});render();setStatus('polling','Polling · '+new Date().toLocaleTimeString());}catch(e){setStatus('connecting','Retrying…');}}",
         "function connectSSE(){if(typeof EventSource!=='function')return false;try{var es=new EventSource('/api/pricing/live/stream');es.addEventListener('pricing',function(ev){try{applySnapshot(JSON.parse(ev.data));}catch(_){}});es.onerror=function(){setStatus('connecting','Reconnecting SSE…');};es.onopen=function(){setStatus('live','SSE connected');};return true;}catch(e){return false;}}",
-        "loadCatalog();pollAll();var sse=connectSSE();if(!sse){setInterval(pollAll,5000);}else{setInterval(pollAll,15000);}setInterval(loadCatalog,60000);",
+        "loadCatalog();loadBtcRate();pollAll();var sse=connectSSE();if(!sse){setInterval(pollAll,5000);}else{setInterval(pollAll,15000);}setInterval(loadCatalog,60000);setInterval(loadBtcRate,60000);",
         "})();",
       ].join('');
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'pricing' }); } catch (_) {}
@@ -9685,6 +9694,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         title: it.title || it.name || it.id,
         description: it.description || '',
         priceUsd: Number(it.priceUsd || it.price || 0),
+        billing: it.billing || null,
         priceBtc: it.priceBtc,
         currency: it.currency || 'USD',
         btcUri: it.btcUri,
