@@ -233,19 +233,15 @@ function productPdpHtml(p, compare, related) {
 
 function jsonLdProduct(p) {
   if (!p || !p.id) return '';
-  // No Offer. Search Console treats a priced offer that lacks
-  // shippingDetails and hasMerchantReturnPolicy as an invalid merchant
-  // listing. A parcel does not inherit the digital-file policy, and this
-  // row does not carry a parcel return policy of its own. The page can
-  // still describe the good. It does not publish an in-stock offer.
+  // Not a Product. A Product snippet is invalid unless it has an offer, a
+  // review, or an aggregate rating. This row does not get an Offer: a
+  // parcel does not inherit the digital-file return policy, and a rating
+  // is not invented. A WebPage names the good without entering that report.
   const data = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'WebPage',
     name: p.title || 'Product',
     description: p.description || '',
-    image: p.image || undefined,
-    sku: p.id,
-    category: p.category || undefined,
   };
   return '<script type="application/ld+json">' +
     JSON.stringify(data).replace(/</g, '\\u003c') + '</script>';

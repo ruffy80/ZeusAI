@@ -126,12 +126,14 @@ run('SSR PDP includes Proof-of-Margin + JSON-LD', () => {
   const ld = ssr.jsonLdProduct(p);
   assert.ok(ld.includes('application/ld+json'));
   assert.ok(ld.includes('Margin Lamp'));
-  assert.ok(ld.includes('"@type":"Product"') || ld.includes('"@type": "Product"'));
+  assert.ok(ld.includes('"@type":"WebPage"'));
+  assert.ok(!ld.includes('"@type":"Product"'), 'a Product without an offer is an invalid product snippet');
   assert.ok(!ld.includes('schema.org/InStock'), 'a demo dropship product is not in stock');
   assert.ok(!ld.includes('"offers"'), 'a paused physical good does not publish an offer');
   const liveGood = Object.assign({}, p, { demoOnly: false, dispatchable: true, source: 'cj', supplier: 'cj', shippingUsd: 4 });
   const liveLd = ssr.jsonLdProduct(liveGood);
-  assert.ok(liveLd.includes('"@type":"Product"') || liveLd.includes('"@type": "Product"'));
+  assert.ok(liveLd.includes('"@type":"WebPage"'));
+  assert.ok(!liveLd.includes('"@type":"Product"'), 'a parcel without a return policy is not marked up as a Product');
   assert.ok(!liveLd.includes('schema.org/InStock'), 'a parcel without its own return policy is not an in-stock offer');
   assert.ok(!liveLd.includes('"offers"'), 'digital-file shipping is not copied onto a parcel');
 });
