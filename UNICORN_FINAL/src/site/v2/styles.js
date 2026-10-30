@@ -887,7 +887,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   #heroQuickBuy select,#heroQuickBuy input,#heroQuickBuy button{min-width:0!important;width:100%;flex:1 1 auto}
   #checkoutBuying{padding:16px!important}
   #checkoutRailCtas{flex-direction:column!important;width:100%;gap:10px!important}
-  #checkoutRailCtas .btn,#coSovereignPrimary,#coBuyPaypalTop,#coBuyNowTop{width:100%!important;min-width:0!important;flex:1 1 auto!important}
+  #checkoutRailCtas .btn,#coSovereignPrimary,#coBuyPaypalTop,#coBuyCardTop,#coBuyNowTop{width:100%!important;min-width:0!important;flex:1 1 auto!important}
   .co-method{flex-direction:column;align-items:stretch}
   .co-method .chip{width:100%;min-height:44px}
   .account-crypto-grid{grid-template-columns:1fr!important}

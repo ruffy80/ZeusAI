@@ -1659,13 +1659,8 @@ a{color:var(--acc)}
     set('arkPaypal', paypal ? 'armed · Orders API' : 'idle · needs PAYPAL_CLIENT_ID/SECRET');
     set('arkNow', nowp ? 'armed · hosted invoice' : 'idle · needs NOWPAYMENTS_API_KEY');
     set('arkEmail', email ? 'armed · recovery can email buyers' : 'idle · needs RESEND/BREVO/SMTP');
-    var alt=document.getElementById('altRailsCard');
-    if(alt) alt.style.display = (paypal || nowp) ? '' : 'none';
-    var btnPp=document.getElementById('payPaypalBtn');
-    var btnNp=document.getElementById('payNowBtn');
-    if(btnPp) btnPp.style.display = paypal ? '' : 'none';
-    if(btnNp) btnNp.style.display = nowp ? '' : 'none';
-    set('arkNote', 'Live rails: BTC'+(paypal?' · PayPal':'')+(nowp?' · NOWPayments':'')+(email?' · Email':'')+'.');
+    set('arkNote', 'Every order can be paid with Bitcoin, PayPal, card, or NOWPayments.'
+      +(paypal?' PayPal is live.':'')+(nowp?' NOWPayments is live.':'')+(email?' Email is armed.':''));
   }).catch(function(){
     set('arkPaypal','unknown'); set('arkNow','unknown'); set('arkEmail','unknown');
   });
@@ -1748,10 +1743,11 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note" id="paypalBuyerHint" style="margin:0 0 10px">PayPal tip: use a <b>buyer</b> account or guest checkout. Paying while logged into the ZeusAI merchant PayPal account is blocked by PayPal.</p>
   <p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">
     <button type="button" class="cta" id="payPaypalBtn" style="background:#0070ba;color:#fff">Pay with PayPal</button>
-    <button type="button" class="cta" id="payNowBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
+    <button type="button" class="cta" id="payCardBtn" style="background:#1f8f4e;color:#fff">Pay with card</button>
+    <button type="button" class="cta" id="payNowBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with NOWPayments</button>
     <button type="button" class="cta" id="payPackBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Build pay pack →</button>
   </p>
-  <p class="note" id="altRailsMsg">PayPal / card-crypto appear when armed. One order · pick one rail · automatic delivery.</p>
+  <p class="note" id="altRailsMsg">Bitcoin, PayPal, card, and NOWPayments stay on this order. Pick one rail.</p>
   <div id="payPackLinks" class="note" style="margin-top:8px"></div>
 </div>
 
@@ -1906,6 +1902,8 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   if(paypalFailRetry){paypalFailRetry.addEventListener('click',function(){ startPaypal(); });}
   var paypalFailNow=document.getElementById('paypalFailNow');
   if(paypalFailNow){paypalFailNow.addEventListener('click',function(){ var b=document.getElementById('payNowBtn'); if(b) b.click(); });}
+  var payCardBtn=document.getElementById('payCardBtn');
+  if(payCardBtn){payCardBtn.addEventListener('click',function(){ var b=document.getElementById('payNowBtn'); if(b) b.click(); });}
   var payNowBtn=document.getElementById('payNowBtn');
   if(payNowBtn){payNowBtn.addEventListener('click',function(){
     setAltMsg('Creating NOWPayments invoice…');

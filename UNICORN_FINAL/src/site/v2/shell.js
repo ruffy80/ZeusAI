@@ -419,6 +419,9 @@ function _catalogCard(p) {
   // with a sync fallback via _toBtc(usd) for items the broker hasn't tagged.
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  const payRails = (price > 0 && _ctaForProduct(p).mode !== 'contact')
+    ? require('../../commerce/pay-options').payOptionsHtml(p.id)
+    : '';
   // World-Profit-OS: reinforce the native-BTC advantage right next to every
   // priced card. Only shown for paid items (free/activate cards omit it).
   const btcDiscountNote = price > 0
@@ -450,6 +453,7 @@ function _catalogCard(p) {
       ? _primaryCtaHtml(p, { flex: true })
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="Activate ${title}" style="flex:1;justify-content:center">Activate free</a>`
     }<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    ${payRails}
   </article>`;
 }
 function _ssrCatalogGrid(items, opts) {
@@ -567,7 +571,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   if (route === '/how' || route === '/pricing' || route === '/faq' || route === '/trust-safety') {
     const faq = (route === '/faq' || route === '/trust-safety') ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
     : route === '/pricing' ? [
-      { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
+      { q: 'How do I pay?', a: 'Every product checkout offers Bitcoin, PayPal, card, and NOWPayments. Bitcoin is 10% under the list price. PayPal, card, and NOWPayments charge the list price. Every receipt is Ed25519-signed and stored in your account.' },
       { q: 'Is there a refund?', a: 'The refund closes once the file, license, or work is issued. An order whose file was never issued can be reported within 30 days. Settlement is an owner action, not an automatic clawback. See /refund.' },
       { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
     ] : [
@@ -1753,12 +1757,9 @@ function _serviceCardHtml(item) {
   const quote = _quoteFor(id);
   const price = quote && quote.usd > 0 ? Number(quote.usd) : Number(item.priceUsd || item.priceUSD || 0);
   const btc = quote && quote.btc ? String(quote.btc) : '';
-  const uri = (quote && quote.btcUri) || (btc ? ('bitcoin:?amount=' + btc) : '');
   const category = _esc(item.tier || item.category || item.clock || 'service');
   const desc = _esc(String(item.description || '').split('\n')[0]);
-  const buy = uri
-    ? `<a class="btn btn-primary" href="${_esc(uri)}">Buy with BTC</a>`
-    : '';
+  const buy = price > 0 ? require('../../commerce/pay-options').payOptionsHtml(id) : '';
   return `<article class="card service-card" data-service-id="${_esc(id)}" data-category="${category}" data-name="${_esc(item.title || id)}">
     <span class="tag">${category}</span>
     <h3>${_esc(item.title || id)}</h3>
@@ -1784,9 +1785,6 @@ function _atlasCard(p) {
     : '';
   const btcExact = quote && quote.btc ? String(quote.btc) : '';
   const btcTxt = btcExact ? (btcExact + ' BTC') : '';
-  const buyBtc = quote && quote.btcUri
-    ? `<a class="btn" href="${_esc(quote.btcUri)}">Buy with BTC</a>`
-    : '';
   const btcDiscountNote = price > 0
     ? '<span class="btc-discount">10% BTC discount applied · Bitcoin ' + _atlasMoney(_btcPayUsd(price)) + '</span>'
     : '';
@@ -1798,6 +1796,9 @@ function _atlasCard(p) {
     : (price > 0
       ? `<a class="btn btn-primary" href="${_esc(href)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
+  const payRails = (price > 0 && cta.mode !== 'contact')
+    ? require('../../commerce/pay-options').payOptionsHtml(id)
+    : '';
   const schema = _merchantSchema(p);
   const productAttrs = schema.merchant
     ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
@@ -1819,7 +1820,7 @@ function _atlasCard(p) {
     <p${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
     ${_trustBadgeHtml()}
     ${_atlasFile(p)}
-    <div class="atlas-actions">${primary}${buyBtc}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div class="atlas-actions">${primary}${payRails}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _homeAtlasHtml() {
@@ -2577,7 +2578,8 @@ function pageService(id) {
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
-      <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>`;
+      <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>
+      ${price > 0 && cta.mode !== 'contact' ? require('../../commerce/pay-options').payOptionsHtml(safeId) : ''}`;
       })()}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
@@ -2718,15 +2720,13 @@ function pageCheckout(params) {
     paypalLive = !!(altRails.isPaypalArmed && altRails.isPaypalArmed());
     nowLive = !!(altRails.isNowPaymentsArmed && altRails.isNowPaymentsArmed());
   } catch (_) { /* btc-only */ }
-  const humanFirst = paypalLive || nowLive;
   const defaultRail = paypalLive ? 'paypal' : (nowLive ? 'nowpayments' : 'btc');
   const btcBtn = `<button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1;background:#f7931a;border-color:#f7931a;color:#1a1004">⚡ Pay with Bitcoin</button>`;
   const ppBtn = `<button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>`;
-  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>`;
-  const railBtns = humanFirst ? (ppBtn + npBtn + btcBtn) : (btcBtn + ppBtn + npBtn);
-  const railHint = humanFirst
-    ? 'PayPal and card/crypto are live on this server. Bitcoin stays available and quotes a 10% discount. Your last choice is remembered on this device.'
-    : 'Bitcoin is ready now (10% discount when quoted). PayPal and card/crypto appear after PAYPAL_* and NOWPAYMENTS_* secrets are on the server.';
+  const cardBtn = `<button type="button" class="btn btn-primary" id="coBuyCardTop" data-checkout-rail="card" style="min-width:180px;flex:1;background:#1f8f4e;border-color:#1f8f4e">Pay with card</button>`;
+  const npBtn = `<button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with NOWPayments</button>`;
+  const railBtns = btcBtn + ppBtn + cardBtn + npBtn;
+  const railHint = 'Every product can be paid with Bitcoin, PayPal, card, or NOWPayments. Bitcoin is 10% under the list price. PayPal, card, and NOWPayments charge the list price.';
   const show = (id) => (defaultRail === id ? '' : ' style="display:none"');
   const chipOn = (id) => (defaultRail === id ? ' on' : '');
   // Buy Immortal OS: every checkout landing exposes one-click sovereign mint.
@@ -2734,7 +2734,7 @@ function pageCheckout(params) {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Checkout promise</span><h2>Pay with Bitcoin, PayPal, or card/crypto. <span class="grad">Activation is automatic.</span></h2></div>
-    <p>Every payment generates an Ed25519‑signed receipt. Pick one rail — ZeusAI watches settlement and unlocks delivery automatically. ${humanFirst ? 'PayPal and card/crypto are live. Bitcoin quotes a 10% discount.' : 'Bitcoin is ready now (10% discount when quoted).'}</p>
+    <p>Every payment generates an Ed25519‑signed receipt. Bitcoin, PayPal, card, and NOWPayments are on this checkout for this product. Bitcoin quotes a 10% discount.</p>
   </div>
   <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(34,197,94,.08));border:1px solid rgba(247,147,26,.35)">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -2752,16 +2752,17 @@ function pageCheckout(params) {
     <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">${railHint}</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
-    <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
+    <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin, PayPal, card, or NOWPayments — same order, same delivery.</p></div>
     <div class="card"><span class="tag">Step 2</span><h3>Pay securely</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">BTC QR / BIP-21, PayPal approve, or NOWPayments hosted invoice. Exact amount identifies your order.</p></div>
     <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token and deliverable unlock automatically.</p></div>
   </div>
   <div class="checkout"${contactOnly ? ' hidden' : ''}>
     <div class="co-box">
       <div class="co-method" aria-label="Payment method">
-        <button type="button" class="chip${chipOn('btc')}" data-method="btc">₿ Bitcoin</button>
+        <button type="button" class="chip${chipOn('btc')}" data-method="btc">Bitcoin</button>
         <button type="button" class="chip${chipOn('paypal')}" data-method="paypal">PayPal</button>
-        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments">Card / crypto</button>
+        <button type="button" class="chip${chipOn('card')}" data-method="card">Card</button>
+        <button type="button" class="chip${chipOn('nowpayments')}" data-method="nowpayments">NOWPayments</button>
       </div>
       <div id="coPanelBtc"${show('btc')}>
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
@@ -2792,8 +2793,15 @@ function pageCheckout(params) {
         <div class="field"><label for="coAmountNP">Amount (USD)</label><input id="coAmountNP" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
         <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="${ssrPlan}"/></div>
         <div class="field"><label for="coEmailNP">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailNP" type="email" placeholder="you@company.com"/></div>
-        <button class="btn btn-primary" id="coPayNP" style="width:100%;justify-content:center;margin-bottom:8px">Pay with card / crypto →</button>
-        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice — card or any supported crypto (settles to owner BTC).</p>
+        <button class="btn btn-primary" id="coPayNP" style="width:100%;justify-content:center;margin-bottom:8px">Pay with NOWPayments →</button>
+        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice — crypto, and card when the hosted page offers it. Settles to the owner wallet.</p>
+      </div>
+      <div id="coPanelCard"${show('card')}>
+        <div class="field"><label for="coAmountCard">Amount (USD)</label><input id="coAmountCard" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
+        <div class="field"><label for="coPlanCard">Plan / product</label><input id="coPlanCard" value="${ssrPlan}"/></div>
+        <div class="field"><label for="coEmailCard">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailCard" type="email" placeholder="you@company.com"/></div>
+        <button class="btn btn-primary" id="coPayCard" style="width:100%;justify-content:center;margin-bottom:8px">Pay with card →</button>
+        <p id="cardRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">Card checkout opens Stripe when that key is on the server. Otherwise it opens the hosted card invoice.</p>
       </div>
     </div>
     <aside class="co-box">

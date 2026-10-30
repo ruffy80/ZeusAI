@@ -104,7 +104,8 @@ function pageProduct(id) {
     + '<p>Amount ' + esc(item.btc) + ' BTC</p>'
     + '<p>Address <code>' + esc(address) + '</code></p>'
     + (qr ? '<img alt="Bitcoin QR" width="180" height="180" src="' + esc(qr) + '"/>' : '')
-    + '<p><a class="btn btn-primary" href="' + esc(item.btcUri || '/checkout/?plan=' + encodeURIComponent(item.id)) + '">Buy with BTC</a></p>'
+    + '<p><a class="btn btn-primary" href="' + esc(require('../../commerce/pay-options').checkoutHref(item.id, 'btc')) + '">Buy with BTC</a></p>'
+    + require('../../commerce/pay-options').payOptionsHtml(item.id)
     + '<h2>Related services</h2><p>' + (relatedHtml || 'No other offer shares this category yet.') + '</p>'
     + '</section>';
 }

@@ -369,31 +369,13 @@ async function hydratePaymentRails(){
     + (paypalActive ? ' · PayPal armed' : ' · PayPal idle')
     + (nowActive ? ' · NOWPayments armed' : ' · NOWPayments idle')
     + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
-  const paypalPanel = document.getElementById('coPanelPaypal');
-  const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
-  if (paypalChip) paypalChip.style.display = paypalActive ? '' : 'none';
-  if (paypalPanel && paypalPanel.style.display !== 'none' && !paypalActive) paypalPanel.style.display = 'none';
-  const nowPanel = document.getElementById('coPanelNow');
-  const nowChip = document.querySelector('.co-method .chip[data-method="nowpayments"]');
-  if (nowChip) nowChip.style.display = nowActive ? '' : 'none';
-  if (nowPanel && nowPanel.style.display !== 'none' && !nowActive) nowPanel.style.display = 'none';
-  const topPp = document.getElementById('coBuyPaypalTop');
-  const topNp = document.getElementById('coBuyNowTop');
-  if (topPp) topPp.style.display = paypalActive ? '' : 'none';
-  if (topNp) topNp.style.display = nowActive ? '' : 'none';
   const hint = document.getElementById('checkoutRailHint');
   if (hint) {
-    hint.textContent = paypalActive || nowActive
-      ? ('Live rails: BTC'
-        + (paypalActive ? ' · PayPal' : '')
-        + (nowActive ? ' · card/crypto (NOWPayments)' : '')
-        + '. Pick any button above.')
-      : 'Bitcoin is live. Card and PayPal show on this checkout when they are configured.';
+    hint.textContent = 'Every product can be paid with Bitcoin, PayPal, card, or NOWPayments.'
+      + (paypalActive ? ' PayPal is live.' : '')
+      + (nowActive ? ' NOWPayments is live.' : '')
+      + (cardArmed ? ' Stripe card is live.' : ' Card opens the hosted card invoice.');
   }
-  const cardChip = document.querySelector('.co-method .chip[data-method="card"], .co-method .chip[data-method="stripe"]');
-  const cardPanel = document.getElementById('coPanelCard') || document.getElementById('coPanelStripe');
-  if (cardChip && !cardArmed) cardChip.style.display = 'none';
-  if (cardPanel && !cardArmed) cardPanel.style.display = 'none';
 }
 
 function clearStaleLoadingPlaceholders(){
@@ -4011,6 +3993,7 @@ function hydrateCheckout(){
     });
     if ($('#coPanelBtc')) $('#coPanelBtc').style.display = m === 'btc' ? '' : 'none';
     if ($('#coPanelPaypal')) $('#coPanelPaypal').style.display = m === 'paypal' ? '' : 'none';
+    if ($('#coPanelCard')) $('#coPanelCard').style.display = m === 'card' ? '' : 'none';
     if ($('#coPanelNow')) $('#coPanelNow').style.display = m === 'nowpayments' ? '' : 'none';
     try { if (m) localStorage.setItem('u_preferred_rail', String(m)); } catch (_) {}
   }
@@ -4019,11 +4002,11 @@ function hydrateCheckout(){
   }));
   try {
     const railQ = String(q.get('rail') || '').toLowerCase();
-    const railAlias = (railQ === 'card' || railQ === 'now') ? 'nowpayments' : (railQ === 'bitcoin' ? 'btc' : railQ);
-    const pref = (railAlias === 'paypal' || railAlias === 'nowpayments' || railAlias === 'btc')
+    const railAlias = railQ === 'now' ? 'nowpayments' : (railQ === 'bitcoin' ? 'btc' : railQ);
+    const pref = (railAlias === 'paypal' || railAlias === 'nowpayments' || railAlias === 'btc' || railAlias === 'card')
       ? railAlias
       : String(localStorage.getItem('u_preferred_rail') || '').toLowerCase();
-    if (pref === 'paypal' || pref === 'nowpayments' || pref === 'btc') {
+    if (pref === 'paypal' || pref === 'nowpayments' || pref === 'btc' || pref === 'card') {
       const chip = document.querySelector('.co-method .chip[data-method="' + pref + '"]');
       if (chip && chip.offsetParent !== null) selectCheckoutRail(pref);
     }
@@ -4041,6 +4024,7 @@ function hydrateCheckout(){
     const email = String(
       (($('#coEmail') || {}).value)
       || (($('#coEmailPP') || {}).value)
+      || (($('#coEmailCard') || {}).value)
       || (($('#coEmailNP') || {}).value)
       || ''
     ).trim();
@@ -4115,7 +4099,7 @@ function hydrateCheckout(){
         return;
       }
     }
-    const topId = rail === 'paypal' ? 'coBuyPaypalTop' : (rail === 'nowpayments' ? 'coBuyNowTop' : busyBtnId);
+    const topId = rail === 'paypal' ? 'coBuyPaypalTop' : (rail === 'card' ? 'coBuyCardTop' : (rail === 'nowpayments' ? 'coBuyNowTop' : busyBtnId));
     const ids = [busyBtnId, topId].filter(Boolean);
     ids.forEach((id) => setBusy(id, true, rail === 'paypal' ? 'Opening PayPal…' : 'Opening invoice…'));
     try {
@@ -4154,13 +4138,13 @@ function hydrateCheckout(){
         const fo = pp && pp.failover;
         toast((fo && fo.message) || (pp && (pp.detail || pp.error)) || 'PayPal unavailable — opening Bitcoin invoice', 'err');
         selectCheckoutRail('btc');
-      } else if (rail === 'nowpayments') {
+      } else if (rail === 'nowpayments' || rail === 'card') {
         const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
           method: 'POST',
           body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
         });
         if (np && np.invoiceUrl) {
-          try { localStorage.setItem('u_preferred_rail', 'nowpayments'); } catch (_) {}
+          try { localStorage.setItem('u_preferred_rail', rail); } catch (_) {}
           window.location.href = np.invoiceUrl;
           return;
         }
@@ -4208,6 +4192,10 @@ function hydrateCheckout(){
   document.getElementById('coBuyNowTop')?.addEventListener('click', () => {
     selectCheckoutRail('nowpayments');
     startCatalogRail('nowpayments', 'coPayNP');
+  });
+  document.getElementById('coBuyCardTop')?.addEventListener('click', () => {
+    selectCheckoutRail('card');
+    startCatalogRail('card', 'coPayCard');
   });
 
   // PayPal — real Orders API only; no paypal.me/mailto fallback.
@@ -4283,6 +4271,7 @@ function hydrateCheckout(){
 
   $('#coPayPP')?.addEventListener('click', () => { startCatalogRail('paypal', 'coPayPP'); });
   $('#coPayNP')?.addEventListener('click', () => { startCatalogRail('nowpayments', 'coPayNP'); });
+  $('#coPayCard')?.addEventListener('click', () => { startCatalogRail('card', 'coPayCard'); });
 
   // BTC pay — Buy Immortal OS: prefer sovereign one-click mint (email optional).
   // Falls back to UAIC only if sovereignBuy is unavailable.
