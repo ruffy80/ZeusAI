@@ -18,14 +18,39 @@
 //     real:false } so callers can render a stub when running in dev
 // =============================================================================
 
-const { EC2Client, DescribeInstancesCommand, StartInstancesCommand, RebootInstancesCommand } = require('@aws-sdk/client-ec2');
-const { CloudWatchClient, GetMetricStatisticsCommand } = require('@aws-sdk/client-cloudwatch');
-const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { google } = require('googleapis');
-const { ClientSecretCredential } = require('@azure/identity');
-const { NetworkManagementClient } = require('@azure/arm-network');
-const { StorageManagementClient } = require('@azure/arm-storage');
-const { KeyVaultManagementClient } = require('@azure/arm-keyvault');
+// The AWS, Google, and Azure SDKs stay unloaded until a call has credentials.
+// Requiring this file must not slow the sale path or a local backup status.
+
+function loadAws() {
+  const ec2 = require('@aws-sdk/client-ec2');
+  const cw = require('@aws-sdk/client-cloudwatch');
+  const s3 = require('@aws-sdk/client-s3');
+  return {
+    EC2Client: ec2.EC2Client,
+    DescribeInstancesCommand: ec2.DescribeInstancesCommand,
+    StartInstancesCommand: ec2.StartInstancesCommand,
+    RebootInstancesCommand: ec2.RebootInstancesCommand,
+    CloudWatchClient: cw.CloudWatchClient,
+    GetMetricStatisticsCommand: cw.GetMetricStatisticsCommand,
+    S3Client: s3.S3Client,
+    PutObjectCommand: s3.PutObjectCommand,
+    ListObjectsV2Command: s3.ListObjectsV2Command,
+    GetObjectCommand: s3.GetObjectCommand,
+  };
+}
+
+function loadGoogle() {
+  return require('googleapis').google;
+}
+
+function loadAzure() {
+  return {
+    ClientSecretCredential: require('@azure/identity').ClientSecretCredential,
+    NetworkManagementClient: require('@azure/arm-network').NetworkManagementClient,
+    StorageManagementClient: require('@azure/arm-storage').StorageManagementClient,
+    KeyVaultManagementClient: require('@azure/arm-keyvault').KeyVaultManagementClient,
+  };
+}
 
 // ---------- helpers ----------
 function _t() { return Date.now(); }
@@ -49,28 +74,29 @@ async function awsAutoHeal({ region, instanceId, accessKeyId, secretAccessKey, s
     return _err(t, 'missing_credentials', 'Required: accessKeyId, secretAccessKey, instanceId, region');
   }
   try {
-    const ec2 = _awsClient(EC2Client, { region, accessKeyId, secretAccessKey, sessionToken });
-    const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [instanceId] }));
+    const aws = loadAws();
+    const ec2 = _awsClient(aws.EC2Client, { region, accessKeyId, secretAccessKey, sessionToken });
+    const desc = await ec2.send(new aws.DescribeInstancesCommand({ InstanceIds: [instanceId] }));
     const inst = desc.Reservations?.[0]?.Instances?.[0];
     if (!inst) return _err(t, 'instance_not_found', `EC2 instance ${instanceId} not found in ${region}`);
     const state = inst.State?.Name; // pending|running|stopping|stopped|terminated
     let action = 'noop';
     if (state === 'stopped') {
-      await ec2.send(new StartInstancesCommand({ InstanceIds: [instanceId] }));
+      await ec2.send(new aws.StartInstancesCommand({ InstanceIds: [instanceId] }));
       action = 'started';
     } else if (state === 'running') {
       // health check via CloudWatch StatusCheckFailed
-      const cw = _awsClient(CloudWatchClient, { region, accessKeyId, secretAccessKey, sessionToken });
+      const cw = _awsClient(aws.CloudWatchClient, { region, accessKeyId, secretAccessKey, sessionToken });
       const end = new Date();
       const start = new Date(end.getTime() - 5 * 60 * 1000);
-      const stats = await cw.send(new GetMetricStatisticsCommand({
+      const stats = await cw.send(new aws.GetMetricStatisticsCommand({
         Namespace: 'AWS/EC2', MetricName: 'StatusCheckFailed',
         Dimensions: [{ Name: 'InstanceId', Value: instanceId }],
         StartTime: start, EndTime: end, Period: 60, Statistics: ['Maximum'],
       }));
       const failing = (stats.Datapoints || []).some(d => Number(d.Maximum) > 0);
       if (failing) {
-        await ec2.send(new RebootInstancesCommand({ InstanceIds: [instanceId] }));
+        await ec2.send(new aws.RebootInstancesCommand({ InstanceIds: [instanceId] }));
         action = 'rebooted';
       } else {
         action = 'healthy';
@@ -94,6 +120,7 @@ async function gcpCostOptimize({ projectId, billingAccountId, serviceAccountKey,
     return _err(t, 'missing_credentials', 'Required: projectId, serviceAccountKey (JSON), billingAccountId optional');
   }
   try {
+    const google = loadGoogle();
     const creds = typeof serviceAccountKey === 'string' ? JSON.parse(serviceAccountKey) : serviceAccountKey;
     const auth = new google.auth.GoogleAuth({
       credentials: creds,
@@ -155,6 +182,7 @@ async function gcpCostOptimize({ projectId, billingAccountId, serviceAccountKey,
 // ============================================================================
 
 function _azureCred({ tenantId, clientId, clientSecret }) {
+  const { ClientSecretCredential } = loadAzure();
   return new ClientSecretCredential(tenantId, clientId, clientSecret);
 }
 
@@ -165,11 +193,12 @@ async function azureSecurityScan({ subscriptionId, tenantId, clientId, clientSec
   }
   try {
     const cred = _azureCred({ tenantId, clientId, clientSecret });
+    const azure = loadAzure();
     const issues = [];
     const remediations = [];
 
     // 1) Network Security Groups → flag open ports (any-to-any inbound)
-    const net = new NetworkManagementClient(cred, subscriptionId);
+    const net = new azure.NetworkManagementClient(cred, subscriptionId);
     let nsgCount = 0;
     for await (const nsg of net.networkSecurityGroups.listAll()) {
       nsgCount++;
@@ -185,7 +214,7 @@ async function azureSecurityScan({ subscriptionId, tenantId, clientId, clientSec
     }
 
     // 2) Storage accounts → flag public blob access
-    const storage = new StorageManagementClient(cred, subscriptionId);
+    const storage = new azure.StorageManagementClient(cred, subscriptionId);
     let storageCount = 0;
     for await (const sa of storage.storageAccounts.list()) {
       storageCount++;
@@ -200,7 +229,7 @@ async function azureSecurityScan({ subscriptionId, tenantId, clientId, clientSec
     }
 
     // 3) Key Vault → flag soft-delete disabled
-    const kv = new KeyVaultManagementClient(cred, subscriptionId);
+    const kv = new azure.KeyVaultManagementClient(cred, subscriptionId);
     let vaultCount = 0;
     for await (const vault of kv.vaults.listBySubscription()) {
       vaultCount++;
@@ -237,8 +266,9 @@ async function s3Upload({ bucket, key, body, region, accessKeyId, secretAccessKe
     return _err(t, 'missing_credentials', 'Required: bucket, key, accessKeyId, secretAccessKey');
   }
   try {
-    const s3 = _awsClient(S3Client, { region, accessKeyId, secretAccessKey });
-    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
+    const aws = loadAws();
+    const s3 = _awsClient(aws.S3Client, { region, accessKeyId, secretAccessKey });
+    await s3.send(new aws.PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
     return _ok(t, { provider: 'aws-s3', bucket, key, bytes: Buffer.byteLength(body) });
   } catch (e) {
     return _err(t, 'aws_s3_error', e.message || String(e));
@@ -248,8 +278,9 @@ async function s3Upload({ bucket, key, body, region, accessKeyId, secretAccessKe
 async function s3ListLatest({ bucket, prefix, region, accessKeyId, secretAccessKey, limit = 1 }) {
   const t = _t();
   try {
-    const s3 = _awsClient(S3Client, { region, accessKeyId, secretAccessKey });
-    const out = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1000 }));
+    const aws = loadAws();
+    const s3 = _awsClient(aws.S3Client, { region, accessKeyId, secretAccessKey });
+    const out = await s3.send(new aws.ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1000 }));
     const sorted = (out.Contents || []).sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified)).slice(0, limit);
     return _ok(t, { items: sorted.map(o => ({ key: o.Key, size: o.Size, modified: o.LastModified })) });
   } catch (e) {
@@ -260,8 +291,9 @@ async function s3ListLatest({ bucket, prefix, region, accessKeyId, secretAccessK
 async function s3Download({ bucket, key, region, accessKeyId, secretAccessKey }) {
   const t = _t();
   try {
-    const s3 = _awsClient(S3Client, { region, accessKeyId, secretAccessKey });
-    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const aws = loadAws();
+    const s3 = _awsClient(aws.S3Client, { region, accessKeyId, secretAccessKey });
+    const r = await s3.send(new aws.GetObjectCommand({ Bucket: bucket, Key: key }));
     const chunks = [];
     for await (const c of r.Body) chunks.push(c);
     const buf = Buffer.concat(chunks);
