@@ -1750,7 +1750,13 @@ function _orderInputsHtml(productId) {
     const row = require('../../commerce/instant-catalog').byId(productId);
     fields = (row && row.inputs) || [];
   } catch (_) { fields = []; }
-  const rows = fields.filter((field) => field && field.key && String(field.key).toLowerCase() !== 'email');
+  if (!fields.length) {
+    try {
+      const row = require('../../commerce/enterprise-catalog').byId(productId);
+      fields = (row && row.inputs) || [];
+    } catch (_) { fields = []; }
+  }
+  const rows = fields.filter((field) => field && field.key && !/email/i.test(String(field.key)));
   if (!rows.length) return '';
   return '<div class="order-inputs" data-order-inputs="' + _esc(productId) + '">' + rows.map((field) => {
     const key = _esc(field.key);

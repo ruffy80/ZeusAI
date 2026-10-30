@@ -640,6 +640,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
     return [
       '## Discovery brief',
       'This discovery brief restates the paid start for ' + clipText(serviceId, 80) + '.',
+      briefBlock,
       'It does not deliver the license, the source, or a private cloud.',
       '',
       '## Commercial proposal',

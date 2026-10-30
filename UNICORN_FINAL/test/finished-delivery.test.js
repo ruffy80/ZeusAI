@@ -10,8 +10,16 @@ const finished = require('../src/commerce/finished-delivery');
 const shell = require('../src/site/v2/shell');
 
 let passed = 0;
+const pending = [];
 function check(name, fn) {
-  fn();
+  const result = fn();
+  if (result && typeof result.then === 'function') {
+    pending.push(result.then(() => {
+      passed += 1;
+      console.log('✓', name);
+    }));
+    return;
+  }
   passed += 1;
   console.log('✓', name);
 }
@@ -49,4 +57,34 @@ check('an audit file states the job and does not invent a score', () => {
   assert.ok(file.includes('## The problem this file solves'));
 });
 
-console.log('✅ finished-delivery: ' + passed + ' tests passed');
+check('an enterprise kickoff page collects the brief and the file keeps it', () => {
+  const page = shell.getHtml('/services/ent-engagement-kickoff');
+  const checkout = shell.getHtml('/checkout', { plan: 'ent-engagement-kickoff' });
+  assert.ok(page.includes('data-order-input="legalEntity"'));
+  assert.ok(checkout.includes('data-order-input="legalEntity"'));
+  assert.ok(checkout.includes('data-order-input="contactName"'));
+  assert.ok(!checkout.includes('data-order-input="contactEmail"'));
+  return engine.fulfillService({
+    id: 'ord-kick-brief',
+    serviceId: 'ent-engagement-kickoff',
+    plan: 'ent-engagement-kickoff',
+    serviceName: 'Enterprise Engagement Kickoff',
+    status: 'paid',
+    amount: 2500,
+    meta: { inputs: { legalEntity: 'Acme Holdings', contactName: 'Ada' } },
+  }, 'ent-engagement-kickoff').then((artifact) => {
+    const file = artifact && artifact.content || '';
+    assert.ok(file.includes('legalEntity: Acme Holdings'));
+    assert.ok(file.includes('contactName: Ada'));
+    assert.ok(/does not deliver the license/i.test(file));
+    assert.ok(/draft statement of work/i.test(file));
+    assert.ok(file.includes('## The problem this file solves'));
+  });
+});
+
+Promise.all(pending).then(() => {
+  console.log('✅ finished-delivery: ' + passed + ' tests passed');
+}).catch((err) => {
+  console.error(err && err.stack || err);
+  process.exit(1);
+});
