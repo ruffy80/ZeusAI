@@ -1799,7 +1799,6 @@ function _atlasCard(p) {
   const payRails = (price > 0 && cta.mode !== 'contact')
     ? require('../../commerce/pay-options').payOptionsHtml(id)
     : '';
-  const schema = _merchantSchema(p);
   const schema = _merchantSchema(Object.assign({}, p, { priceUsd: price, priceUSD: price, price: price, priceBtc: 0 }));
   const productAttrs = schema.merchant
     ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
