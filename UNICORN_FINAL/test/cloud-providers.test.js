@@ -2,15 +2,31 @@
 // =============================================================================
 // Cloud-providers smoke test.
 // Validates that the SDK adapters:
-//   1) load with all 9 cloud SDKs
+//   1) load without importing AWS, Google, or Azure
 //   2) return a structured `missing_credentials` error when no keys provided
 //   3) hit the SDK error path cleanly when given fake creds (no network)
 // No real AWS/GCP/Azure account required.
 // =============================================================================
 
 const assert = require('assert');
+
+function sdkLoaded(name) {
+  return Object.keys(require.cache).some((key) => key.includes(name));
+}
+
+const tCloud = Date.now();
 const cloud = require('../backend/modules/cloud-providers');
+const cloudMs = Date.now() - tCloud;
+assert.ok(cloudMs < 400, 'cloud-providers require took ' + cloudMs + 'ms');
+assert.strictEqual(sdkLoaded('@aws-sdk/client-ec2'), false, 'AWS SDK loads only on a credentialed call');
+assert.strictEqual(sdkLoaded('googleapis'), false, 'Google SDK loads only on a credentialed call');
+assert.strictEqual(sdkLoaded('@azure/identity'), false, 'Azure SDK loads only on a credentialed call');
+
+const tDr = Date.now();
 const dr = require('../backend/modules/disaster-recovery');
+const drMs = Date.now() - tDr;
+assert.ok(drMs < 400, 'disaster-recovery require took ' + drMs + 'ms');
+assert.strictEqual(sdkLoaded('@aws-sdk/client-ec2'), false, 'local DR status does not load AWS');
 
 (async function run() {
   // ---- AWS auto-heal: missing credentials --------------------------------

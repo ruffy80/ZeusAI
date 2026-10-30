@@ -21,7 +21,15 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 
 let cloud = null;
-try { cloud = require('./cloud-providers'); } catch (e) { console.warn('[disaster-recovery] cloud-providers not available:', e.message); }
+function cloudApi() {
+  if (cloud) return cloud;
+  try { cloud = require('./cloud-providers'); }
+  catch (e) {
+    console.warn('[disaster-recovery] cloud-providers not available:', e.message);
+    cloud = null;
+  }
+  return cloud;
+}
 
 const _state = {
   name: 'disaster-recovery',
@@ -103,15 +111,16 @@ async function backupToS3({ overrideBucket, overridePrefix } = {}) {
   const cfg = _config();
   const bucket = overrideBucket || cfg.bucket;
   const prefix = overridePrefix || cfg.prefix;
-  if (!cloud) return { ok: false, error: 'sdk_missing' };
   if (!bucket) return { ok: false, error: 'no_bucket', message: 'Set DR_S3_BUCKET env to enable real backups' };
   if (!cfg.accessKeyId || !cfg.secretAccessKey) return { ok: false, error: 'no_credentials', message: 'Set DR_AWS_ACCESS_KEY_ID + DR_AWS_SECRET_ACCESS_KEY' };
+  const api = cloudApi();
+  if (!api) return { ok: false, error: 'sdk_missing' };
 
   const t0 = Date.now();
   const { gz, files, totalBytes, compressedBytes, sha256 } = await _buildArchive(cfg.dataDir);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const key = prefix.replace(/\/?$/, '/') + 'backup-' + stamp + '.json.gz';
-  const up = await cloud.s3Upload({
+  const up = await api.s3Upload({
     bucket, key, body: gz, region: cfg.region,
     accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey,
     contentType: 'application/gzip',
@@ -128,13 +137,14 @@ async function backupToS3({ overrideBucket, overridePrefix } = {}) {
 async function restoreFromBackup({ key, dryRun = true, restoreDir, overrideBucket } = {}) {
   const cfg = _config();
   const bucket = overrideBucket || cfg.bucket;
-  if (!cloud) return { ok: false, error: 'sdk_missing' };
   if (!bucket) return { ok: false, error: 'no_bucket' };
   if (!cfg.accessKeyId || !cfg.secretAccessKey) return { ok: false, error: 'no_credentials' };
+  const api = cloudApi();
+  if (!api) return { ok: false, error: 'sdk_missing' };
 
   let targetKey = key;
   if (!targetKey) {
-    const list = await cloud.s3ListLatest({
+    const list = await api.s3ListLatest({
       bucket, prefix: cfg.prefix, region: cfg.region,
       accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, limit: 1,
     });
@@ -142,7 +152,7 @@ async function restoreFromBackup({ key, dryRun = true, restoreDir, overrideBucke
     targetKey = list.items[0].key;
   }
 
-  const dl = await cloud.s3Download({
+  const dl = await api.s3Download({
     bucket, key: targetKey, region: cfg.region,
     accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey,
   });
