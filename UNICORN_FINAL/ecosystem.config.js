@@ -60,6 +60,17 @@ const AI_KEY_ENV_NAMES = [
   'TOGETHER_API_KEY', 'FIREWORKS_API_KEY', 'SAMBANOVA_API_KEY', 'NVIDIA_NIM_API_KEY',
 ];
 
+const PAYMENT_ENV_NAMES = [
+  'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_STARTER_YEARLY',
+  'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_YEARLY',
+  'STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+  'STRIPE_PAYMENT_LINK_STARTER', 'STRIPE_PAYMENT_LINK_PRO', 'STRIPE_PAYMENT_LINK_SCALE',
+  'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_SECRET',
+  'PAYPAL_ENV', 'PAYPAL_MODE', 'PAYPAL_WEBHOOK_ID',
+  'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'NOWPAYMENTS_SANDBOX',
+];
+
 const FULFILLMENT_AI_ENV = {
   // auto = armed forever when ≥1 real LLM key exists (Key Continuum).
   FULFILLMENT_AI_ENABLED: process.env.FULFILLMENT_AI_ENABLED || 'auto',
@@ -115,13 +126,6 @@ module.exports = {
         ENABLE_AUTO_EVOLVE: process.env.ENABLE_AUTO_EVOLVE || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
         ENABLE_AUTO_RESTART: process.env.ENABLE_AUTO_RESTART || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
         DISABLE_SELF_MUTATION: process.env.DISABLE_SELF_MUTATION || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '0' : '1'),
-        // ── GROWTH ENGINE — public payment links (read-only Stripe URLs) ────
-        // Generate at https://dashboard.stripe.com/payment-links and paste
-        // here OR set on host via /etc/profile.d/zeusai.sh. Without these,
-        // the homepage falls back to BTC-only checkout (current behavior).
-        STRIPE_PAYMENT_LINK_STARTER: process.env.STRIPE_PAYMENT_LINK_STARTER || '',
-        STRIPE_PAYMENT_LINK_PRO:     process.env.STRIPE_PAYMENT_LINK_PRO     || '',
-        STRIPE_PAYMENT_LINK_SCALE:   process.env.STRIPE_PAYMENT_LINK_SCALE   || '',
         // Revenue-Share-as-a-Service: % of incremental revenue we take instead
         // of upfront fee. SMBs love this; enterprises don't qualify.
         REVENUE_SHARE_PCT: process.env.REVENUE_SHARE_PCT || '30',
@@ -240,11 +244,9 @@ module.exports = {
         AI_CACHE_MAX_BYTES:     '52428800',
         AI_CACHE_TTL_EMBEDDING: '3600000',
         AI_CACHE_TTL_REASONING: '300000',
-        // ── Payment — PayPal + BTC ─────────────────────────────────────────
-        PAYPAL_CLIENT_ID:     process.env.PAYPAL_CLIENT_ID     || '',
-        PAYPAL_CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET || '',
-        PAYPAL_ENV:           process.env.PAYPAL_ENV           || 'sandbox',
-        PAYPAL_WEBHOOK_ID:    process.env.PAYPAL_WEBHOOK_ID    || '',
+        // ── Payment provider keys — never pin empty values over durable .env.
+        // Stripe payment links are optional; without them the site uses checkout.
+        ...envIfSet(PAYMENT_ENV_NAMES),
         LEGAL_OWNER_BTC:      'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
       },
       error_file: 'logs/pm2-error.log',
@@ -330,6 +332,9 @@ module.exports = {
         // ── AI Provider API Keys — site needs them for fulfillment + /api/ai/*
         // local fallbacks. Never pin empty strings (see envIfSet above).
         ...envIfSet(AI_KEY_ENV_NAMES),
+        // The site also checks payment readiness and can accept provider env
+        // directly; omitted keys remain loadable from its durable env files.
+        ...envIfSet(PAYMENT_ENV_NAMES),
       },
       error_file: 'logs/site-error.log',
       out_file:   'logs/site-out.log',
