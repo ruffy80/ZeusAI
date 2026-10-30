@@ -30,10 +30,17 @@ check('PayPal/NOW top CTAs call startCatalogRail without amount gate', () => {
   assert.ok(client.includes('async function startCatalogRail'));
   assert.ok(client.includes("startCatalogRail('paypal'"));
   assert.ok(client.includes("startCatalogRail('nowpayments'"));
-  // Must not require amt>=1 before create for catalog SKUs in startCatalogRail
-  const fn = client.slice(client.indexOf('async function startCatalogRail'), client.indexOf('async function startCatalogRail') + 1800);
+  // The card email field and the order brief pushed the create call past a
+  // fixed 1800-character window. Read the whole function, still with no
+  // client amount gate before POST /api/checkout/create.
+  const start = client.indexOf('async function startCatalogRail');
+  const end = client.indexOf("getElementById('coSovereignPrimary')?.addEventListener", start);
+  const fn = client.slice(start, end);
+  assert.ok(fn.length > 1800, 'startCatalogRail body');
   assert.ok(!/if\s*\(\s*!amt\s*\|\|\s*amt\s*<\s*1\s*\)/.test(fn), 'startCatalogRail must not hard-require client amount');
   assert.ok(fn.includes('/api/checkout/create'));
+  assert.ok(fn.includes("rail === 'paypal'"));
+  assert.ok(fn.includes("rail === 'nowpayments' || rail === 'card'"));
 });
 
 check('shell SSR fills PayPal/NOW amount+plan from product', () => {

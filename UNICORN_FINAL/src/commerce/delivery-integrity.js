@@ -273,6 +273,17 @@ function review(item, preview) {
   const anchors = fileText ? missingAnchors(promise, fileText) : [];
   if (anchors.length) failures.push('promise_missing:' + String(anchors[0]).slice(0, 60));
   if (fileText && !titleCovered(item, fileText)) failures.push('promise_missing:title');
+  if (fileText && String(fileText).trim().length >= 40) {
+    try {
+      const finished = require('./finished-delivery').review(item, fileText);
+      const extra = finished && Array.isArray(finished.failures) ? finished.failures : [];
+      for (const failure of extra) {
+        if (failures.indexOf(failure) === -1) failures.push(failure);
+      }
+    } catch (_) {
+      failures.push('solution_missing');
+    }
+  }
   return {
     protocol: PROTOCOL,
     id: item && item.id || null,
