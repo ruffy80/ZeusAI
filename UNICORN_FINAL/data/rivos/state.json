@@ -1,0 +1,29 @@
+{
+  "protocol": "RIVOS/1.0",
+  "updatedAt": "2026-10-30T00:55:20.430Z",
+  "gravity": {
+    "starter": {
+      "paid": 3,
+      "expired": 0,
+      "revenueUsd": 147,
+      "score": 1545,
+      "lastPaidAt": "2026-10-30T00:55:20.394Z"
+    }
+  },
+  "lastAuthFingerprint": null,
+  "lastBriefingAt": 0,
+  "recovery": {},
+  "lastTickAt": null,
+  "lastTick": null,
+  "counts": {
+    "ticks": 0,
+    "paidEvents": 1,
+    "expiredEvents": 0,
+    "gravityWrites": 1,
+    "ownerBriefings": 0,
+    "keyArmDetections": 0,
+    "recoveryQueued": 0,
+    "cymLinks": 1,
+    "errors": 0
+  }
+}
