@@ -60,11 +60,14 @@ check('Bing verification is a meta tag and stays absent until configured', () =>
   }
 });
 
-check('a shelf offer states the list price and the Bitcoin amount without a second availability', () => {
+check('a shelf offer states the USD list price and the Bitcoin amount outside the offer currency', () => {
   const html = shell.getHtml('/services/instant-resume-makeover');
   assert.ok(html.includes('"name":"List price"'));
-  assert.ok(html.includes('"priceCurrency":"BTC"'));
-  assert.ok(html.includes('Bitcoin amount'));
+  assert.ok(html.includes('"priceCurrency":"USD"'));
+  assert.ok(!html.includes('"priceCurrency":"BTC"'));
+  assert.ok(!html.includes('content="BTC"'));
+  assert.ok(html.includes('id="svcLiveBtc"'));
+  assert.ok(html.includes('Bitcoin is 10% under the list price'));
   assert.strictEqual((html.match(/schema\.org\/InStock/g) || []).length, 1);
 });
 

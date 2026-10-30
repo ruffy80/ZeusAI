@@ -433,7 +433,7 @@ function _catalogCard(p) {
   const liveBadge = p.livePriceSource && p.livePriceSource !== 'static-fallback'
     ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(p.livePriceSource)}${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${p.surgeActive ? ' · surge' : ''}</span>`
     : '';
-  const schema = _merchantSchema(p);
+  const schema = _merchantSchema(Object.assign({}, p, { priceUsd: price, priceUSD: price, price: price, priceBtc: 0 }));
   const productAttrs = schema.merchant
     ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
     : '';
@@ -1800,6 +1800,7 @@ function _atlasCard(p) {
     ? require('../../commerce/pay-options').payOptionsHtml(id)
     : '';
   const schema = _merchantSchema(p);
+  const schema = _merchantSchema(Object.assign({}, p, { priceUsd: price, priceUSD: price, price: price, priceBtc: 0 }));
   const productAttrs = schema.merchant
     ? ` itemscope itemtype="https://schema.org/Product" itemid="${_esc(schema.url)}#product"`
     : '';
@@ -2496,6 +2497,9 @@ function pageService(id) {
   const ctaForSchema = _ctaForProduct(s);
   const merchantItem = _merchantItem(Object.assign({}, s, {
     priceUsd: price,
+    priceUSD: price,
+    price: price,
+    priceBtc: 0,
     mode: ctaForSchema.mode,
     buyable: ctaForSchema.buyable === true,
   }));

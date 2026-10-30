@@ -476,7 +476,12 @@ function _liveService(id, fallbackPrice, fallbackPath) {
     const shelf = require('../../commerce/public-shelf');
     const item = shelf && typeof shelf.byId === 'function' ? shelf.byId(id) : null;
     if (item && item.ctaHref && Number(item.priceUsd) > 0) {
-      return { price: Number(item.priceUsd), path: item.ctaHref, deliveryDays: item.deliveryDays };
+      let price = Number(item.priceUsd);
+      try {
+        const quote = require('../../../backend/modules/commercial-layer').quoteSync(id);
+        if (quote && Number(quote.usd) > 0) price = Number(quote.usd);
+      } catch (_) { /* shelf price is already the negotiated figure */ }
+      return { price, path: item.ctaHref, deliveryDays: item.deliveryDays };
     }
   } catch (_) { /* seed figures */ }
   return { price: fallbackPrice, path: fallbackPath };
