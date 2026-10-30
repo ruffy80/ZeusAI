@@ -1,0 +1,139 @@
+{
+  "state": {
+    "startedAt": "2026-10-30T00:53:53.574Z",
+    "cyclesOpened": 4,
+    "cyclesClosed": 0,
+    "cyclesBreached": 0,
+    "yieldProposals": 0,
+    "lastOpenAt": "2026-10-30T00:55:20.420Z",
+    "lastCloseAt": null,
+    "lastYieldAt": null,
+    "armed": true
+  },
+  "cycles": [
+    {
+      "cycleId": "ord_altrailstest01",
+      "protocol": "CLOS/1.0",
+      "phase": "fulfillment_ack",
+      "status": "open",
+      "openedAt": "2026-10-30T00:53:53.575Z",
+      "paidAt": "2026-10-30T00:53:53.516Z",
+      "rail": "paypal",
+      "orderId": "ord_altrailstest01",
+      "serviceId": "starter",
+      "email": "buyer-alt@example.com",
+      "amountUsd": 49,
+      "marginPct": null,
+      "txid": null,
+      "slaHours": 72,
+      "slaDeadline": "2026-11-02T00:53:53.575Z",
+      "fulfillmentAckAt": "2026-10-30T00:54:35.132Z",
+      "fulfillmentMode": "digital_delivery",
+      "closedAt": null,
+      "receiptHash": null,
+      "yieldProposalId": null,
+      "notes": [
+        {
+          "at": "2026-10-30T00:53:53.598Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        },
+        {
+          "at": "2026-10-30T00:54:35.132Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        }
+      ]
+    },
+    {
+      "cycleId": "ord_hooktest_1793321675302",
+      "protocol": "CLOS/1.0",
+      "phase": "fulfillment_ack",
+      "status": "open",
+      "openedAt": "2026-10-30T00:54:35.320Z",
+      "paidAt": "2026-10-30T00:54:35.320Z",
+      "rail": "btc",
+      "orderId": "ord_hooktest_1793321675302",
+      "serviceId": "test-svc",
+      "email": "test@example.com",
+      "amountUsd": 99,
+      "marginPct": null,
+      "txid": null,
+      "slaHours": 72,
+      "slaDeadline": "2026-11-02T00:54:35.320Z",
+      "fulfillmentAckAt": "2026-10-30T00:54:35.320Z",
+      "fulfillmentMode": "digital_delivery",
+      "closedAt": null,
+      "receiptHash": null,
+      "yieldProposalId": null,
+      "notes": [
+        {
+          "at": "2026-10-30T00:54:35.320Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        }
+      ]
+    },
+    {
+      "cycleId": "ord_nohook",
+      "protocol": "CLOS/1.0",
+      "phase": "fulfillment_ack",
+      "status": "open",
+      "openedAt": "2026-10-30T00:54:35.324Z",
+      "paidAt": "2026-10-30T00:54:35.324Z",
+      "rail": "btc",
+      "orderId": "ord_nohook",
+      "serviceId": "s",
+      "email": null,
+      "amountUsd": 0,
+      "marginPct": null,
+      "txid": null,
+      "slaHours": 72,
+      "slaDeadline": "2026-11-02T00:54:35.324Z",
+      "fulfillmentAckAt": "2026-10-30T00:54:35.324Z",
+      "fulfillmentMode": "digital_delivery",
+      "closedAt": null,
+      "receiptHash": null,
+      "yieldProposalId": null,
+      "notes": [
+        {
+          "at": "2026-10-30T00:54:35.324Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        }
+      ]
+    },
+    {
+      "cycleId": "ord_paypalrefs01",
+      "protocol": "CLOS/1.0",
+      "phase": "fulfillment_ack",
+      "status": "open",
+      "openedAt": "2026-10-30T00:55:20.420Z",
+      "paidAt": "2026-10-30T00:55:20.394Z",
+      "rail": "paypal",
+      "orderId": "ord_paypalrefs01",
+      "serviceId": "starter",
+      "email": "buyer@example.com",
+      "amountUsd": 49,
+      "marginPct": null,
+      "txid": null,
+      "slaHours": 72,
+      "slaDeadline": "2026-11-02T00:55:20.420Z",
+      "fulfillmentAckAt": "2026-10-30T00:55:20.442Z",
+      "fulfillmentMode": "digital_delivery",
+      "closedAt": null,
+      "receiptHash": null,
+      "yieldProposalId": null,
+      "notes": [
+        {
+          "at": "2026-10-30T00:55:20.442Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        }
+      ]
+    }
+  ],
+  "yieldQueue": [],
+  "receipts": [],
+  "savedAt": "2026-10-30T00:55:20.442Z"
+}

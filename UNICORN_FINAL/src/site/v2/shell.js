@@ -938,7 +938,7 @@ function navBar(route) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/pricing', 'Pricing')}
+${L('/', 'Home')}${L('/products', 'Services')}${L('/services', 'Marketplace')}${L('/api-product', 'APIs')}${L('/orchestrator', 'SDK')}${L('/pricing', 'Pricing')}${L('/docs', 'Docs')}${L('/ledger', 'Ledger')}${L('/report', 'Report')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -974,6 +974,7 @@ function footer(route, opts) {
 <footer>
   <div class="foot-lead">
     <p>Route a task to a cheaper model, or buy a deliverable from the marketplace. Property of ${OWNER.name}.</p>
+    <p>All deliveries are signed and verifiable at <a href="/witness.json">/witness.json</a>. Public ledger: <a href="/ledger">/ledger</a>. Weekly report: <a href="/report">/report</a>.</p>
     <div class="foot-lead-cta">
       <a class="btn btn-primary" href="/services" data-link>Marketplace</a>
       <a class="btn" href="/telegram" data-link data-telegram="footer">Telegram</a>
@@ -2290,6 +2291,7 @@ ${_zaccBanner}
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
         <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditBtcText() ? (' · ' + _auditBtcText()) : ''}</a>
+        <a class="btn" href="/products" data-link>Explore all ${(() => { try { return require('../../commerce/public-shelf').publicShelf().length; } catch (_) { return 0; } })()} services →</a>
         <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
@@ -2317,6 +2319,7 @@ ${_zaccBanner}
 </section>
 ${authorityDesk.homeDoorsHtml()}
 ${_homeFeaturedServices()}
+${require('./four-products').homeSection()}
 <section id="unicornEcosystem">
   <div class="section-title">
     <div><h2>Powered by UNICORN Ecosystem</h2></div>
@@ -2656,6 +2659,7 @@ function pagePricing() {
     <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. Monthly plans below use the same price quote. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
   ${_subscriptionPlansHtml()}
+  ${require('./four-products').pageConsolidatedPricing()}
   <p style="margin:0 0 12px"><a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request a proposal →</a></p>
 </section>
 ${_homeAtlasHtml()}
@@ -4947,6 +4951,8 @@ ${_homeAtlasHtml()}
 }
 
 function renderRoute(route, params = {}) {
+  const productPage = require('./four-products').render(route);
+  if (productPage) return productPage;
   const authored = authorityDesk.render(route);
   if (authored) return authored;
   const geoAuthored = geoDesk.render(route, params);
@@ -8122,6 +8128,10 @@ function _legalSub(title, body) {
 
 function routeTitle(route) {
   if (route === '/') return HOME_TITLE;
+  try {
+    const productMeta = require('./four-products').meta(route);
+    if (productMeta && productMeta.title) return productMeta.title;
+  } catch (_) { /* shelf titles below */ }
   const authoredTitle = authorityDesk.meta(route) || geoDesk.meta(route);
   if (authoredTitle && authoredTitle.title) return authoredTitle.title;
   const landingTitle = enterpriseLanding(route);
@@ -8171,6 +8181,10 @@ function routeTitle(route) {
 }
 
 function routeDescription(route) {
+  try {
+    const productMeta = require('./four-products').meta(route);
+    if (productMeta && productMeta.description) return productMeta.description;
+  } catch (_) { /* shelf descriptions below */ }
   const authoredDesc = authorityDesk.meta(route) || geoDesk.meta(route);
   if (authoredDesc && authoredDesc.description) return authoredDesc.description;
   const landingDesc = enterpriseLanding(route);

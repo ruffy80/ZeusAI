@@ -1,0 +1,14 @@
+{
+  "startedAt": null,
+  "bootstraps": 4,
+  "instancesCreated": 4,
+  "enriched": 0,
+  "deliveriesFired": 5,
+  "conciergeWelcomes": 4,
+  "vaultEntries": 3,
+  "evolutions": 0,
+  "errors": 0,
+  "lastEvolveAt": 0,
+  "evolutionLog": [],
+  "savedAt": "2026-10-30T00:55:20.441Z"
+}

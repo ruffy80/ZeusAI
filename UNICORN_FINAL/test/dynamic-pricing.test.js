@@ -180,23 +180,35 @@ check('activateSurge stays off without a measured demand signal', () => {
   assert.strictEqual(conditions.surgeActive, false);
 });
 
-check('same base price is deterministic and uses the 10% BTC discount', () => {
+check('public quotes stay at list price and BTC quotes receive the 10% discount', () => {
   pricing.setDiscount(true);
   const a = pricing.getPrice('pro', { basePrice: 100, fresh: true });
-  const b = pricing.getPrice('pro', { basePrice: 100, fresh: true });
-  assert.strictEqual(a.finalPrice, b.finalPrice);
-  assert.strictEqual(a.finalPrice, 90);
+  const b = pricing.getPrice('pro', { basePrice: 100, paymentMethod: 'btc', fresh: true });
+  assert.strictEqual(a.finalPrice, 100);
+  assert.strictEqual(b.finalPrice, 90);
+  assert.strictEqual(a.discountApplied, false);
+  assert.strictEqual(b.discountApplied, true);
   assert.strictEqual(a.serviceFactor, 1);
   assert.strictEqual(a.surgeActive, false);
+});
+
+check('cached USD and BTC quotes remain separate', () => {
+  const usd = pricing.getPrice('pro', { basePrice: 100 });
+  const btc = pricing.getPrice('pro', { basePrice: 100, paymentMethod: 'btc' });
+  assert.strictEqual(usd.finalPrice, 100);
+  assert.strictEqual(btc.finalPrice, 90);
 });
 
 // ── Discount toggle ─────────────────────────────────────────────────────────
 console.log('\nDynamic Pricing — Discount toggle');
 
-check('setDiscount(false) disables global discount', () => {
+check('setDiscount(false) disables the BTC discount', () => {
   pricing.setDiscount(false);
   const conditions = pricing.getMarketConditions();
   assert.strictEqual(conditions.discountActive, false);
+  const quote = pricing.getPrice('pro', { basePrice: 100, paymentMethod: 'btc', fresh: true });
+  assert.strictEqual(quote.finalPrice, 100);
+  assert.strictEqual(quote.discountApplied, false);
   pricing.setDiscount(true); // restore
 });
 

@@ -1,0 +1,9 @@
+{
+  "name": "@zeusai/orchestrator",
+  "version": "1.0.0",
+  "description": "In-repository SDK for the ZeusAI unified orchestrator. Not published to the public npm registry.",
+  "license": "MIT",
+  "private": true,
+  "main": "index.js",
+  "files": ["index.js", "README.md", "LICENSE", "examples"]
+}

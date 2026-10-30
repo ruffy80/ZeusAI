@@ -92,6 +92,22 @@ async function run() {
       assert.equal(r.status, 200, `${path} should return 200`);
     }
 
+    const products = await request('/api/products');
+    assert.equal(products.status, 200, '/api/products should expose public offers');
+    const productRows = products.body.products || products.body.items || [];
+    assert.equal(productRows.find((item) => item.id === 'instant-website-audit')?.billing, 'one-time',
+      'instant catalog prices should be identified as one-time');
+    assert.equal(productRows.find((item) => item.id === 'ent-platform-license')?.billing, 'annual',
+      'enterprise catalog billing should survive public catalog normalization');
+    const pricingPage = await request('/pricing');
+    // /pricing is served by the v2 SSR shell (src/site/v2/shell.js → pagePricing).
+    // Assert the commerce truth in the shipped HTML: per-offer billing cadence
+    // ("$29.00/month") and the BTC discount stated against the list price —
+    // not implementation details of the removed legacy handler.
+    assert.ok(/\$\d[\d,.]*\/month/.test(pricingPage.text), '/pricing should render the offer billing cadence');
+    assert.ok(/\d{1,2}% under that list/.test(pricingPage.text), '/pricing should show a BTC-specific discount');
+    assert.ok(!pricingPage.text.includes("'>/mo</span>"), '/pricing must not label every offer as monthly');
+
     // /services must serve the v2 SSR storefront: real server-rendered product
     // cards (USD + BTC + schema.org Product) — never the empty client-only
     // grid. Golden rule: ≥ 1 SSR card with a price in the raw HTML.

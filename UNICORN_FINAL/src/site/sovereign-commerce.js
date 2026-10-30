@@ -987,9 +987,25 @@ async function createOrder(ctx, input) {
   } catch (_) { /* keep OWNER_BTC */ }
 
   const price = await getBtcPrice({ fast: true });
-  const fiatPerBtc = String(currency).toUpperCase() === 'EUR' ? price.eur : price.usd;
   if (priceUnavailableForNewInvoices(price)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
+  // Currency truth: catalog prices are USD. A EUR order must be converted
+  // through the oracle cross-rate (EUR per USD = price.eur / price.usd) so the
+  // buyer is not charged the USD number labeled as EUR; any other currency is
+  // refused instead of being silently mislabeled.
+  // RO: prețul din catalog e USD — EUR se convertește la rata reală a oracolului,
+  // orice altă monedă e refuzată, nu etichetată greșit.
+  const orderCurrency = String(currency || 'USD').toUpperCase();
+  if (orderCurrency !== 'USD' && orderCurrency !== 'EUR') {
+    return { error: 'currency_not_supported', status: 400 };
+  }
+  const fiatPerBtc = orderCurrency === 'EUR' ? price.eur : price.usd;
   if (!(fiatPerBtc > 0)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
+  if (orderCurrency === 'EUR') {
+    if (!(price.usd > 0 && price.eur > 0)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
+    const eurPerUsd = price.eur / price.usd;
+    unit = Number((unit * eurPerUsd).toFixed(2));
+    subtotalFiat = Number((subtotalFiat * eurPerUsd).toFixed(2));
+  }
 
   const baseSats = Math.max(1000, Math.round((subtotalFiat / fiatPerBtc) * 1e8)); // dust floor 1000 sat
   const alloc = allocateUniqueAmount(baseSats);
@@ -1006,7 +1022,7 @@ async function createOrder(ctx, input) {
     serviceId,
     serviceName: svc.name || svc.title || serviceId,
     qty: q,
-    currency: String(currency).toUpperCase(),
+    currency: orderCurrency,
     unit_price_fiat: unit,
     unit_price_full_fiat: unitFull,
     subtotal_fiat: subtotalFiat,

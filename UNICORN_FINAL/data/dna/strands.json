@@ -1,0 +1,401 @@
+{
+  "dna_5c82d3811a04fd9766": {
+    "id": "dna_5c82d3811a04fd9766",
+    "protocol": "DNA/1.0",
+    "version": "D/1.0",
+    "schemaVersion": 1,
+    "emailMasked": "bu…@example.com",
+    "living": true,
+    "createdAt": "2026-10-30T00:53:53.571Z",
+    "updatedAt": "2026-10-30T00:54:35.110Z",
+    "profile": {
+      "kind": "adaptive_intelligence",
+      "notUserProfile": true,
+      "principle": "Useful over time — never invasive. Only platform data + explicit consent."
+    },
+    "products": [
+      {
+        "sku": "starter",
+        "title": "Starter",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "omegaInstanceId": "omega_bc84b82d9c6f2e0dbd27",
+        "acquiredAt": "2026-10-30T00:53:53.572Z",
+        "orderId": "ord_altrailstest01",
+        "lastOrderId": "ord_altrailstest01",
+        "updatedAt": "2026-10-30T00:54:35.108Z"
+      }
+    ],
+    "productRelationships": [
+      {
+        "at": "2026-10-30T00:53:53.572Z",
+        "sku": "starter",
+        "kind": "owns",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "omegaInstanceId": "omega_bc84b82d9c6f2e0dbd27"
+      },
+      {
+        "at": "2026-10-30T00:54:35.108Z",
+        "sku": "starter",
+        "kind": "owns",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "omegaInstanceId": "omega_bc84b82d9c6f2e0dbd27"
+      }
+    ],
+    "workspace": {
+      "theme": null,
+      "density": null,
+      "defaultView": null,
+      "explicit": {}
+    },
+    "notifications": {
+      "email": null,
+      "telegram": null,
+      "frequency": null,
+      "explicit": false
+    },
+    "aiInteraction": {
+      "tone": null,
+      "verbosity": null,
+      "language": null,
+      "explicit": {}
+    },
+    "automation": {
+      "aggressiveness": "balanced",
+      "allowAutoApplySafe": true,
+      "explicit": {}
+    },
+    "features": {
+      "enabled": [
+        "owned:starter",
+        "owned:starter"
+      ],
+      "adopted": {
+        "owned:starter": 2
+      },
+      "unusedHints": [
+        "starter"
+      ]
+    },
+    "learning": {
+      "progress": {
+        "productsOwned": 1,
+        "interactions": 0,
+        "explicitSettings": 0,
+        "suggestionCount": 2,
+        "at": "2026-10-30T00:54:35.110Z"
+      },
+      "friction": [],
+      "suggestions": [
+        {
+          "at": "2026-10-30T00:54:35.110Z",
+          "kind": "ai_preference",
+          "message": "Tell AI DNA your preferred language for clearer Concierge replies."
+        },
+        {
+          "at": "2026-10-30T00:54:35.110Z",
+          "kind": "automation",
+          "message": "Choose automation aggressiveness (gentle / balanced / assertive) for safer auto-workflows."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-10-30T00:53:53.572Z",
+          "event": "purchase",
+          "sku": "starter",
+          "note": "Product joined AI DNA model"
+        },
+        {
+          "at": "2026-10-30T00:54:35.108Z",
+          "event": "purchase",
+          "sku": "starter",
+          "note": "Product joined AI DNA model"
+        }
+      ]
+    },
+    "knowledgeLinks": [
+      {
+        "at": "2026-10-30T00:53:53.572Z",
+        "kind": "genome",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "sku": "starter"
+      },
+      {
+        "at": "2026-10-30T00:53:53.572Z",
+        "kind": "omega_instance",
+        "instanceId": "omega_bc84b82d9c6f2e0dbd27",
+        "sku": "starter"
+      },
+      {
+        "at": "2026-10-30T00:54:35.109Z",
+        "kind": "genome",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "sku": "starter"
+      },
+      {
+        "at": "2026-10-30T00:54:35.109Z",
+        "kind": "omega_instance",
+        "instanceId": "omega_bc84b82d9c6f2e0dbd27",
+        "sku": "starter"
+      }
+    ],
+    "ecosystem": {
+      "vault": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega/vault",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "workspace": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega",
+        "sku": "starter",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "concierge": {
+        "linked": true,
+        "href": "https://zeusai.pro/api/concierge",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "delivery": {
+        "linked": true,
+        "href": "https://zeusai.pro/api/delivery",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "memory": {
+        "linked": true,
+        "href": null,
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "knowledge": {
+        "linked": true,
+        "href": "https://zeusai.pro/genome",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "genome": {
+        "linked": true,
+        "href": "https://zeusai.pro/genome/gnm_4ff9961269bf7630d3",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "marketplace": {
+        "linked": true,
+        "href": "https://zeusai.pro/services",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "workflow": {
+        "linked": true,
+        "href": null,
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      },
+      "omega": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega",
+        "lastAt": "2026-10-30T00:54:35.109Z"
+      }
+    },
+    "interactions": [],
+    "feedback": [],
+    "settings": {},
+    "adapters": [
+      "products",
+      "features",
+      "workspace",
+      "interactions",
+      "language",
+      "communication",
+      "automation",
+      "usage",
+      "feedback",
+      "settings"
+    ],
+    "hash": "6c2df55a6208d2a54dbf0bb1"
+  },
+  "dna_6a6c26195c3682faa8": {
+    "id": "dna_6a6c26195c3682faa8",
+    "protocol": "DNA/1.0",
+    "version": "D/1.0",
+    "schemaVersion": 1,
+    "emailMasked": "bu…@example.com",
+    "living": true,
+    "createdAt": "2026-10-30T00:55:20.416Z",
+    "updatedAt": "2026-10-30T00:55:20.418Z",
+    "profile": {
+      "kind": "adaptive_intelligence",
+      "notUserProfile": true,
+      "principle": "Useful over time — never invasive. Only platform data + explicit consent."
+    },
+    "products": [
+      {
+        "sku": "starter",
+        "title": "Starter",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "omegaInstanceId": "omega_cb4d6c55e7b905d71668",
+        "acquiredAt": "2026-10-30T00:55:20.417Z",
+        "orderId": "ord_paypalrefs01"
+      }
+    ],
+    "productRelationships": [
+      {
+        "at": "2026-10-30T00:55:20.417Z",
+        "sku": "starter",
+        "kind": "owns",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "omegaInstanceId": "omega_cb4d6c55e7b905d71668"
+      }
+    ],
+    "workspace": {
+      "theme": null,
+      "density": null,
+      "defaultView": null,
+      "explicit": {}
+    },
+    "notifications": {
+      "email": null,
+      "telegram": null,
+      "frequency": null,
+      "explicit": false
+    },
+    "aiInteraction": {
+      "tone": null,
+      "verbosity": null,
+      "language": null,
+      "explicit": {}
+    },
+    "automation": {
+      "aggressiveness": "balanced",
+      "allowAutoApplySafe": true,
+      "explicit": {}
+    },
+    "features": {
+      "enabled": [
+        "owned:starter"
+      ],
+      "adopted": {
+        "owned:starter": 1
+      },
+      "unusedHints": [
+        "starter"
+      ]
+    },
+    "learning": {
+      "progress": {
+        "productsOwned": 1,
+        "interactions": 0,
+        "explicitSettings": 0,
+        "suggestionCount": 3,
+        "at": "2026-10-30T00:55:20.418Z"
+      },
+      "friction": [],
+      "suggestions": [
+        {
+          "at": "2026-10-30T00:55:20.418Z",
+          "kind": "feature_adoption",
+          "sku": "starter",
+          "message": "You own Starter — open Concierge or Workspace to activate value.",
+          "href": "https://zeusai.pro/omega"
+        },
+        {
+          "at": "2026-10-30T00:55:20.418Z",
+          "kind": "ai_preference",
+          "message": "Tell AI DNA your preferred language for clearer Concierge replies."
+        },
+        {
+          "at": "2026-10-30T00:55:20.418Z",
+          "kind": "automation",
+          "message": "Choose automation aggressiveness (gentle / balanced / assertive) for safer auto-workflows."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-10-30T00:55:20.417Z",
+          "event": "purchase",
+          "sku": "starter",
+          "note": "Product joined AI DNA model"
+        }
+      ]
+    },
+    "knowledgeLinks": [
+      {
+        "at": "2026-10-30T00:55:20.417Z",
+        "kind": "genome",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "sku": "starter"
+      },
+      {
+        "at": "2026-10-30T00:55:20.417Z",
+        "kind": "omega_instance",
+        "instanceId": "omega_cb4d6c55e7b905d71668",
+        "sku": "starter"
+      }
+    ],
+    "ecosystem": {
+      "vault": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega/vault",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "workspace": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega",
+        "sku": "starter",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "concierge": {
+        "linked": true,
+        "href": "https://zeusai.pro/api/concierge",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "delivery": {
+        "linked": true,
+        "href": "https://zeusai.pro/api/delivery",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "memory": {
+        "linked": true,
+        "href": null,
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "knowledge": {
+        "linked": true,
+        "href": "https://zeusai.pro/genome",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "genome": {
+        "linked": true,
+        "href": "https://zeusai.pro/genome/gnm_4ff9961269bf7630d3",
+        "genomeId": "gnm_4ff9961269bf7630d3",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "marketplace": {
+        "linked": true,
+        "href": "https://zeusai.pro/services",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "workflow": {
+        "linked": true,
+        "href": null,
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      },
+      "omega": {
+        "linked": true,
+        "href": "https://zeusai.pro/omega",
+        "lastAt": "2026-10-30T00:55:20.417Z"
+      }
+    },
+    "interactions": [],
+    "feedback": [],
+    "settings": {},
+    "adapters": [
+      "products",
+      "features",
+      "workspace",
+      "interactions",
+      "language",
+      "communication",
+      "automation",
+      "usage",
+      "feedback",
+      "settings"
+    ],
+    "hash": "2624ca6a2d63e1998769bd7c"
+  }
+}

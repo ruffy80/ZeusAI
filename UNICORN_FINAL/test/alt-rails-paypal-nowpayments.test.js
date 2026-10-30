@@ -22,6 +22,45 @@ function check(label, fn) {
   catch (e) { failed += 1; console.log('  FAIL ' + label + ' — ' + (e && e.message ? e.message : e)); }
 }
 
+check('PM2 does not pin missing payment keys and forwards configured keys', () => {
+  const keys = [
+    'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_STARTER_YEARLY',
+    'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_YEARLY',
+    'STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+    'STRIPE_PAYMENT_LINK_STARTER', 'STRIPE_PAYMENT_LINK_PRO', 'STRIPE_PAYMENT_LINK_SCALE',
+    'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_SECRET',
+    'PAYPAL_ENV', 'PAYPAL_MODE', 'PAYPAL_WEBHOOK_ID',
+    'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'NOWPAYMENTS_SANDBOX',
+  ];
+  const saved = new Map(keys.map((key) => [key, process.env[key]]));
+  const configPath = require.resolve('../ecosystem.config');
+  try {
+    keys.forEach((key) => delete process.env[key]);
+    delete require.cache[configPath];
+    let config = require('../ecosystem.config');
+    const paymentApps = config.apps.filter((app) => app.name === 'unicorn-backend' || app.name === 'unicorn-site');
+    assert.equal(paymentApps.length, 2);
+    for (const app of paymentApps) {
+      for (const key of keys) assert.ok(!(key in app.env), app.name + ' pins absent ' + key);
+    }
+
+    const configured = Object.fromEntries(keys.map((key) => [key, 'test-value-' + key.toLowerCase()]));
+    Object.assign(process.env, configured);
+    delete require.cache[configPath];
+    config = require('../ecosystem.config');
+    for (const app of config.apps.filter((app) => app.name === 'unicorn-backend' || app.name === 'unicorn-site')) {
+      for (const key of keys) assert.equal(app.env[key], configured[key], app.name + ' forwards ' + key);
+    }
+  } finally {
+    for (const key of keys) {
+      if (saved.get(key) === undefined) delete process.env[key];
+      else process.env[key] = saved.get(key);
+    }
+    delete require.cache[configPath];
+  }
+});
+
 check('alt-rails-os honesty gates', () => {
   delete process.env.PAYPAL_CLIENT_ID;
   delete process.env.PAYPAL_CLIENT_SECRET;

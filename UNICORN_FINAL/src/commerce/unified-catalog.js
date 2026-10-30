@@ -50,6 +50,7 @@ function _normalize(item, defaults) {
     tier,
     priceUSD: Number(item.priceUSD || item.priceUsd || item.price || 0),
     currency: item.currency || 'USD',
+    billing: item.billing || null,
     description: item.description || '',
     inputs: item.inputs || [],
     group: tier === 'enterprise' ? 'enterprise' : (tier === 'instant' ? 'instant' : (defaults.group || tier)),

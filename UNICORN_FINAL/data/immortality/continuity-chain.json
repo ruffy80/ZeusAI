@@ -1,7 +1,7 @@
 {
   "protocol": "CAC/1.0",
-  "tipHash": "cf8b19ad90552cf3c7e431d0e8e00f27c07f0afcafa31804f58a5ad8e9c817b1",
-  "seq": 6,
+  "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+  "seq": 7,
   "startedAt": "2026-08-06T20:00:42.147Z",
   "beats": [
     {
@@ -145,7 +145,31 @@
         "keyId": "hmac:env",
         "signature": "EUKrmwLET2hafUuH+cUU01D7cmJzO8qyi6BgWNjc7eQ="
       }
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "heartbeat",
+      "seq": 7,
+      "prevHash": "cf8b19ad90552cf3c7e431d0e8e00f27c07f0afcafa31804f58a5ad8e9c817b1",
+      "at": "2026-10-30T00:53:53.595Z",
+      "buildSha": "2e13de58c0a0b5208ea7b4ba14bc57020fd4e7ac",
+      "ndkHealth": "good",
+      "healerFail": false,
+      "commerceBlocked": false,
+      "stuckForward": false,
+      "subosScore": 100,
+      "tbosScore": 100,
+      "bonded": true,
+      "reasons": [
+        "bind_window_empty"
+      ],
+      "hash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "8l4bX9wH9O7pk3a/Ro05jnF6Z5add0TAG1IxPhz2slc="
+      }
     }
   ],
-  "updatedAt": "2026-08-07T02:17:32.023Z"
+  "updatedAt": "2026-10-30T00:53:53.595Z"
 }
