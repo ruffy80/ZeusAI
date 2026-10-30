@@ -322,6 +322,7 @@ function _computePrice(serviceId, options = {}) {
     }
   }
   const { userId, quantity = 1, coupon } = options;
+  const paymentMethod = String(options.paymentMethod || '').toLowerCase();
 
   const svcFactor = perServiceFactor(serviceId);
   const effectiveDemand = currentDemandFactor * svcFactor;
@@ -337,8 +338,10 @@ function _computePrice(serviceId, options = {}) {
   // Surge only when a real paid-order / cart signal exists. Default off.
   if (surgeActive && hasMeasuredDemandSignal()) price *= 1.2;
 
-  // Global 10% BTC discount (storefront copy)
-  if (discountActive) price *= 0.90;
+  // Keep public USD quotes at list price; apply the BTC discount only to an
+  // explicitly BTC-specific quote. Checkout applies it after resolving list price.
+  const discountApplied = discountActive && (paymentMethod === 'btc' || paymentMethod === 'bitcoin');
+  if (discountApplied) price *= 0.90;
 
   // Coupon codes
   if (coupon === 'UNICORN2026') price *= 0.7;
@@ -360,7 +363,7 @@ function _computePrice(serviceId, options = {}) {
     demandFactor: Math.round(effectiveDemand * 1000) / 1000,
     globalDemand: Math.round(currentDemandFactor * 1000) / 1000,
     serviceFactor: Math.round(svcFactor * 1000) / 1000,
-    discountApplied: discountActive,
+    discountApplied,
     surgeActive,
     peakHours: peakHoursActive,
     currency: 'USD',
@@ -373,11 +376,10 @@ function _computePrice(serviceId, options = {}) {
 // THE STORE'S #1 TRUST BUG was that the same product showed three different
 // prices on one page (badge $33, button 0.00045 BTC, card $32.01) because the
 // demand/surge factors drift between every getPrice() call. We now freeze each
-// product's computed price for a short window so the SSR card, the live SSE
-// stream, the /pricing page AND the checkout all read the SAME number. The
-// price still moves over time (the engine recomputes after the TTL) — it just
-// never contradicts itself within a single visit. Keyed by everything that can
-// legitimately change the price. Bilingual note (RO): preț unic, fără pâlpâire.
+// product's list price for a short window so the SSR card, live SSE stream,
+// /pricing page and canonical checkout quote stay coherent. Checkout applies
+// the BTC discount only after resolving this list price. Keyed by everything
+// that can legitimately change the quote. Bilingual note (RO): preț unic.
 const _priceSnapshotCache = new Map(); // key -> { result, exp }
 const PRICE_SNAPSHOT_TTL_MS = Number(process.env.PRICE_SNAPSHOT_TTL_MS) || 90000;
 function _snapshotKey(serviceId, options) {
@@ -388,6 +390,8 @@ function _snapshotKey(serviceId, options) {
     o.quantity || 1,
     o.coupon || '',
     o.userId || '',
+    String(o.paymentMethod || '').toLowerCase(),
+    discountActive ? 1 : 0,
   ].join('|');
 }
 function getPrice(serviceId, options = {}) {
@@ -437,12 +441,14 @@ function hasService(serviceId) { return Object.prototype.hasOwnProperty.call(BAS
 // Cache getAllPrices() to prevent excessive recomputation
 let __pricesCacheData = null;
 let __pricesCacheTime = 0;
+let __pricesCacheKey = '';
 const __PRICES_CACHE_TTL_MS = 5000; // 5 second cache
 
 function getAllPrices(options = {}) {
   const now = Date.now();
+  const cacheKey = _snapshotKey('all', options);
   // Invalidate cache if demand factor or surge changed
-  if (__pricesCacheData && (now - __pricesCacheTime) < __PRICES_CACHE_TTL_MS) {
+  if (__pricesCacheData && cacheKey === __pricesCacheKey && (now - __pricesCacheTime) < __PRICES_CACHE_TTL_MS) {
     return __pricesCacheData;
   }
   const result = Object.keys(BASE_PRICES).reduce((acc, k) => {
@@ -451,6 +457,7 @@ function getAllPrices(options = {}) {
   }, {});
   __pricesCacheData = result;
   __pricesCacheTime = now;
+  __pricesCacheKey = cacheKey;
   return result;
 }
 
