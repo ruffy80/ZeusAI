@@ -6317,6 +6317,7 @@ async function unicornHandler(req, res) {
           '<div><h3 style="margin:0">Live feed</h3><div class="sub" id="pricing-status-s">Subscribing to /api/pricing/live/stream …</div></div>' +
           '<div class="v" id="pricing-status-v" style="font-size:14px">⏳ connecting</div>' +
         '</div>' +
+        '<p class="sub" id="pricing-update-note" style="margin:0 0 16px">Prices can update until checkout; the final quote is re-confirmed with a timestamp before you pay. Bitcoin pays 10% under the list price. File delivery is $0.</p>' +
         '<div id="pricing-grid" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
         '<div style="margin:32px 0 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--card)"><h3 style="margin:0 0 8px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.08em">Not ready to pay?</h3><p style="margin:0 0 12px;color:var(--muted)">Take the zero-upfront route — we ship the platform, you only pay 30% of the <em>incremental</em> revenue we generate.</p><a href="/revenue-share"><button class="btn-ghost">See revenue-share offer →</button></a></div>';
       const js = [
