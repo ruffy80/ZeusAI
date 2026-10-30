@@ -265,7 +265,8 @@ function quoteSync(offerId, context) {
 function priceServices(services) {
   const list = Array.isArray(services) ? services.slice() : [];
   const priced = list.map((service) => {
-    const quote = quoteSync(service.id);
+    const rawList = service.priceUsd == null && service.priceUSD == null ? Number(service.price) : 0;
+    const quote = quoteSync(service.id, rawList > 0 ? { basePrice: rawList } : {});
     return Object.assign({}, service, {
       priceUsd: quote.usd,
       priceUSD: quote.usd,

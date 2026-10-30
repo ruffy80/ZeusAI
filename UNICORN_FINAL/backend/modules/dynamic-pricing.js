@@ -285,26 +285,32 @@ function _computePrice(serviceId, options = {}) {
     let realBase = null;
     try {
       // Try to require the catalog modules (site and backend use similar paths)
-      let unified = null, instant = null, ent = null;
+      let unified = null, instant = null, ent = null, money = null;
       try { unified = require('../../src/commerce/unified-catalog'); } catch (_) {}
       try { instant = require('../../src/commerce/instant-catalog'); } catch (_) {}
       try { ent = require('../../src/commerce/enterprise-catalog'); } catch (_) {}
+      try { money = require('../../src/commerce/money-catalog'); } catch (_) {}
       const probe = (mod) => {
         if (!mod) return null;
         try {
+          const read = (it) => {
+            if (!it) return null;
+            const n = Number(it.priceUSD != null ? it.priceUSD : (it.priceUsd != null ? it.priceUsd : it.price));
+            return n > 0 ? n : null;
+          };
           if (typeof mod.byId === 'function') {
-            const it = mod.byId(serviceId);
-            if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+            const hit = read(mod.byId(serviceId));
+            if (hit) return hit;
           }
           if (typeof mod.all === 'function') {
             const arr = mod.all() || [];
-            const it = arr.find(x => x && x.id === serviceId);
-            if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+            const hit = read(arr.find(x => x && x.id === serviceId));
+            if (hit) return hit;
           }
         } catch (_) {}
         return null;
       };
-      realBase = probe(unified) || probe(instant) || probe(ent) || null;
+      realBase = probe(unified) || probe(instant) || probe(ent) || probe(money) || null;
       if (realBase && realBase > 0) {
         BASE_PRICES[serviceId] = realBase;
         base = realBase;
