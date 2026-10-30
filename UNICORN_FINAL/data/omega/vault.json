@@ -1,0 +1,17 @@
+{
+  "buyer-alt@example.com": {
+    "email": "buyer-alt@example.com",
+    "createdAt": "2026-10-30T00:53:53.557Z",
+    "entries": [
+      {
+        "instanceId": "omega_bc84b82d9c6f2e0dbd27",
+        "serviceId": "starter",
+        "serviceName": "Starter",
+        "orderId": "ord_altrailstest01",
+        "addedAt": "2026-10-30T00:53:53.557Z",
+        "status": "live",
+        "updatedAt": "2026-10-30T00:53:53.598Z"
+      }
+    ]
+  }
+}

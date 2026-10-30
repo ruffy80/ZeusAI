@@ -205,6 +205,14 @@
       "title": "Unicorn Sovereign Deployment (on-prem + audit suite)",
       "tier": "enterprise",
       "updatedAt": "2026-08-07T02:18:11.348Z"
+    },
+    "gnm_4ff9961269bf7630d3": {
+      "id": "gnm_4ff9961269bf7630d3",
+      "kind": "product_genome",
+      "sku": "starter",
+      "title": "Starter",
+      "tier": "professional",
+      "updatedAt": "2026-10-30T00:53:53.563Z"
     }
   },
   "edges": [
@@ -3196,6 +3204,110 @@
       },
       "createdAt": "2026-08-06T19:58:09.729Z",
       "updatedAt": "2026-08-06T20:00:42.092Z",
+      "auto": true
+    },
+    {
+      "id": "edge_cf28e69adc54af17b4",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_2a3b997cbb6a874bf6",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_a45a5a4403fe53a96a",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_5e47db9d2949b40745",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_1dfbdaedba4b6d7b0a",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_bea236ca0dd7d35835",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_da30dde21f53b3f7ce",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_e3793dcbf3448dd14e",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_4c9c025e156ce1b613",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_6695d18c5afa8ba7cd",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_ce96d520e2bd738703",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_374b498afa37d5cc61",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_57faadf3775eb76a01",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "gnm_5b6b2cbc108758e38d",
+      "kind": "compatibility",
+      "score": 22,
+      "meta": {
+        "reason": "synaptic_affinity"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
+      "auto": true
+    },
+    {
+      "id": "edge_7e7e339c9e1141b5ad",
+      "from": "gnm_4ff9961269bf7630d3",
+      "to": "omega_continuum",
+      "kind": "platform_bond",
+      "score": 100,
+      "meta": {
+        "protocol": "OMEGA/1.0"
+      },
+      "createdAt": "2026-10-30T00:53:53.563Z",
+      "updatedAt": "2026-10-30T00:53:53.563Z",
       "auto": true
     }
   ]

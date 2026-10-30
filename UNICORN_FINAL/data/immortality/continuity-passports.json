@@ -1,0 +1,66 @@
+{
+  "protocol": "CAC/1.0",
+  "passports": [
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_altrailstest01",
+      "serviceId": "starter",
+      "emailHash": "5c82d3811a04fd97666f8942",
+      "fromSeq": 3,
+      "toSeq": 7,
+      "beatCount": 5,
+      "bondedCount": 5,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:38:53.589Z",
+      "windowTo": "2026-10-30T00:58:53.589Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:53:53.598Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_59562a1371329eea",
+      "hash": "7359b64c35c0ceb82728bbd6f785f94b8ee7835a09e31123e5f64ec39813c668",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "3GmhWK8cCatnTaImQnJ1OeDEG9oE8C+3RNTP44u769Y="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_altrailstest01",
+      "serviceId": "starter",
+      "emailHash": "5c82d3811a04fd97666f8942",
+      "fromSeq": 3,
+      "toSeq": 7,
+      "beatCount": 5,
+      "bondedCount": 5,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:38:53.589Z",
+      "windowTo": "2026-10-30T00:58:53.589Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:53:53.598Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_59562a1371329eea",
+      "hash": "7359b64c35c0ceb82728bbd6f785f94b8ee7835a09e31123e5f64ec39813c668",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "3GmhWK8cCatnTaImQnJ1OeDEG9oE8C+3RNTP44u769Y="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    }
+  ],
+  "updatedAt": "2026-10-30T00:53:53.598Z"
+}

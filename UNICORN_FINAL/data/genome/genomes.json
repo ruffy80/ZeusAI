@@ -7377,7 +7377,8 @@
             "edge_f41528ee9d3af5b0ff",
             "edge_709cb767b198b35b7e",
             "edge_2a675e1533fbe674be",
-            "edge_2828040c64282b7ea1"
+            "edge_2828040c64282b7ea1",
+            "edge_cf28e69adc54af17b4"
           ]
         }
       },
@@ -7774,7 +7775,8 @@
             "edge_39e2d7399e72d78a3a",
             "edge_09e1744986b8a5e183",
             "edge_6ec92b60a83c1267d6",
-            "edge_ac382267ac25ca7cef"
+            "edge_ac382267ac25ca7cef",
+            "edge_a45a5a4403fe53a96a"
           ]
         }
       },
@@ -8172,7 +8174,8 @@
             "edge_edd70c21995e7c2fb8",
             "edge_06646fce556c7f795b",
             "edge_6767d8d13ec10cd1a6",
-            "edge_846ab4ae8857bb3986"
+            "edge_846ab4ae8857bb3986",
+            "edge_1dfbdaedba4b6d7b0a"
           ]
         }
       },
@@ -8571,7 +8574,8 @@
             "edge_95d61b558fac621c8a",
             "edge_c7836da5cefcc80b82",
             "edge_b6a4abcd2ac464b42e",
-            "edge_977540a688e0d1c577"
+            "edge_977540a688e0d1c577",
+            "edge_da30dde21f53b3f7ce"
           ]
         }
       },
@@ -8971,7 +8975,8 @@
             "edge_c7836da5cefcc80b82",
             "edge_90880a69f0ce554e7b",
             "edge_a3ed8a771f03893fdf",
-            "edge_2466085186d0e78117"
+            "edge_2466085186d0e78117",
+            "edge_4c9c025e156ce1b613"
           ]
         }
       },
@@ -9372,7 +9377,8 @@
             "edge_b6a4abcd2ac464b42e",
             "edge_a3ed8a771f03893fdf",
             "edge_41598b8242ced3a4c9",
-            "edge_975d673f8016024d17"
+            "edge_975d673f8016024d17",
+            "edge_ce96d520e2bd738703"
           ]
         }
       },
@@ -9774,7 +9780,8 @@
             "edge_977540a688e0d1c577",
             "edge_2466085186d0e78117",
             "edge_975d673f8016024d17",
-            "edge_27af6b59faf811064a"
+            "edge_27af6b59faf811064a",
+            "edge_57faadf3775eb76a01"
           ]
         }
       },
@@ -9859,6 +9866,357 @@
       "createdAt": "2026-08-06T19:58:09.729Z",
       "updatedAt": "2026-08-07T02:18:11.348Z",
       "hash": "de83bb22740404cc100096fd"
+    },
+    "gnm_4ff9961269bf7630d3": {
+      "id": "gnm_4ff9961269bf7630d3",
+      "protocol": "GENOME/1.0",
+      "version": "G/1.0",
+      "living": true,
+      "sku": "starter",
+      "title": "Starter",
+      "tier": "professional",
+      "priceUSD": 0,
+      "dna": {
+        "identity": {
+          "genomeId": "gnm_4ff9961269bf7630d3",
+          "sku": "starter",
+          "title": "Starter",
+          "tier": "professional",
+          "species": "zeusai_product",
+          "bornAt": "2026-10-30T00:53:53.562Z"
+        },
+        "capability": {
+          "list": [
+            "autonomous_delivery",
+            "vault_attachment",
+            "workspace",
+            "concierge",
+            "self_healing",
+            "marketplace_link",
+            "graph_participation"
+          ],
+          "omegaReady": false
+        },
+        "permission": {
+          "rbac": [
+            "owner",
+            "agent",
+            "ecosystem"
+          ],
+          "model": "zero_trust_genome"
+        },
+        "dependency": {
+          "requiredServices": [
+            "autonomous_fulfillment"
+          ],
+          "runtime": [
+            "unicorn_backend",
+            "omega_continuum"
+          ]
+        },
+        "skill": {
+          "skills": [
+            {
+              "skill": "starter",
+              "level": "emergent",
+              "source": "genome_inference"
+            },
+            {
+              "skill": "starter",
+              "level": "emergent",
+              "source": "genome_inference"
+            },
+            {
+              "skill": "professional",
+              "level": "emergent",
+              "source": "genome_inference"
+            }
+          ]
+        },
+        "knowledge": {
+          "articles": [
+            {
+              "id": "genome-overview",
+              "title": "Genome of Starter",
+              "href": "https://zeusai.pro/genome/gnm_4ff9961269bf7630d3"
+            },
+            {
+              "id": "zero-maintenance",
+              "title": "Zero maintenance contract",
+              "href": "https://zeusai.pro/genome#zero-maintenance"
+            }
+          ]
+        },
+        "compatibility": {
+          "compatibleSkus": [
+            "ent-platform-license",
+            "ent-acquisition-pack",
+            "ent-revenue-share",
+            "ent-private-cloud",
+            "ent-ai-transformation",
+            "ent-white-label",
+            "ent-sovereign-deployment"
+          ],
+          "affinityHints": [
+            "starter",
+            "starter",
+            "professional"
+          ]
+        },
+        "plugin": {
+          "installed": [],
+          "slots": [
+            "automation",
+            "analytics",
+            "connector"
+          ]
+        },
+        "memory": {
+          "entries": 0,
+          "lastLearnedAt": null
+        },
+        "automation": {
+          "rules": [
+            "health_ping",
+            "value_nudge",
+            "relationship_scan"
+          ],
+          "generated": [
+            {
+              "id": "rel_scan",
+              "at": "2026-10-30T00:53:53.562Z",
+              "rule": "scan_compatible_on_register"
+            }
+          ]
+        },
+        "api": {
+          "endpoints": [
+            "/api/genome/gnm_4ff9961269bf7630d3",
+            "/api/genome/graph?sku=starter",
+            "/checkout?serviceId=starter"
+          ]
+        },
+        "workflow": {
+          "pipelines": [
+            "register→genome→graph→orchestrate→evolve"
+          ],
+          "generated": [
+            {
+              "id": "onboard_continuum",
+              "at": "2026-10-30T00:53:53.562Z",
+              "steps": [
+                "vault",
+                "workspace",
+                "concierge",
+                "genome_attach"
+              ]
+            }
+          ]
+        },
+        "security": {
+          "profile": "standard_isolation",
+          "audit": true,
+          "secretsViaCustomerAuth": true
+        },
+        "risk": {
+          "score": 15,
+          "factors": [
+            "fully_autonomous"
+          ]
+        },
+        "performance": {
+          "profile": "event_driven",
+          "targetTimeToValueSec": 60
+        },
+        "learning": {
+          "history": [
+            {
+              "at": "2026-10-30T00:53:53.562Z",
+              "event": "genome_birth",
+              "note": "Initial DNA assembled"
+            },
+            {
+              "at": "2026-10-30T00:53:53.567Z",
+              "event": "purchase",
+              "orderId": "ord_altrailstest01",
+              "note": "Customer adaptation seed"
+            }
+          ]
+        },
+        "deployment": {
+          "history": [
+            {
+              "at": "2026-10-30T00:53:53.562Z",
+              "event": "registered",
+              "channel": "global_product_registry"
+            },
+            {
+              "at": "2026-10-30T00:53:53.567Z",
+              "event": "sold_attach",
+              "orderId": "ord_altrailstest01"
+            }
+          ]
+        },
+        "versioning": {
+          "versions": [
+            {
+              "v": "1.0.0",
+              "at": "2026-10-30T00:53:53.562Z",
+              "note": "genome_v1"
+            }
+          ],
+          "current": "1.0.0"
+        },
+        "adaptation": {
+          "customerAdaptations": [
+            {
+              "at": "2026-10-30T00:53:53.567Z",
+              "orderId": "ord_altrailstest01",
+              "emailMasked": null
+            }
+          ]
+        },
+        "business_rules": {
+          "rules": [
+            {
+              "id": "auto_vault",
+              "when": "order_paid",
+              "then": "attach_omega_vault"
+            },
+            {
+              "id": "auto_graph",
+              "when": "register",
+              "then": "link_compatible_products"
+            }
+          ]
+        },
+        "execution": {
+          "graph": {
+            "nodes": [
+              "register",
+              "provision",
+              "deliver",
+              "monitor",
+              "evolve"
+            ],
+            "edges": [
+              [
+                "register",
+                "provision"
+              ],
+              [
+                "provision",
+                "deliver"
+              ],
+              [
+                "deliver",
+                "monitor"
+              ],
+              [
+                "monitor",
+                "evolve"
+              ],
+              [
+                "evolve",
+                "monitor"
+              ]
+            ]
+          }
+        },
+        "relationship": {
+          "edgeIds": [
+            "edge_cf28e69adc54af17b4",
+            "edge_a45a5a4403fe53a96a",
+            "edge_1dfbdaedba4b6d7b0a",
+            "edge_da30dde21f53b3f7ce",
+            "edge_4c9c025e156ce1b613",
+            "edge_ce96d520e2bd738703",
+            "edge_57faadf3775eb76a01",
+            "edge_7e7e339c9e1141b5ad"
+          ]
+        }
+      },
+      "zeroMaintenance": {
+        "monitor": {
+          "status": "armed",
+          "lastAt": "2026-10-30T00:53:53.567Z",
+          "count": 2,
+          "autonomous": true
+        },
+        "repair": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "backup": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "optimize": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "scale": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "clean": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "update": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "migrate": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "recover": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "document": {
+          "status": "armed",
+          "lastAt": "2026-10-30T00:53:53.567Z",
+          "count": 1,
+          "autonomous": true
+        },
+        "audit": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        },
+        "explain": {
+          "status": "armed",
+          "lastAt": null,
+          "count": 0,
+          "autonomous": true
+        }
+      },
+      "orchestrator": {
+        "lastAxes": [],
+        "lastTickAt": null
+      },
+      "createdAt": "2026-10-30T00:53:53.562Z",
+      "updatedAt": "2026-10-30T00:53:53.567Z",
+      "hash": "d2a1448bd2ec099d37332350"
     }
   },
   "skuIndex": {
@@ -9886,6 +10244,7 @@
     "ent-private-cloud": "gnm_e3793dcbf3448dd14e",
     "ent-ai-transformation": "gnm_6695d18c5afa8ba7cd",
     "ent-white-label": "gnm_374b498afa37d5cc61",
-    "ent-sovereign-deployment": "gnm_5b6b2cbc108758e38d"
+    "ent-sovereign-deployment": "gnm_5b6b2cbc108758e38d",
+    "starter": "gnm_4ff9961269bf7630d3"
   }
 }

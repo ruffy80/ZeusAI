@@ -1,0 +1,47 @@
+{
+  "state": {
+    "startedAt": "2026-10-30T00:53:53.574Z",
+    "cyclesOpened": 1,
+    "cyclesClosed": 0,
+    "cyclesBreached": 0,
+    "yieldProposals": 0,
+    "lastOpenAt": "2026-10-30T00:53:53.575Z",
+    "lastCloseAt": null,
+    "lastYieldAt": null,
+    "armed": true
+  },
+  "cycles": [
+    {
+      "cycleId": "ord_altrailstest01",
+      "protocol": "CLOS/1.0",
+      "phase": "fulfillment_ack",
+      "status": "open",
+      "openedAt": "2026-10-30T00:53:53.575Z",
+      "paidAt": "2026-10-30T00:53:53.516Z",
+      "rail": "paypal",
+      "orderId": "ord_altrailstest01",
+      "serviceId": "starter",
+      "email": "buyer-alt@example.com",
+      "amountUsd": 49,
+      "marginPct": null,
+      "txid": null,
+      "slaHours": 72,
+      "slaDeadline": "2026-11-02T00:53:53.575Z",
+      "fulfillmentAckAt": "2026-10-30T00:53:53.598Z",
+      "fulfillmentMode": "digital_delivery",
+      "closedAt": null,
+      "receiptHash": null,
+      "yieldProposalId": null,
+      "notes": [
+        {
+          "at": "2026-10-30T00:53:53.598Z",
+          "event": "fulfillment_ack",
+          "mode": "digital_delivery"
+        }
+      ]
+    }
+  ],
+  "yieldQueue": [],
+  "receipts": [],
+  "savedAt": "2026-10-30T00:53:53.599Z"
+}

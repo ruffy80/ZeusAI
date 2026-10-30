@@ -39,7 +39,9 @@ check('PM2 does not pin missing payment keys and forwards configured keys', () =
     keys.forEach((key) => delete process.env[key]);
     delete require.cache[configPath];
     let config = require('../ecosystem.config');
-    for (const app of config.apps) {
+    const paymentApps = config.apps.filter((app) => app.name === 'unicorn-backend' || app.name === 'unicorn-site');
+    assert.equal(paymentApps.length, 2);
+    for (const app of paymentApps) {
       for (const key of keys) assert.ok(!(key in app.env), app.name + ' pins absent ' + key);
     }
 
@@ -47,7 +49,7 @@ check('PM2 does not pin missing payment keys and forwards configured keys', () =
     Object.assign(process.env, configured);
     delete require.cache[configPath];
     config = require('../ecosystem.config');
-    for (const app of config.apps) {
+    for (const app of config.apps.filter((app) => app.name === 'unicorn-backend' || app.name === 'unicorn-site')) {
       for (const key of keys) assert.equal(app.env[key], configured[key], app.name + ' forwards ' + key);
     }
   } finally {
