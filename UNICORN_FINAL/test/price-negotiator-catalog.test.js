@@ -11,11 +11,14 @@ const enterprise = require('../src/commerce/enterprise-catalog');
 
 function expectNegotiated(row) {
   const floor = Number(row.priceUSD != null ? row.priceUSD : row.priceUsd);
+  const list = Math.round(floor * 100) / 100;
   const quote = pn.getPriceSync(row.id, { userId: null, btcRate: 80000 });
-  const expected = Math.round(floor * 0.9 * 100) / 100;
+  // Public USD is the catalog list price. The 10% Bitcoin reduction is applied
+  // at checkout, not baked into the offer Google reads.
   assert.equal(quote.ok, true, row.id + ' ' + quote.error);
-  assert.equal(quote.usd, expected, row.id + ' negotiated ' + quote.usd + ' floor ' + floor);
-  assert.equal(quote.btc, (expected / 80000).toFixed(8), row.id);
+  assert.equal(quote.usd, list, row.id + ' public usd ' + quote.usd + ' list ' + list);
+  assert.equal(quote.listUsd, list, row.id);
+  assert.equal(quote.btc, (list / 80000).toFixed(8), row.id);
   assert.notEqual(quote.baseSource, 'fallback-default', row.id);
 }
 
@@ -36,6 +39,7 @@ assert.equal(unknown.error, 'no_catalog_price');
 const audit = pn.getPriceSync('website-audit', { userId: null, btcRate: 80000 });
 assert.equal(audit.ok, true);
 assert.equal(audit.serviceId, 'instant-website-audit');
-assert.equal(audit.usd, 44.1);
+assert.equal(audit.usd, 49);
+assert.equal(audit.listUsd, 49);
 
 console.log('price-negotiator-catalog.test.js: ok', rows.length);
