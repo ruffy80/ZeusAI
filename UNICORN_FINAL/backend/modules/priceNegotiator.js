@@ -75,6 +75,40 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+function readCatalogPrice(row) {
+  if (!row) return 0;
+  const n = Number(row.priceUSD != null ? row.priceUSD : (row.priceUsd != null ? row.priceUsd : row.price));
+  return n > 0 ? n : 0;
+}
+
+function catalogFloor(serviceId) {
+  const id = String(serviceId || '');
+  if (!id || id === 'unknown') return 0;
+  const mods = [
+    '../../src/commerce/instant-catalog',
+    '../../src/commerce/enterprise-catalog',
+    '../../src/commerce/unified-catalog',
+    '../../src/commerce/money-catalog',
+  ];
+  for (const spec of mods) {
+    try {
+      const mod = require(spec);
+      if (mod && typeof mod.byId === 'function') {
+        const hit = readCatalogPrice(mod.byId(id));
+        if (hit > 0) return hit;
+      }
+      if (mod && typeof mod.all === 'function') {
+        const row = (mod.all() || []).find((item) => item && item.id === id);
+        const hit = readCatalogPrice(row);
+        if (hit > 0) return hit;
+      }
+    } catch (err) {
+      catalogFloor.lastError = String(err && err.message || err);
+    }
+  }
+  return 0;
+}
+
 function getPriceSync(productId, context = {}) {
   const ids = resolveProductId(productId);
   const cost = Number(BASE_COST_USD[ids.requested] || BASE_COST_USD[ids.serviceId] || 0);
@@ -82,28 +116,39 @@ function getPriceSync(productId, context = {}) {
 
   let usd = 0;
   let source = 'fallback';
+  let baseSource = null;
+  let engineError = null;
+  const floor = catalogFloor(ids.serviceId) || catalogFloor(ids.requested);
   const quoted = Number(context.quotedUsd);
   if (Number.isFinite(quoted) && quoted > 0) {
     usd = round2(quoted);
     source = 'priceNegotiator';
+    baseSource = 'quoted';
   } else if (dynamicPricing && typeof dynamicPricing.getPrice === 'function') {
     const opts = {
       userId: context.userId || null,
       coupon: context.coupon || null,
     };
-    if (Number.isFinite(Number(context.basePrice)) && Number(context.basePrice) > 0) {
-      opts.basePrice = Number(context.basePrice);
-    }
+    const explicit = Number(context.basePrice);
+    const basePrice = explicit > 0 ? explicit : floor;
+    if (basePrice > 0) opts.basePrice = basePrice;
     try {
       const q = dynamicPricing.getPrice(ids.serviceId, opts);
       const fromEngine = Number(q && q.finalPrice);
-      if (fromEngine > 0) {
+      baseSource = q && q.baseSource || null;
+      if (fromEngine > 0 && baseSource !== 'fallback-default') {
         usd = round2(fromEngine);
         source = 'dynamic-pricing';
       }
-    } catch (_) {}
+    } catch (err) {
+      engineError = String(err && err.message || err);
+    }
   }
 
+  if (!(usd > 0) && floor > 0) {
+    usd = round2(floor);
+    source = 'catalog-floor';
+  }
   if (!(usd > 0)) usd = minUsd || 34.99;
   if (minUsd > 0 && usd < minUsd) usd = minUsd;
 
@@ -118,13 +163,18 @@ function getPriceSync(productId, context = {}) {
     source += '-btc-fallback';
   }
 
+  const known = floor > 0 || minUsd > 0 || baseSource === 'quoted' || (baseSource && baseSource !== 'fallback-default');
   return {
+    ok: known === true && !engineError,
+    error: engineError || (known ? null : 'no_catalog_price'),
     productId: ids.requested,
     serviceId: ids.serviceId,
     usd: round2(usd),
     btc,
+    listUsd: floor > 0 ? floor : null,
     profitMargin: PROFIT_MARGIN,
     source,
+    baseSource,
     btcRate: rate > 0 ? rate : null,
   };
 }

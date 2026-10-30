@@ -10974,6 +10974,7 @@ function _resolveCatalogBase(id) {
   try { base = probe(require('../src/commerce/unified-catalog')); } catch (_) {}
   if (!base) { try { base = probe(require('../src/commerce/instant-catalog')); } catch (_) {} }
   if (!base) { try { base = probe(require('../src/commerce/enterprise-catalog')); } catch (_) {} }
+  if (!base) { try { base = probe(require('../src/commerce/money-catalog')); } catch (_) {} }
   return (base && base > 0) ? base : null;
 }
 
