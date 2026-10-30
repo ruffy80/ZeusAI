@@ -13,6 +13,8 @@ function expectNegotiated(row) {
   const floor = Number(row.priceUSD != null ? row.priceUSD : row.priceUsd);
   const list = Math.round(floor * 100) / 100;
   const quote = pn.getPriceSync(row.id, { userId: null, btcRate: 80000 });
+  // Public USD is the catalog list price. The 10% Bitcoin cut is applied
+  // at checkout for the Bitcoin rail, not inside this quote.
   // Public USD is the catalog list price. The 10% Bitcoin reduction is applied
   // at checkout, not baked into the offer Google reads.
   assert.equal(quote.ok, true, row.id + ' ' + quote.error);
