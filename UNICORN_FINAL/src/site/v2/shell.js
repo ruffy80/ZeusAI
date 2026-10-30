@@ -1744,6 +1744,23 @@ function _quoteFor(id) {
   if (!layer || typeof layer.quoteSync !== 'function') return null;
   try { return layer.quoteSync(id); } catch (_) { return null; }
 }
+function _orderInputsHtml(productId) {
+  let fields = [];
+  try {
+    const row = require('../../commerce/instant-catalog').byId(productId);
+    fields = (row && row.inputs) || [];
+  } catch (_) { fields = []; }
+  const rows = fields.filter((field) => field && field.key && String(field.key).toLowerCase() !== 'email');
+  if (!rows.length) return '';
+  return '<div class="order-inputs" data-order-inputs="' + _esc(productId) + '">' + rows.map((field) => {
+    const key = _esc(field.key);
+    const label = _esc(field.label || field.key);
+    const control = field.type === 'textarea'
+      ? '<textarea data-order-input="' + key + '" rows="4" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"></textarea>'
+      : '<input data-order-input="' + key + '" type="' + (field.type === 'url' ? 'url' : 'text') + '" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>';
+    return '<label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">' + label + control + '</label>';
+  }).join('') + '</div>';
+}
 function _trustBadgeHtml() {
   const layer = _commercial();
   let label = 'Be the first — founding delivery';
@@ -2581,6 +2598,7 @@ function pageService(id) {
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
+      ${_orderInputsHtml(safeId)}
       <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>
       ${price > 0 && cta.mode !== 'contact' ? require('../../commerce/pay-options').payOptionsHtml(safeId) : ''}`;
       })()}
@@ -2746,6 +2764,7 @@ function pageCheckout(params) {
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
         ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
+        ${contactOnly ? '' : _orderInputsHtml(ssrPlan)}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>

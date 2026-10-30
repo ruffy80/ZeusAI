@@ -326,6 +326,16 @@ async function fetchLivePricing(serviceId, opts){
   }
 }
 
+function collectOrderInputs() {
+  const inputs = {};
+  document.querySelectorAll('[data-order-input]').forEach(function (el) {
+    const key = el.getAttribute('data-order-input');
+    const value = String(el.value || '').trim().slice(0, 2000);
+    if (key && value) inputs[key] = value;
+  });
+  return inputs;
+}
+
 function paymentLabels(){
   const ids = (STATE.paymentMethods || []).filter(m => m && m.active !== false).map(m => m.id || m.provider || '');
   const labels = ['BTC direct'];
@@ -3250,7 +3260,7 @@ async function sovereignBuy(serviceId, opts){
     // distinct BTC invoices for the same intent. The server replays the prior
     // 201 for 24h (see sovereign-commerce.handle). Stable per invocation.
     const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-    const payload = { serviceId, qty: 1, currency: 'USD', preorder };
+    const payload = { serviceId, qty: 1, currency: 'USD', preorder, inputs: collectOrderInputs() };
     if (email) payload.email = email;
     // Godmode Completion OS: attribute affiliate ?ref= on the sovereign money path.
     try {
@@ -4104,7 +4114,7 @@ function hydrateCheckout(){
     ids.forEach((id) => setBusy(id, true, rail === 'paypal' ? 'Opening PayPal…' : 'Opening invoice…'));
     try {
       toast(rail === 'paypal' ? 'Creating PayPal order…' : 'Creating payment invoice…', 'ok');
-      const createBody = { serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined, rail };
+      const createBody = { serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined, rail, inputs: collectOrderInputs() };
       if (isVirtual && amountUsd > 0) {
         createBody.amountUsd = amountUsd;
         createBody.skipBtcDiscount = true;

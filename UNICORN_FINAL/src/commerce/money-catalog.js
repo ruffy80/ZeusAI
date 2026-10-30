@@ -155,6 +155,11 @@ function listingLines() {
   ].join(' · '));
 }
 
+function sealMoney(text, row) {
+  try { return require('./finished-delivery').stamp(text, row); }
+  catch (_) { return text; }
+}
+
 function render(row, receipt) {
   const orderId = receipt && (receipt.id || receipt.orderId) ? String(receipt.id || receipt.orderId) : 'unknown';
   const paid = receipt && (receipt.amount || receipt.amountUsd || receipt.amount_usd);
@@ -172,7 +177,7 @@ function render(row, receipt) {
     '',
   ];
   if (row.tier === 'frontier') {
-    return head.concat([
+    return sealMoney(head.concat([
       '## Tool contract',
       row.tool,
       '',
@@ -182,10 +187,10 @@ function render(row, receipt) {
       '## What stays outside this file',
       'Orbital compute, a neural implant, and a quantum channel are not in this download.',
       '',
-    ]).join('\n');
+    ]).join('\n'), row);
   }
   if (row.tier === 'industry') {
-    return head.concat([
+    return sealMoney(head.concat([
       '## Outcomes',
       'The page focus is: ' + row.kpi + '.',
       'That phrase is the focus label. It is not a measured result and it is not a certification.',
@@ -205,9 +210,9 @@ function render(row, receipt) {
       '## Handoff',
       'This document is the architecture pack. It does not install an operating system.',
       '',
-    ]).join('\n');
+    ]).join('\n'), row);
   }
-  return head.concat([
+  return sealMoney(head.concat([
     '## Supplier status',
     'Auto-ship stays off until a CJ, Printful, or Printify key is armed and the row is dispatchable.',
     '',
@@ -217,7 +222,7 @@ function render(row, receipt) {
     '## What this file does not ship',
     'Review counts are not copied here. This file does not dispatch a parcel and it does not invent a tracking number.',
     '',
-  ]).join('\n');
+  ]).join('\n'), row);
 }
 
 function artifact(receipt, row) {

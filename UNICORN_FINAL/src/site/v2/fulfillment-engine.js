@@ -669,6 +669,7 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
     return [
       '## Scorecard',
       'Subject: ' + seed,
+      'URL: ' + (quoted.map((line) => String(line)).find((line) => /^url:/i.test(line)) || 'not on the order. No page was fetched.'),
       'No score is filled in. This copy did not fetch the page.',
       '',
       '## SEO findings',
@@ -883,7 +884,7 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
       ? 'Track: project kickoff. The finished build is not in this file.'
       : 'Track: digital activation pack. The written deliverable in this file was produced without a model.');
   const work = writtenDeliverable(serviceId, receipt, recipe, opts);
-  const content = compactLines([
+  const content = sealFile(compactLines([
     human ? '# Project Kickoff Pack' : '# Service Activation Pack',
     '',
     `Generated: ${new Date().toISOString()}`,
@@ -927,7 +928,11 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     human
       ? 'The finished build is not in this file.'
       : 'This artifact is intentionally deterministic and never claims AI generation when AI was not actually used.',
-  ]).join('\n');
+  ]).join('\n'), {
+    id: serviceId,
+    title: receipt && (receipt.serviceName || receipt.plan) ? (receipt.serviceName || receipt.plan) : recipe.title,
+    description: recipe && recipe.title,
+  });
 
   return {
     serviceId,
@@ -1047,16 +1052,21 @@ function buyerReceipt(item) {
   };
 }
 
+function sealFile(content, item) {
+  try { return require('../../commerce/finished-delivery').stamp(content, item); }
+  catch (_) { return content; }
+}
+
 function buyerFile(item) {
   const serviceId = String(item && item.id || '');
   const receipt = buyerReceipt(item);
   try {
     const row = require('../../commerce/money-catalog').byId(serviceId);
-    if (row) return require('../../commerce/money-catalog').render(row, receipt);
+    if (row) return sealFile(require('../../commerce/money-catalog').render(row, receipt), item);
   } catch (_) { /* shelf recipes below */ }
   if (item && item.mode === 'contact') {
     const doc = proposalDocument(serviceId);
-    return doc && doc.content ? doc.content : '';
+    return doc && doc.content ? sealFile(doc.content, item) : '';
   }
   if (item && item.mode === 'unavailable') return '';
   const enterprise = isEnterprise(receipt, serviceId);
@@ -1071,7 +1081,7 @@ function buyerFile(item) {
     requiresHuman: human,
     reason: 'delivery_integrity',
   });
-  return attachEnterprisePack(artifact, receipt, serviceId, false).content;
+  return sealFile(attachEnterprisePack(artifact, receipt, serviceId, false).content, item);
 }
 
 async function fulfillService(receipt, serviceId) {
@@ -1112,14 +1122,15 @@ async function fulfillService(receipt, serviceId) {
       }), receipt, serviceId);
     }
     let content = reply.slice(0, MAX_ARTIFACT_CHARS);
+    let shelfItem = null;
     try {
       const dip = require('../../commerce/delivery-integrity');
-      let shelfItem = null;
       try { shelfItem = require('../../commerce/public-shelf').byId(serviceId); } catch (_) { shelfItem = null; }
       const preview = offerPreview(serviceId, shelfItem || {});
       const floor = buyerFile(shelfItem || { id: serviceId, title: serviceId, priceUsd: receiptAmountUsd(receipt), mode: 'btc', clock: 'minutes' });
       content = dip.keepSections(content, preview && preview.sections, floor);
     } catch (_) { /* the model text still returns */ }
+    content = sealFile(content, shelfItem || { id: serviceId, title: serviceId });
     return attachEnterprisePack({
       serviceId,
       recipe: recipe.id,
