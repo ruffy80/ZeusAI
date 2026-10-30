@@ -1,13 +1,13 @@
 {
   "protocol": "RIVOS/1.0",
-  "updatedAt": "2026-10-30T00:53:53.580Z",
+  "updatedAt": "2026-10-30T00:55:20.430Z",
   "gravity": {
     "starter": {
-      "paid": 1,
+      "paid": 3,
       "expired": 0,
-      "revenueUsd": 49,
-      "score": 515,
-      "lastPaidAt": "2026-10-30T00:53:53.516Z"
+      "revenueUsd": 147,
+      "score": 1545,
+      "lastPaidAt": "2026-10-30T00:55:20.394Z"
     }
   },
   "lastAuthFingerprint": null,

@@ -6,10 +6,10 @@
   "opportunities": 32,
   "evolutions": 0,
   "orchestratorTicks": 0,
-  "maintenanceOps": 2,
+  "maintenanceOps": 6,
   "migrationsPlanned": 0,
   "errors": 0,
   "lastOrchestratorAt": null,
   "lastEvolveAt": null,
-  "savedAt": "2026-10-30T00:53:53.567Z"
+  "savedAt": "2026-10-30T00:55:20.411Z"
 }

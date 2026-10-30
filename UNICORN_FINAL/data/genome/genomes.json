@@ -10040,6 +10040,18 @@
               "event": "purchase",
               "orderId": "ord_altrailstest01",
               "note": "Customer adaptation seed"
+            },
+            {
+              "at": "2026-10-30T00:54:35.103Z",
+              "event": "purchase",
+              "orderId": "ord_altrailstest01",
+              "note": "Customer adaptation seed"
+            },
+            {
+              "at": "2026-10-30T00:55:20.411Z",
+              "event": "purchase",
+              "orderId": "ord_paypalrefs01",
+              "note": "Customer adaptation seed"
             }
           ]
         },
@@ -10054,6 +10066,16 @@
               "at": "2026-10-30T00:53:53.567Z",
               "event": "sold_attach",
               "orderId": "ord_altrailstest01"
+            },
+            {
+              "at": "2026-10-30T00:54:35.103Z",
+              "event": "sold_attach",
+              "orderId": "ord_altrailstest01"
+            },
+            {
+              "at": "2026-10-30T00:55:20.411Z",
+              "event": "sold_attach",
+              "orderId": "ord_paypalrefs01"
             }
           ]
         },
@@ -10072,6 +10094,16 @@
             {
               "at": "2026-10-30T00:53:53.567Z",
               "orderId": "ord_altrailstest01",
+              "emailMasked": null
+            },
+            {
+              "at": "2026-10-30T00:54:35.103Z",
+              "orderId": "ord_altrailstest01",
+              "emailMasked": null
+            },
+            {
+              "at": "2026-10-30T00:55:20.411Z",
+              "orderId": "ord_paypalrefs01",
               "emailMasked": null
             }
           ]
@@ -10139,8 +10171,8 @@
       "zeroMaintenance": {
         "monitor": {
           "status": "armed",
-          "lastAt": "2026-10-30T00:53:53.567Z",
-          "count": 2,
+          "lastAt": "2026-10-30T00:55:20.411Z",
+          "count": 4,
           "autonomous": true
         },
         "repair": {
@@ -10193,8 +10225,8 @@
         },
         "document": {
           "status": "armed",
-          "lastAt": "2026-10-30T00:53:53.567Z",
-          "count": 1,
+          "lastAt": "2026-10-30T00:55:20.411Z",
+          "count": 3,
           "autonomous": true
         },
         "audit": {
@@ -10215,7 +10247,7 @@
         "lastTickAt": null
       },
       "createdAt": "2026-10-30T00:53:53.562Z",
-      "updatedAt": "2026-10-30T00:53:53.567Z",
+      "updatedAt": "2026-10-30T00:55:20.411Z",
       "hash": "d2a1448bd2ec099d37332350"
     }
   },

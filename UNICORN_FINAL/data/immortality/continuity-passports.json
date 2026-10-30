@@ -37,30 +37,150 @@
       "orderId": "ord_altrailstest01",
       "serviceId": "starter",
       "emailHash": "5c82d3811a04fd97666f8942",
-      "fromSeq": 3,
+      "fromSeq": 7,
       "toSeq": 7,
-      "beatCount": 5,
-      "bondedCount": 5,
+      "beatCount": 1,
+      "bondedCount": 1,
       "degradedCount": 0,
       "commerceBlockedCount": 0,
       "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
-      "windowFrom": "2026-10-30T00:38:53.589Z",
-      "windowTo": "2026-10-30T00:58:53.589Z",
+      "windowFrom": "2026-10-30T00:39:35.128Z",
+      "windowTo": "2026-10-30T00:59:35.128Z",
       "verdict": "continuous_bonded",
-      "issuedAt": "2026-10-30T00:53:53.598Z",
+      "issuedAt": "2026-10-30T00:54:35.129Z",
       "honesty": {
         "inventsUptime": false,
         "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
       },
-      "passportId": "cac_59562a1371329eea",
-      "hash": "7359b64c35c0ceb82728bbd6f785f94b8ee7835a09e31123e5f64ec39813c668",
+      "passportId": "cac_f84457e79224af6b",
+      "hash": "fedfe30be51ffd85f2180db638b372c870cc84ba90400384426f3f6a7c8e231a",
       "signature": {
         "algorithm": "hmac-sha256",
         "keyId": "hmac:dev-fallback",
-        "signature": "3GmhWK8cCatnTaImQnJ1OeDEG9oE8C+3RNTP44u769Y="
+        "signature": "wxRAmGIP/6s/VJQIYnA5vLK8SfknL+GwkyXNOgJsET4="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_hooktest_1793321675302",
+      "serviceId": "test-svc",
+      "emailHash": "973dfe463ec85785f5f95af5",
+      "fromSeq": 7,
+      "toSeq": 7,
+      "beatCount": 1,
+      "bondedCount": 1,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:39:35.312Z",
+      "windowTo": "2026-10-30T00:59:35.312Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:54:35.313Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_cc15d35238d9cd35",
+      "hash": "536f110871a6df5802c34fd8e273c00bb7baed49ed51f511b37a79a5f7830269",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "NVgkvn40pOYoMVbuqQuPv5JQxoVOCSQBanuUC1OvKdA="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_nohook",
+      "serviceId": "s",
+      "emailHash": null,
+      "fromSeq": 7,
+      "toSeq": 7,
+      "beatCount": 1,
+      "bondedCount": 1,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:39:35.322Z",
+      "windowTo": "2026-10-30T00:59:35.322Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:54:35.322Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_dc4675731e96f6a6",
+      "hash": "97a583f5c48c21cd7ed9e5e9b8d2268e36fb16872e844384255221c06a51750c",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "wDylc0TddhL8np9CgyHSi5MK0XApGTAqcNWzpA8hpAc="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_paypalrefs01",
+      "serviceId": "starter",
+      "emailHash": "6a6c26195c3682faa816966a",
+      "fromSeq": 7,
+      "toSeq": 7,
+      "beatCount": 1,
+      "bondedCount": 1,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:40:20.438Z",
+      "windowTo": "2026-10-30T01:00:20.438Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:55:20.440Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_79ba2d9ebc49695e",
+      "hash": "c3e55011ffa4bdecc9de9c1281a296f2d242368f85529b7a56886c4d592a5bbd",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "3GLjjx7Ut0nAyW6Ygx0AJODxjOgDbTafNlTPsCJsqbk="
+      },
+      "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
+    },
+    {
+      "protocol": "CAC/1.0",
+      "kind": "continuity_passport",
+      "orderId": "ord_paypalrefs01",
+      "serviceId": "starter",
+      "emailHash": "6a6c26195c3682faa816966a",
+      "fromSeq": 7,
+      "toSeq": 7,
+      "beatCount": 1,
+      "bondedCount": 1,
+      "degradedCount": 0,
+      "commerceBlockedCount": 0,
+      "tipHash": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120",
+      "windowFrom": "2026-10-30T00:40:20.438Z",
+      "windowTo": "2026-10-30T01:00:20.438Z",
+      "verdict": "continuous_bonded",
+      "issuedAt": "2026-10-30T00:55:20.440Z",
+      "honesty": {
+        "inventsUptime": false,
+        "note": "Verdict reflects observed heartbeats only — never a 100% uptime guarantee."
+      },
+      "passportId": "cac_79ba2d9ebc49695e",
+      "hash": "c3e55011ffa4bdecc9de9c1281a296f2d242368f85529b7a56886c4d592a5bbd",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "keyId": "hmac:dev-fallback",
+        "signature": "3GLjjx7Ut0nAyW6Ygx0AJODxjOgDbTafNlTPsCJsqbk="
       },
       "chainTip": "eb97b5f6e5f69acd55dfd7479b39afe2abc67822bc4bd9535c96e793b3c71120"
     }
   ],
-  "updatedAt": "2026-10-30T00:53:53.598Z"
+  "updatedAt": "2026-10-30T00:55:20.441Z"
 }

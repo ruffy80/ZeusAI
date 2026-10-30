@@ -14,7 +14,7 @@
       "stage": "live",
       "revision": 1,
       "createdAt": "2026-10-30T00:53:53.556Z",
-      "updatedAt": "2026-10-30T00:53:53.598Z",
+      "updatedAt": "2026-10-30T00:54:35.130Z",
       "engines": {
         "vault": {
           "name": "AI Vault",
@@ -50,7 +50,7 @@
           "handle": "8e3575c28f0759dc",
           "summary": "Autonomous pipeline that takes the instance to live on its own.",
           "activatedAt": "2026-10-30T00:53:53.556Z",
-          "deliveredAt": "2026-10-30T00:53:53.598Z"
+          "deliveredAt": "2026-10-30T00:54:35.130Z"
         },
         "knowledge": {
           "name": "Knowledge",
@@ -184,9 +184,567 @@
         "welcomedAt": "2026-10-30T00:53:53.557Z",
         "message": "Welcome — your Starter is already live. The AI already handled everything. Nothing to install, activate, update or restore: the AI has handled it. Open your AI Vault any time to find every product you own."
       }
+    },
+    "omega_de9aed0a1095af2219c2": {
+      "id": "omega_de9aed0a1095af2219c2",
+      "protocol": "OMEGA/1.0",
+      "version": "Ω/1.0",
+      "orderId": "ord_hooktest_1793321675302",
+      "serviceId": "test-svc",
+      "serviceName": "Test Service",
+      "email": "test@example.com",
+      "amountUsd": 99,
+      "rail": "btc",
+      "qty": 1,
+      "stage": "live",
+      "revision": 1,
+      "createdAt": "2026-10-30T00:54:35.317Z",
+      "updatedAt": "2026-10-30T00:54:35.318Z",
+      "engines": {
+        "vault": {
+          "name": "AI Vault",
+          "status": "active",
+          "handle": "f91ce4088d7c4ac5",
+          "summary": "Customer-owned encrypted home for every purchased instance and its keys.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "workspace": {
+          "name": "Workspace",
+          "status": "active",
+          "handle": "5ba6e42b0d8b3045",
+          "summary": "Pre-provisioned working surface — no setup, already open.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "concierge": {
+          "name": "Concierge",
+          "status": "active",
+          "handle": "038c9a418e8a73eb",
+          "summary": "Proactive AI that welcomes, guides and answers before being asked.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "memory": {
+          "name": "Memory",
+          "status": "active",
+          "handle": "2e82c43bb338bf32",
+          "summary": "Durable context so the instance remembers the buyer forever.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "delivery": {
+          "name": "Delivery",
+          "status": "active",
+          "handle": "dc8f29fac1bd1557",
+          "summary": "Autonomous pipeline that takes the instance to live on its own.",
+          "activatedAt": "2026-10-30T00:54:35.317Z",
+          "deliveredAt": "2026-10-30T00:54:35.318Z"
+        },
+        "knowledge": {
+          "name": "Knowledge",
+          "status": "active",
+          "handle": "3943eb29ef7d6ab5",
+          "summary": "Self-assembled documentation and answers for the exact SKU.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "automation": {
+          "name": "Automation",
+          "status": "active",
+          "handle": "4f50d8c4e2d4631c",
+          "summary": "Workflows that run the product without the customer lifting a finger.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "update": {
+          "name": "Update",
+          "status": "active",
+          "handle": "b1cf706c5abc2561",
+          "summary": "Continuous forward-only upgrades applied invisibly.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "recovery": {
+          "name": "Recovery",
+          "status": "active",
+          "handle": "2b7511dc7f7ed9dd",
+          "summary": "One-touch (or zero-touch) restore to any prior good state.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "security": {
+          "name": "Security",
+          "status": "active",
+          "handle": "045daea3eac1d502",
+          "summary": "Per-instance isolation, secrets and tamper-evidence.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "monitoring": {
+          "name": "Monitoring",
+          "status": "active",
+          "handle": "bc71f3eaa03ccf3d",
+          "summary": "Always-on health and liveness of the instance.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "analytics": {
+          "name": "Analytics",
+          "status": "active",
+          "handle": "77b20c382c3d2e98",
+          "summary": "Value and usage signals surfaced automatically.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "marketplace": {
+          "name": "Marketplace",
+          "status": "active",
+          "handle": "7aab41ce1fe809bc",
+          "summary": "Instance can be extended with compatible add-ons.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "versioning": {
+          "name": "Versioning",
+          "status": "active",
+          "handle": "ad3bf754779dc07b",
+          "summary": "Every change is a versioned, addressable revision.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "backup": {
+          "name": "Backup",
+          "status": "active",
+          "handle": "cad0a0f8832ccb07",
+          "summary": "Automatic point-in-time snapshots, no schedule to configure.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "sync": {
+          "name": "Sync",
+          "status": "active",
+          "handle": "bfbf66e0a8fdc1ed",
+          "summary": "State converges across devices and surfaces.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "migration": {
+          "name": "Migration",
+          "status": "active",
+          "handle": "f882e1ad8eada9f2",
+          "summary": "Moves the instance forward across schema/SKU evolutions.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "selfHealing": {
+          "name": "Self-Healing",
+          "status": "active",
+          "handle": "0605025ffd822a03",
+          "summary": "Detects and repairs its own faults without a ticket.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "recommendation": {
+          "name": "Recommendation",
+          "status": "active",
+          "handle": "5b094a07b297545d",
+          "summary": "Suggests the next best action or complementary SKU.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        },
+        "personalization": {
+          "name": "Personalization",
+          "status": "active",
+          "handle": "c16a4dd9ecd790ab",
+          "summary": "Adapts to the individual buyer over time.",
+          "activatedAt": "2026-10-30T00:54:35.317Z"
+        }
+      },
+      "pipeline": [
+        {
+          "stage": "created",
+          "at": "2026-10-30T00:54:35.317Z"
+        },
+        {
+          "stage": "provisioning",
+          "at": "2026-10-30T00:54:35.317Z"
+        },
+        {
+          "stage": "assembling",
+          "at": "2026-10-30T00:54:35.317Z"
+        },
+        {
+          "stage": "securing",
+          "at": "2026-10-30T00:54:35.317Z"
+        },
+        {
+          "stage": "live",
+          "at": "2026-10-30T00:54:35.317Z"
+        }
+      ],
+      "concierge": {
+        "welcomedAt": "2026-10-30T00:54:35.317Z",
+        "message": "Welcome — your Test Service is already live. The AI already handled everything. Nothing to install, activate, update or restore: the AI has handled it. Open your AI Vault any time to find every product you own."
+      }
+    },
+    "omega_84562a7c508520e73a53": {
+      "id": "omega_84562a7c508520e73a53",
+      "protocol": "OMEGA/1.0",
+      "version": "Ω/1.0",
+      "orderId": "ord_nohook",
+      "serviceId": "s",
+      "serviceName": "s",
+      "email": "",
+      "amountUsd": 0,
+      "rail": "btc",
+      "qty": 1,
+      "stage": "live",
+      "revision": 1,
+      "createdAt": "2026-10-30T00:54:35.322Z",
+      "updatedAt": "2026-10-30T00:54:35.323Z",
+      "engines": {
+        "vault": {
+          "name": "AI Vault",
+          "status": "active",
+          "handle": "5f68ddfcd5ebba0d",
+          "summary": "Customer-owned encrypted home for every purchased instance and its keys.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "workspace": {
+          "name": "Workspace",
+          "status": "active",
+          "handle": "e8255850497f9ba3",
+          "summary": "Pre-provisioned working surface — no setup, already open.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "concierge": {
+          "name": "Concierge",
+          "status": "active",
+          "handle": "7a13f1c4fbdf870a",
+          "summary": "Proactive AI that welcomes, guides and answers before being asked.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "memory": {
+          "name": "Memory",
+          "status": "active",
+          "handle": "c1bb906e4bc9e349",
+          "summary": "Durable context so the instance remembers the buyer forever.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "delivery": {
+          "name": "Delivery",
+          "status": "active",
+          "handle": "ad0b60f602d81a3f",
+          "summary": "Autonomous pipeline that takes the instance to live on its own.",
+          "activatedAt": "2026-10-30T00:54:35.322Z",
+          "deliveredAt": "2026-10-30T00:54:35.323Z"
+        },
+        "knowledge": {
+          "name": "Knowledge",
+          "status": "active",
+          "handle": "08d6a8003558a5f8",
+          "summary": "Self-assembled documentation and answers for the exact SKU.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "automation": {
+          "name": "Automation",
+          "status": "active",
+          "handle": "35a46205b628816d",
+          "summary": "Workflows that run the product without the customer lifting a finger.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "update": {
+          "name": "Update",
+          "status": "active",
+          "handle": "349a61aaea2ad195",
+          "summary": "Continuous forward-only upgrades applied invisibly.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "recovery": {
+          "name": "Recovery",
+          "status": "active",
+          "handle": "7f889767acfbe6d8",
+          "summary": "One-touch (or zero-touch) restore to any prior good state.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "security": {
+          "name": "Security",
+          "status": "active",
+          "handle": "4465ae424cff90dd",
+          "summary": "Per-instance isolation, secrets and tamper-evidence.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "monitoring": {
+          "name": "Monitoring",
+          "status": "active",
+          "handle": "06ec6d1fa71cbc64",
+          "summary": "Always-on health and liveness of the instance.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "analytics": {
+          "name": "Analytics",
+          "status": "active",
+          "handle": "0db89b99d60d3251",
+          "summary": "Value and usage signals surfaced automatically.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "marketplace": {
+          "name": "Marketplace",
+          "status": "active",
+          "handle": "d2186793dc35299e",
+          "summary": "Instance can be extended with compatible add-ons.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "versioning": {
+          "name": "Versioning",
+          "status": "active",
+          "handle": "752993c9f3bdf8f9",
+          "summary": "Every change is a versioned, addressable revision.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "backup": {
+          "name": "Backup",
+          "status": "active",
+          "handle": "d33f0bcd7070b747",
+          "summary": "Automatic point-in-time snapshots, no schedule to configure.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "sync": {
+          "name": "Sync",
+          "status": "active",
+          "handle": "aca38aece4957061",
+          "summary": "State converges across devices and surfaces.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "migration": {
+          "name": "Migration",
+          "status": "active",
+          "handle": "ddebb348467a8fb6",
+          "summary": "Moves the instance forward across schema/SKU evolutions.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "selfHealing": {
+          "name": "Self-Healing",
+          "status": "active",
+          "handle": "5ee42fd2ebced4d0",
+          "summary": "Detects and repairs its own faults without a ticket.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "recommendation": {
+          "name": "Recommendation",
+          "status": "active",
+          "handle": "2558ab3412cc3682",
+          "summary": "Suggests the next best action or complementary SKU.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        },
+        "personalization": {
+          "name": "Personalization",
+          "status": "active",
+          "handle": "0047f577211bbfa7",
+          "summary": "Adapts to the individual buyer over time.",
+          "activatedAt": "2026-10-30T00:54:35.322Z"
+        }
+      },
+      "pipeline": [
+        {
+          "stage": "created",
+          "at": "2026-10-30T00:54:35.322Z"
+        },
+        {
+          "stage": "provisioning",
+          "at": "2026-10-30T00:54:35.322Z"
+        },
+        {
+          "stage": "assembling",
+          "at": "2026-10-30T00:54:35.322Z"
+        },
+        {
+          "stage": "securing",
+          "at": "2026-10-30T00:54:35.322Z"
+        },
+        {
+          "stage": "live",
+          "at": "2026-10-30T00:54:35.322Z"
+        }
+      ],
+      "concierge": {
+        "welcomedAt": "2026-10-30T00:54:35.322Z",
+        "message": "Welcome — your s is already live. The AI already handled everything. Nothing to install, activate, update or restore: the AI has handled it. Open your AI Vault any time to find every product you own."
+      }
+    },
+    "omega_cb4d6c55e7b905d71668": {
+      "id": "omega_cb4d6c55e7b905d71668",
+      "protocol": "OMEGA/1.0",
+      "version": "Ω/1.0",
+      "orderId": "ord_paypalrefs01",
+      "serviceId": "starter",
+      "serviceName": "Starter",
+      "email": "buyer@example.com",
+      "amountUsd": 49,
+      "rail": "paypal",
+      "qty": 1,
+      "stage": "live",
+      "revision": 1,
+      "createdAt": "2026-10-30T00:55:20.400Z",
+      "updatedAt": "2026-10-30T00:55:20.441Z",
+      "engines": {
+        "vault": {
+          "name": "AI Vault",
+          "status": "active",
+          "handle": "602c0b5e4ec78e6c",
+          "summary": "Customer-owned encrypted home for every purchased instance and its keys.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "workspace": {
+          "name": "Workspace",
+          "status": "active",
+          "handle": "38980c964673c371",
+          "summary": "Pre-provisioned working surface — no setup, already open.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "concierge": {
+          "name": "Concierge",
+          "status": "active",
+          "handle": "1347bf4a25e39221",
+          "summary": "Proactive AI that welcomes, guides and answers before being asked.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "memory": {
+          "name": "Memory",
+          "status": "active",
+          "handle": "0f8a853f8beff936",
+          "summary": "Durable context so the instance remembers the buyer forever.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "delivery": {
+          "name": "Delivery",
+          "status": "active",
+          "handle": "9bcc6944161394a3",
+          "summary": "Autonomous pipeline that takes the instance to live on its own.",
+          "activatedAt": "2026-10-30T00:55:20.400Z",
+          "deliveredAt": "2026-10-30T00:55:20.441Z"
+        },
+        "knowledge": {
+          "name": "Knowledge",
+          "status": "active",
+          "handle": "86150aba50af11eb",
+          "summary": "Self-assembled documentation and answers for the exact SKU.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "automation": {
+          "name": "Automation",
+          "status": "active",
+          "handle": "afc5b8dc0dedf923",
+          "summary": "Workflows that run the product without the customer lifting a finger.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "update": {
+          "name": "Update",
+          "status": "active",
+          "handle": "63defa03ffa261d2",
+          "summary": "Continuous forward-only upgrades applied invisibly.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "recovery": {
+          "name": "Recovery",
+          "status": "active",
+          "handle": "6a3fb647c96b2f44",
+          "summary": "One-touch (or zero-touch) restore to any prior good state.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "security": {
+          "name": "Security",
+          "status": "active",
+          "handle": "b8580ed941591c60",
+          "summary": "Per-instance isolation, secrets and tamper-evidence.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "monitoring": {
+          "name": "Monitoring",
+          "status": "active",
+          "handle": "e09122cd0825785b",
+          "summary": "Always-on health and liveness of the instance.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "analytics": {
+          "name": "Analytics",
+          "status": "active",
+          "handle": "b7dde2ecd1cea37c",
+          "summary": "Value and usage signals surfaced automatically.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "marketplace": {
+          "name": "Marketplace",
+          "status": "active",
+          "handle": "0ca90277bf88bfbb",
+          "summary": "Instance can be extended with compatible add-ons.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "versioning": {
+          "name": "Versioning",
+          "status": "active",
+          "handle": "dc12a456f60f0959",
+          "summary": "Every change is a versioned, addressable revision.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "backup": {
+          "name": "Backup",
+          "status": "active",
+          "handle": "e7ed6830d81ac7b6",
+          "summary": "Automatic point-in-time snapshots, no schedule to configure.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "sync": {
+          "name": "Sync",
+          "status": "active",
+          "handle": "45cd828affa4cde4",
+          "summary": "State converges across devices and surfaces.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "migration": {
+          "name": "Migration",
+          "status": "active",
+          "handle": "5ff4e0c6a6870178",
+          "summary": "Moves the instance forward across schema/SKU evolutions.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "selfHealing": {
+          "name": "Self-Healing",
+          "status": "active",
+          "handle": "aa08f7d84a29e310",
+          "summary": "Detects and repairs its own faults without a ticket.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "recommendation": {
+          "name": "Recommendation",
+          "status": "active",
+          "handle": "7df698da9fecc3a1",
+          "summary": "Suggests the next best action or complementary SKU.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        },
+        "personalization": {
+          "name": "Personalization",
+          "status": "active",
+          "handle": "e1e926fd501614c3",
+          "summary": "Adapts to the individual buyer over time.",
+          "activatedAt": "2026-10-30T00:55:20.400Z"
+        }
+      },
+      "pipeline": [
+        {
+          "stage": "created",
+          "at": "2026-10-30T00:55:20.400Z"
+        },
+        {
+          "stage": "provisioning",
+          "at": "2026-10-30T00:55:20.400Z"
+        },
+        {
+          "stage": "assembling",
+          "at": "2026-10-30T00:55:20.400Z"
+        },
+        {
+          "stage": "securing",
+          "at": "2026-10-30T00:55:20.400Z"
+        },
+        {
+          "stage": "live",
+          "at": "2026-10-30T00:55:20.400Z"
+        }
+      ],
+      "concierge": {
+        "welcomedAt": "2026-10-30T00:55:20.401Z",
+        "message": "Welcome — your Starter is already live. The AI already handled everything. Nothing to install, activate, update or restore: the AI has handled it. Open your AI Vault any time to find every product you own."
+      }
     }
   },
   "orderIndex": {
-    "ord_altrailstest01": "omega_bc84b82d9c6f2e0dbd27"
+    "ord_altrailstest01": "omega_bc84b82d9c6f2e0dbd27",
+    "ord_hooktest_1793321675302": "omega_de9aed0a1095af2219c2",
+    "ord_nohook": "omega_84562a7c508520e73a53",
+    "ord_paypalrefs01": "omega_cb4d6c55e7b905d71668"
   }
 }
