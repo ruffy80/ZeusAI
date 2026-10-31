@@ -198,6 +198,17 @@ async function main() {
     assert.ok(pub.liveReady.includes('telegram'));
     assert.ok(pub.liveReady.includes('discord'));
     assert.ok(pub.liveReady.includes('webhook'));
+    assert.equal(pub.providers.x_twitter.halfArmed, false);
+    assert.ok(/^[a-f0-9]{64}$/.test(pub.armedFingerprint));
+    clearSocialEnv();
+    process.env.X_ACCESS_TOKEN = 'x-access-token-present';
+    viralizer.reloadTokensFromEnv();
+    const half = viralizer.toPublicStatus();
+    assert.equal(half.providers.x_twitter.halfArmed, true);
+    assert.ok(half.halfArmed.includes('x_twitter'));
+    assert.ok(half.providers.x_twitter.presentEnvVars.includes('X_ACCESS_TOKEN'));
+    assert.ok(half.providers.x_twitter.missingEnvVars.includes('X_API_KEY'));
+    assert.ok(!JSON.stringify(half).includes('x-access-token-present'));
   });
 
   await test('backend publishes /api/social/status for the nginx /api route', () => {

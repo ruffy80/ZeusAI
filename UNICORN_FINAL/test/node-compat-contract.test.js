@@ -121,6 +121,9 @@ check('CTOS/1.2 keeps the application suite out of the Node matrix', () => {
   const preflight = fs.readFileSync(path.join(ROOT, 'scripts/compat-truth-preflight.js'), 'utf8');
   assert.ok(preflight.includes('CTOS/1.1'), 'instant autofix contract stays');
   assert.ok(preflight.includes('CTOS/1.2'));
+  assert.ok(preflight.includes('CTOS/1.3'));
+  assert.ok(preflight.includes('test/catalog-cap-contract.test.js'),
+    'CTOS must classify a frozen catalog cap of 25 as a commerce contract');
   assert.ok(preflight.includes('WORKFLOW_CONTRACT'));
   assert.ok(preflight.includes('Application tests'));
   const matrixStart = wf.indexOf('name: Node ${{ matrix.node }} compatibility');

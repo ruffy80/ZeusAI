@@ -227,6 +227,20 @@ class SocialMediaViralizer {
     });
   }
 
+  envGap(names) {
+    const presentEnvVars = [];
+    const missingEnvVars = [];
+    for (const name of (Array.isArray(names) ? names : [])) {
+      if (this.secret(name)) presentEnvVars.push(name);
+      else missingEnvVars.push(name);
+    }
+    return {
+      presentEnvVars,
+      missingEnvVars,
+      halfArmed: presentEnvVars.length > 0 && missingEnvVars.length > 0,
+    };
+  }
+
   secret(name, fallback = '') {
     try {
       const sec = require('../../src/config/secrets');
@@ -320,9 +334,13 @@ class SocialMediaViralizer {
     for (const name of Object.keys(status.providers)) {
       const p = status.providers[name];
       const vars = p.requiredEnvVars || [p.envVar];
+      const gap = this.envGap(vars.filter(Boolean));
+      const inactive = gap.halfArmed
+        ? ' — INACTIV (prezent ' + gap.presentEnvVars.join(' + ') + ', lipsește ' + gap.missingEnvVars.join(' + ') + ')'
+        : ' — INACTIV (lipsește ' + (gap.missingEnvVars.join(' + ') || vars.join(' + ')) + ')';
       console.log(
         (p.configured ? '  ✅ ' : '  ⚪ ') + name +
-        (p.configured ? ' — ACTIV (postează real)' : ' — INACTIV (lipsește ' + vars.join(' + ') + ')')
+        (p.configured ? ' — ACTIV (postează real)' : inactive)
       );
     }
     if (status.configuredProviders.length === 0) {
@@ -986,23 +1004,34 @@ class SocialMediaViralizer {
   toPublicStatus() {
     const status = this.getProviderStatus();
     const providers = {};
+    const halfArmed = [];
     for (const [name, row] of Object.entries(status.providers || {})) {
+      const requiredEnvVars = row.requiredEnvVars || (row.envVar ? [row.envVar] : []);
+      const gap = this.envGap(requiredEnvVars);
       providers[name] = {
         configured: !!row.configured,
         canPost: row.canPost !== false && !!row.configured,
         companionPending: !!row.companionPending,
+        halfArmed: gap.halfArmed,
         envVar: row.envVar || null,
-        requiredEnvVars: row.requiredEnvVars || (row.envVar ? [row.envVar] : []),
+        requiredEnvVars,
+        presentEnvVars: gap.presentEnvVars,
+        missingEnvVars: gap.missingEnvVars,
         note: row.note || undefined,
       };
+      if (gap.halfArmed) halfArmed.push(name);
     }
+    const armed = (status.liveReady || []).slice().sort();
+    const armedFingerprint = require('crypto').createHash('sha256').update(armed.join(',')).digest('hex');
     return {
       ok: true,
       configuredProviders: status.configuredProviders || [],
       liveReady: status.liveReady || [],
+      halfArmed,
+      armedFingerprint,
       totalProviders: status.totalProviders || 0,
       providers,
-      note: 'Booleans only. Secret values are not included.',
+      note: 'Booleans and env names only. Secret values are not included. armedFingerprint is the armed channel set, so an empty test runner cannot be mistaken for production.',
     };
   }
 
