@@ -3415,7 +3415,12 @@ function pageObservability() {
 function pageStore() {
   const catalog = _loadCatalog();
   const byTier = { instant: [], professional: [], enterprise: [] };
-  catalog.forEach(p => { const t = String(p.tier || 'professional'); if (byTier[t]) byTier[t].push(p); });
+  const kickoff = catalog.find(p => p.id === 'ent-engagement-kickoff');
+  catalog.forEach(p => {
+    if (p.id === 'ent-engagement-kickoff') return;
+    const t = String(p.tier || 'professional');
+    if (byTier[t]) byTier[t].push(p);
+  });
   const counts = { instant: byTier.instant.length, professional: byTier.professional.length, enterprise: byTier.enterprise.length };
   const totalUsd = catalog.reduce((s, p) => s + Number(p.priceUSD || p.priceUsd || 0), 0);
   // Auto-published library: every service.js module loaded by
@@ -3450,9 +3455,15 @@ function pageStore() {
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
       <div class="card"><span class="tag">Professional</span><h3 style="margin:6px 0 0;font-size:24px">${counts.professional}</h3></div>
-      <div class="card"><span class="tag">Enterprise</span><h3 style="margin:6px 0 0;font-size:24px">${counts.enterprise}</h3></div>
+      <div class="card"><span class="tag">Enterprise packs</span><h3 style="margin:6px 0 0;font-size:24px">${counts.enterprise}</h3></div>
       <div class="card"><span class="tag" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30)">🤖 Auto-published</span><h3 style="margin:6px 0 0;font-size:24px" data-library-count>${libCount}</h3></div>
     </div>
+
+    ${kickoff ? `<div class="card" style="margin:18px 0;padding:18px;border:1px solid rgba(255,211,106,.35)">
+      <span class="kicker" style="color:#ffd36a">Enterprise deal kickoff · $${Number(kickoff.priceUSD || kickoff.priceUsd || 2500).toLocaleString('en-US')}</span>
+      <p style="color:var(--ink-dim);margin:8px 0">A discovery brief, commercial proposal, and draft statement of work. The payment is credited toward a signed engagement; it does not include a license, source code, or private cloud.</p>
+      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Start an autonomous deal →</a>
+    </div>` : ''}
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
       <button class="store-tab" data-tier="instant" type="button" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant digital (${counts.instant})</button>
