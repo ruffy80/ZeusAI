@@ -138,6 +138,104 @@ const SEED = [
     ]
   },
 
+  // ---------- SECURITY DESK — one file per job, issued when payment settles ----------
+  {
+    id: 'instant-endpoint-ledger',
+    title: 'Endpoint Ledger',
+    tier: 'instant',
+    priceUSD: 79,
+    deliveryMinutes: 5,
+    description: 'The file is an endpoint ledger: each asset you name, a patch column, and an owner. It does not install an agent and it does not count machines you did not list.',
+    inputs: [
+      { key: 'orgName', label: 'Organization', required: false, type: 'text' },
+      { key: 'assets', label: 'Assets, separated by semicolons', required: false, type: 'textarea' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-control-evidence',
+    title: 'Control Evidence Pack',
+    tier: 'instant',
+    priceUSD: 149,
+    deliveryMinutes: 8,
+    description: 'The file maps NIS2, DORA, HIPAA, CMMC, and PCI DSS to evidence rows you can fill. It does not certify a framework and it does not claim an audit passed.',
+    inputs: [
+      { key: 'orgName', label: 'Organization', required: false, type: 'text' },
+      { key: 'frameworks', label: 'Frameworks to include', required: false, type: 'text' },
+      { key: 'scopeNote', label: 'Scope note', required: false, type: 'textarea' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-network-partition',
+    title: 'Network Partition Plan',
+    tier: 'instant',
+    priceUSD: 129,
+    deliveryMinutes: 8,
+    description: 'The file names the zones and which systems may talk. It does not push a device config and it does not touch the network.',
+    inputs: [
+      { key: 'sites', label: 'Sites', required: false, type: 'text' },
+      { key: 'systems', label: 'Systems, separated by semicolons', required: false, type: 'textarea' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-security-test-brief',
+    title: 'Security Test Brief',
+    tier: 'instant',
+    priceUSD: 199,
+    deliveryMinutes: 10,
+    description: 'The file is the test brief: in-scope names, out-of-scope names, rules, and report headings. It does not scan a network and it does not include an exploit step.',
+    inputs: [
+      { key: 'targets', label: 'In-scope names, separated by semicolons', required: false, type: 'textarea' },
+      { key: 'window', label: 'Window', required: false, type: 'text' },
+      { key: 'constraints', label: 'Constraints', required: false, type: 'textarea' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-operations-watch',
+    title: 'Operations Watch Pack',
+    tier: 'instant',
+    priceUSD: 99,
+    deliveryMinutes: 6,
+    description: 'The file is the watch pack: what to record, who is on the clock, and the first-hour list. It does not monitor a network and it does not staff a desk.',
+    inputs: [
+      { key: 'orgName', label: 'Organization', required: false, type: 'text' },
+      { key: 'hours', label: 'Hours', required: false, type: 'text' },
+      { key: 'contacts', label: 'Contacts', required: false, type: 'text' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-incident-clock',
+    title: 'Incident Clock',
+    tier: 'instant',
+    priceUSD: 69,
+    deliveryMinutes: 5,
+    description: 'The file is an incident clock: a timeline, who was told, and what evidence was kept. It does not claim a breach response and it does not contact anyone for you.',
+    inputs: [
+      { key: 'orgName', label: 'Organization', required: false, type: 'text' },
+      { key: 'whatHappened', label: 'What happened', required: false, type: 'textarea' },
+      { key: 'contacts', label: 'Who should be named', required: false, type: 'text' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+  {
+    id: 'instant-security-program',
+    title: 'Security Program File',
+    tier: 'instant',
+    priceUSD: 349,
+    deliveryMinutes: 12,
+    description: 'The file is the security program: endpoint ledger, control evidence, network partition, security test brief, operations watch, and incident clock. The six files are also sold alone. It does not install an agent, certify a framework, scan a network, or staff a desk.',
+    inputs: [
+      { key: 'orgName', label: 'Organization', required: false, type: 'text' },
+      { key: 'estate', label: 'Systems, separated by semicolons', required: false, type: 'textarea' },
+      { key: 'frameworks', label: 'Frameworks to include', required: false, type: 'text' },
+      { key: 'email', label: 'Delivery Email', required: false, type: 'email' }
+    ]
+  },
+
   // ---------- PROFESSIONAL (8) — the kickoff file is the delivery ----------
   // The listed price buys that file. A running product is not in it.
   {

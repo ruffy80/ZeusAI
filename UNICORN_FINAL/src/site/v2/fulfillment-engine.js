@@ -51,6 +51,13 @@ const SKU_RECIPES = {
   'instant-email-sequence': 'email-sequence',
   'instant-product-naming': 'brand-kit',
   'instant-resume-makeover': 'resume',
+  'instant-endpoint-ledger': 'security-desk',
+  'instant-control-evidence': 'security-desk',
+  'instant-network-partition': 'security-desk',
+  'instant-security-test-brief': 'security-desk',
+  'instant-operations-watch': 'security-desk',
+  'instant-incident-clock': 'security-desk',
+  'instant-security-program': 'security-desk',
   'professional-saas-mvp': 'code-scaffold',
   'professional-ai-agent': 'code-scaffold',
   'professional-mobile-app': 'code-scaffold',
@@ -85,6 +92,13 @@ function needsHumanFulfillment(receipt, serviceId) {
 
 // Each recipe: how to detect it, what to produce, and the prompt to the model.
 const RECIPES = [
+  {
+    id: 'security-desk', format: 'markdown',
+    match: (s) => /endpoint-ledger|control-evidence|network-partition|security-test-brief|operations-watch|incident-clock|security-program/.test(s),
+    title: 'Security desk file',
+    system: 'Write the security file from the order brief. Do not invent a scan, a certificate, or an exploit step.',
+    prompt: (ctx) => `Write the security desk file for this order. Use only names in the brief. Context: ${ctx}.`,
+  },
   {
     id: 'website-audit', format: 'markdown',
     match: (s) => /website-audit|site-audit|seo-audit|perf-audit/.test(s),
@@ -215,6 +229,7 @@ const RECIPE_OUTLINE = {
   'email-sequence': ['Subject', 'Preview', 'Body', 'Send timing', 'Call to action'],
   'social-kit': ['Weekly theme', 'Hooks', 'Captions', 'Hashtags'],
   'resume': ['Resume', 'LinkedIn headline', 'About section'],
+  'security-desk': ['Order Summary', 'What Is Included', 'Next Steps', 'Download Instructions'],
   'code-scaffold': ['Architecture', 'Stack', 'Build plan', 'Starter code', 'Deploy checklist'],
   'ad-copy': ['Headlines', 'Descriptions', 'Audience', 'Testing plan'],
   'product-desc': ['Title', 'Bullets', 'Description', 'Upsells', 'FAQ'],
@@ -665,6 +680,9 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
       '',
       'The finished build is not in this file. It is not an instant download of a finished system.',
     ].join('\n');
+  }
+  if (recipeId === 'security-desk') {
+    return require('../../commerce/security-desk').deliver(serviceId, quoted);
   }
   if (recipeId === 'website-audit') {
     return [
