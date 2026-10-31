@@ -983,6 +983,29 @@ class SocialMediaViralizer {
   // are actually wired. Without this, callers cannot tell silent 401s from
   // genuine "no token configured" cases.
   // ───────────────────────────────────────────────────────────────────
+  toPublicStatus() {
+    const status = this.getProviderStatus();
+    const providers = {};
+    for (const [name, row] of Object.entries(status.providers || {})) {
+      providers[name] = {
+        configured: !!row.configured,
+        canPost: row.canPost !== false && !!row.configured,
+        companionPending: !!row.companionPending,
+        envVar: row.envVar || null,
+        requiredEnvVars: row.requiredEnvVars || (row.envVar ? [row.envVar] : []),
+        note: row.note || undefined,
+      };
+    }
+    return {
+      ok: true,
+      configuredProviders: status.configuredProviders || [],
+      liveReady: status.liveReady || [],
+      totalProviders: status.totalProviders || 0,
+      providers,
+      note: 'Booleans only. Secret values are not included.',
+    };
+  }
+
   getProviderStatus() {
     const t = this.reloadTokensFromEnv();
     const providers = {

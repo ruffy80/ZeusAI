@@ -24,7 +24,7 @@ const SOCIAL_KEYS = [
   'FACEBOOK_PAGE_ID', 'FB_PAGE_ID',
   'INSTAGRAM_ACCESS_TOKEN', 'INSTAGRAM_USER_ID', 'IG_ACCESS_TOKEN', 'IG_USER_ID',
   'TIKTOK_ACCESS_TOKEN',
-  'DISCORD_WEBHOOK_URL', 'LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN', 'LINKEDIN_ORG_ID',
+  'DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK', 'GENERIC_WEBHOOK_URL', 'LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN', 'LINKEDIN_ORG_ID',
   'YOUTUBE_API_KEY', 'PRODUCTHUNT_DEVELOPER_TOKEN', 'DEV_API_KEY', 'PINTEREST_TOKEN',
   'BLUESKY_HANDLE', 'BLUESKY_APP_PASSWORD', 'MASTODON_TOKEN', 'SOCIAL_WEBHOOK_URL',
 ];
@@ -177,6 +177,35 @@ async function main() {
     assert.ok(yml.includes('Reconciled durable secrets from'), 'must reconcile every durable store');
     assert.ok(yml.includes('environment: ${{ matrix.gh_env }}'), 'must bind GitHub Environment secrets');
     assert.ok(yml.includes('Production – unicorn-final'), 'must also read Production – unicorn-final env secrets');
+  });
+
+  await test('stored aliases arm telegram, discord, and the generic webhook without copying secrets', () => {
+    clearSocialEnv();
+    process.env.ZAC_TELEGRAM_TOKEN = '123456:alias-telegram-token';
+    process.env.TG_CHAT_ID = '-100123456';
+    process.env.DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1/alias';
+    process.env.GENERIC_WEBHOOK_URL = 'https://example.com/hooks/social';
+    viralizer.reloadTokensFromEnv();
+    const pub = viralizer.toPublicStatus();
+    const body = JSON.stringify(pub);
+    assert.equal(pub.providers.telegram.configured, true);
+    assert.equal(pub.providers.discord.configured, true);
+    assert.equal(pub.providers.webhook.configured, true);
+    assert.equal(pub.providers.x_twitter.configured, false);
+    assert.equal(pub.providers.facebook.configured, false);
+    assert.ok(!body.includes('alias-telegram-token'));
+    assert.ok(!body.includes('discord.com/api/webhooks'));
+    assert.ok(pub.liveReady.includes('telegram'));
+    assert.ok(pub.liveReady.includes('discord'));
+    assert.ok(pub.liveReady.includes('webhook'));
+  });
+
+  await test('backend publishes /api/social/status for the nginx /api route', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../backend/index.js'), 'utf8');
+    assert.ok(src.includes("app.get('/api/social/status'"));
+    assert.ok(src.includes('toPublicStatus'));
+    assert.ok(src.includes('/var/www/unicorn/shared/social.env'));
+    assert.ok(src.includes("['SOCIAL_WEBHOOK_URL', 'GENERIC_WEBHOOK_URL', 'WEBHOOK_URL']"));
   });
 
   await test('test:chain includes social-viralizer-channels.test.js', () => {

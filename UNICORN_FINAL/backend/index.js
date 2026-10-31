@@ -260,6 +260,8 @@ process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.Q
       '/etc/zeusai/secrets/ai-keys.env',
       '/var/www/unicorn/shared/.env',
       '/var/www/unicorn/shared/search-console.env',
+      '/etc/zeusai/secrets/social.env',
+      '/var/www/unicorn/shared/social.env',
     ];
     let restored = 0;
     for (const file of candidates) {
@@ -309,6 +311,17 @@ process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.Q
     ['GITHUB_BRANCH', 'BRANCH'],
     ['GIT_REMOTE_URL', 'GIT_REPO_URL'],
     ['GIT_REPO_URL', 'GIT_REMOTE_URL'],
+    ['TELEGRAM_BOT_TOKEN', 'TG_BOT_TOKEN', 'ZAC_TELEGRAM_TOKEN', 'ZEUS_TG_BOT_TOKEN'],
+    ['TELEGRAM_CHAT_ID', 'TG_CHAT_ID', 'ZAC_TELEGRAM_CHAT_ID', 'ZEUS_TG_GROUP_CHAT_ID', 'TELEGRAM_GROUP_CHAT_ID'],
+    ['DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK', 'ZAC_DISCORD_WEBHOOK'],
+    ['SOCIAL_WEBHOOK_URL', 'GENERIC_WEBHOOK_URL', 'WEBHOOK_URL'],
+    ['X_API_KEY', 'TWITTER_API_KEY'],
+    ['X_API_SECRET', 'TWITTER_API_SECRET'],
+    ['X_BEARER_TOKEN', 'TWITTER_BEARER_TOKEN'],
+    ['X_ACCESS_TOKEN', 'TWITTER_ACCESS_TOKEN'],
+    ['X_ACCESS_SECRET', 'TWITTER_ACCESS_SECRET'],
+    ['FACEBOOK_PAGE_TOKEN', 'FB_PAGE_TOKEN', 'FACEBOOK_ACCESS_TOKEN'],
+    ['SERPAPI_KEY', 'SERP_API_KEY'],
   ];
   let filled = 0;
   for (const [canonical, ...aliases] of ALIASES) {
@@ -13014,6 +13027,15 @@ app.post('/api/flywheel/run', adminTokenMiddleware, asyncHandler(async (req, res
 app.get('/api/memory/status', (req, res) => {
   if (!memoryGuardian) return res.status(503).json({ error: 'memory-guardian not loaded' });
   res.json(memoryGuardian.getStatus());
+});
+
+// Public channel truth. Nginx sends /api/* to this process. Secret values stay out.
+app.get('/api/social/status', (req, res) => {
+  if (!socialViralizer || typeof socialViralizer.toPublicStatus !== 'function') {
+    return res.status(503).json({ ok: false, error: 'social_viralizer_not_loaded' });
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json(socialViralizer.toPublicStatus());
 });
 
 // ==================== AUTO VIRAL GROWTH ROUTES ====================
