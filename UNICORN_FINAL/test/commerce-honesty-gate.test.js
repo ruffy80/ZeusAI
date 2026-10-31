@@ -151,6 +151,8 @@ async function run() {
     assert.ok(html, 'store page renders');
     assert.ok(/Start autonomous deal|Buy the engagement pack/i.test(html),
       'enterprise CTA should sell the kickoff or the engagement pack');
+    assert.ok(/href="\/checkout\/\?plan=ent-engagement-kickoff" data-link/.test(html),
+      'the separate kickoff offer should remain directly reachable');
     assert.ok(/They are not in the download/i.test(html), 'store names the pack, not the source');
     assert.ok(/Real products\. Real BTC settlement/i.test(html), 'honest store hero');
     assert.ok(/not for sale/i.test(html) || /Module mirror/i.test(html), 'library marked not for sale');
