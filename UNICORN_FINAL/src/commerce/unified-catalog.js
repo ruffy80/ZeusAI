@@ -3,16 +3,30 @@
 // with the contract guarantee enforced by `MAX_PRODUCTS` and `TIERS`:
 //
 //   * Exactly 3 tiers: instant | professional | enterprise.
-//   * At most `MAX_PRODUCTS` (25) products in any public response.
+//   * Every curated instant and enterprise row is public. The cap is that
+//     curated count, so a new shelf file cannot push the license off /api/products.
 //
 // Runtime marketplace/industry sources, if injected via `setRuntimeSources`,
 // are normalized into one of the 3 tiers, deduped against the static seed and
-// ONLY used to fill the remainder up to MAX_PRODUCTS — never to exceed it.
+// ONLY used to fill the remainder up to the cap — never to exceed it.
 //
 // Exports: byId(id), publicView({tier?}), summarize(), setRuntimeSources({marketplace, industries}), all()
 
-const MAX_PRODUCTS = 25;
 const TIERS = ['instant', 'professional', 'enterprise'];
+
+function curatedLength() {
+  let count = 0;
+  const inst = _instant();
+  const ent = _enterprise();
+  if (inst && typeof inst.all === 'function') count += (inst.all() || []).length;
+  if (ent && typeof ent.all === 'function') count += (ent.all() || []).length;
+  return count;
+}
+
+// The public catalogue is the curated seed, not a frozen 25. A shorter cap
+// dropped ent-platform-license after the security desk was added, and
+// /api/products then lost its annual billing.
+const MAX_PRODUCTS = Math.max(1, curatedLength());
 
 let _runtime = { marketplace: [], industries: [] };
 
@@ -86,7 +100,7 @@ function all() {
   const out = [];
   const seen = new Set();
 
-  // Static catalogues are the source of truth and ship the canonical 25.
+  // Static catalogues are the source of truth and all of them ship.
   const inst = _instant();
   if (inst) {
     for (const p of inst.all()) {
