@@ -150,7 +150,7 @@ function run() {
   const ic = instantCatalog.publicView();
   assert.ok(ic.length >= 3);
   assert.ok(ic[0].inputs);
-  // Runtime sources are accepted but never exceed the MAX_PRODUCTS=25 / 3-tier
+  // Runtime sources are accepted but never exceed the curated cap / 3-tier
   // contract — they only fill remaining headroom (see src/commerce/unified-catalog.js).
   unifiedCatalog.setRuntimeSources({ marketplace: [{ id: 'mp-x', title: 'Market X', priceUSD: 25 }], industries: [{ id: 'ind-y', title: 'Industry Y', priceUSD: 0 }] });
   const uall = unifiedCatalog.all();
