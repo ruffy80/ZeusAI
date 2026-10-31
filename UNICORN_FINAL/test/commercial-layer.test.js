@@ -111,19 +111,20 @@ const shell = require('../src/site/v2/shell');
   }, '/api/demo/route');
   assert.equal(demo, true);
 
+  const shelfCount = require('../src/commerce/public-shelf').publicShelf().length;
   const home = shell.getHtml('/');
   const btcHits = home.match(/0\.[0-9]+ BTC/g) || [];
   assert.ok(btcHits.length >= 3, 'homepage should render the audit BTC');
   assert.equal(btcHits[0], btcHits[1]);
   assert.equal(btcHits[1], btcHits[2]);
   assert.equal(btcHits[0], audit.btc + ' BTC');
-  assert.match(home, /See all 55 services/);
+  assert.match(home, new RegExp('See all ' + shelfCount + ' services'));
   assert.match(home, /Simulated route/);
   assert.match(home, /Buy the website audit/);
 
   const services = shell.getHtml('/services');
   const cards = services.match(/service-card/g) || [];
-  assert.equal(cards.length, 55);
+  assert.equal(cards.length, shelfCount);
   assert.match(services, /id="serviceSearch"/);
   assert.match(services, /Save 15-25% with bundles/);
 

@@ -51,7 +51,7 @@ function pageProducts() {
   const filters = '<button type="button" class="chip" data-product-filter="all">All</button>'
     + categories.map((category) => '<button type="button" class="chip" data-product-filter="' + esc(category) + '">' + esc(category) + '</button>').join('');
   return '<section style="padding-top:140px" id="products">'
-    + '<h1>55 AI services. Pay in BTC. Delivered in minutes.</h1>'
+    + '<h1>' + products.length + ' AI services. Pay in BTC. Delivered in minutes.</h1>'
     + '<p>' + products.length + ' named offers. The count is the live shelf, not a fixed slogan.</p>'
     + '<section id="productBundles"><h2>Save with bundles</h2><div class="grid">' + bundleHtml + '</div></section>'
     + '<label for="productSearch">Search</label><input id="productSearch" type="search" placeholder="Search services" aria-label="Search services"/>'
@@ -240,7 +240,7 @@ function meta(route) {
     };
   }
   const map = {
-    '/products': ['55 AI services', 'Pay in BTC for a named ZeusAI file. Prices come from one quote.'],
+    '/products': [offerings.shelfProducts().length + ' AI services', 'Pay in BTC for a named ZeusAI file. Prices come from one quote.'],
     '/api-product': ['Verifiable delivery API', 'Ed25519 signed delivery receipts and a public verification key.'],
     '/api-product/docs': ['Witness API docs', 'POST /api/v1/witness, verification, and the public key.'],
     '/api-product/pricing': ['Witness API pricing', 'Free, Pro, and Enterprise quotas. The paid prices come from the quote engine.'],

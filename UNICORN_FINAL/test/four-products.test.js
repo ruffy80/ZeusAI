@@ -16,8 +16,9 @@ const offerings = require('../backend/modules/product-offerings');
 (async () => {
   const products = shell.getHtml('/products');
   const cards = products.match(/product-card/g) || [];
-  assert.equal(cards.length, 55);
-  assert.match(products, /55 AI services\. Pay in BTC\. Delivered in minutes\./);
+  const shelfCount = offerings.shelfProducts().length;
+  assert.equal(cards.length, shelfCount);
+  assert.match(products, new RegExp(shelfCount + ' AI services\\. Pay in BTC\\. Delivered in minutes\\.'));
   assert.match(products, /id="productSearch"/);
   assert.match(products, /Save with bundles/);
   assert.match(products, /data-product-filter=/);
@@ -42,7 +43,7 @@ const offerings = require('../backend/modules/product-offerings');
   assert.ok((pricing.match(/tier/g) || []).length >= 3);
 
   const home = shell.getHtml('/');
-  assert.match(home, /Explore all 55 services/);
+  assert.match(home, new RegExp('Explore all ' + shelfCount + ' services'));
   assert.match(home, /id="dtHeroH1">Cut Your AI API Costs by 70% Automatically</);
   assert.match(home, /All deliveries are signed and verifiable at/);
 
