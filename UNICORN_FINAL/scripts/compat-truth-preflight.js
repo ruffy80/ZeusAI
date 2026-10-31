@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Compat Truth Preflight (CTOS/1.1, workflow rule CTOS/1.2)
+ * Compat Truth Preflight (CTOS/1.1, workflow rule CTOS/1.2, catalog rule CTOS/1.3)
  * ---------------------------------
  * Innovation: never let a site/commerce regression masquerade as a
  * "Node 22/24 compatibility" failure in GitHub Actions.
@@ -11,6 +11,11 @@
  * suite. That suite is the "Application tests" job, once, on the .nvmrc
  * pin. A footer or assertion failure must not be reported as Node 22 and
  * Node 24 compatibility.
+ *
+ * CTOS/1.3: the public catalog cap is the curated instant + enterprise
+ * seed. A test that freezes that cap at 25 is a commerce contract, not a
+ * Node ABI break. catalog-cap-contract.test.js fails closed if the license
+ * drops out or the frozen phrase comes back.
  *
  * On SITE_CTA_REGRESSION: runs compat-truth-autofix.js INSTANTLY, re-verifies.
  * Default CTOS_INSTANT_FIX=on (set CTOS_INSTANT_FIX=0 to disable).
@@ -51,6 +56,11 @@ const SUITE = [
     file: 'test/checkout-payments-never-dead.test.js',
     class: 'COMMERCE_CONTRACT',
     title: 'checkout rails never-dead',
+  },
+  {
+    file: 'test/catalog-cap-contract.test.js',
+    class: 'COMMERCE_CONTRACT',
+    title: 'catalog cap is the curated seed, not a frozen 25',
   },
   {
     file: 'test/sovereign-checkout-html.test.js',

@@ -59,7 +59,13 @@ async function run() {
   await check('public buyable catalog is the snapshot shelf, not the module dump', () => {
     const items = lhos.publicBuyableCatalog();
     assert.ok(Array.isArray(items) && items.length > 0, 'public shelf must not be empty');
-    assert.ok(items.length <= 25, 'unified catalog caps the public shelf at 25');
+    const unified = require('../src/commerce/unified-catalog');
+    const instant = require('../src/commerce/instant-catalog');
+    const enterprise = require('../src/commerce/enterprise-catalog');
+    const curated = (instant.all() || []).length + (enterprise.all() || []).length;
+    assert.equal(unified.MAX_PRODUCTS, curated, 'catalog cap is the curated seed, not a frozen 25');
+    assert.ok(items.length <= unified.MAX_PRODUCTS, 'public shelf stays inside the curated cap');
+    assert.ok(items.some((item) => item.id === 'ent-platform-license'), 'enterprise license stays on the public shelf');
     assert.equal(items.length, lhos.publicCatalogCount());
     const ids = items.map((item) => item.id);
     assert.ok(!ids.some((id) => /^zacc-/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)));
