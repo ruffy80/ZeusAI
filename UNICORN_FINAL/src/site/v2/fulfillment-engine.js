@@ -1193,8 +1193,34 @@ function serviceIds(receipt) {
   return [...new Set(clean.length ? clean : ['starter'])];
 }
 
-// Generate real deliverables for every service on the receipt and attach them
-// to the delivery record. Returns a summary; never throws.
+function fulfillReceiptBlocking(receipt) {
+  const { spawnSync } = require('child_process');
+  const script = [
+    'const engine = require(' + JSON.stringify(require.resolve('./fulfillment-engine')) + ');',
+    'const receipt = JSON.parse(process.argv[1]);',
+    'Promise.resolve(engine.fulfillReceipt(receipt)).then((result) => {',
+    '  process.stdout.write(JSON.stringify({ ok: !!(result && result.ok), delivered: result && result.delivered, total: result && result.total, fulfillmentStatus: result && result.fulfillmentStatus }));',
+    '}).catch((err) => {',
+    '  process.stderr.write(String(err && err.stack || err));',
+    '  process.exit(1);',
+    '});',
+  ].join('\n');
+  const child = spawnSync(process.execPath, ['-e', script, JSON.stringify(receipt)], {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    timeout: 20000,
+  });
+  if (!child.stdout) {
+    return { ok: false, error: String(child.stderr || child.error || 'fulfillment_blocked').slice(0, 200) };
+  }
+  try {
+    return JSON.parse(String(child.stdout).trim());
+  } catch (err) {
+    return { ok: false, error: 'fulfillment_unreadable' };
+  }
+}
+
 async function fulfillReceipt(receipt, opts = {}) {
   if (!receipt || !receipt.id) return { ok: false, error: 'receipt_required' };
 
@@ -1217,7 +1243,7 @@ async function fulfillReceipt(receipt, opts = {}) {
 }
 
 module.exports = {
-  fulfillReceipt, fulfillService, pickRecipe, offerPreview, proposalDocument, proposalHttp, isEnterprise, needsHumanFulfillment,
+  fulfillReceipt, fulfillReceiptBlocking, fulfillService, pickRecipe, offerPreview, proposalDocument, proposalHttp, isEnterprise, needsHumanFulfillment,
   buyerFile,
   shouldUseAiForSku, aiSkuAllowlist,
   fulfillmentAiOs,

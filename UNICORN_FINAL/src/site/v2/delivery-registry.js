@@ -112,10 +112,19 @@ function deliverableSet(receipt, serviceId) {
     webhookIssued: credential.webhookIssued,
     createdAt: new Date().toISOString()
   };
+  const enterprisePack = /^ent-/i.test(String(serviceId || '')) && serviceId !== 'ent-engagement-kickoff';
   const files = [
     { filename: `${serviceId}-receipt-${receipt.id.slice(0, 8)}.json`, kind: 'receipt', downloadUrl: `/api/invoice/${encodeURIComponent(receipt.id)}` },
-    { filename: `${serviceId}-license-${receipt.id.slice(0, 8)}.txt`, kind: 'license', downloadUrl: `/api/license/${encodeURIComponent(receipt.id)}` }
   ];
+  if (enterprisePack) {
+    files.push({
+      filename: `${serviceId}-engagement-pack.md`,
+      kind: 'engagement-pack',
+      downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=artifact&serviceId=${encodeURIComponent(serviceId)}`,
+    });
+  } else {
+    files.push({ filename: `${serviceId}-license-${receipt.id.slice(0, 8)}.txt`, kind: 'license', downloadUrl: `/api/license/${encodeURIComponent(receipt.id)}` });
+  }
   if (type.includes('report')) files.push({ filename: `${serviceId}-growth-plan-${receipt.id.slice(0, 8)}.json`, kind: 'report', downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=report&serviceId=${encodeURIComponent(serviceId)}` });
   if (type.includes('workspace')) files.push({ filename: `${serviceId}-workspace-${base.workspaceId}.json`, kind: 'workspace', downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=workspace&serviceId=${encodeURIComponent(serviceId)}` });
   if (type.includes('api')) files.push({ filename: `${serviceId}-api-key-${receipt.id.slice(0, 8)}.json`, kind: 'api-key', downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=api-key&serviceId=${encodeURIComponent(serviceId)}` });
@@ -129,7 +138,9 @@ function deliverableSet(receipt, serviceId) {
     // Honest status: paperwork is provisioned now; finished product may still
     // be in human/AI fulfillment. Never invent live workspace/task URLs.
     status: isHumanLed ? 'provisioned' : 'ready',
-    summary: type === 'report+automation'
+    summary: enterprisePack
+      ? 'Signed receipt and the engagement pack. The platform license, the source, and a private cloud are not in this download.'
+      : type === 'report+automation'
       ? 'Signed receipt, license and growth-plan download prepared.'
       : type === 'api+task'
         ? 'Signed receipt, license and API-key payload prepared for download.'
