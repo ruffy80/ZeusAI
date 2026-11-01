@@ -1749,6 +1749,13 @@ function _quoteFor(id) {
   if (!layer || typeof layer.quoteSync !== 'function') return null;
   try { return layer.quoteSync(id); } catch (_) { return null; }
 }
+function _measureCarryHtml() {
+  return '<div data-measure-carry="1" style="margin-top:10px">'
+    + '<p style="margin:0;color:var(--ink-dim);font-size:13.5px;line-height:1.55">The score stays in the paid file. The link you copy names one public website and does not include a score. The other company pays the list price. A copied link is not a customer.</p>'
+    + '<p style="margin:8px 0 0"><button type="button" class="btn" data-copy-measure-door="1">Copy the door for this URL</button> '
+    + '<a href="/.well-known/paid-measure.json">How the line travels</a></p>'
+    + '</div>';
+}
 function _auditDoorUrl(raw) {
   try {
     const norm = require('../../commerce/audit-scan').normalizePublicUrl(raw);
@@ -2628,6 +2635,7 @@ function pageService(id, params) {
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
       ${_orderInputsHtml(safeId, { url: siteUrl })}
+      ${safeId === 'instant-website-audit' ? _measureCarryHtml() : ''}
       <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>
       ${price > 0 && cta.mode !== 'contact' ? require('../../commerce/pay-options').payOptionsHtml(safeId) : ''}`;
       })()}
@@ -2784,6 +2792,7 @@ function pageCheckout(params) {
         ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
         ${ssrPlan === 'instant-website-audit' ? '<p data-company-audit-door="1" style="margin:8px 0 0;color:var(--ink-dim);font-size:13px;line-height:1.5">Any company pays this list price for a scan of one public website. The scan runs after payment. The file scores six checks on that URL only. A company is not listed as a customer until that company has paid.</p>' : ''}
         ${contactOnly ? '' : _orderInputsHtml(ssrPlan, { url: p.siteUrl })}
+        ${ssrPlan === 'instant-website-audit' ? _measureCarryHtml() : ''}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>

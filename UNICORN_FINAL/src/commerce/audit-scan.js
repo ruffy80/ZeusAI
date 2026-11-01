@@ -339,7 +339,7 @@ function render(opts) {
       '2. Week 2: the largest image and cache headers.',
       '3. Week 3: labels and focus.',
       '4. Week 4: repeat the same checks. Do not invent a score.',
-    ].join('\n');
+    ].join('\n') + require('./paid-measure-carry').carrySection();
   }
   const byId = {};
   (scanResult.checks || []).forEach((row) => { byId[row.id] = row; });
@@ -379,7 +379,7 @@ function render(opts) {
     '',
     '## 30-day fix plan',
     plan.join('\n'),
-  ].join('\n');
+  ].join('\n') + require('./paid-measure-carry').carrySection();
 }
 
 module.exports = { scan, render, urlFromReceipt, measure, normalizePublicUrl };
