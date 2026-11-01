@@ -1889,6 +1889,17 @@ function _auditBtcText() {
   const quote = _quoteFor('website-audit');
   return quote && quote.btc ? (quote.btc + ' BTC') : '';
 }
+function _auditOfferText() {
+  const quote = _quoteFor('website-audit');
+  if (!quote) return '';
+  const parts = [];
+  const usd = Number(quote.usd);
+  if (usd > 0) {
+    parts.push('$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  }
+  if (quote.btc) parts.push(quote.btc + ' BTC');
+  return parts.join(' · ');
+}
 function _homeFeaturedServices() {
   const ids = [
     'instant-website-audit',
@@ -2314,7 +2325,7 @@ ${_zaccBanner}
       </aside>
       <p class="lead" id="dtHeroLead">Our autonomous Model Router dynamically selects the cheapest, fastest LLM (Groq, DeepSeek, Claude) for every task without sacrificing quality. Enterprise-grade orchestration.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditBtcText() ? (' · ' + _auditBtcText()) : ''}</a>
+        <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditOfferText() ? (' · ' + _auditOfferText()) : ''}</a>
         <a class="btn" href="/products" data-link>Explore all ${(() => { try { return require('../../commerce/public-shelf').publicShelf().length; } catch (_) { return 0; } })()} services →</a>
         <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
       </div>
@@ -2323,8 +2334,9 @@ ${_zaccBanner}
         <li>Demo prompt not stored</li>
         <li><a href="/privacy" data-link>GDPR Compliant</a></li>
       </ul>
-      <p class="cost-trust-note" id="auditLiveBtc">${_esc(_auditBtcText())}</p>
+      <p class="cost-trust-note" id="auditLiveBtc">${_esc(_auditOfferText())}</p>
       <p class="cost-trust-note" id="auditLiveBtcLock">Price locked for 15 minutes · ${_esc(_auditBtcText())}</p>
+      <p class="cost-trust-note">PayPal, card, and NOWPayments pay this list. Bitcoin pays 10% under it.</p>
       <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'This demo does not store the prompt. A configured demo key calls the named model.' : 'This demo does not store the prompt and does not call a model provider.'} Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
       <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
       ${authorityDesk.homeGuideLine()}

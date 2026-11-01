@@ -36,6 +36,8 @@ check('shelf cards and the product page offer every rail', () => {
   assert.ok(!card[0].includes('bitcoin:?'), 'the card does not skip checkout');
   const detail = shell.getHtml('/services/instant-website-audit');
   assert.ok(detail.includes('data-pay-rail="paypal"'));
+  assert.match(detail, /data-pay-rail="paypal"[^>]*>PayPal · \$[0-9,]+\.[0-9]{2}/);
+  assert.match(detail, /data-pay-rail="btc"[^>]*>Bitcoin</);
   assert.ok(detail.includes('data-pay-rail="card"'));
   assert.ok(detail.includes('data-pay-rail="nowpayments"'));
 });
