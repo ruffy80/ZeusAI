@@ -101,6 +101,8 @@ check('the audit page can copy a door and the homepage does not grow a fame clai
   const client = fs.readFileSync(path.join(root, 'src/site/v2/client.js'), 'utf8');
   assert.ok(index.includes('/.well-known/paid-measure.json'));
   assert.ok(index.includes('score: null'));
+  const backend = fs.readFileSync(path.join(root, 'backend/index.js'), 'utf8');
+  assert.ok(backend.includes("app.get('/api/paid-measure'"));
   assert.ok(client.includes('Door copied. The score is not in the link.'));
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.ok(String(pkg.scripts['test:chain']).includes('paid-measure-carry.test.js'));
