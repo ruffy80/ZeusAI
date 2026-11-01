@@ -180,13 +180,20 @@ function byId(id) {
   return row ? honestRow(row) : null;
 }
 function publicView() {
-  return all().map(p => ({
+  return all().filter((p) => p && !require('./real-price').isContractFigure(p.id)).map(p => ({
     id: p.id, title: p.title, tier: p.tier || 'enterprise',
     priceUSD: p.priceUSD, billing: p.billing, currency: p.currency || 'USD',
     description: p.description, sla: p.sla, seats: p.seats,
     revenueShare: p.revenueShare,
     inputs: p.inputs || []
   }));
+}
+function publicSummary() {
+  const rows = publicView();
+  const tvUSD = rows.reduce((s, p) => s + Number(p.priceUSD || 0), 0);
+  const tiers = {};
+  for (const p of rows) { const t = p.tier || 'enterprise'; tiers[t] = (tiers[t] || 0) + 1; }
+  return { products: rows.length, totalListedValueUSD: tvUSD, tiers, publicPricesOnly: true };
 }
 function summarize() {
   const total = _all.length;
@@ -197,6 +204,6 @@ function summarize() {
 }
 
 module.exports = {
-  all, byId, publicView, summarize,
+  all, byId, publicView, publicSummary, summarize,
   ENGAGEMENT_PACK_NOTE, ENGAGEMENT_PACK_WHEN, ENGAGEMENT_PACK_LINE,
 };

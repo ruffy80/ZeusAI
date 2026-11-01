@@ -176,53 +176,13 @@ function render(row, receipt) {
     REFUND_CLOSES,
     '',
   ];
-  if (row.tier === 'frontier') {
-    return sealMoney(head.concat([
-      '## Tool contract',
-      row.tool,
-      '',
-      '## Live route',
-      row.route,
-      '',
-      '## What stays outside this file',
-      'Orbital compute, a neural implant, and a quantum channel are not in this download.',
-      '',
-    ]).join('\n'), row);
-  }
-  if (row.tier === 'industry') {
-    return sealMoney(head.concat([
-      '## Outcomes',
-      'The page focus is: ' + row.kpi + '.',
-      'That phrase is the focus label. It is not a measured result and it is not a certification.',
-      '',
-      '## Workflow',
-      '1. Intake — the buyer names the operation this focus applies to.',
-      '2. Workflow — map the steps that would have to exist for that focus.',
-      '3. Proof — only a result this engagement later records.',
-      '4. Handoff — this file is the handoff.',
-      '',
-      '## Phase plan',
-      'Week 1: confirm the focus label with the buyer.',
-      'Week 2: write the workflow against that focus.',
-      'Week 3: list the proof this file does not yet have.',
-      'Week 4: close the open questions in this pack.',
-      '',
-      '## Handoff',
-      'This document is the architecture pack. It does not install an operating system.',
-      '',
-    ]).join('\n'), row);
-  }
-  return sealMoney(head.concat([
-    '## Supplier status',
-    'Auto-ship stays off until a CJ, Printful, or Printify key is armed and the row is dispatchable.',
-    '',
-    '## Listing sheets',
-    ...listingLines(),
-    '',
-    '## What this file does not ship',
-    'Review counts are not copied here. This file does not dispatch a parcel and it does not invent a tracking number.',
-    '',
-  ]).join('\n'), row);
+  const writer = require('./shelf-delivery');
+  const sections = row.tier === 'frontier'
+    ? writer.frontierSections(row, receipt)
+    : (row.tier === 'industry'
+      ? writer.industrySections(row)
+      : writer.listingSections(listingLines()));
+  return sealMoney(head.concat(sections).join('\n'), row);
 }
 
 function artifact(receipt, row) {

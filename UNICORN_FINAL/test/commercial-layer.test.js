@@ -129,10 +129,13 @@ const shell = require('../src/site/v2/shell');
   const cards = services.match(/service-card/g) || [];
   assert.equal(cards.length, shelfCount);
   assert.match(services, /id="serviceSearch"/);
-  assert.match(services, /Save 15-25% with bundles/);
+  assert.match(services, /Each file is its own checkout/);
+  assert.doesNotMatch(services, /Save 15-25% with bundles/);
 
   const pricing = shell.getHtml('/pricing');
-  assert.match(pricing, /Subscribe with BTC/);
+  assert.match(pricing, /Monthly quotas are not a product/);
+  assert.doesNotMatch(pricing, /Subscribe with BTC/);
+  assert.doesNotMatch(pricing, /5 audits/);
   assert.doesNotMatch(pricing, /\/checkout\/\?plan=starter(?![a-z0-9_-])/i);
   assert.doesNotMatch(pricing, /\/checkout\/\?plan=pro(?![a-z0-9_-])/i);
   assert.match(pricing, /Signed delivery/);

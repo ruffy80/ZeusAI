@@ -768,7 +768,7 @@ function listModules() {
     protocol: PROTOCOL,
     empty: modules.length === 0,
     modules,
-    zeusEngagement: '/services/ent-revenue-share',
+    zeusEngagement: '/services/ent-engagement-kickoff',
     note: modules.length
       ? 'Names on this list were submitted by callers. Payout addresses are stored and are not published. A listed name is not a ZeusAI wallet. Share stays 0 until a paid order names that module.'
       : 'No third-party module is registered.',

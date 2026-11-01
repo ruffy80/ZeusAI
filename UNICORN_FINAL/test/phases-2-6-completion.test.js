@@ -26,7 +26,9 @@ function check(label, fn) {
 check('phase2: sovereign recovery is async and awaits send ok', () => {
   const src = read('src/site/sovereign-commerce.js');
   assert.ok(/async function recoverStuckPending/.test(src));
-  assert.ok(src.includes('emailed = !!(r && r.ok)'));
+  assert.ok(src.includes('function countedMailDelivery'));
+  assert.ok(src.includes('emailed = countedMailDelivery(r)'));
+  assert.ok(src.includes('if (!result || result.ok !== true) return false'));
   assert.ok(src.includes('Armed Rails Continuum'));
   assert.ok(src.includes('emailConfigured'));
 });

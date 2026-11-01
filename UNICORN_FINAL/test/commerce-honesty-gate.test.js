@@ -36,12 +36,14 @@ function check(name, fn) {
 }
 
 async function run() {
-  await check('named enterprise rows sell the engagement pack', () => {
+  await check('named enterprise rows sell the kickoff file, not a contract figure', () => {
     const a = buyability.assessBuyability({ id: 'ent-platform-license', tier: 'enterprise', priceUSD: 250000 });
-    assert.strictEqual(a.buyable, true);
-    assert.strictEqual(a.mode, 'reserve');
-    assert.strictEqual(a.reason, 'enterprise_pack');
-    assert.ok(a.ctaHref.includes('/checkout/?plan=ent-platform-license'));
+    assert.strictEqual(a.buyable, false);
+    assert.strictEqual(a.mode, 'unavailable');
+    assert.strictEqual(a.reason, 'contract_figure_not_a_product_price');
+    assert.ok(a.ctaHref.includes('/checkout/?plan=ent-engagement-kickoff'));
+    const acq = buyability.assessBuyability({ id: 'ent-acquisition-pack', tier: 'enterprise', priceUSD: 4000000 });
+    assert.strictEqual(acq.buyable, false);
     const kick = buyability.assessBuyability({ id: 'ent-engagement-kickoff', tier: 'enterprise', group: 'enterprise-kickoff', priceUSD: 2500 });
     assert.strictEqual(kick.buyable, true);
     assert.strictEqual(kick.mode, 'reserve');
@@ -117,18 +119,22 @@ async function run() {
     assert.strictEqual(String(noEmail.order.buyer && noEmail.order.buyer.email || ''), '');
   });
 
-  await check('createOrder sells the enterprise engagement pack', async () => {
+  await check('createOrder refuses a contract figure and sells the kickoff file', async () => {
     const ctx = {
       resolveCatalogItem: async (id) => ({
-        id, title: 'Enterprise License', priceUsd: 250000, group: 'enterprise', tier: 'enterprise',
+        id, title: id, priceUsd: id === 'ent-engagement-kickoff' ? 2500 : 250000, group: 'enterprise', tier: 'enterprise',
       }),
     };
-    const ent = await commerce.createOrder(ctx, {
+    const refused = await commerce.createOrder(ctx, {
       serviceId: 'ent-platform-license', qty: 1, email: 'ceo@corp.com',
+    });
+    assert.strictEqual(refused.error, 'service_not_buyable');
+    const ent = await commerce.createOrder(ctx, {
+      serviceId: 'ent-engagement-kickoff', qty: 1, email: 'ceo@corp.com',
     });
     assert.ok(ent.order, JSON.stringify(ent));
     assert.strictEqual(ent.order.buy_mode, 'reserve');
-    assert.ok(ent.order.orderId);
+    assert.strictEqual(ent.order.subtotal_fiat, 2250);
   });
 
   await check('createOrder accepts instant SKU with email', async () => {
@@ -149,21 +155,21 @@ async function run() {
   await check('store SSR: enterprise cards sell the engagement pack', () => {
     const html = shell.getHtml('/store');
     assert.ok(html, 'store page renders');
-    assert.ok(/Start autonomous deal|Buy the engagement pack/i.test(html),
-      'enterprise CTA should sell the kickoff or the engagement pack');
+    assert.ok(/Start an autonomous deal|Buy the kickoff file|Buy the engagement pack/i.test(html),
+      'enterprise CTA should sell the kickoff file');
     assert.ok(/href="\/checkout\/\?plan=ent-engagement-kickoff" data-link/.test(html),
-      'the separate kickoff offer should remain directly reachable');
-    assert.ok(/They are not in the download/i.test(html), 'store names the pack, not the source');
+      'the kickoff offer should remain directly reachable');
+    assert.ok(!html.includes('/checkout/?plan=ent-acquisition-pack'), 'a contract figure is not a checkout');
+    assert.ok(!html.includes('/checkout/?plan=ent-platform-license'), 'a license figure is not a checkout');
+    assert.ok(!html.includes('/checkout/?plan=ent-private-cloud'), 'a cloud figure is not a checkout');
+    assert.ok(!html.includes('/checkout/?plan=ent-sovereign-deployment'), 'a deployment figure is not a checkout');
+    assert.ok(!html.includes('$4,000,000'), 'the acquisition figure is not a price');
+    assert.ok(!html.includes('$1,200,000'), 'the deployment figure is not a price');
+    assert.ok(!html.includes('$250,000'), 'the license figure is not a price');
     assert.ok(/Real products\. Real BTC settlement/i.test(html), 'honest store hero');
     assert.ok(/not for sale/i.test(html) || /Module mirror/i.test(html), 'library marked not for sale');
     const sovereignEnt = [...html.matchAll(/data-sovereign-buy="(ent-[^"]+)"/gi)].map((m) => m[1]);
-    const packs = [
-      'ent-platform-license', 'ent-acquisition-pack', 'ent-revenue-share', 'ent-private-cloud',
-      'ent-ai-transformation', 'ent-white-label', 'ent-sovereign-deployment',
-    ];
-    for (const id of packs) assert.ok(sovereignEnt.includes(id), id);
-    assert.ok(sovereignEnt.every((id) => packs.includes(id)),
-      'store sovereign enterprise rows are the engagement packs, got: ' + sovereignEnt.join(','));
+    assert.deepStrictEqual(sovereignEnt, ['ent-engagement-kickoff']);
   });
 
   await check('zacc singleton createDropshipOrder rejects demoOnly', async () => {

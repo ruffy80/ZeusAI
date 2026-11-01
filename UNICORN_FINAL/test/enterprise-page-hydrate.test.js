@@ -35,8 +35,9 @@ check('enterprise SSR lists catalog packs and the owner form', () => {
   assert.ok(html.includes('Send to the owner'));
   assert.ok(html.includes('does not mint a contract'));
   assert.ok(html.includes('data-product-id="ent-engagement-kickoff"'));
-  assert.ok(html.includes('data-product-id="ent-acquisition-pack"'));
-  assert.ok(html.includes('data-product-id="ent-sovereign-deployment"'));
+  assert.ok(!html.includes('data-product-id="ent-acquisition-pack"'));
+  assert.ok(!html.includes('data-product-id="ent-sovereign-deployment"'));
+  assert.ok(!html.includes('$4,000,000'));
   assert.ok(html.includes('href="/checkout/?plan=ent-engagement-kickoff"'));
   assert.ok(html.includes('Buy the engagement pack →'));
   assert.ok(!html.includes('id="entNegotiator"'));

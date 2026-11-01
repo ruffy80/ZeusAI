@@ -59,7 +59,7 @@ check('checkout proof uses the same gate', () => {
 
 check('a promise the file does not contain is not publishable', () => {
   const logo = Object.assign({}, shelf.byId('instant-logo-kit'), {
-    description: 'You receive logo image files and a favicon.',
+    description: 'You receive a hosted site and a Word file.',
   });
   const preview = engine.offerPreview(logo.id, { mode: logo.mode, clock: logo.clock, tier: logo.tier });
   const bad = dip.review(logo, preview);
@@ -96,8 +96,15 @@ check('the kickoff file contains the three promised documents', () => {
   assert.ok(!/team delivers the build/i.test(text));
 });
 
-check('a paid engagement pack contains the six documents', () => {
-  const item = shelf.byId('ent-platform-license');
+check('a generated engagement document still says the license is not in the file', () => {
+  const item = {
+    id: 'ent-platform-license',
+    title: 'Unicorn Platform — Enterprise License',
+    description: 'Engagement pack.',
+    priceUsd: 250000,
+    mode: 'reserve',
+    clock: 'contract',
+  };
   const text = engine.buyerFile(item);
   assert.ok(/master service agreement \(msa\)/i.test(text));
   assert.ok(/statement of work/i.test(text));

@@ -65,7 +65,8 @@ async function run() {
     const curated = (instant.all() || []).length + (enterprise.all() || []).length;
     assert.equal(unified.MAX_PRODUCTS, curated, 'catalog cap is the curated seed, not a frozen 25');
     assert.ok(items.length <= unified.MAX_PRODUCTS, 'public shelf stays inside the curated cap');
-    assert.ok(items.some((item) => item.id === 'ent-platform-license'), 'enterprise license stays on the public shelf');
+    assert.ok(!items.some((item) => item.id === 'ent-platform-license'), 'a contract figure is not a public price');
+    assert.ok(items.some((item) => item.id === 'ent-engagement-kickoff'), 'the kickoff file stays on the public shelf');
     assert.equal(items.length, lhos.publicCatalogCount());
     const ids = items.map((item) => item.id);
     assert.ok(!ids.some((id) => /^zacc-/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)));

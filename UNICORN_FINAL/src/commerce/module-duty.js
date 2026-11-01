@@ -65,6 +65,24 @@ const CUSTOMER = Object.freeze([
     work: 'Writes the activation pack, the kickoff pack, or the generated file.',
   },
   {
+    path: 'src/commerce/shelf-delivery.js',
+    duty: 'customer',
+    role: 'file',
+    work: 'Fills each shelf file with the sections named on its card.',
+  },
+  {
+    path: 'src/commerce/audit-scan.js',
+    duty: 'customer',
+    role: 'file',
+    work: 'Scores the submitted URL for the website audit file.',
+  },
+  {
+    path: 'src/commerce/money-catalog.js',
+    duty: 'customer',
+    role: 'file',
+    work: 'Writes the frontier, industry, and listing-desk files.',
+  },
+  {
     path: 'src/site/v2/delivery-registry.js',
     duty: 'customer',
     role: 'file',

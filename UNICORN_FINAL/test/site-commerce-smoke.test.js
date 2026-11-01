@@ -97,14 +97,15 @@ async function run() {
     const productRows = products.body.products || products.body.items || [];
     assert.equal(productRows.find((item) => item.id === 'instant-website-audit')?.billing, 'one-time',
       'instant catalog prices should be identified as one-time');
-    assert.equal(productRows.find((item) => item.id === 'ent-platform-license')?.billing, 'annual',
-      'enterprise catalog billing should survive public catalog normalization');
+    assert.equal(productRows.find((item) => item.id === 'ent-engagement-kickoff')?.priceUSD, 2500,
+      'the public enterprise price is the kickoff file');
+    assert.ok(!productRows.some((item) => item.id === 'ent-platform-license'),
+      'a contract figure is not a public product');
     const pricingPage = await request('/pricing');
-    // /pricing is served by the v2 SSR shell (src/site/v2/shell.js → pagePricing).
-    // Assert the commerce truth in the shipped HTML: per-offer billing cadence
-    // ("$29.00/month") and the BTC discount stated against the list price —
-    // not implementation details of the removed legacy handler.
-    assert.ok(/\$\d[\d,.]*\/month/.test(pricingPage.text), '/pricing should render the offer billing cadence');
+    // /pricing is the public shelf. A monthly quota is not a product.
+    // Bitcoin stays 10% under the list price of each file.
+    assert.ok(pricingPage.text.includes('Monthly quotas are not a product'), '/pricing must not sell a monthly quota');
+    assert.ok(!/\$\d[\d,.]*\/month/.test(pricingPage.text), 'a monthly quota is not a product price');
     assert.ok(/\d{1,2}% under that list/.test(pricingPage.text), '/pricing should show a BTC-specific discount');
     assert.ok(!pricingPage.text.includes("'>/mo</span>"), '/pricing must not label every offer as monthly');
 
@@ -359,6 +360,19 @@ async function run() {
     assert.equal(uiCheckout.body.ok, true);
     assertBtcInvoice(uiCheckout.body, '/api/uaic/order');
     const receiptId = uiCheckout.body.receipt.id;
+
+    const unpaidCheckout = await request('/api/checkout/create', {
+      method: 'POST',
+      body: JSON.stringify({ serviceId: 'instant-website-audit', qty: 1, email: 'unpaid-delivery@example.com' }),
+    });
+    assert.ok(unpaidCheckout.status === 200 || unpaidCheckout.status === 201, 'checkout create ' + unpaidCheckout.status);
+    const unpaidOrder = unpaidCheckout.body.order || unpaidCheckout.body;
+    const unpaidId = unpaidOrder.orderId || unpaidOrder.id;
+    const unpaidToken = unpaidOrder.access_token;
+    assert.ok(unpaidId && unpaidToken, 'unpaid checkout must carry an order token');
+    const unpaidFile = await request('/api/delivery/' + encodeURIComponent(unpaidId) + '?format=artifact&access_token=' + encodeURIComponent(unpaidToken));
+    assert.equal(unpaidFile.status, 409, 'an unpaid order must not download the service');
+    assert.equal(unpaidFile.body.error, 'order_not_paid');
 
     const receiptBeforePay = await request('/api/receipt/' + encodeURIComponent(receiptId));
     assert.equal(receiptBeforePay.status, 200);

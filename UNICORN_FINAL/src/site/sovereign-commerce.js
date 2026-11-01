@@ -163,7 +163,7 @@ function _fireDelivery(order) {
     if (payFulfill && typeof payFulfill.settleAndNotify === 'function') {
       Promise.resolve(payFulfill.settleAndNotify({
         receipt: receiptLike,
-        source: 'btc-sovereign',
+        source: order.paid_via || railPatch.paid_via || 'btc',
       })).catch((e) =>
         console.warn('[commerce] pay-fulfill notify error for ' + order.orderId + ':', e && e.message)
       );
@@ -1190,6 +1190,12 @@ function markOrderPaidFromProvider(orderId, proof) {
     at: order.paid_at,
     meta: (proof && proof.meta) || undefined,
   };
+  try {
+    const attribution = require('../commerce/invoice-attribution');
+    attribution.stampPaid(order, { provider, providerRef });
+  } catch (attrErr) {
+    console.warn('[commerce] invoice attribution skipped:', attrErr && attrErr.message);
+  }
   const entitlement = {
     entitlement_id: 'ent_' + crypto.randomBytes(9).toString('hex'),
     access_token: order.access_token,
@@ -2287,7 +2293,16 @@ async function handle(req, res, ctx) {
         paypalOrderId: created.paypalOrderId,
         paypalApproveHref: created.approveHref,
         selectedRail: 'paypal',
+        settlementProvider: 'paypal',
       });
+      try {
+        require('../commerce/invoice-attribution').stampOpen(order, {
+          requestedRail: 'paypal',
+          provider: 'paypal',
+          transactionId: created.paypalOrderId,
+          paymentStatus: 'waiting',
+        });
+      } catch (_) { /* attribution is recorded again at settle */ }
       try {
         const pios = require('../commerce/payment-innovation-os');
         pios.recordTelemetry({ type: 'rail_start', rail: 'paypal', orderId: order.orderId });
@@ -2393,12 +2408,24 @@ async function handle(req, res, ctx) {
       const created = await alt.createNowPaymentsInvoiceForSovereign(order, {
         payCurrency: (body && body.payCurrency) || 'any',
       });
+      const requested = require('../commerce/invoice-attribution').requestedRail(order, body) === 'card'
+        ? 'card'
+        : 'nowpayments';
       order.meta = Object.assign({}, order.meta || {}, {
         nowpaymentsInvoiceId: created.invoiceId,
         nowpaymentsInvoiceUrl: created.invoiceUrl,
         nowpaymentsStatus: 'waiting',
-        selectedRail: 'nowpayments',
+        selectedRail: requested,
+        settlementProvider: 'nowpayments',
       });
+      try {
+        require('../commerce/invoice-attribution').stampOpen(order, {
+          requestedRail: requested,
+          provider: 'nowpayments',
+          transactionId: created.invoiceId,
+          paymentStatus: 'waiting',
+        });
+      } catch (_) { /* attribution is recorded again at settle */ }
       try {
         const pios = require('../commerce/payment-innovation-os');
         pios.recordTelemetry({ type: 'rail_start', rail: 'nowpayments', orderId: order.orderId });
@@ -2532,6 +2559,7 @@ async function handle(req, res, ctx) {
         attempts: order.email_recovery && order.email_recovery.attempts ? order.email_recovery.attempts : 0,
         requiredEnv: ['RESEND_API_KEY', 'BREVO_API_KEY', 'SENDINBLUE_API_KEY', 'MAILERSEND_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'],
       },
+      invoice: require('../commerce/invoice-attribution').publicView(order),
       payment_exception: latestPaymentExceptionForOrder(order.orderId),
       tx_seen: !!(order.tx_seen || (order.txids && order.txids.length)),
       entitlement_id: order.entitlement_id || null,

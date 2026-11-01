@@ -2678,6 +2678,19 @@ function verifyDeliveryAccess(id, req, params) {
   }
   return false;
 }
+function unpaidDeliveryStatus(id) {
+  try {
+    const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
+      ? commerce.ORDERS.get(id)
+      : null;
+    if (order && order.status && order.status !== 'paid') return String(order.status);
+  } catch (_) { /* order lookup is optional */ }
+  try {
+    const receipt = findReceipt(id);
+    if (receipt && receipt.status && receipt.status !== 'paid') return String(receipt.status);
+  } catch (_) { /* receipt lookup is optional */ }
+  return '';
+}
 function issueFallbackLicense(receipt) {
   const body = {
     iss: 'ZeusAI',
@@ -3033,21 +3046,16 @@ function runDeliveryForReceipt(receipt, opts) {
     };
     try {
       const fulfillmentEngine = require('./site/v2/fulfillment-engine');
-      Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
-        .then((r) => {
-          if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total);
-          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
-          recordProofOfDelivery(latestDelivery || delivery);
-          _emitWsiDelivered(latestDelivery || delivery);
-          _firePayFulfillNotify(receipt, latestDelivery || delivery);
-        })
-        .catch((e) => {
-          console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message);
-          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
-          recordProofOfDelivery(latestDelivery || delivery);
-          _emitWsiDelivered(latestDelivery || delivery);
-          _firePayFulfillNotify(receipt, latestDelivery || delivery);
-        });
+      const syncResult = fulfillmentEngine.fulfillReceiptBlocking(receipt);
+      if (syncResult && syncResult.ok) {
+        console.log('[fulfillment] receipt=' + receipt.id + ' status=' + syncResult.fulfillmentStatus + ' delivered=' + syncResult.delivered + '/' + syncResult.total);
+      } else {
+        console.warn('[fulfillment] blocked for ' + receipt.id + ':', syncResult && syncResult.error);
+      }
+      const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
+      recordProofOfDelivery(latestDelivery || delivery);
+      _emitWsiDelivered(latestDelivery || delivery);
+      _firePayFulfillNotify(receipt, latestDelivery || delivery);
     } catch (e) {
       console.warn('[fulfillment] engine load failed:', e.message);
       recordProofOfDelivery(delivery);
@@ -4722,6 +4730,11 @@ async function unicornHandler(req, res) {
     if (!verifyDeliveryAccess(id, req, params)) {
       res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
       return res.end(JSON.stringify({ error:'unauthorized', hint:'access_token required' }));
+    }
+    const unpaidStatus = unpaidDeliveryStatus(id);
+    if (unpaidStatus) {
+      res.writeHead(409, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ ok:false, error:'order_not_paid', status: unpaidStatus }));
     }
     const fmt = params.get('format');
     const delivery = deliveryRegistry && deliveryRegistry.get ? deliveryRegistry.get(id) : null;
@@ -9696,7 +9709,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         id: it.id,
         title: it.title || it.name || it.id,
         description: it.description || '',
-        priceUsd: Number(it.priceUsd || it.price || 0),
+        priceUsd: Number(it.priceUsd || it.priceUSD || it.price || 0),
+        priceUSD: Number(it.priceUSD || it.priceUsd || it.price || 0),
         billing: it.billing || null,
         priceBtc: it.priceBtc,
         currency: it.currency || 'USD',
@@ -10556,13 +10570,17 @@ setInterval(function(){loadOrder().then(render);},10000);
     if (!entCatalog) { res.writeHead(503, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'catalog_offline' })); }
     const payload = (aecos && typeof aecos.enrichCatalogResponse === 'function')
       ? aecos.enrichCatalogResponse()
-      : { updatedAt: new Date().toISOString(), summary: entCatalog.summarize(), products: entCatalog.publicView() };
+      : { updatedAt: new Date().toISOString(), summary: entCatalog.publicSummary ? entCatalog.publicSummary() : entCatalog.summarize(), products: entCatalog.publicView() };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
     return res.end(JSON.stringify(payload));
   }
   if (urlPath.startsWith('/api/enterprise/product/')) {
     if (!entCatalog) { res.writeHead(503); return res.end('{}'); }
     const id = decodeURIComponent(urlPath.slice('/api/enterprise/product/'.length));
+    if (require('./commerce/real-price').isContractFigure(id)) {
+      res.writeHead(404, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error:'not_a_product_price', shelf:'/checkout/?plan=ent-engagement-kickoff' }));
+    }
     const p = entCatalog.byId(id);
     if (!p) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
     const out = (aecos && typeof aecos.enrichProductForUi === 'function') ? (aecos.enrichProductForUi(p) || p) : p;
@@ -11127,7 +11145,9 @@ setInterval(function(){loadOrder().then(render);},10000);
     const cat = unifiedCatalog || instantCatalog;
     let products = cat.publicView();
     if (tier && Array.isArray(products)) products = products.filter(p => (p.tier||'instant') === tier);
-    const summary = unifiedCatalog && typeof unifiedCatalog.summarize==='function' ? unifiedCatalog.summarize() : null;
+    const summary = unifiedCatalog && typeof unifiedCatalog.publicSummary === 'function'
+      ? unifiedCatalog.publicSummary(products)
+      : (unifiedCatalog && typeof unifiedCatalog.summarize === 'function' ? unifiedCatalog.summarize() : null);
     // Catalog is public + identical for every visitor. Allow nginx/browsers to
     // cache for 60s and serve stale-while-revalidate up to 10 min so a brief
     // backend hiccup never empties the storefront. P50 < 5ms when warm.

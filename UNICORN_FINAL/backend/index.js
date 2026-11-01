@@ -7182,7 +7182,9 @@ app.get('/api/instant/catalog', _swRateLimit, async (req, res) => {
       try {
         products = _unifiedCatalogModule.publicView() || [];
         if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
-        if (typeof _unifiedCatalogModule.summarize === 'function') {
+        if (typeof _unifiedCatalogModule.publicSummary === 'function') {
+          try { summary = _unifiedCatalogModule.publicSummary(products); } catch (_) { summary = null; }
+        } else if (typeof _unifiedCatalogModule.summarize === 'function') {
           try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
         }
       } catch (_) { products = []; }
@@ -9029,6 +9031,23 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
             paidAt: new Date().toISOString(),
             confirmation: { network: 'stripe', sessionId: session.id, txId: txId || null },
           }, 'stripe');
+          const sovereignId = String(session.metadata?.orderId || '').trim();
+          if (/^ord_[a-zA-Z0-9_-]{6,64}$/.test(sovereignId)) {
+            const stripePayload = {
+              orderId: sovereignId,
+              provider: 'stripe',
+              providerRef: session.payment_intent || session.id,
+              amountUsd: Number(session.amount_total || 0) / 100,
+              currency: session.currency || 'usd',
+              meta: { stripeSessionId: session.id, provider: 'stripe' },
+            };
+            _postSovereignProviderSettle(stripePayload)
+              .then(() => console.log('[Stripe Webhook] sovereign settle ok:', sovereignId))
+              .catch((e) => {
+                console.warn('[Stripe Webhook] sovereign settle error:', e && e.message);
+                _enqueueSovereignProviderSettle(stripePayload, e && e.message);
+              });
+          }
           // Also activate SaaS entitlements when a serviceId is present.
           if (session.metadata?.serviceId || planId) {
             try {
@@ -9937,7 +9956,9 @@ function _onPaidInvoice(invoice) {
   } catch (e) { console.warn('[BTC/Paid] delivery file failed:', e && e.message); }
   // CLOS: open commercial cycle; close immediately when digital activation succeeds.
   try {
-    const closPay = _closPayloadFromInvoice(invoice, { rail: 'btc' });
+    const closPay = _closPayloadFromInvoice(invoice, {
+      rail: require('../src/commerce/invoice-attribution').railFromInvoice(invoice),
+    });
     _closOpenPaid(closPay);
     if (activated) {
       _closCloseDelivered({ ...closPay, mode: 'digital_activation' });
@@ -10900,6 +10921,22 @@ const PRICING_SEGMENTS = Object.freeze({
 
 async function buildModulePrice(moduleId, opts) {
   const meta = PRICING_SEGMENTS[moduleId] || null;
+  if (meta) {
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        moduleId,
+        segment: Object.assign({}, meta, { cta: 'see_shelf' }),
+        pricing: null,
+        sellable: false,
+        reason: 'not_a_product_price',
+        shelf: '/services',
+        source: 'shelf-file-price',
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  }
   const allowed = Object.keys(dynamicPricing.BASE_PRICES);
   if (!allowed.includes(moduleId)) {
     return { ok: false, status: 404, body: { error: 'Module not found in pricing engine', moduleId } };
@@ -11146,7 +11183,17 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
         service: itemName || itemId || 'service',
         priceUsd: normalizedAmount,
         customerEmail: clientId || null,
-        metadata: { itemId, source: 'nowpayments_fallback_btc' },
+        metadata: {
+          itemId,
+          source: 'nowpayments_fallback_btc',
+          provider: 'btc',
+          requestedRail: 'nowpayments',
+          paymentStatus: 'pending',
+          invoiceStatus: 'open',
+          product: itemId || itemName || null,
+          amount: normalizedAmount,
+          currency: 'USD',
+        },
       });
       const payAddress = (inv && (inv.payoutAddress || inv.btcAddress || inv.address)) || __OWNER_BTC;
       return res.json({

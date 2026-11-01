@@ -49,15 +49,29 @@ function endpointLedger(lines) {
   ].join('\n');
 }
 
+const CONTROLS = {
+  NIS2: ['risk analysis', 'incident handling', 'supply chain', 'access control'],
+  DORA: ['ICT risk', 'incident reporting', 'resilience testing', 'third-party ICT'],
+  HIPAA: ['access control', 'audit controls', 'integrity', 'transmission security'],
+  CMMC: ['access control', 'identification', 'media protection', 'system integrity'],
+  'PCI DSS': ['network security', 'cardholder data', 'access control', 'monitoring'],
+};
+
 function controlEvidence(lines) {
   const org = field(lines, 'orgName') || 'not named';
   const frameworks = namedFrameworks(field(lines, 'frameworks'));
-  const blocks = frameworks.map((name) => [
-    '### ' + name,
-    'Control: name the systems in the scope for ' + name + '.',
-    'Evidence: the buyer attaches the export. Status: not filled.',
-    'This file does not certify ' + name + ' and it does not claim an audit passed.',
-  ].join('\n'));
+  const blocks = frameworks.map((name) => {
+    const rows = (CONTROLS[name] || []).map((control) => (
+      '| ' + control + ' | attach the export for this control | open |'
+    ));
+    return [
+      '### ' + name,
+      '| Control | Evidence to attach | Status in this file |',
+      '| --- | --- | --- |',
+      rows.join('\n'),
+      'This file does not certify ' + name + ' and it does not claim an audit passed.',
+    ].join('\n');
+  });
   return [
     '## Control evidence',
     'Organization: ' + org + '.',

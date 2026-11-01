@@ -261,6 +261,123 @@ async function post(orderId, body, headers) {
     assert.equal(discovery.placeholders, 0);
   });
 
+  await check('a card invoice keeps NOWPayments as the provider and card as the request', () => {
+    const attr = require('../src/commerce/invoice-attribution');
+    const order = seed('ord_attrcard01', { meta: { rail: 'card' }, buyer: { email: 'buyer-audit-test@example.com' } });
+    attr.stampOpen(order, { requestedRail: 'card', provider: 'nowpayments', transactionId: 'np_inv_1', paymentStatus: 'waiting' });
+    assert.equal(order.invoice.provider, 'nowpayments');
+    assert.equal(order.invoice.requestedRail, 'card');
+    assert.equal(order.invoice.invoiceStatus, 'open');
+    const headers = { 'x-internal-settle-secret': process.env.INTERNAL_SETTLE_SECRET };
+    return post(order.orderId, {
+      provider: 'nowpayments',
+      providerRef: 'np_pay_9',
+      amountUsd: 49,
+      paymentStatus: 'finished',
+    }, headers).then((res) => {
+      assert.equal(res.statusCode, 200);
+      const saved = commerce.ORDERS.get(order.orderId);
+      assert.equal(saved.invoice.provider, 'nowpayments');
+      assert.equal(saved.invoice.requestedRail, 'card');
+      assert.equal(saved.invoice.transactionId, 'np_pay_9');
+      assert.equal(saved.invoice.paymentStatus, 'paid');
+      assert.equal(saved.invoice.product, 'instant-website-audit');
+      assert.equal(saved.invoice.amount, 49);
+      assert.equal(saved.invoice.currency, 'USD');
+      assert.equal(saved.paid_via, 'nowpayments');
+      const view = attr.publicView(saved);
+      assert.equal(JSON.stringify(view).includes('buyer-audit-test@example.com'), false);
+    });
+  });
+
+  await check('a stripe settlement is not recorded as NOWPayments or Bitcoin', () => {
+    const attr = require('../src/commerce/invoice-attribution');
+    const order = seed('ord_attrstripe01', { meta: { selectedRail: 'card' } });
+    attr.stampOpen(order, { requestedRail: 'card', provider: 'nowpayments' });
+    const headers = { 'x-internal-settle-secret': process.env.INTERNAL_SETTLE_SECRET };
+    return post(order.orderId, {
+      provider: 'stripe',
+      providerRef: 'pi_test_1',
+      amountUsd: 49,
+      currency: 'USD',
+    }, headers).then((res) => {
+      assert.equal(res.statusCode, 200);
+      const saved = commerce.ORDERS.get(order.orderId);
+      assert.equal(saved.invoice.provider, 'stripe');
+      assert.equal(saved.invoice.transactionId, 'pi_test_1');
+      assert.equal(saved.paid_via, 'stripe');
+      assert.equal(attr.railFromInvoice({ metadata: { provider: 'stripe' } }), 'stripe');
+      assert.equal(attr.railFromInvoice({ metadata: { provider: 'nowpayments' } }), 'nowpayments');
+      assert.equal(attr.railFromInvoice({}), 'btc');
+    });
+  });
+
+  await check('business modules report load state without a fake customer count', () => {
+    const snap = integration.snapshot();
+    assert.equal(snap.businessModules.aiDna.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiDelivery.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiVault.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiConcierge.externalModel, 'NOT CONFIGURED');
+    assert.equal(typeof snap.businessModules.aiWorkspace.customerInstances, 'number');
+    assert.equal(JSON.stringify(snap.businessModules).includes('sk_'), false);
+  });
+
+  await check('a paid file is stored before the delivery call returns', async () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'paid-file-'));
+    const previous = process.env.UNICORN_DATA_DIR;
+    process.env.UNICORN_DATA_DIR = tmp;
+    const registryPath = require.resolve('../src/site/v2/delivery-registry');
+    const enginePath = require.resolve('../src/site/v2/fulfillment-engine');
+    delete require.cache[registryPath];
+    delete require.cache[enginePath];
+    const registry = require('../src/site/v2/delivery-registry');
+    const paidEngine = require('../src/site/v2/fulfillment-engine');
+    const receipt = {
+      id: 'ord_block_email',
+      serviceId: 'instant-email-sequence',
+      serviceName: 'Instant Email Onboarding Sequence',
+      plan: 'instant-email-sequence',
+      status: 'paid',
+      email: 'buyer@example.com',
+      meta: { inputs: { product: 'Northwind' } },
+    };
+    registry.deliver(receipt);
+    const blocked = paidEngine.fulfillReceiptBlocking(receipt);
+    if (previous == null) delete process.env.UNICORN_DATA_DIR;
+    else process.env.UNICORN_DATA_DIR = previous;
+    assert.equal(blocked.ok, true, blocked.error);
+    const saved = registry.get(receipt.id);
+    assert.ok(saved.artifacts[0].content.includes('Northwind'));
+    assert.ok(saved.artifacts[0].content.includes('Email 5'));
+    const ent = registry.deliverableSet({ id: 'ord_entpack', email: 'buyer@example.com' }, 'ent-platform-license');
+    assert.equal(ent.files.some((file) => file.kind === 'license'), false);
+    assert.ok(/not in this download/i.test(ent.summary));
+    const src = fs.readFileSync(path.join(__dirname, '../src/site/sovereign-commerce.js'), 'utf8');
+    assert.ok(src.includes('source: order.paid_via'));
+    const shelf = require('../src/commerce/public-shelf');
+    const finished = require('../src/commerce/finished-delivery');
+    const gaps = [];
+    for (const item of shelf.publicShelf()) {
+      const out = await paidEngine.fulfillReceipt({
+        id: 'ord_gap_' + item.id,
+        serviceId: item.id,
+        serviceName: item.title,
+        plan: item.id,
+        status: 'paid',
+        amount: item.priceFloorUsd,
+        email: 'buyer@example.com',
+        meta: { inputs: { brief: 'Northwind', url: 'https://example.com', product: 'Northwind' } },
+      });
+      const text = out && out.artifacts && out.artifacts[0] && out.artifacts[0].content || '';
+      const review = finished.review(item, text);
+      if (!out.ok || !review.pass || text.indexOf(item.title) === -1) gaps.push(item.id);
+    }
+    assert.deepEqual(gaps, []);
+  });
+
   console.log('✅ prod-readiness: ' + passed + ' tests passed');
   process.exit(0);
 })().catch((err) => {

@@ -43,9 +43,6 @@ const EXECUTION_OVERCLAIM = /\babout \d+ days\b|\bîn cam \d+ zile\b|\bteam deli
 
 // Named in a positive sentence, these are not in the paid file.
 const NOT_DELIVERED = [
-  /logo image files/i,
-  /favicon/i,
-  /visual variants/i,
   /designed slide deck/i,
   /hosted site/i,
   /\bword file\b/i,

@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const AI_KEYS = [
   'GROQ_API_KEY',
   'OPENAI_API_KEY',
@@ -47,8 +50,12 @@ function snapshot() {
     emailReady = !!(mailer && typeof mailer.isConfigured === 'function' && mailer.isConfigured());
   } catch (_) { emailReady = false; }
   const aiPresent = AI_KEYS.filter((name) => real(process.env[name]));
+  const checkedAt = new Date().toISOString();
+  let auditLoaded = false;
+  try { auditLoaded = typeof require('./audit-scan').scan === 'function'; } catch (_) { auditLoaded = false; }
   return {
     protocol: 'IRS/1.0',
+    checkedAt,
     rails: {
       bitcoin: {
         status: 'OPERATIONAL',
@@ -73,7 +80,9 @@ function snapshot() {
         note: 'A pending invoice is emailed only when one of these variables holds a real secret. Nothing is marked sent before that.',
       },
       websiteAudit: {
-        status: 'OPERATIONAL',
+        status: auditLoaded ? 'OPERATIONAL' : 'FAILED',
+        checkedAt,
+        lastFailure: auditLoaded ? null : 'audit scanner did not load',
         note: 'The paid file fetches the submitted URL. The score is the count of checks in that response. A failed fetch has no score.',
       },
       aiFulfillment: {
@@ -82,7 +91,102 @@ function snapshot() {
         note: 'Names only. A present key does not claim a model call succeeded. The website audit score does not come from a model.',
       },
     },
+    businessModules: businessModuleStatus(checkedAt, aiPresent),
   };
 }
 
-module.exports = { snapshot, EMAIL_ENV };
+let _conciergeStatus = null;
+function conciergeReady() {
+  if (_conciergeStatus) return _conciergeStatus;
+  try {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    _conciergeStatus = src.includes('function composeReply') ? 'OPERATIONAL' : 'FAILED';
+  } catch (_) {
+    _conciergeStatus = 'FAILED';
+  }
+  return _conciergeStatus;
+}
+
+function businessModuleStatus(checkedAt, aiPresent) {
+  const externalModel = aiPresent.length ? (process.env.NODE_ENV === 'test' ? 'TEST MODE' : 'OPERATIONAL') : 'NOT CONFIGURED';
+  let dna = { status: 'FAILED', lastFailure: 'module did not load' };
+  let omega = { status: 'FAILED', lastFailure: 'module did not load' };
+  let vault = { status: 'FAILED', lastFailure: 'module did not load' };
+  let delivery = { status: 'FAILED', lastFailure: 'writer did not load' };
+  try {
+    const writer = require('../../backend/modules/paid-delivery');
+    if (typeof writer.writePaidDelivery === 'function') delivery = { status: 'OPERATIONAL', lastFailure: null };
+  } catch (err) {
+    delivery.lastFailure = String(err && err.message || err).slice(0, 160);
+  }
+  try {
+    const mod = require('../../backend/modules/ai-dna-engine');
+    const st = mod.getStatus();
+    dna = {
+      status: st && st.disabled ? 'NOT CONFIGURED' : 'OPERATIONAL',
+      strandsLive: st && st.counts ? st.counts.strandsLive : 0,
+      lastFailure: null,
+      note: 'Local strand store. Counts are stored strands, not an invented audience.',
+    };
+  } catch (err) {
+    dna.lastFailure = String(err && err.message || err).slice(0, 160);
+  }
+  try {
+    const mod = require('../../backend/modules/omega-ecosystem-os');
+    const st = mod.getStatus();
+    const live = st && st.counts ? st.counts.instancesLive : 0;
+    omega = {
+      status: st && st.disabled ? 'NOT CONFIGURED' : 'OPERATIONAL',
+      customerInstances: live,
+      vaultAccounts: st && st.counts ? st.counts.vaultAccounts : 0,
+      lastFailure: null,
+      note: 'Vault, workspace, concierge, and delivery are local instance edges. A customer instance appears after a paid order.',
+    };
+  } catch (err) {
+    omega.lastFailure = String(err && err.message || err).slice(0, 160);
+  }
+  try {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'backend', 'modules', 'quantumVault.js'), 'utf8');
+    if (src.includes('function store') && src.includes('function getStatus')) {
+      vault = {
+        status: 'OPERATIONAL',
+        lastFailure: null,
+        note: 'Local secret vault is present. This check does not unlock it and does not read secret values.',
+      };
+    }
+  } catch (err) {
+    vault.lastFailure = String(err && err.message || err).slice(0, 160);
+  }
+  return {
+    aiVault: Object.assign({ name: 'AI Vault', checkedAt, customerFacing: true }, vault),
+    aiDelivery: {
+      name: 'AI Delivery',
+      status: delivery.status,
+      checkedAt,
+      lastFailure: delivery.lastFailure,
+      customerFacing: true,
+      note: 'A paid sovereign order writes the buyer file. Delivery still waits for a verified payment.',
+    },
+    aiWorkspace: Object.assign({
+      name: 'AI Workspace',
+      checkedAt,
+      customerFacing: true,
+      status: omega.status,
+      customerInstances: omega.customerInstances || 0,
+      lastFailure: omega.lastFailure,
+      note: omega.note || omega.lastFailure,
+    }),
+    aiConcierge: {
+      name: 'AI Concierge',
+      status: conciergeReady(),
+      externalModel,
+      checkedAt,
+      lastFailure: null,
+      customerFacing: true,
+      note: 'Shelf answers are composed locally and labeled zeus-local. An external model runs only when a real provider key is present.',
+    },
+    aiDna: Object.assign({ name: 'AI DNA', checkedAt, customerFacing: true }, dna),
+  };
+}
+
+module.exports = { snapshot, EMAIL_ENV, businessModuleStatus };
