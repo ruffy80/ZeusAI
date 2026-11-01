@@ -27,7 +27,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 99,
     deliveryMinutes: 10,
-    description: 'The checkout file is a Service Activation Pack with the brand kit written in: name candidates, positioning, taglines, voice, and a color and type direction. It does not include logo image files, a favicon, or visual variants.',
+    description: 'The checkout file is a Service Activation Pack: eight name candidates, positioning, taglines, voice, a color and type direction, an SVG wordmark, an SVG monogram, and an SVG favicon. It does not check whether a domain is available.',
     inputs: [
       { key: 'brandName', label: 'Brand Name', required: true, type: 'text' },
       { key: 'industry', label: 'Industry', required: true, type: 'text' },
@@ -40,7 +40,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 149,
     deliveryMinutes: 8,
-    description: 'The file is Markdown slide copy: problem, solution, market, product, and ask, written from your brief. A provider key can replace that copy. It is not a designed slide deck.',
+    description: 'The file is a self-contained HTML slide deck written from your brief: problem, solution, market, product, and ask.',
     inputs: [
       { key: 'idea', label: 'Startup Idea (1 paragraph)', required: true, type: 'textarea' },
       { key: 'email', label: 'Delivery Email', required: true, type: 'email' }

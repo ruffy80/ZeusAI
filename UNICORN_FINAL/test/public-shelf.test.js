@@ -20,24 +20,20 @@ function check(name, fn) {
   }
 }
 
-check('public shelf lists every curated clock and the payable kickoff', () => {
+check('public shelf lists payable files and keeps contract figures off the cart', () => {
   const items = shelf.publicShelf();
   const ids = items.map((p) => p.id);
   assert.ok(ids.includes('instant-website-audit'));
   assert.ok(ids.includes('professional-saas-mvp'));
   assert.ok(ids.includes('ent-engagement-kickoff'));
-  assert.ok(ids.includes('ent-acquisition-pack'));
-  assert.ok(ids.includes('ent-sovereign-deployment'));
+  assert.ok(!ids.includes('ent-acquisition-pack'));
+  assert.ok(!ids.includes('ent-sovereign-deployment'));
+  assert.ok(!ids.includes('ent-platform-license'));
   assert.ok(items.every((p) => p.ctaHref && p.mode && p.priceUsd > 0));
   const kick = shelf.byId('ent-engagement-kickoff');
   assert.strictEqual(kick.mode, 'reserve');
   assert.ok(kick.ctaHref.includes('ent-engagement-kickoff'));
-  const acq = shelf.byId('ent-acquisition-pack');
-  assert.strictEqual(acq.mode, 'reserve');
-  assert.strictEqual(acq.buyable, true);
-  assert.strictEqual(acq.ctaLabel, 'Buy the engagement pack →');
-  assert.ok(acq.ctaHref.includes('/checkout/?plan=ent-acquisition-pack'));
-  assert.ok(acq.when.includes('milestones in the pack'));
+  assert.strictEqual(shelf.byId('ent-acquisition-pack'), null);
 });
 
 check('the marketplace renders the same ids and the same buttons as the shelf', () => {
@@ -47,10 +43,9 @@ check('the marketplace renders the same ids and the same buttons as the shelf', 
     assert.ok(html.includes(item.ctaHref), item.id + ' href');
   }
   assert.ok(!html.includes('Get My $39 Resume Makeover'));
-  assert.ok(html.includes('/checkout/?plan=ent-acquisition-pack'));
-  assert.ok(html.includes('Buy the engagement pack →'));
-  assert.ok(html.includes('They are not in the download'));
-  assert.ok(!html.includes('/api/shelf/proposal/ent-acquisition-pack'));
+  assert.ok(!html.includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.ok(!html.includes('$4,000,000'));
+  assert.ok(html.includes('/checkout/?plan=ent-engagement-kickoff'));
   const home = shell.getHtml('/');
   assert.ok(home.includes('Get Enterprise Access'));
   assert.ok(home.includes('href="/solutions/model-routing"'));
@@ -75,7 +70,7 @@ check('advise answers in Romanian and routes a company ask to the kickoff', () =
   assert.strictEqual(advice.lang, 'ro');
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.ok(advice.primary.strategy.includes('Nu livrează licența'));
-  assert.ok(advice.also.some((x) => x.buyable === true && x.id !== 'ent-engagement-kickoff' && /Nu sunt în descărcare/.test(x.strategy)));
+  assert.ok(!advice.also.some((x) => x.id === 'ent-acquisition-pack' || x.id === 'ent-platform-license'));
 });
 
 check('checkout uses the shelf price and sells the engagement pack', () => {
@@ -84,12 +79,11 @@ check('checkout uses the shelf price and sells the engagement pack', () => {
   assert.ok(pay.includes(kick.title));
   assert.ok(pay.includes('id="coSkipForm"'));
   const proposal = shell.getHtml('/checkout', { plan: 'ent-acquisition-pack' });
-  assert.ok(proposal.includes('id="coSkipForm"'));
-  assert.ok(proposal.includes('They are not in this download'));
-  assert.ok(proposal.includes('⚡ Pay with Bitcoin'));
-  assert.ok(!proposal.includes('this figure is a proposal, not a cart'));
+  assert.ok(proposal.includes('This figure is not a product price'));
+  assert.ok(proposal.includes('/checkout/?plan=ent-engagement-kickoff'));
+  assert.ok(!proposal.includes('⚡ Pay with Bitcoin'));
+  assert.ok(!proposal.includes('$4,000,000'));
   assert.ok(pay.includes('It does not deliver the license, the source, or a private cloud.'));
-  assert.ok(!proposal.includes('It does not deliver the license, the source, or a private cloud.'));
 });
 
 check('dropship buys the listing desk, and orbital compute stays unpriced', () => {
@@ -108,12 +102,12 @@ check('dropship buys the listing desk, and orbital compute stays unpriced', () =
 
 check('pricing, services, buy, and home share one shelf', () => {
   const kick = shelf.byId('ent-engagement-kickoff');
-  const acq = shelf.byId('ent-acquisition-pack');
   for (const path of ['/pricing', '/services', '/buy']) {
     const html = shell.getHtml(path);
     assert.ok(html.includes('data-product-id="' + kick.id + '"'), path + ' kickoff');
     assert.ok(html.includes(kick.ctaHref), path + ' kickoff href');
-    assert.ok(html.includes(acq.ctaHref), path + ' proposal href');
+    assert.ok(!html.includes('/checkout/?plan=ent-acquisition-pack'), path + ' contract figure');
+    assert.ok(!html.includes('$4,000,000'), path + ' contract price');
   }
   const pricing = shell.getHtml('/pricing');
   assert.ok(!/\/checkout\/\?plan=starter(?![a-z0-9_-])/i.test(pricing));
@@ -166,7 +160,7 @@ check('advise opens the kickoff for an AWS platform ask and does not replace AWS
   assert.strictEqual(advice.buyer.org, 'AWS');
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.ok(advice.primary.strategy.includes('does not deliver the license'));
-  assert.ok(advice.also.some((x) => x.buyable === true && x.mode === 'reserve' && x.id !== 'ent-engagement-kickoff'));
+  assert.ok(!advice.also.some((x) => x.id === 'ent-acquisition-pack' || x.id === 'ent-platform-license' || x.id === 'ent-private-cloud'));
   assert.ok(advice.question.includes('does not replace AWS'));
   assert.ok(advice.question.includes('engagement kickoff'));
 });
@@ -178,7 +172,8 @@ check('advise answers an open Google ask from the whole shelf without inventing 
   assert.strictEqual(advice.primary.id, 'ent-engagement-kickoff');
   assert.strictEqual(advice.knownOffers, ids.size);
   assert.ok(advice.question.includes('does not replace Google'));
-  assert.ok(advice.also.some((x) => x.buyable === true && /^ent-/.test(x.id)));
+  assert.ok(advice.also.some((x) => x.buyable === true && x.id !== 'ent-engagement-kickoff'));
+  assert.ok(!advice.also.some((x) => require('../src/commerce/real-price').isContractFigure(x.id)));
   for (const row of [advice.primary].concat(advice.also)) {
     if (row && row.id) assert.ok(ids.has(row.id), row.id);
   }

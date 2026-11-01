@@ -7182,7 +7182,9 @@ app.get('/api/instant/catalog', _swRateLimit, async (req, res) => {
       try {
         products = _unifiedCatalogModule.publicView() || [];
         if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
-        if (typeof _unifiedCatalogModule.summarize === 'function') {
+        if (typeof _unifiedCatalogModule.publicSummary === 'function') {
+          try { summary = _unifiedCatalogModule.publicSummary(products); } catch (_) { summary = null; }
+        } else if (typeof _unifiedCatalogModule.summarize === 'function') {
           try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
         }
       } catch (_) { products = []; }
@@ -10919,6 +10921,22 @@ const PRICING_SEGMENTS = Object.freeze({
 
 async function buildModulePrice(moduleId, opts) {
   const meta = PRICING_SEGMENTS[moduleId] || null;
+  if (meta) {
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        moduleId,
+        segment: Object.assign({}, meta, { cta: 'see_shelf' }),
+        pricing: null,
+        sellable: false,
+        reason: 'not_a_product_price',
+        shelf: '/services',
+        source: 'shelf-file-price',
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  }
   const allowed = Object.keys(dynamicPricing.BASE_PRICES);
   if (!allowed.includes(moduleId)) {
     return { ok: false, status: 404, body: { error: 'Module not found in pricing engine', moduleId } };

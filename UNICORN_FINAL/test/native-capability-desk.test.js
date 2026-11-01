@@ -62,16 +62,14 @@ check('an unknown id fails verification and does not launch', () => {
   assert.strictEqual(pack.verdict.launch, false);
 });
 
-check('an enterprise pack opens checkout and names the pack file', () => {
-  const offer = shelf.byId('ent-acquisition-pack');
-  assert.ok(offer, 'expected the acquisition pack on the shelf');
+check('the kickoff opens checkout and a contract figure is not a shelf offer', () => {
+  assert.strictEqual(shelf.byId('ent-acquisition-pack'), null);
+  const offer = shelf.byId('ent-engagement-kickoff');
+  assert.ok(offer);
   assert.strictEqual(offer.mode, 'reserve');
   const pack = desk.productPack(offer.id);
-  assert.strictEqual(pack.parts.interface.mode, 'reserve');
-  assert.ok(String(pack.parts.interface.ctaHref || '').includes('/checkout/?plan=ent-acquisition-pack'));
-  assert.strictEqual(pack.parts.documentation.fileTitle, 'Engagement Pack');
+  assert.ok(String(pack.parts.interface.ctaHref || '').includes('/checkout/?plan=ent-engagement-kickoff'));
   assert.strictEqual(pack.verdict.pass, true);
-  assert.strictEqual(pack.verdict.launch, false);
 });
 
 check('a factory that writes files loses to the verifier', () => {

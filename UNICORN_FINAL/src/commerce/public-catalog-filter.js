@@ -177,7 +177,7 @@ function filterPublicCatalogItems(items, options = {}) {
   if (options.includeSynthetic === true) {
     return list.slice();
   }
-  return list.filter((item) => !isSyntheticCatalogItem(item) && !isGhostMeteredItem(item) && !isLegacyUndeliverableItem(item));
+  return list.filter((item) => !isSyntheticCatalogItem(item) && !isGhostMeteredItem(item) && !isLegacyUndeliverableItem(item) && !require('./real-price').isNotAProductPrice(item && item.id));
 }
 
 function applyPublicCatalogFilter(catalog, options = {}) {

@@ -491,7 +491,7 @@ function offerPreview(serviceId, opts) {
     : pickRecipe(serviceId);
   const armed = !human && shouldUseAiForSku(serviceId);
   if (!armed) {
-    const outline = RECIPE_OUTLINE[recipe.id] || PACK_SECTIONS;
+    const outline = require('../../commerce/shelf-delivery').sectionsFor(serviceId) || RECIPE_OUTLINE[recipe.id] || PACK_SECTIONS;
     return {
       kind: human ? 'kickoff' : 'activation',
       fileTitle: human ? 'Project Kickoff Pack' : 'Service Activation Pack',
@@ -648,6 +648,18 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
   const recipeId = recipe && recipe.id;
   const seed = seedText(receipt, serviceId);
   const quoted = buyerLines(receipt);
+  try {
+    const body = require('../../commerce/shelf-delivery').write({
+      serviceId,
+      receipt,
+      recipeId,
+      seed,
+      quoted,
+      professional: !!(opts && (opts.professional || opts.requiresHuman) && !(opts && opts.enterprise)),
+      enterprise: !!(opts && opts.enterprise),
+    });
+    if (body) return body;
+  } catch (_) { /* local writers below */ }
   const briefBlock = quoted.length
     ? quoted.map((line) => '- ' + line).join('\n')
     : '- No extra brief was on the order. The copy below uses the service id.';

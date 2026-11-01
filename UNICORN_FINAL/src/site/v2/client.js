@@ -5173,8 +5173,17 @@ async function hydrateEnterprise(){
 
   entShelfPacks = readRenderedEntPacks();
   const cat = await api('/api/enterprise/catalog');
+  const contractFigure = {
+    'ent-acquisition-pack': 1,
+    'ent-sovereign-deployment': 1,
+    'ent-ai-transformation': 1,
+    'ent-white-label': 1,
+    'ent-platform-license': 1,
+    'ent-private-cloud': 1,
+    'ent-revenue-share': 1,
+  };
   const products = (cat && Array.isArray(cat.products) ? cat.products : [])
-    .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD != null ? p.priceUSD : p.priceUsd) > 0);
+    .filter((p) => p && !contractFigure[String(p.id || '')] && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD != null ? p.priceUSD : p.priceUsd) > 0);
   if (!products.length) return;
   entShelfPacks = products.map((p) => ({
     id: String(p.id),
@@ -5280,7 +5289,8 @@ function wireEnterpriseContactForm(){
 function openEntNegotiator(pid, title){
   const n = document.getElementById('entNegotiator');
   if (!n) return;
-  const productId = (pid === 'ent-engagement-kickoff' || !pid) ? 'ent-platform-license' : pid;
+  pid = 'ent-engagement-kickoff';
+  const productId = pid;
   n.innerHTML = `
     <div class="card" style="padding:28px;border:1px solid rgba(111,211,255,.28);background:linear-gradient(180deg,rgba(18,32,48,.55),rgba(10,6,20,.75))">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:20px;flex-wrap:wrap">

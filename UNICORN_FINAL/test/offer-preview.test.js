@@ -55,11 +55,10 @@ check('a day engagement unlocks a kickoff pack, not the finished build', () => {
   assert.ok(/not an instant download/i.test(preview.note));
 });
 
-check('a minute offer follows the armed model, and never claims an SVG logo', () => {
+check('a minute offer follows the armed model, and the logo kit names its SVG marks', () => {
   const logo = engine.offerPreview('instant-logo-kit', { mode: 'checkout', clock: 'minutes', tier: 'instant' });
   const audit = engine.offerPreview('instant-website-audit', { mode: 'checkout', clock: 'minutes', tier: 'instant' });
-  assert.ok(!/svg|vector logo|html report/i.test(JSON.stringify(logo)));
-  assert.ok(!/svg|vector logo/i.test(JSON.stringify(audit)));
+  assert.ok(!/vector logo|html report/i.test(JSON.stringify(audit)));
   if (engine.shouldUseAiForSku('instant-logo-kit')) {
     assert.equal(logo.kind, 'generated');
   } else {
@@ -101,7 +100,8 @@ check('the public shelf does not promise a file the checkout will not write', ()
     return row.title + ' ' + row.description;
   }
   assert.ok(!/AI-generated logo \+ 5 variants/i.test(text('instant-logo-kit')));
-  assert.ok(/does not include logo image files/.test(text('instant-logo-kit')));
+  assert.ok(/SVG wordmark/.test(text('instant-logo-kit')));
+  assert.ok(/SVG favicon/.test(text('instant-logo-kit')));
   assert.ok(/Service Activation Pack/.test(text('instant-logo-kit')));
   assert.ok(!/Thirty channel-ready|30 posts/i.test(text('instant-social-media-kit')));
   assert.ok(/not thirty finished posts/.test(text('instant-social-media-kit')));

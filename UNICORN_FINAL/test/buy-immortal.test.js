@@ -84,10 +84,14 @@ async function run() {
       }),
     };
     const out = await commerce.createOrder(ctx, {
-      serviceId: 'ent-platform-license', qty: 1, email: 'ceo@corp.com',
+      serviceId: 'ent-engagement-kickoff', qty: 1, email: 'ceo@corp.com',
     });
     assert.ok(out.order, JSON.stringify(out));
     assert.strictEqual(out.order.buy_mode, 'reserve');
+    const refused = await commerce.createOrder(ctx, {
+      serviceId: 'ent-platform-license', qty: 1, email: 'ceo@corp.com',
+    });
+    assert.strictEqual(refused.error, 'service_not_buyable');
     const bare = await commerce.createOrder(ctx, {
       serviceId: 'enterprise', qty: 1, email: 'ceo@corp.com',
     });

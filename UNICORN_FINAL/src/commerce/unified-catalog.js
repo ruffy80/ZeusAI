@@ -89,7 +89,7 @@ function _normalize(item, defaults) {
 }
 
 function publicServiceIds() {
-  return new Set(all().map((p) => String(p.id)).filter(Boolean));
+  return new Set(publicView().map((p) => String(p.id)).filter(Boolean));
 }
 
 function isPublicServiceId(id) {
@@ -145,9 +145,28 @@ function byId(id) {
 }
 function publicView(opts) {
   const tier = opts && opts.tier;
-  let list = all();
+  let list = all().filter((row) => !require('./real-price').isContractFigure(row && row.id));
   if (tier) list = list.filter(p => p.tier === tier);
   return list;
+}
+function publicSummary(products) {
+  const list = Array.isArray(products) ? products : publicView();
+  const byTier = TIERS.reduce((acc, t) => { acc[t] = 0; return acc; }, {});
+  let totalUSD = 0;
+  for (const p of list) {
+    const tier = p && p.tier;
+    if (TIERS.indexOf(tier) !== -1) byTier[tier] += 1;
+    totalUSD += Number((p && (p.priceUSD != null ? p.priceUSD : p.priceUsd)) || 0);
+  }
+  return {
+    generatedAt: new Date().toISOString(),
+    products: list.length,
+    maxProducts: MAX_PRODUCTS,
+    tiers: TIERS.slice(),
+    totalListedValueUSD: Number(totalUSD.toFixed(2)),
+    byTier,
+    publicPricesOnly: true,
+  };
 }
 function summarize() {
   const list = all();
@@ -168,7 +187,7 @@ function summarize() {
 }
 
 module.exports = {
-  all, byId, publicView, summarize, setRuntimeSources,
+  all, byId, publicView, publicSummary, summarize, setRuntimeSources,
   publicServiceIds, isPublicServiceId,
   MAX_PRODUCTS, TIERS,
 };

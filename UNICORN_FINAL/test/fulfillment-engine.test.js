@@ -51,13 +51,13 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     services: ['instant-logo-kit'],
     meta: { inputs: { brandName: 'Northwind', industry: 'tools' } },
   });
-  check('a logo order writes the brand kit and does not invent an image file', () => {
+  check('a logo order writes the brand kit and the SVG marks for the brand', () => {
     const text = logo.artifacts[0].content;
     assert.ok(/Service Activation Pack/.test(text));
     assert.ok(/Name candidates/.test(text));
-    assert.ok(/does not include logo image files/.test(text));
+    assert.ok(/Northwind/.test(text));
+    assert.ok(/<svg/.test(text));
     assert.ok(/does not check whether a domain is available/.test(text));
-    assert.ok(!/\.svg|<svg|data:image/i.test(text));
   });
 
   const mail = await engine.fulfillReceipt({

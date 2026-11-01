@@ -250,14 +250,19 @@ function enrichCatalogResponse() {
   const cat = _catalog();
   const products = cat && typeof cat.publicView === 'function' ? cat.publicView() : [];
   const enriched = products.map(enrichProductForUi).filter(Boolean);
-  const summary = cat && typeof cat.summarize === 'function' ? cat.summarize() : { products: enriched.length };
+  const summary = cat && typeof cat.publicSummary === 'function'
+    ? cat.publicSummary()
+    : { products: enriched.length, totalListedValueUSD: enriched.reduce((s, p) => s + (Number(p.priceUSD) || 0), 0), publicPricesOnly: true };
   const total = enriched.reduce((s, p) => s + (Number(p.priceUSD) || 0), 0);
   return {
     updatedAt: new Date().toISOString(),
     summary: Object.assign({}, summary, {
-      addressableAccounts: 'Hyperscalers · F500 · Sovereign',
+      products: enriched.length,
+      totalListedValueUSD: total,
+      publicPricesOnly: true,
+      addressableAccounts: 'Buyers of the kickoff file',
       anchorPortfolioFmt: _fmtUsd(total),
-      topstonePortfolioFmt: _fmtUsd(Math.round(total * 1.15)),
+      topstonePortfolioFmt: _fmtUsd(total),
     }),
     products: enriched,
     rails: rails(),
@@ -415,11 +420,11 @@ function publicStatus() {
     rails: rails(),
     kickoff: kickoffSku(),
     catalog: products.map(enrichProductForUi).filter(Boolean),
-    summary: cat && typeof cat.summarize === 'function' ? cat.summarize() : { products: products.length },
+    summary: cat && typeof cat.publicSummary === 'function' ? cat.publicSummary() : { products: products.length, publicPricesOnly: true },
     honesty: [
-      'Full enterprise ACV is never self-serve “Buy = delivered”.',
-      'Autonomous loop closes cash via engagement kickoff + proposal pack.',
-      'Remainder of license/partnership settles under signed SOW.',
+      'The public enterprise price is the kickoff file.',
+      'A license, the source, a private cloud, and the company are not checkout prices.',
+      'Payment of the kickoff issues the brief, the proposal, and the draft statement of work.',
     ],
   };
 }
