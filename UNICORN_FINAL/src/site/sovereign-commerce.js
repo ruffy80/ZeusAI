@@ -1121,6 +1121,8 @@ async function createOrder(ctx, input) {
     roadDesk.noteConversion('/checkout');
     roadDesk.noteConversion('/services/' + String(serviceId || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 80));
     roadDesk.markCheckoutOrdered(serviceId);
+    const moduleName = input && (input.moduleName || (buyerInputs && buyerInputs.moduleName));
+    if (moduleName) roadDesk.recordModuleSale(moduleName, subtotalFiat);
   } catch (_) { /* conversion counter must not block checkout */ }
   // Canonical Settle Bridge — dual-write portal shadow off the create critical path.
   const orderForBridge = order;

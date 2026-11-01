@@ -2936,7 +2936,7 @@ function pageDashboard() {
   <div class="co-box" style="margin-top:22px">
     <span class="kicker">Affiliate program</span>
     <h3 style="margin:6px 0 10px">Your referral link · 10% signed split</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 10px">Every paid sovereign order attributed to your <code class="inline">?ref=</code> code is recorded in the referral ledger with a pending commission. BTC partner payouts are manual until the automated payout rail ships — check <a href="/affiliate" data-link>/affiliate</a> status for owed amounts.</p>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 10px">Every paid sovereign order attributed to your <code class="inline">?ref=</code> code is recorded in the referral ledger with a pending commission. BTC payouts stay manual. A txid appears on <a href="/affiliate/desk" data-link>/affiliate/desk</a> only after one is stored.</p>
     <input id="affLink" readonly style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:ui-monospace,monospace;font-size:13px" onclick="this.select();document.execCommand&&document.execCommand('copy')"/>
   </div>
 </section>`;
@@ -7824,10 +7824,18 @@ function pagePartners() {
 }
 
 function pageRoadmap() {
+  let executed = '0';
+  let executedNote = 'The desks did not run.';
+  try {
+    const run = require('../../commerce/roadmap-desk').executeAll();
+    executed = String(run.executed);
+    executedNote = 'Executed this request: ' + run.executed + ' of 8. ' + (run.ok ? 'Each desk returned ok.' : 'A desk did not return ok.');
+  } catch (_) { /* receipt stays at zero */ }
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Roadmap</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Where this is going — <span class="grad">in public.</span></h1>
   <p style="color:var(--ink-dim);max-width:660px">Shipped means a buyer can open the page today. A module file is not a product. No invented customer count.</p>
+  <p data-roadmap-executed="${executed}">${executedNote}</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px;border-color:rgba(127,255,212,.35)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">✓ Shipped &amp; live</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">

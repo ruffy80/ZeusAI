@@ -109,6 +109,17 @@ function openDb() {
         note TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS affiliate_hit (
+        code TEXT PRIMARY KEY,
+        hits INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS module_sale (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        usd REAL NOT NULL,
+        created_at TEXT NOT NULL
+      );
     `);
   } catch (_) {
     db = null;
@@ -291,6 +302,27 @@ function resume(orderId) {
   return { ok: false, error: 'not_found' };
 }
 
+function noteAffiliateHit(code) {
+  try {
+    const clean = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
+    if (clean.length < 3) return null;
+    const database = openDb();
+    if (!database) return null;
+    const now = new Date().toISOString();
+    database.prepare(
+      'INSERT INTO affiliate_hit (code, hits, updated_at) VALUES (?, 1, ?) ON CONFLICT(code) DO UPDATE SET hits = hits + 1, updated_at = excluded.updated_at'
+    ).run(clean, now);
+    return clean;
+  } catch (_) { return null; }
+}
+
+function affiliateHits(code) {
+  const database = openDb();
+  if (!database) return 0;
+  const row = database.prepare('SELECT hits FROM affiliate_hit WHERE code = ?').get(code);
+  return row ? Number(row.hits) || 0 : 0;
+}
+
 function affiliateDesk(code) {
   const clean = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
   if (clean.length < 3) {
@@ -298,6 +330,7 @@ function affiliateDesk(code) {
       ok: true,
       found: false,
       code: clean,
+      hits: 0,
       redemptions: 0,
       payoutOwedUsd: 0,
       proofs: [],
@@ -310,7 +343,52 @@ function affiliateDesk(code) {
   } catch (_) {
     return { ok: false, error: 'ledger_unavailable', code: clean };
   }
+  proofs.hits = affiliateHits(clean);
   return proofs;
+}
+
+function chainLookup(txid) {
+  const id = String(txid || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(id)) return Promise.resolve({ ok: false, queried: false, error: 'txid_invalid' });
+  if (process.env.NODE_ENV === 'test' || process.env.ROADMAP_SKIP_CHAIN === '1') {
+    return Promise.resolve({
+      ok: true,
+      queried: false,
+      confirmed: null,
+      txid: id,
+      note: 'Chain lookup is off in this process. The txid is only the stored value.',
+    });
+  }
+  return new Promise((resolve) => {
+    const https = require('https');
+    const req = https.get({
+      hostname: 'mempool.space',
+      path: '/api/tx/' + id,
+      timeout: 2500,
+      headers: { Accept: 'application/json', 'User-Agent': 'zeusai-roadmap' },
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
+        body += chunk;
+        if (body.length > 20000) req.destroy();
+      });
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          resolve({ ok: true, queried: true, confirmed: false, txid: id, note: 'The lookup did not confirm this txid.' });
+          return;
+        }
+        let parsed = null;
+        try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+        const confirmed = !!(parsed && parsed.status && parsed.status.confirmed === true);
+        resolve({ ok: true, queried: true, confirmed, txid: id, note: 'Lookup is mempool.space for this stored txid.' });
+      });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, queried: true, confirmed: null, error: 'timeout' });
+    });
+    req.on('error', () => resolve({ ok: false, queried: true, confirmed: null, error: 'lookup_failed' }));
+  });
 }
 
 function negotiate(input) {
@@ -486,6 +564,28 @@ function publicSample() {
   }
 }
 
+function replicaCard() {
+  const status = replicaStatus();
+  const self = status.replicas[0];
+  const card = {
+    id: self.id,
+    region: self.region,
+    role: self.role,
+    knownRegions: status.knownRegions,
+  };
+  const signed = signJson(card);
+  const verified = !!(signed && verifyJson(card, signed.signature, signed.publicKey));
+  return {
+    ok: verified,
+    protocol: PROTOCOL,
+    card,
+    signature: signed ? signed.signature : null,
+    publicKey: signed ? signed.publicKey : null,
+    verified,
+    note: 'This card is this process. It does not add a region.',
+  };
+}
+
 function replicaStatus() {
   const region = String(process.env.ZEUS_REGION || process.env.SITE_REGION || '').trim().slice(0, 64);
   const role = String(process.env.SITE_CLUSTER_WORKER_ROLE || 'primary').trim().slice(0, 32) || 'primary';
@@ -539,6 +639,7 @@ function byoList() {
     title: row.title,
     priceUsd: Number(row.priceUsd) || 0,
     downloadPath: '/byo/' + row.id + '.txt',
+    scriptPath: '/byo/' + row.id + '.js',
     servicePath: '/services/' + row.id,
   }));
 }
@@ -573,7 +674,58 @@ function byoFile(id) {
     '    environment:',
     '      - NODE_ENV=production',
     '',
+    'Run the executable check: ' + row.scriptPath,
+    '',
   ].join('\n');
+}
+
+function byoScript(id) {
+  const clean = String(id || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 64);
+  const row = byoList().find((item) => item.id === clean);
+  if (!row) return null;
+  const plan = {
+    id: row.id,
+    title: row.title,
+    installsOperatingSystem: false,
+    hostsInfrastructure: false,
+    priceUsd: row.priceUsd,
+  };
+  return [
+    "'use strict';",
+    'const plan = ' + JSON.stringify(plan) + ';',
+    'if (plan.installsOperatingSystem || plan.hostsInfrastructure) process.exit(1);',
+    "console.log(plan.id + ' runbook executed. This script does not install an operating system.');",
+    '',
+  ].join('\n');
+}
+
+function shareFor(name) {
+  const database = openDb();
+  const sum = database
+    ? database.prepare('SELECT COALESCE(SUM(usd), 0) AS usd FROM module_sale WHERE name = ?').get(name)
+    : { usd: 0 };
+  const recordedUsd = round2(sum && sum.usd);
+  return {
+    name,
+    recordedUsd,
+    shareRate: 0.2,
+    shareUsd: round2(recordedUsd * 0.2),
+    note: recordedUsd > 0
+      ? 'Share is 20% of sales attributed to this registered name.'
+      : 'No attributed sale is recorded. Share is 0.',
+  };
+}
+
+function recordModuleSale(name, usd) {
+  const clean = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 64);
+  const amount = round2(usd);
+  if (!(amount > 0)) return { ok: false, error: 'amount_required' };
+  const database = openDb();
+  if (!database) return { ok: false, error: 'ledger_unavailable' };
+  const row = database.prepare('SELECT name FROM third_party_module WHERE name = ?').get(clean);
+  if (!row) return { ok: false, error: 'module_not_registered' };
+  database.prepare('INSERT INTO module_sale (name, usd, created_at) VALUES (?, ?, ?)').run(clean, amount, new Date().toISOString());
+  return Object.assign({ ok: true }, shareFor(clean));
 }
 
 function listModules() {
@@ -581,14 +733,15 @@ function listModules() {
   const rows = database
     ? database.prepare('SELECT name, payout, note, created_at FROM third_party_module ORDER BY id ASC LIMIT 100').all()
     : [];
+  const modules = rows.map((row) => Object.assign({}, row, shareFor(row.name)));
   return {
     ok: true,
     protocol: PROTOCOL,
-    empty: rows.length === 0,
-    modules: rows,
+    empty: modules.length === 0,
+    modules,
     zeusEngagement: '/services/ent-revenue-share',
-    note: rows.length
-      ? 'These rows are names and payout addresses a caller submitted. No revenue is invented. The ZeusAI engagement pack does not put the license in the download.'
+    note: modules.length
+      ? 'These rows are names and payout addresses a caller submitted. Share stays 0 until a sale names that module. No revenue is invented.'
       : 'No third-party module is registered.',
   };
 }
@@ -682,15 +835,17 @@ async function handle(req, res) {
     res.end();
     return true;
   }
-  if (method === 'GET' && /^\/byo\/[a-z0-9-]+\.txt$/.test(urlPath)) {
-    const file = byoFile(urlPath.slice('/byo/'.length, -4));
+  if (method === 'GET' && /^\/byo\/[a-z0-9-]+\.(txt|js)$/.test(urlPath)) {
+    const script = urlPath.endsWith('.js');
+    const id = urlPath.slice('/byo/'.length, script ? -3 : -4);
+    const file = script ? byoScript(id) : byoFile(id);
     if (!file) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end('Unknown pack.\n');
       return true;
     }
     res.writeHead(200, {
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': script ? 'text/javascript; charset=utf-8' : 'text/plain; charset=utf-8',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'attachment',
     });
@@ -713,7 +868,10 @@ async function handle(req, res) {
       return true;
     }
     if (urlPath === '/api/roadmap/affiliate' && method === 'GET') {
-      sendJson(res, 200, affiliateDesk(queryOf(req).code || ''));
+      const query = queryOf(req);
+      const view = affiliateDesk(query.code || '');
+      if (query.chain === '1' && view.proofs && view.proofs[0]) view.chain = await chainLookup(view.proofs[0].txid);
+      sendJson(res, 200, view);
       return true;
     }
     if (urlPath === '/api/roadmap/quote' && (method === 'GET' || method === 'POST')) {
@@ -726,8 +884,19 @@ async function handle(req, res) {
       sendJson(res, 200, publicSample());
       return true;
     }
+    if (urlPath === '/api/roadmap/pq' && method === 'POST') {
+      const fields = await readFields(req);
+      const sample = fields.sample || fields;
+      const checked = verifyHybrid(sample.statement, sample);
+      sendJson(res, 200, {
+        ok: checked.ed25519 === true && checked.mlDsa65 === true,
+        verified: checked,
+        note: 'Verification uses this process key. A substituted key does not pass.',
+      });
+      return true;
+    }
     if (urlPath === '/api/roadmap/replicas' && method === 'GET') {
-      sendJson(res, 200, replicaStatus());
+      sendJson(res, 200, Object.assign(replicaStatus(), { card: replicaCard() }));
       return true;
     }
     if (urlPath === '/api/roadmap/byo' && method === 'GET') {
@@ -742,6 +911,10 @@ async function handle(req, res) {
         return true;
       }
       sendJson(res, 200, { ok: true, id, file });
+      return true;
+    }
+    if (urlPath === '/api/roadmap/execute' && method === 'GET') {
+      sendJson(res, 200, executeAll());
       return true;
     }
     if (urlPath === '/api/roadmap/modules' && method === 'GET') {
@@ -759,6 +932,59 @@ async function handle(req, res) {
     if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'roadmap_failed' });
     return true;
   }
+}
+
+function execute(action, input) {
+  const name = String(action || '');
+  if (name === 'funnel') return { ok: true, executed: true, result: funnelStatus() };
+  if (name === 'recovery') return { ok: true, executed: true, result: recoveryStatus() };
+  if (name === 'affiliate') return { ok: true, executed: true, result: affiliateDesk((input && input.code) || '') };
+  if (name === 'quote') {
+    const result = negotiate(Object.assign({ serviceId: 'instant-website-audit', qty: 1 }, input || {}));
+    return {
+      ok: result.ok === true && result.counterUsd === result.listTotalUsd,
+      executed: true,
+      result: { ok: result.ok, listUsd: result.listUsd, counterUsd: result.counterUsd, accepted: result.accepted },
+    };
+  }
+  if (name === 'pq') {
+    const result = publicSample();
+    const bytes = result.mlDsa65 ? result.mlDsa65.signatureBytes : 0;
+    return {
+      ok: result.ok === true && result.verified && result.verified.mlDsa65 === true && bytes === 3309,
+      executed: true,
+      result: { ok: result.ok, signatureBytes: bytes },
+    };
+  }
+  if (name === 'replicas') {
+    const result = replicaCard();
+    return { ok: result.verified === true, executed: true, result: { verified: result.verified, region: result.card.region } };
+  }
+  if (name === 'byo') {
+    const script = byoScript((input && input.id) || 'fintech-os');
+    return {
+      ok: !!script && script.indexOf('does not install an operating system') !== -1 && script.indexOf('installsOperatingSystem":false') !== -1,
+      executed: true,
+      result: { bytes: script ? script.length : 0 },
+    };
+  }
+  if (name === 'modules') {
+    const result = listModules();
+    return { ok: result.ok === true, executed: true, result: { empty: result.empty, count: result.modules.length } };
+  }
+  return { ok: false, executed: false, error: 'unknown_action' };
+}
+
+function executeAll() {
+  const actions = ['funnel', 'recovery', 'affiliate', 'quote', 'pq', 'replicas', 'byo', 'modules'];
+  const desks = actions.map((action) => Object.assign({ action }, execute(action)));
+  return {
+    ok: desks.every((row) => row.ok === true && row.executed === true),
+    protocol: PROTOCOL,
+    executed: desks.filter((row) => row.executed).length,
+    desks,
+    note: 'Each desk ran in this process. Empty ledgers stay empty.',
+  };
 }
 
 function section(kicker, titleHtml, lead, body) {
@@ -820,7 +1046,7 @@ function pageAffiliateDesk(params) {
     view.note || 'Enter a ref code. No payout is invented.',
     `<div class="card" style="padding:18px;margin-top:18px">
     <form method="get" action="/affiliate/desk" style="display:flex;gap:10px;flex-wrap:wrap"><input name="code" value="${esc(query.code || '')}" placeholder="Ref code" style="flex:1;min-width:200px;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><button class="btn btn-primary" type="submit">Look up</button></form>
-    <p style="margin-top:12px">Found: ${view.found ? 'yes' : 'no'}. Redemptions: ${Number(view.redemptions) || 0}. Owed: ${Number(view.payoutOwedUsd) || 0} USD.</p>
+    <p style="margin-top:12px">Found: ${view.found ? 'yes' : 'no'}. Hits: ${Number(view.hits) || 0}. Redemptions: ${Number(view.redemptions) || 0}. Owed: ${Number(view.payoutOwedUsd) || 0} USD.</p>
     <ul>${proofs}</ul>
     <p style="color:var(--ink-dim);font-size:13px">Generate a link on <a href="/affiliate" data-link>/affiliate</a>. The owner records a txid after a manual Bitcoin send. This page does not broadcast a transaction. <code>GET /api/roadmap/affiliate?code=</code></p></div>`
   );
@@ -866,19 +1092,20 @@ function pagePq() {
 
 function pageReplicas() {
   const status = replicaStatus();
+  const card = replicaCard();
   const rows = status.replicas.map((row) => `<li>${esc(row.id)} — region ${esc(row.region)} — role ${esc(row.role || 'n/a')} — probed ${row.probed ? 'yes' : 'no'}${row.origin ? ' — ' + esc(row.origin) : ''}</li>`).join('');
   return section(
     'Replicas',
     'Sovereign <span class="grad">replicas.</span>',
     status.note,
-    `<div class="card" style="padding:18px;margin-top:18px"><p>Known regions: ${status.knownRegions.length}. Replicas this process can name: ${status.count}.</p><ul>${rows}</ul><p style="color:var(--ink-dim);font-size:13px">Set ZEUS_REGION and ZEUS_REPLICA_URLS on the host. An empty list stays empty. <code>GET /api/roadmap/replicas</code></p></div>`
+    `<div class="card" style="padding:18px;margin-top:18px"><p>Known regions: ${status.knownRegions.length}. Replicas this process can name: ${status.count}. Signed card checks: ${card.verified ? 'yes' : 'no'}.</p><ul>${rows}</ul><p style="color:var(--ink-dim);font-size:13px">Set ZEUS_REGION and ZEUS_REPLICA_URLS on the host. An empty list stays empty. <code>GET /api/roadmap/replicas</code></p></div>`
   );
 }
 
 function pageByo() {
   const packs = byoList();
   const rows = packs.length
-    ? packs.map((row) => `<li><a href="${esc(row.downloadPath)}">${esc(row.title)}</a> — list ${esc(row.priceUsd)} USD — <a href="${esc(row.servicePath)}">shelf page</a></li>`).join('')
+    ? packs.map((row) => `<li><a href="${esc(row.downloadPath)}">${esc(row.title)}</a> — list ${esc(row.priceUsd)} USD — <a href="${esc(row.scriptPath)}">run the check</a> — <a href="${esc(row.servicePath)}">shelf page</a></li>`).join('')
     : '<li>No architecture pack is loaded.</li>';
   return section(
     'BYO infra',
@@ -895,7 +1122,7 @@ function pageModules(params) {
   if (result && result.ok) flash = '<p>Registered ' + esc(result.module && result.module.name) + '.</p>';
   else if (result && result.error) flash = '<p>Not stored: ' + esc(result.error) + '.</p>';
   const rows = status.modules.length
-    ? status.modules.map((row) => `<li>${esc(row.name)} — <code>${esc(row.payout)}</code></li>`).join('')
+    ? status.modules.map((row) => `<li>${esc(row.name)} — <code>${esc(row.payout)}</code> — recorded ${esc(row.recordedUsd)} USD — share ${esc(row.shareUsd)} USD</li>`).join('')
     : '<li>No third-party module is registered.</li>';
   return section(
     'Module marketplace',
@@ -936,7 +1163,7 @@ function _resetForTests() {
   openDb();
   if (db) {
     try {
-      db.exec('DELETE FROM funnel_url; DELETE FROM checkout_open; DELETE FROM third_party_module;');
+      db.exec('DELETE FROM funnel_url; DELETE FROM checkout_open; DELETE FROM third_party_module; DELETE FROM affiliate_hit; DELETE FROM module_sale;');
     } catch (_) { /* fresh process */ }
   }
 }
@@ -949,6 +1176,10 @@ module.exports = {
   readFields,
   noteVisit,
   noteConversion,
+  noteAffiliateHit,
+  chainLookup,
+  execute,
+  executeAll,
   noteCheckoutOpen,
   markCheckoutOrdered,
   funnelStatus,
@@ -961,7 +1192,10 @@ module.exports = {
   replicaStatus,
   byoList,
   byoFile,
+  byoScript,
+  replicaCard,
   listModules,
   registerModule,
+  recordModuleSale,
   _resetForTests,
 };

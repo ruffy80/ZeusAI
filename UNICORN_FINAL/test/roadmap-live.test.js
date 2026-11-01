@@ -207,11 +207,68 @@ function mockRes() {
     assert.strictEqual(unknown.found, false);
   });
 
+  await check('all eight desks execute, the runbook runs, and a named sale shares 20 percent', async () => {
+    desk._resetForTests();
+    const run = desk.executeAll();
+    assert.strictEqual(run.ok, true);
+    assert.strictEqual(run.executed, 8);
+    run.desks.forEach((row) => {
+      assert.strictEqual(row.executed, true, row.action);
+      assert.strictEqual(row.ok, true, row.action);
+    });
+    desk.noteAffiliateHit('ROADMAPTEST');
+    desk.noteAffiliateHit('ROADMAPTEST');
+    const hits = desk.affiliateDesk('ROADMAPTEST');
+    assert.strictEqual(hits.hits, 2);
+    const unregistered = desk.recordModuleSale('Pack One', 49);
+    assert.strictEqual(unregistered.ok, false);
+    desk.registerModule({ name: 'Pack One', payout: 'bc1q000000000000000000000000000000000000000' });
+    const shared = desk.recordModuleSale('Pack One', 49);
+    assert.strictEqual(shared.ok, true);
+    assert.strictEqual(shared.recordedUsd, 49);
+    assert.strictEqual(shared.shareUsd, 9.8);
+    const idle = desk.listModules().modules.find((row) => row.name === 'Pack One');
+    assert.strictEqual(idle.shareUsd, 9.8);
+    const chain = await desk.chainLookup('a'.repeat(64));
+    assert.strictEqual(chain.queried, false);
+    assert.strictEqual(chain.confirmed, null);
+    const sample = desk.publicSample();
+    const res = mockRes();
+    await desk.handle({
+      method: 'POST',
+      url: '/api/roadmap/pq',
+      headers: { 'content-type': 'application/json' },
+      body: { sample },
+    }, res);
+    const checked = JSON.parse(res.body);
+    assert.strictEqual(checked.ok, true);
+    const tampered = mockRes();
+    const bad = JSON.parse(JSON.stringify(sample));
+    bad.statement += 'x';
+    await desk.handle({
+      method: 'POST',
+      url: '/api/roadmap/pq',
+      headers: { 'content-type': 'application/json' },
+      body: { sample: bad },
+    }, tampered);
+    assert.strictEqual(JSON.parse(tampered.body).ok, false);
+    const { spawnSync } = require('child_process');
+    const script = desk.byoScript('fintech-os');
+    const file = path.join(dir, 'fintech-os.js');
+    fs.writeFileSync(file, script);
+    const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 5000 });
+    assert.strictEqual(ran.status, 0);
+    assert.ok(ran.stdout.includes('does not install an operating system'));
+    assert.ok(!/API_KEY|SECRET|PRIVATE KEY/.test(script));
+  });
+
   await check('roadmap page links every shipped desk and the marketing sitemap stays at seven', () => {
     const html = shell.getHtml('/roadmap');
     ['/funnel', '/recovery', '/affiliate/desk', '/agents/quote', '/pq', '/replicas', '/byo', '/module-registry'].forEach((href) => {
       assert.ok(html.includes('href="' + href + '"'), href);
     });
+    assert.ok(html.includes('data-roadmap-executed="8"'));
+    assert.ok(html.includes('Each desk returned ok'));
     assert.ok(html.includes('Nothing is queued'));
     assert.ok(!html.includes('<li>Self-optimizing'));
     const funnel = shell.getHtml('/funnel');

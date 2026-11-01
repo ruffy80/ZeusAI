@@ -4534,7 +4534,7 @@ async function unicornHandler(req, res) {
   const isVersionedAssetPath = requestedPath !== urlPath;
   const earlyPath = urlPath;
 
-  if (urlPath === '/go' || urlPath.startsWith('/api/roadmap') || (req.method === 'GET' && /^\/byo\/[a-z0-9-]+\.txt$/.test(urlPath))) {
+  if (urlPath === '/go' || urlPath.startsWith('/api/roadmap') || (req.method === 'GET' && /^\/byo\/[a-z0-9-]+\.(txt|js)$/.test(urlPath))) {
     try {
       const roadDesk = require('./commerce/roadmap-desk');
       if (await roadDesk.handle(req, res)) return;
@@ -7513,6 +7513,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || null,
         ua: req.headers['user-agent'] || null
       }) + '\n');
+      require('./commerce/roadmap-desk').noteAffiliateHit(ref);
     } catch (_) {}
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, tracked: !!ref, ref: ref || null }));
@@ -13698,6 +13699,7 @@ a{color:#8a5cff;text-decoration:none}
       if (String(req.method || 'GET').toUpperCase() === 'GET') {
         const roadDesk = require('./commerce/roadmap-desk');
         roadDesk.noteVisit(route);
+        if (requestUrl.searchParams.get('ref')) roadDesk.noteAffiliateHit(requestUrl.searchParams.get('ref'));
         if (route === '/checkout' && ssrParams.plan) roadDesk.noteCheckoutOpen(ssrParams.plan);
       }
     } catch (_) { /* a visit counter must not block the page */ }
