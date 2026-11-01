@@ -261,6 +261,67 @@ async function post(orderId, body, headers) {
     assert.equal(discovery.placeholders, 0);
   });
 
+  await check('a card invoice keeps NOWPayments as the provider and card as the request', () => {
+    const attr = require('../src/commerce/invoice-attribution');
+    const order = seed('ord_attrcard01', { meta: { rail: 'card' }, buyer: { email: 'buyer-audit-test@example.com' } });
+    attr.stampOpen(order, { requestedRail: 'card', provider: 'nowpayments', transactionId: 'np_inv_1', paymentStatus: 'waiting' });
+    assert.equal(order.invoice.provider, 'nowpayments');
+    assert.equal(order.invoice.requestedRail, 'card');
+    assert.equal(order.invoice.invoiceStatus, 'open');
+    const headers = { 'x-internal-settle-secret': process.env.INTERNAL_SETTLE_SECRET };
+    return post(order.orderId, {
+      provider: 'nowpayments',
+      providerRef: 'np_pay_9',
+      amountUsd: 49,
+      paymentStatus: 'finished',
+    }, headers).then((res) => {
+      assert.equal(res.statusCode, 200);
+      const saved = commerce.ORDERS.get(order.orderId);
+      assert.equal(saved.invoice.provider, 'nowpayments');
+      assert.equal(saved.invoice.requestedRail, 'card');
+      assert.equal(saved.invoice.transactionId, 'np_pay_9');
+      assert.equal(saved.invoice.paymentStatus, 'paid');
+      assert.equal(saved.invoice.product, 'instant-website-audit');
+      assert.equal(saved.invoice.amount, 49);
+      assert.equal(saved.invoice.currency, 'USD');
+      assert.equal(saved.paid_via, 'nowpayments');
+      const view = attr.publicView(saved);
+      assert.equal(JSON.stringify(view).includes('buyer-audit-test@example.com'), false);
+    });
+  });
+
+  await check('a stripe settlement is not recorded as NOWPayments or Bitcoin', () => {
+    const attr = require('../src/commerce/invoice-attribution');
+    const order = seed('ord_attrstripe01', { meta: { selectedRail: 'card' } });
+    attr.stampOpen(order, { requestedRail: 'card', provider: 'nowpayments' });
+    const headers = { 'x-internal-settle-secret': process.env.INTERNAL_SETTLE_SECRET };
+    return post(order.orderId, {
+      provider: 'stripe',
+      providerRef: 'pi_test_1',
+      amountUsd: 49,
+      currency: 'USD',
+    }, headers).then((res) => {
+      assert.equal(res.statusCode, 200);
+      const saved = commerce.ORDERS.get(order.orderId);
+      assert.equal(saved.invoice.provider, 'stripe');
+      assert.equal(saved.invoice.transactionId, 'pi_test_1');
+      assert.equal(saved.paid_via, 'stripe');
+      assert.equal(attr.railFromInvoice({ metadata: { provider: 'stripe' } }), 'stripe');
+      assert.equal(attr.railFromInvoice({ metadata: { provider: 'nowpayments' } }), 'nowpayments');
+      assert.equal(attr.railFromInvoice({}), 'btc');
+    });
+  });
+
+  await check('business modules report load state without a fake customer count', () => {
+    const snap = integration.snapshot();
+    assert.equal(snap.businessModules.aiDna.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiDelivery.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiVault.status, 'OPERATIONAL');
+    assert.equal(snap.businessModules.aiConcierge.externalModel, 'NOT CONFIGURED');
+    assert.equal(typeof snap.businessModules.aiWorkspace.customerInstances, 'number');
+    assert.equal(JSON.stringify(snap.businessModules).includes('sk_'), false);
+  });
+
   console.log('✅ prod-readiness: ' + passed + ' tests passed');
   process.exit(0);
 })().catch((err) => {
