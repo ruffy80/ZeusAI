@@ -121,6 +121,9 @@ const shell = require('../src/site/v2/shell');
   assert.match(home, new RegExp('See all ' + shelfCount + ' services'));
   assert.match(home, /Simulated route/);
   assert.match(home, /Buy the website audit/);
+  assert.match(home, /Buy the website audit · \$[0-9,]+\.[0-9]{2} · /);
+  assert.match(home, /PayPal, card, and NOWPayments pay this list\. Bitcoin pays 10% under it\./);
+  assert.doesNotMatch(home, /Bitcoin checkout/i);
 
   const services = shell.getHtml('/services');
   const cards = services.match(/service-card/g) || [];
