@@ -2678,6 +2678,19 @@ function verifyDeliveryAccess(id, req, params) {
   }
   return false;
 }
+function unpaidDeliveryStatus(id) {
+  try {
+    const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
+      ? commerce.ORDERS.get(id)
+      : null;
+    if (order && order.status && order.status !== 'paid') return String(order.status);
+  } catch (_) { /* order lookup is optional */ }
+  try {
+    const receipt = findReceipt(id);
+    if (receipt && receipt.status && receipt.status !== 'paid') return String(receipt.status);
+  } catch (_) { /* receipt lookup is optional */ }
+  return '';
+}
 function issueFallbackLicense(receipt) {
   const body = {
     iss: 'ZeusAI',
@@ -4717,6 +4730,11 @@ async function unicornHandler(req, res) {
     if (!verifyDeliveryAccess(id, req, params)) {
       res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
       return res.end(JSON.stringify({ error:'unauthorized', hint:'access_token required' }));
+    }
+    const unpaidStatus = unpaidDeliveryStatus(id);
+    if (unpaidStatus) {
+      res.writeHead(409, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ ok:false, error:'order_not_paid', status: unpaidStatus }));
     }
     const fmt = params.get('format');
     const delivery = deliveryRegistry && deliveryRegistry.get ? deliveryRegistry.get(id) : null;
