@@ -50,7 +50,7 @@ check('protocol never invents humans or GMV', () => {
   assert.strictEqual(d.whyZero.code, d.paidHumans === 0 ? 'no_confirmed_settlement' : 'settlements_exist');
 });
 
-check('ghosts are filtered; giants sort after instant SKUs', () => {
+check('ghosts and contract figures stay off the public rank; resume leads', () => {
   const items = [
     { id: 'global-giants', priceUsd: 99999, group: 'service' },
     { id: 'api-call', priceUsd: 0.01, group: 'service' },
@@ -62,12 +62,10 @@ check('ghosts are filtered; giants sort after instant SKUs', () => {
   assert.strictEqual(filter.isGhostMeteredItem({ id: 'api-call' }), true);
   assert.strictEqual(filter.isGhostMeteredItem({ id: 'free' }), true);
   const publicItems = filter.filterPublicCatalogItems(items);
-  assert.ok(!publicItems.some((x) => x.id === 'api-call' || x.id === 'free'));
+  assert.ok(!publicItems.some((x) => x.id === 'api-call' || x.id === 'free' || x.id === 'global-giants'));
   const ranked = gravity.rankPublicCatalogItems(publicItems);
   assert.strictEqual(ranked[0].id, 'instant-resume-makeover');
-  const giantsIdx = ranked.findIndex((x) => x.id === 'global-giants');
-  const resumeIdx = ranked.findIndex((x) => x.id === 'instant-resume-makeover');
-  assert.ok(resumeIdx >= 0 && giantsIdx > resumeIdx);
+  assert.strictEqual(ranked.findIndex((x) => x.id === 'global-giants'), -1);
 });
 
 check('hero picks default to resume makeover then other instant SKUs', () => {
