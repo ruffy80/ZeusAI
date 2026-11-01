@@ -118,9 +118,15 @@ function openDb() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         usd REAL NOT NULL,
+        order_id TEXT,
         created_at TEXT NOT NULL
       );
     `);
+    try {
+      const cols = db.prepare('PRAGMA table_info(module_sale)').all();
+      if (!cols.some((col) => col.name === 'order_id')) db.exec('ALTER TABLE module_sale ADD COLUMN order_id TEXT');
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_module_sale_order ON module_sale(order_id) WHERE order_id IS NOT NULL');
+    } catch (_) { /* index is optional until the column exists */ }
   } catch (_) {
     db = null;
   }
@@ -325,26 +331,27 @@ function affiliateHits(code) {
 
 function affiliateDesk(code) {
   const clean = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
+  const note = clean.length < 3
+    ? 'Enter a ref code. No payout is invented.'
+    : 'Hits and whether a code exists are public. Commission amounts and txids are not published for a public ref code.';
   if (clean.length < 3) {
-    return {
-      ok: true,
-      found: false,
-      code: clean,
-      hits: 0,
-      redemptions: 0,
-      payoutOwedUsd: 0,
-      proofs: [],
-      note: 'Enter a ref code. No payout is invented.',
-    };
+    return { ok: true, found: false, code: clean, hits: 0, discountPct: null, payoutRecorded: false, note };
   }
-  let proofs;
+  let full;
   try {
-    proofs = require('./referral-engine-real').publicProofs(clean);
+    full = require('./referral-engine-real').publicProofs(clean);
   } catch (_) {
     return { ok: false, error: 'ledger_unavailable', code: clean };
   }
-  proofs.hits = affiliateHits(clean);
-  return proofs;
+  return {
+    ok: true,
+    found: !!full.found,
+    code: full.code || clean,
+    hits: affiliateHits(clean),
+    discountPct: full.discountPct == null ? null : full.discountPct,
+    payoutRecorded: !!(full.proofs && full.proofs.length),
+    note,
+  };
 }
 
 function chainLookup(txid) {
@@ -716,7 +723,7 @@ function shareFor(name) {
   };
 }
 
-function recordModuleSale(name, usd) {
+function recordModuleSale(name, usd, orderId) {
   const clean = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 64);
   const amount = round2(usd);
   if (!(amount > 0)) return { ok: false, error: 'amount_required' };
@@ -724,16 +731,38 @@ function recordModuleSale(name, usd) {
   if (!database) return { ok: false, error: 'ledger_unavailable' };
   const row = database.prepare('SELECT name FROM third_party_module WHERE name = ?').get(clean);
   if (!row) return { ok: false, error: 'module_not_registered' };
-  database.prepare('INSERT INTO module_sale (name, usd, created_at) VALUES (?, ?, ?)').run(clean, amount, new Date().toISOString());
-  return Object.assign({ ok: true }, shareFor(clean));
+  const saleOrder = String(orderId || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 80);
+  if (saleOrder) {
+    const prior = database.prepare('SELECT id FROM module_sale WHERE order_id = ?').get(saleOrder);
+    if (prior) return Object.assign({ ok: true, duplicate: true }, shareFor(clean));
+  }
+  database.prepare('INSERT INTO module_sale (name, usd, order_id, created_at) VALUES (?, ?, ?, ?)').run(
+    clean,
+    amount,
+    saleOrder || null,
+    new Date().toISOString()
+  );
+  return Object.assign({ ok: true, duplicate: false }, shareFor(clean));
 }
 
 function listModules() {
   const database = openDb();
   const rows = database
-    ? database.prepare('SELECT name, payout, note, created_at FROM third_party_module ORDER BY id ASC LIMIT 100').all()
+    ? database.prepare('SELECT name, note, created_at FROM third_party_module ORDER BY id ASC LIMIT 100').all()
     : [];
-  const modules = rows.map((row) => Object.assign({}, row, shareFor(row.name)));
+  const modules = rows.map((row) => {
+    const share = shareFor(row.name);
+    return {
+      name: row.name,
+      note: row.note || '',
+      created_at: row.created_at,
+      payoutStored: true,
+      payoutPublished: false,
+      recordedUsd: share.recordedUsd,
+      shareRate: share.shareRate,
+      shareUsd: share.shareUsd,
+    };
+  });
   return {
     ok: true,
     protocol: PROTOCOL,
@@ -741,7 +770,7 @@ function listModules() {
     modules,
     zeusEngagement: '/services/ent-revenue-share',
     note: modules.length
-      ? 'These rows are names and payout addresses a caller submitted. Share stays 0 until a sale names that module. No revenue is invented.'
+      ? 'Names on this list were submitted by callers. Payout addresses are stored and are not published. A listed name is not a ZeusAI wallet. Share stays 0 until a paid order names that module.'
       : 'No third-party module is registered.',
   };
 }
@@ -768,13 +797,15 @@ function registerModule(input) {
   if (!database) return { ok: false, error: 'ledger_unavailable' };
   const existing = database.prepare('SELECT name, payout, note, created_at FROM third_party_module WHERE name = ?').get(name);
   if (existing) {
-    if (existing.payout === payout) return { ok: true, duplicate: true, module: existing };
+    if (existing.payout === payout) {
+      return { ok: true, duplicate: true, module: { name, note: existing.note, created_at: existing.created_at, payoutPublished: false } };
+    }
     return { ok: false, error: 'name_taken' };
   }
   if (!allowRegister()) return { ok: false, error: 'rate_limited' };
   const created = new Date().toISOString();
   database.prepare('INSERT INTO third_party_module (name, payout, note, created_at) VALUES (?, ?, ?, ?)').run(name, payout, note, created);
-  return { ok: true, module: { name, payout, note, created_at: created } };
+  return { ok: true, module: { name, note, created_at: created, payoutPublished: false } };
 }
 
 function requestPath(req) {
@@ -868,10 +899,7 @@ async function handle(req, res) {
       return true;
     }
     if (urlPath === '/api/roadmap/affiliate' && method === 'GET') {
-      const query = queryOf(req);
-      const view = affiliateDesk(query.code || '');
-      if (query.chain === '1' && view.proofs && view.proofs[0]) view.chain = await chainLookup(view.proofs[0].txid);
-      sendJson(res, 200, view);
+      sendJson(res, 200, affiliateDesk(queryOf(req).code || ''));
       return true;
     }
     if (urlPath === '/api/roadmap/quote' && (method === 'GET' || method === 'POST')) {
@@ -1037,18 +1065,14 @@ function pageRecovery(params) {
 function pageAffiliateDesk(params) {
   const query = (params && params.roadmapQuery) || {};
   const view = affiliateDesk(query.code || '');
-  const proofs = (view.proofs || []).length
-    ? (view.proofs || []).map((row) => `<li><code>${esc(row.txid)}</code> — recorded payout ${esc(row.payoutUsd)} USD. This page does not query the Bitcoin network.</li>`).join('')
-    : '<li>No on-chain payout proof is stored.</li>';
   return section(
     'Affiliate desk',
-    'Self-serve <span class="grad">payout ledger.</span>',
+    'Self-serve <span class="grad">referral desk.</span>',
     view.note || 'Enter a ref code. No payout is invented.',
     `<div class="card" style="padding:18px;margin-top:18px">
     <form method="get" action="/affiliate/desk" style="display:flex;gap:10px;flex-wrap:wrap"><input name="code" value="${esc(query.code || '')}" placeholder="Ref code" style="flex:1;min-width:200px;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><button class="btn btn-primary" type="submit">Look up</button></form>
-    <p style="margin-top:12px">Found: ${view.found ? 'yes' : 'no'}. Hits: ${Number(view.hits) || 0}. Redemptions: ${Number(view.redemptions) || 0}. Owed: ${Number(view.payoutOwedUsd) || 0} USD.</p>
-    <ul>${proofs}</ul>
-    <p style="color:var(--ink-dim);font-size:13px">Generate a link on <a href="/affiliate" data-link>/affiliate</a>. The owner records a txid after a manual Bitcoin send. This page does not broadcast a transaction. <code>GET /api/roadmap/affiliate?code=</code></p></div>`
+    <p style="margin-top:12px">Found: ${view.found ? 'yes' : 'no'}. Hits: ${Number(view.hits) || 0}. A payout txid is stored: ${view.payoutRecorded ? 'yes' : 'no'}.</p>
+    <p style="color:var(--ink-dim);font-size:13px">Generate a link on <a href="/affiliate" data-link>/affiliate</a>. Commission amounts and txids stay off this public lookup. This page does not broadcast a transaction. <code>GET /api/roadmap/affiliate?code=</code></p></div>`
   );
 }
 
@@ -1122,7 +1146,7 @@ function pageModules(params) {
   if (result && result.ok) flash = '<p>Registered ' + esc(result.module && result.module.name) + '.</p>';
   else if (result && result.error) flash = '<p>Not stored: ' + esc(result.error) + '.</p>';
   const rows = status.modules.length
-    ? status.modules.map((row) => `<li>${esc(row.name)} — <code>${esc(row.payout)}</code> — recorded ${esc(row.recordedUsd)} USD — share ${esc(row.shareUsd)} USD</li>`).join('')
+    ? status.modules.map((row) => `<li>${esc(row.name)} — address stored, not published — recorded ${esc(row.recordedUsd)} USD — share ${esc(row.shareUsd)} USD</li>`).join('')
     : '<li>No third-party module is registered.</li>';
   return section(
     'Module marketplace',
@@ -1135,7 +1159,7 @@ function pageModules(params) {
       <input name="note" placeholder="Short note, no email" style="padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px">
       <button class="btn btn-primary" type="submit">Register</button>
     </form>
-    <p style="color:var(--ink-dim);font-size:13px">ZeusAI's own engagement stays at <a href="${esc(status.zeusEngagement)}">${esc(status.zeusEngagement)}</a>. That pack does not deliver the license. <code>POST /api/roadmap/modules</code></p></div>`
+    <p style="color:var(--ink-dim);font-size:13px">A listed name is not a ZeusAI wallet. Do not send Bitcoin to it. ZeusAI's own engagement stays at <a href="${esc(status.zeusEngagement)}">${esc(status.zeusEngagement)}</a>. That pack does not deliver the license. <code>POST /api/roadmap/modules</code></p></div>`
   );
 }
 

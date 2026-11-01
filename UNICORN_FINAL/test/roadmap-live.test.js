@@ -178,11 +178,15 @@ function mockRes() {
     assert.strictEqual(res.statusCode, 201);
     const listed = desk.listModules();
     assert.strictEqual(listed.modules.length, 1);
-    assert.strictEqual(listed.modules[0].payout, 'bc1q000000000000000000000000000000000000000');
+    assert.strictEqual(listed.modules[0].payoutPublished, false);
+    assert.ok(!JSON.stringify(listed).includes('bc1q000000000000000000000000000000000000000'));
     assert.ok(!JSON.stringify(listed).includes('@'));
+    const posted = JSON.parse(res.body);
+    assert.strictEqual(posted.module.payoutPublished, false);
+    assert.ok(!JSON.stringify(posted).includes('bc1q000000000000000000000000000000000000000'));
   });
 
-  await check('affiliate desk shows a stored txid and hides the buyer email', () => {
+  await check('public affiliate lookup hides commission amounts and txids', () => {
     const ref = require('../src/commerce/referral-engine-real');
     ref._resetForTests();
     ref.ensureTrackedCode('ROADMAPTEST');
@@ -194,15 +198,17 @@ function mockRes() {
     });
     let view = desk.affiliateDesk('ROADMAPTEST');
     assert.strictEqual(view.found, true);
-    assert.strictEqual(view.proofs.length, 0);
-    assert.ok(view.note.includes('No on-chain payout proof is stored'));
+    assert.strictEqual(view.payoutRecorded, false);
     assert.ok(!JSON.stringify(view).includes('buyer@example.com'));
+    assert.ok(!('payoutOwedUsd' in view));
     ref.markPaid(rec.id, { txid: 'a'.repeat(64) });
     view = desk.affiliateDesk('ROADMAPTEST');
-    assert.strictEqual(view.proofs.length, 1);
-    assert.strictEqual(view.proofs[0].txid, 'a'.repeat(64));
-    assert.ok(view.note.includes('does not query the Bitcoin network'));
-    assert.ok(!JSON.stringify(view).includes('buyer@example.com'));
+    assert.strictEqual(view.payoutRecorded, true);
+    const dumped = JSON.stringify(view);
+    assert.ok(!dumped.includes('a'.repeat(64)));
+    assert.ok(!dumped.includes('buyer@example.com'));
+    assert.ok(!dumped.includes('payoutOwedUsd'));
+    assert.ok(view.note.includes('not published'));
     const unknown = desk.affiliateDesk('NOSUCHCODE');
     assert.strictEqual(unknown.found, false);
   });
@@ -223,12 +229,21 @@ function mockRes() {
     const unregistered = desk.recordModuleSale('Pack One', 49);
     assert.strictEqual(unregistered.ok, false);
     desk.registerModule({ name: 'Pack One', payout: 'bc1q000000000000000000000000000000000000000' });
-    const shared = desk.recordModuleSale('Pack One', 49);
+    const shared = desk.recordModuleSale('Pack One', 49, 'ord-paid-1');
     assert.strictEqual(shared.ok, true);
     assert.strictEqual(shared.recordedUsd, 49);
     assert.strictEqual(shared.shareUsd, 9.8);
+    const again = desk.recordModuleSale('Pack One', 49, 'ord-paid-1');
+    assert.strictEqual(again.duplicate, true);
+    assert.strictEqual(again.recordedUsd, 49);
     const idle = desk.listModules().modules.find((row) => row.name === 'Pack One');
     assert.strictEqual(idle.shareUsd, 9.8);
+    assert.strictEqual(idle.payoutPublished, false);
+    const commerce = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'sovereign-commerce.js'), 'utf8');
+    const createStart = commerce.indexOf('roadDesk.noteConversion');
+    const createEnd = commerce.indexOf('conversion counter must not block checkout');
+    assert.ok(!commerce.slice(createStart, createEnd).includes('recordModuleSale'));
+    assert.ok(commerce.includes('function creditPaidModule'));
     const chain = await desk.chainLookup('a'.repeat(64));
     assert.strictEqual(chain.queried, false);
     assert.strictEqual(chain.confirmed, null);

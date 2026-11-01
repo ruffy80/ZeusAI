@@ -7846,12 +7846,12 @@ function pageRoadmap() {
         <li><a href="/refund" data-link>Refund contract</a> and <a href="/contact" data-link>owner contact</a></li>
         <li><a href="/funnel" data-link>Self-optimizing conversion funnel</a> — yield is visits and conversions this process recorded. Nothing is promoted at zero.</li>
         <li><a href="/recovery" data-link>Checkout abandonment recovery</a> — resume a checkout you already opened. This page does not send a message.</li>
-        <li><a href="/affiliate/desk" data-link>Affiliate self-serve dashboard</a> — a Bitcoin txid appears only after one is stored.</li>
+        <li><a href="/affiliate/desk" data-link>Affiliate self-serve dashboard</a> — hits are public. Commission amounts and txids are not.</li>
         <li><a href="/agents/quote" data-link>Machine-negotiated quotes</a> — the counter is the catalog list price.</li>
         <li><a href="/pq" data-link>Hybrid Ed25519+ML-DSA</a> — one verified sample. Paid receipts stay Ed25519.</li>
         <li><a href="/replicas" data-link>Sovereign replicas</a> — this process, plus URLs named in the environment. No extra region is invented.</li>
         <li><a href="/byo" data-link>BYO-infra runbooks</a> — the file does not install an operating system.</li>
-        <li><a href="/module-registry" data-link>Third-party module registry</a> — empty until a name and a payout address are submitted.</li>
+        <li><a href="/module-registry" data-link>Third-party module registry</a> — a name can be submitted. The payout address is stored and is not published.</li>
       </ul></div>
     <div class="card" style="padding:22px;border-color:rgba(255,211,106,.35)"><span class="tag" style="background:rgba(255,211,106,.12);color:#ffd36a">⚙ Now building</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
