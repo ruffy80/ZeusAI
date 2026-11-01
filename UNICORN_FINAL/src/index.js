@@ -4534,6 +4534,43 @@ async function unicornHandler(req, res) {
   const isVersionedAssetPath = requestedPath !== urlPath;
   const earlyPath = urlPath;
 
+  if (urlPath === '/go' || urlPath.startsWith('/api/roadmap') || (req.method === 'GET' && /^\/byo\/[a-z0-9-]+\.(txt|js)$/.test(urlPath))) {
+    try {
+      const roadDesk = require('./commerce/roadmap-desk');
+      if (await roadDesk.handle(req, res)) return;
+    } catch (e) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: false, error: 'roadmap_failed' }));
+      }
+      return;
+    }
+  }
+  if (req.method === 'POST' && (urlPath === '/module-registry' || urlPath === '/agents/quote') && v2 && typeof v2.getHtml === 'function') {
+    try {
+      const roadDesk = require('./commerce/roadmap-desk');
+      const fields = await roadDesk.readFields(req);
+      const params = {
+        lang: 'en',
+        autoLang: 'en',
+        country: '',
+        nonce: String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64')),
+      };
+      if (urlPath === '/module-registry') params.roadmapResult = roadDesk.registerModule(fields);
+      else params.roadmapQuery = fields;
+      const html = v2.getHtml(urlPath, params);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(html);
+      return;
+    } catch (e) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end('Roadmap desk failed.');
+      }
+      return;
+    }
+  }
+
   // ── 50Y Standard dispatcher (zero overlap with existing routes) ──
   // Handles: /.well-known/did.json + /api/v50/*. Returns true if handled.
   if (innov50) {
@@ -7476,6 +7513,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || null,
         ua: req.headers['user-agent'] || null
       }) + '\n');
+      require('./commerce/roadmap-desk').noteAffiliateHit(ref);
     } catch (_) {}
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, tracked: !!ref, ref: ref || null }));
@@ -13444,7 +13482,8 @@ a{color:#8a5cff;text-decoration:none}
     '/model-routing', '/self-improvement', '/multi-agent', '/experiment-engine',
     '/trust-safety', '/insights', '/outreach-desk',
     // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
-    '/agents', '/login', '/signup', '/auth',
+    '/agents', '/agents/quote', '/login', '/signup', '/auth',
+    '/funnel', '/recovery', '/affiliate/desk', '/pq', '/replicas', '/byo', '/module-registry',
     // Real-world sell surface (WSI public UI + conversion storefront)
     '/buy', '/outcomes', '/rails', '/twin', '/vom',
     // Continuity Attestation Chain — CAC/1.0 public desk
@@ -13489,6 +13528,14 @@ a{color:#8a5cff;text-decoration:none}
     // $0 flows that are not a real free pledge/cancel do not render a payment
     // page with a blank amount. POST /api/checkout/create is unchanged.
     const ssrParams = { lang, autoLang, country: '', nonce };
+    if (requestUrl.search && (route === '/recovery' || route === '/affiliate/desk' || route === '/agents/quote' || route === '/module-registry')) {
+      const roadmapQuery = {};
+      requestUrl.searchParams.forEach((value, key) => {
+        const name = String(key).slice(0, 32);
+        if (roadmapQuery[name] == null) roadmapQuery[name] = String(value).slice(0, 180);
+      });
+      ssrParams.roadmapQuery = roadmapQuery;
+    }
     if (route === '/checkout') {
       const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 160);
       if (planQ) {
@@ -13648,6 +13695,14 @@ a{color:#8a5cff;text-decoration:none}
     // 30Y-LTS Cache-Control diff:
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
     //   Private pages → no-store (auth, dashboard, checkout)
+    try {
+      if (String(req.method || 'GET').toUpperCase() === 'GET') {
+        const roadDesk = require('./commerce/roadmap-desk');
+        roadDesk.noteVisit(route);
+        if (requestUrl.searchParams.get('ref')) roadDesk.noteAffiliateHit(requestUrl.searchParams.get('ref'));
+        if (route === '/checkout' && ssrParams.plan) roadDesk.noteCheckoutOpen(ssrParams.plan);
+      }
+    } catch (_) { /* a visit counter must not block the page */ }
     const cache = 'no-store, no-cache, must-revalidate, max-age=0';
     // Base Link header: critical preloads + favicon. Predictive prefetch
     // (when active) appends `<path>; rel=prefetch` entries learned from the

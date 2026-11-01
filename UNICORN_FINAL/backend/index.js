@@ -1019,6 +1019,12 @@ app.get('/api/service-integrity', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message });
   }
 });
+app.use('/api/roadmap', express.json({ limit: '16kb' }), express.urlencoded({ extended: false, limit: '16kb' }), (req, res) => {
+  const desk = require('../src/commerce/roadmap-desk');
+  Promise.resolve(desk.handle(req, res)).catch(() => {
+    if (!res.headersSent) res.status(500).json({ ok: false, error: 'roadmap_failed' });
+  });
+});
 app.get('/api/module-duty', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Protocol', 'MDT/1.0');

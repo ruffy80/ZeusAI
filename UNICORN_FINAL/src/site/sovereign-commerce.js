@@ -1116,6 +1116,17 @@ async function createOrder(ctx, input) {
       orderId,
     });
   } catch (_) { /* observe-only */ }
+  try {
+    const roadDesk = require('../commerce/roadmap-desk');
+    roadDesk.noteConversion('/checkout');
+    roadDesk.noteConversion('/services/' + String(serviceId || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 80));
+    roadDesk.markCheckoutOrdered(serviceId);
+    const moduleName = input && (input.moduleName || (buyerInputs && buyerInputs.moduleName));
+    if (moduleName) {
+      order.meta = Object.assign({}, order.meta || {}, { moduleName: String(moduleName).trim().slice(0, 64) });
+      persistOrder(order);
+    }
+  } catch (_) { /* conversion counter must not block checkout */ }
   // Canonical Settle Bridge — dual-write portal shadow off the create critical path.
   const orderForBridge = order;
   setImmediate(function () {
@@ -1143,6 +1154,14 @@ async function createOrder(ctx, input) {
  * Mark a sovereign order paid from an alternate rail (PayPal / NOWPayments).
  * Idempotent. Keeps BTC watcher safe by releasing the sats amount index.
  */
+function creditPaidModule(order) {
+  try {
+    const name = order && order.meta && order.meta.moduleName;
+    if (!name || !order.orderId) return;
+    require('../commerce/roadmap-desk').recordModuleSale(name, Number(order.subtotal_fiat || 0), order.orderId);
+  } catch (_) { /* a share credit must not block a paid order */ }
+}
+
 function markOrderPaidFromProvider(orderId, proof) {
   const id = String(orderId || '').trim();
   const order = ORDERS.get(id);
@@ -1228,6 +1247,7 @@ function markOrderPaidFromProvider(orderId, proof) {
   } catch (affErr) {
     console.warn('[commerce] affiliate redeem skipped:', affErr && affErr.message);
   }
+  creditPaidModule(order);
   try {
     const bridge = require('../commerce/canonical-settle-bridge');
     bridge.bridgePaid(order);
@@ -1482,6 +1502,7 @@ async function scanIncoming() {
         } catch (affErr) {
           console.warn('[commerce] affiliate redeem skipped:', affErr && affErr.message);
         }
+        creditPaidModule(order);
         // Canonical Settle Bridge — mirror paid onto portal shadow order.
         try {
           const bridge = require('../commerce/canonical-settle-bridge');

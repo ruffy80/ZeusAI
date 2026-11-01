@@ -916,20 +916,32 @@ async function handle(req, res, ctx) {
         svc = all.find(s => String(s.id) === serviceId) || null;
       }
     } catch (_) {}
-    if (!svc) return (sendJson(res, 404, { error: 'service_not_found', serviceId }), true);
-    const unit = svc.price != null ? Number(svc.price) : 0;
-    const subtotal = Number((unit * qty).toFixed(2));
+    let machine = null;
+    try {
+      machine = require('../commerce/roadmap-desk').negotiate({
+        serviceId,
+        qty,
+        offerUsd: body.offerUsd != null ? body.offerUsd : body.offer,
+      });
+    } catch (_) { machine = null; }
+    if ((!machine || machine.ok !== true) && !svc) return (sendJson(res, 404, { error: 'service_not_found', serviceId }), true);
+    const unit = machine && machine.ok ? Number(machine.listUsd) : (svc.price != null ? Number(svc.price) : 0);
+    const subtotal = machine && machine.ok ? Number(machine.listTotalUsd) : Number((unit * qty).toFixed(2));
     const rail = selectRail(subtotal, currency);
     const quoteId = 'q-' + crypto.randomBytes(8).toString('hex');
     const quote = {
       quoteId,
       serviceId,
-      serviceName: svc.name || svc.title || serviceId,
+      serviceName: (svc && (svc.name || svc.title)) || serviceId,
       qty,
       unit_price: unit,
       subtotal,
       currency,
       recommended_rail: rail.recommended ? rail.recommended.id : null,
+      accepted: machine && machine.ok ? machine.accepted : null,
+      offerUsd: machine && machine.ok ? machine.offerUsd : null,
+      counterUsd: machine && machine.ok ? machine.counterUsd : subtotal,
+      machineRule: machine && machine.ok ? machine.rule : null,
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       provider: { did: `did:web:${OWNER.domain.replace(/^https?:\/\//, '')}`, name: OWNER.name },
       issued_at: new Date().toISOString(),
