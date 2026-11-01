@@ -939,6 +939,20 @@ async function createOrder(ctx, input) {
   const buyerInputs = (input && input.inputs && typeof input.inputs === 'object' && !Array.isArray(input.inputs))
     ? input.inputs
     : {};
+  if ((serviceId === 'instant-website-audit' || serviceId === 'website-audit')
+    && buyerInputs.url != null && String(buyerInputs.url).trim()) {
+    let norm = null;
+    try { norm = require('../commerce/audit-scan').normalizePublicUrl(buyerInputs.url); } catch (_) { norm = null; }
+    if (!norm || !norm.ok) {
+      return {
+        error: 'audit_url_rejected',
+        reason: (norm && norm.reason) || 'invalid_url',
+        serviceId,
+        status: 400,
+      };
+    }
+    buyerInputs.url = norm.url;
+  }
   const brief = String((input && input.brief) || buyerInputs.brief || '').trim().slice(0, 4000);
 
   let unitFull = svc.price != null ? Number(svc.price) : 0;

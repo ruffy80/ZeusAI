@@ -1749,7 +1749,14 @@ function _quoteFor(id) {
   if (!layer || typeof layer.quoteSync !== 'function') return null;
   try { return layer.quoteSync(id); } catch (_) { return null; }
 }
-function _orderInputsHtml(productId) {
+function _auditDoorUrl(raw) {
+  try {
+    const norm = require('../../commerce/audit-scan').normalizePublicUrl(raw);
+    return norm && norm.ok ? String(norm.url).slice(0, 300) : '';
+  } catch (_) { return ''; }
+}
+function _orderInputsHtml(productId, prefill) {
+  const filled = (prefill && typeof prefill === 'object') ? prefill : {};
   let fields = [];
   try {
     const row = require('../../commerce/instant-catalog').byId(productId);
@@ -1766,9 +1773,16 @@ function _orderInputsHtml(productId) {
   return '<div class="order-inputs" data-order-inputs="' + _esc(productId) + '">' + rows.map((field) => {
     const key = _esc(field.key);
     const label = _esc(field.label || field.key);
+    const auditUrl = field.key === 'url' && (productId === 'instant-website-audit' || productId === 'website-audit');
+    let shown = filled[field.key] == null ? '' : String(filled[field.key]).slice(0, 2000);
+    if (auditUrl) shown = _auditDoorUrl(shown);
+    const value = _esc(shown);
     const control = field.type === 'textarea'
-      ? '<textarea data-order-input="' + key + '" rows="4" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"></textarea>'
-      : '<input data-order-input="' + key + '" type="' + (field.type === 'url' ? 'url' : 'text') + '" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>';
+      ? '<textarea data-order-input="' + key + '" rows="4" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)">' + value + '</textarea>'
+      : '<input data-order-input="' + key + '" type="' + (field.type === 'url' ? 'url' : 'text') + '"'
+        + (auditUrl ? ' required placeholder="https://company.com"' : '')
+        + (value ? (' value="' + value + '"') : '')
+        + ' style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>';
     return '<label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">' + label + control + '</label>';
   }).join('') + '</div>';
 }
@@ -2467,7 +2481,8 @@ function pageServices() {
 </section>`;
 }
 
-function pageService(id) {
+function pageService(id, params) {
+  const siteUrl = _auditDoorUrl(params && params.siteUrl);
   // First paint is the shelf card. A real module file stays on the server.
   // An id that is neither a shelf offer nor a module file is not found.
   const safeId = String(id || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 120);
@@ -2558,6 +2573,7 @@ function pageService(id) {
       </div>
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${_esc(desc)}</p>
+      ${safeId === 'instant-website-audit' ? '<p data-company-audit-door="1" style="color:var(--ink-dim);font-size:15px;line-height:1.65">Any company pays this list price for a scan of one public website. The scan runs after payment. The file scores six checks on that URL only. Open <a href="/checkout/?plan=instant-website-audit&amp;url=https://company.example">/checkout/?plan=instant-website-audit&amp;url=https://company.example</a>. A company is not listed as a customer until that company has paid.</p>' : ''}
       ${_guideBack(safeId)}
       ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
@@ -2583,7 +2599,10 @@ function pageService(id) {
       ${price > 0 ? _payReceiptHtml(price, { id: 'svcPayReceipt', listId: 'svcPayList', btcId: 'svcPayBitcoin' }) : ''}
       ${(() => {
         const cta = _ctaForProduct(s);
-        const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
+        let href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(safeId));
+        if (safeId === 'instant-website-audit' && siteUrl) {
+          href += (href.indexOf('?') >= 0 ? '&' : '?') + 'url=' + encodeURIComponent(siteUrl);
+        }
         const label = cta.mode === 'contact' ? 'Request a proposal →' : (cta.ctaLabel || 'Buy → choose payment');
         if (cta.mode === 'contact') {
           return `<p style="color:var(--ink-dim);font-size:13.5px">This figure is a proposal, not a cart. The proposal file downloads now.</p>
@@ -2608,7 +2627,7 @@ function pageService(id) {
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
-      ${_orderInputsHtml(safeId)}
+      ${_orderInputsHtml(safeId, { url: siteUrl })}
       <a class="btn btn-primary" id="svcBuyBtn" href="${_esc(href)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">${_esc(label)}</a>
       ${price > 0 && cta.mode !== 'contact' ? require('../../commerce/pay-options').payOptionsHtml(safeId) : ''}`;
       })()}
@@ -2763,7 +2782,8 @@ function pageCheckout(params) {
         <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(shelfItem ? shelfItem.title : ssrPlan)}</h3>
         <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · ${contactOnly ? 'this figure is a proposal, not a cart.' : 'choose how you want to pay.'}</p>
         ${ssrUsd > 0 && !contactOnly ? _payReceiptHtml(ssrUsd, { id: 'checkoutPayReceipt', listId: 'checkoutPayList', btcId: 'checkoutPayBitcoin', cardId: 'checkoutPayCard', note: false, card: true }) : ''}
-        ${contactOnly ? '' : _orderInputsHtml(ssrPlan)}
+        ${ssrPlan === 'instant-website-audit' ? '<p data-company-audit-door="1" style="margin:8px 0 0;color:var(--ink-dim);font-size:13px;line-height:1.5">Any company pays this list price for a scan of one public website. The scan runs after payment. The file scores six checks on that URL only. A company is not listed as a customer until that company has paid.</p>' : ''}
+        ${contactOnly ? '' : _orderInputsHtml(ssrPlan, { url: p.siteUrl })}
         ${shelfItem ? `<p id="checkoutShelfTruth" style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.5">${_esc(shelfItem.when)}. ${kickoffOnly ? 'It does not deliver the license, the source, or a private cloud.' : (packOnly ? 'Payment issues the engagement pack. The license, the source, and a private cloud are milestones in the pack. They are not in this download.' : (moneyNote ? _esc(moneyNote) : (contactOnly ? 'Download the proposal. This figure is not a cart.' : _esc(shelfItem.description))))}</p>` : ''}
       </div>
     </div>
@@ -5102,7 +5122,7 @@ function renderRoute(route, params = {}) {
       if (route.startsWith('/insights/')) return discoverTrust.pageArticle(route.slice('/insights/'.length));
       if (route.startsWith('/blog/') && route !== '/blog') return discoverTrust.pageArticle(route.slice('/blog/'.length));
       if (route.startsWith('/guides/')) return pageGuide(params.id || route.slice('/guides/'.length));
-      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
+      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10), params);
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
       if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
       return pageNotFound(route);
