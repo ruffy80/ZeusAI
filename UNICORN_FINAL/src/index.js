@@ -1258,6 +1258,22 @@ app.get(/^\/d\/([a-f0-9]+)$/, (req, res) => {
     return res.status(503).type('html').send('<!doctype html><title>declaration</title><p>DECL unavailable</p>');
   }
 });
+app.get(['/.well-known/paid-measure.json', '/api/paid-measure'], (req, res) => {
+  try {
+    const carry = require('./commerce/paid-measure-carry');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Protocol', carry.PROTOCOL);
+    const asked = String((req.query && req.query.url) || '').trim();
+    if (asked) {
+      const door = carry.doorFor(asked);
+      if (!door.ok) return res.status(400).json({ ok: false, error: 'audit_url_rejected', reason: door.reason, score: null, scoreBeforePayment: false });
+      return res.json(Object.assign({ ok: true, protocol: carry.PROTOCOL, listsCustomers: false }, door));
+    }
+    return res.json(carry.document());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'PMC/1.0', scoreBeforePayment: false, inventsVisitors: false });
+  }
+});
 app.get(['/.well-known/share-surface.json', '/api/share/targets'], (req, res) => {
   try {
     const hsdp = require('./commerce/share-surface');

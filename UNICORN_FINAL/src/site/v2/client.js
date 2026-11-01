@@ -3390,6 +3390,36 @@ if (typeof window !== 'undefined') {
         link.setAttribute('href', next.pathname + next.search);
       } catch (_) {}
     }, true);
+    document.addEventListener('click', function (ev) {
+      const btn = ev.target && ev.target.closest && ev.target.closest('[data-copy-measure-door]');
+      if (!btn) return;
+      ev.preventDefault();
+      const raw = typedAuditUrl('instant-website-audit');
+      if (!raw) {
+        toast('Enter the public website URL. The scan runs after payment.', 'err');
+        return;
+      }
+      let href = '';
+      try {
+        const parsed = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : ('https://' + raw));
+        const host = String(parsed.hostname || '').toLowerCase();
+        if (!host || host === 'localhost' || host.endsWith('.local') || host === '127.0.0.1' || host === '::1'
+          || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|169\.254\.)/.test(host)) {
+          toast('Enter a public website. The score is not in the link.', 'err');
+          return;
+        }
+        href = window.location.origin + '/checkout/?plan=instant-website-audit&url=' + encodeURIComponent(parsed.toString().slice(0, 300));
+      } catch (_) {
+        toast('Enter a public website. The score is not in the link.', 'err');
+        return;
+      }
+      const done = function () { toast('Door copied. The score is not in the link.', 'ok'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(href).then(done).catch(function () { window.prompt('Copy this door. It has no score.', href); });
+        return;
+      }
+      window.prompt('Copy this door. It has no score.', href);
+    }, true);
   }
 }
 
