@@ -2426,46 +2426,55 @@ async function handle(req, res, ctx) {
     if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
     const body = await readBody(req);
     const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
-    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || (body && body.settleSecret) || '');
-    const token = String((body && body.access_token) || '').trim();
-    const tokenOk = !!(token && token === String(order.access_token || ''));
+    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || '');
     const secretOk = !!(expected && provided && provided === expected);
-    if (!tokenOk && !secretOk) {
-      return sendJson(res, 401, { error: 'unauthorized', honesty: 'provider_settle_requires_internal_secret_or_access_token' }), true;
+    if (!secretOk) {
+      return sendJson(res, 401, { error: 'unauthorized', honesty: 'provider_settle_requires_verified_backend_secret' }), true;
     }
+    if (order.status === 'paid') {
+      return sendJson(res, 200, { ok: true, duplicate: true, orderId: order.orderId, status: 'paid' }), true;
+    }
+    const providerName = String((body && body.provider) || '').toLowerCase().slice(0, 32);
+    if (!providerName) {
+      return sendJson(res, 400, { error: 'provider_required' }), true;
+    }
+    const meta = Object.assign({}, (body && body.meta) || {});
+    if (body && body.invoiceId) meta.invoiceId = String(body.invoiceId).slice(0, 128);
+    const npStatus = String((body && (body.paymentStatus || body.nowpaymentsStatus || meta.payment_status || meta.status)) || '').toLowerCase();
+    if (providerName === 'nowpayments' && !/^(finished|confirmed|completed)$/.test(npStatus)) {
+      try {
+        const pios = require('../commerce/payment-innovation-os');
+        if (npStatus) pios.applyNowPaymentsStatus(order, npStatus);
+        persistOrder(order);
+      } catch (_) { /* status note is optional */ }
+      return sendJson(res, 202, {
+        ok: false,
+        pending: true,
+        error: npStatus && /partial|underpaid|partially_paid/.test(npStatus) ? 'partial_payment' : 'payment_not_confirmed',
+        nowpaymentsStatus: npStatus || null,
+        honesty: 'NOWPayments fulfillment waits for a finished or confirmed IPN. The order stays pending.',
+        orderId: order.orderId,
+        status: order.status,
+      }), true;
+    }
+    const btcRail = providerName === 'btc' || providerName === 'bitcoin';
     const hasAmount = body && body.amountUsd != null && String(body.amountUsd).trim() !== '';
-    if (hasAmount) {
+    if (!btcRail) {
       const expectedAmount = Number(order.subtotal_fiat || 0);
-      const amountUsd = Number(body.amountUsd);
-      if (!Number.isFinite(amountUsd) || Math.abs(amountUsd - expectedAmount) > 0.05) {
+      const amountUsd = Number(body && body.amountUsd);
+      if (!hasAmount || !Number.isFinite(amountUsd) || Math.abs(amountUsd - expectedAmount) > 0.05) {
         return sendJson(res, 402, {
-          error: 'provider_amount_mismatch',
+          error: hasAmount ? 'provider_amount_mismatch' : 'provider_amount_required',
           expectedAmountUsd: expectedAmount,
           receivedAmountUsd: Number.isFinite(amountUsd) ? amountUsd : null,
         }), true;
       }
-    }
-    const meta = Object.assign({}, (body && body.meta) || {});
-    if (body && body.invoiceId) meta.invoiceId = String(body.invoiceId).slice(0, 128);
-    // NOWPayments honesty — record partial/waiting statuses without fulfilling.
-    const npStatus = String((body && (body.paymentStatus || body.nowpaymentsStatus || meta.payment_status || meta.status)) || '').toLowerCase();
-    if (npStatus && /partial|underpaid|partially_paid|waiting|confirming|expired|failed/.test(npStatus) && !/finished|confirmed|completed/.test(npStatus)) {
-      try {
-        const pios = require('../commerce/payment-innovation-os');
-        pios.applyNowPaymentsStatus(order, npStatus);
-        persistOrder(order);
-        if (/partial|underpaid|partially_paid/.test(npStatus)) {
-          return sendJson(res, 202, {
-            ok: false,
-            pending: true,
-            error: 'partial_payment',
-            nowpaymentsStatus: npStatus,
-            honesty: 'Partial NOWPayments amount recorded — fulfillment waits for full confirmation.',
-            orderId: order.orderId,
-            status: order.status,
-          }), true;
+      if (body && body.currency) {
+        const want = String(order.currency || 'USD').toUpperCase();
+        if (String(body.currency).toUpperCase() !== want) {
+          return sendJson(res, 402, { error: 'provider_currency_mismatch', expectedCurrency: want }), true;
         }
-      } catch (_) { /* continue to settle attempt when status is final */ }
+      }
     }
     const settled = markOrderPaidFromProvider(order.orderId, {
       provider: (body && body.provider) || 'alt-rail',
@@ -2483,7 +2492,7 @@ async function handle(req, res, ctx) {
     if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
     const body = await readBody(req);
     const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
-    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || (body && body.settleSecret) || '');
+    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || '');
     if (!expected || !provided || provided !== expected) {
       return sendJson(res, 401, { error: 'unauthorized' }), true;
     }
@@ -2516,6 +2525,13 @@ async function handle(req, res, ctx) {
       confs_required: Number(order.confs_required != null ? order.confs_required : requiredConfsForUsd(order.subtotal_fiat || 0)),
       confirmations: Number(order.confirmations || 0),
       provider_refs: paymentProviderRefs(order),
+      email_recovery: {
+        status: order.email_recovery && order.email_recovery.status ? order.email_recovery.status : null,
+        reason: order.email_recovery && order.email_recovery.reason ? order.email_recovery.reason : null,
+        sent: !!(order.email_recovery && order.email_recovery.sent === true),
+        attempts: order.email_recovery && order.email_recovery.attempts ? order.email_recovery.attempts : 0,
+        requiredEnv: ['RESEND_API_KEY', 'BREVO_API_KEY', 'SENDINBLUE_API_KEY', 'MAILERSEND_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'],
+      },
       payment_exception: latestPaymentExceptionForOrder(order.orderId),
       tx_seen: !!(order.tx_seen || (order.txids && order.txids.length)),
       entitlement_id: order.entitlement_id || null,
@@ -2917,6 +2933,12 @@ const SOV_RECOVERY_STUCK_MS = Math.max(5 * 60 * 1000, Number(process.env.SOVEREI
 const SOV_RECOVERY_COOLDOWN_MS = 24 * 3600 * 1000;
 const SOV_RECOVERY_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.SOVEREIGN_RECOVERY_INTERVAL_MS || 15 * 60 * 1000));
 
+function countedMailDelivery(result) {
+  if (!result || result.ok !== true) return false;
+  const channel = String(result.provider || result.channel || '');
+  return /resend|brevo|mailersend|smtp/i.test(channel);
+}
+
 async function recoverStuckPending(opts) {
   const now = Date.now();
   const stuckAfter = Math.max(60 * 1000, Number((opts && opts.stuckAfterMs) || SOV_RECOVERY_STUCK_MS));
@@ -2934,14 +2956,31 @@ async function recoverStuckPending(opts) {
   }
   let mailer = null;
   try { mailer = require('../commerce/transactional-email'); } catch (_) {}
+  const mailReady = !!(mailer && typeof mailer.isConfigured === 'function' && mailer.isConfigured());
+  const requiredEnv = ['RESEND_API_KEY', 'BREVO_API_KEY', 'SENDINBLUE_API_KEY', 'MAILERSEND_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+  const notifyOwner = !(opts && opts.notifyOwner === false);
   for (const o of stuck) {
-    const last = _sovRecoverySent.get(o.orderId) || 0;
-    if (now - last < SOV_RECOVERY_COOLDOWN_MS) { skipped.push({ orderId: o.orderId, reason: 'cooldown' }); continue; }
+    const rec = o.email_recovery && typeof o.email_recovery === 'object' ? o.email_recovery : {};
+    const emailSentAt = Date.parse(rec.lastSentAt || '') || 0;
+    const telegramAt = Date.parse(rec.lastTelegramAt || '') || 0;
+    if (emailSentAt && now - emailSentAt < SOV_RECOVERY_COOLDOWN_MS) {
+      skipped.push({ orderId: o.orderId, reason: 'email_cooldown' });
+      continue;
+    }
     if (dryRun) { skipped.push({ orderId: o.orderId, reason: 'dry_run' }); continue; }
     const buyerEmail = String((o.buyer && o.buyer.email) || '').trim().toLowerCase();
     let emailed = false;
     let emailReason = null;
-    if (mailer && EMAIL_RE.test(buyerEmail)) {
+    let emailStatus = 'NOT CONFIGURED';
+    let triedSend = false;
+    if (!EMAIL_RE.test(buyerEmail)) {
+      emailReason = 'no_buyer_email';
+      emailStatus = 'FAILED';
+    } else if (!mailReady) {
+      emailReason = 'email_unconfigured';
+      emailStatus = 'NOT CONFIGURED';
+    } else {
+      triedSend = true;
       try {
         let r = null;
         if (typeof mailer.sendTransactional === 'function') {
@@ -2966,21 +3005,25 @@ async function recoverStuckPending(opts) {
             text: `Your order ${o.orderId} (${o.serviceName}) for $${o.subtotal_fiat} (≈ ${o.amount_btc} BTC) is still awaiting payment.\n\nSend exactly ${o.amount_btc} BTC to ${addr}.\n\nPay here: ${o.checkout_url}\n\n— ZeusAI`,
           });
         }
-        // Phase 2 honesty: only count as sent when provider reports ok.
-        emailed = !!(r && r.ok);
-        if (!emailed) emailReason = (r && (r.reason || r.error || r.skipped)) || 'send_failed';
+        emailed = countedMailDelivery(r);
+        if (emailed) {
+          emailStatus = 'OPERATIONAL';
+          emailReason = null;
+        } else if (!mailer.isConfigured()) {
+          emailStatus = 'NOT CONFIGURED';
+          emailReason = 'email_unconfigured';
+        } else {
+          emailStatus = 'FAILED';
+          emailReason = (r && (r.reason || r.error || r.skipped)) || 'send_failed';
+        }
       } catch (sendErr) {
         emailed = false;
+        emailStatus = 'FAILED';
         emailReason = String(sendErr && sendErr.message || 'send_failed').slice(0, 80);
       }
-    } else if (!EMAIL_RE.test(buyerEmail)) {
-      emailReason = 'no_buyer_email';
-    } else {
-      emailReason = 'email_unconfigured';
     }
     let telegramed = false;
-    // Owner Telegram nudge when email rail missing / unarmed / failed.
-    if (!emailed) {
+    if (notifyOwner && !emailed && !(telegramAt && now - telegramAt < SOV_RECOVERY_COOLDOWN_MS)) {
       try {
         const zac = require('../../backend/modules/zacAlertChannel');
         if (zac && typeof zac.sendTelegram === 'function') {
@@ -2993,16 +3036,27 @@ async function recoverStuckPending(opts) {
             buyerEmail ? `Buyer: ${buyerEmail}` : 'No buyer email on invoice',
             emailReason ? `Email: ${emailReason}` : null,
           ].filter(Boolean).join('\n')));
-          telegramed = !!(tg && tg.ok !== false);
+          telegramed = !!(tg && tg.ok !== false && tg.skipped !== 'no-config');
         }
       } catch (_) { /* optional */ }
     }
-    // Cooldown only after a real channel attempt succeeded (email or telegram).
+    o.email_recovery = {
+      status: emailStatus,
+      reason: emailReason,
+      sent: emailed === true,
+      attempts: Number(rec.attempts || 0) + (triedSend ? 1 : 0),
+      lastAttemptAt: triedSend || !rec.lastAttemptAt ? new Date().toISOString() : rec.lastAttemptAt,
+      lastSentAt: emailed ? new Date().toISOString() : (rec.lastSentAt || null),
+      lastTelegramAt: telegramed ? new Date().toISOString() : (rec.lastTelegramAt || null),
+      requiredEnv,
+    };
+    const changed = rec.status !== emailStatus || rec.reason !== emailReason || rec.sent !== (emailed === true) || triedSend || telegramed;
+    if (changed) persistOrder(o);
+    if (emailed) _sovRecoverySent.set(o.orderId, now);
     if (emailed || telegramed) {
-      _sovRecoverySent.set(o.orderId, now);
-      sent.push({ orderId: o.orderId, emailed, telegramed, email: buyerEmail || null, emailReason });
+      sent.push({ orderId: o.orderId, emailed, telegramed, emailReason, status: emailStatus });
     } else {
-      skipped.push({ orderId: o.orderId, reason: emailReason || 'no_channel' });
+      skipped.push({ orderId: o.orderId, reason: emailReason || 'no_channel', status: emailStatus });
     }
   }
   let packRetry = null;
@@ -3010,7 +3064,7 @@ async function recoverStuckPending(opts) {
     const mpc = require('../commerce/money-pack-continuum');
     packRetry = mpc.recoverPaidUndelivered(ORDERS, _fireDelivery, { minAgeMs: 2 * 60 * 1000 });
   } catch (_) { /* continuum best-effort */ }
-  return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped, packRetry };
+  return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped, packRetry, mailStatus: mailReady ? 'OPERATIONAL' : 'NOT CONFIGURED', requiredEnv };
 }
 
 function ageMsOf(o, now) {
@@ -3039,15 +3093,17 @@ setInterval(() => {
     console.error('[commerce] BTC price refresh error:', e instanceof Error ? e.message : String(e));
   });
 }, 5 * 60 * 1000).unref();
-// Abandoned sovereign invoice recovery (always-on — not gated on revenue autopilot)
-setTimeout(() => {
-  Promise.resolve(recoverStuckPending({ dryRun: false }))
-    .catch((e) => console.warn('[commerce] recovery boot:', e && e.message));
-}, 45 * 1000);
-setInterval(() => {
-  Promise.resolve(recoverStuckPending({ dryRun: false }))
-    .catch((e) => console.warn('[commerce] recovery tick:', e && e.message));
-}, SOV_RECOVERY_INTERVAL_MS).unref();
+// Abandoned sovereign invoice recovery. Unit tests call recoverStuckPending directly.
+if (process.env.NODE_ENV !== 'test') {
+  setTimeout(() => {
+    Promise.resolve(recoverStuckPending({ dryRun: false }))
+      .catch((e) => console.warn('[commerce] recovery boot:', e && e.message));
+  }, 45 * 1000);
+  setInterval(() => {
+    Promise.resolve(recoverStuckPending({ dryRun: false }))
+      .catch((e) => console.warn('[commerce] recovery tick:', e && e.message));
+  }, SOV_RECOVERY_INTERVAL_MS).unref();
+}
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');
 

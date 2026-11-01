@@ -36,6 +36,8 @@ function normalize(input) {
     provider,
     providerRef: providerRef || null,
     amountUsd: input.amountUsd != null && String(input.amountUsd).trim() !== '' ? Number(input.amountUsd) : undefined,
+    currency: input.currency ? String(input.currency).toUpperCase().slice(0, 8) : undefined,
+    paymentStatus: input.paymentStatus ? String(input.paymentStatus).toLowerCase().slice(0, 32) : undefined,
     invoiceId: input.invoiceId ? String(input.invoiceId).slice(0, 128) : undefined,
     meta: input.meta && typeof input.meta === 'object' ? input.meta : {},
     attempts: 0,
@@ -73,6 +75,8 @@ async function settle(record) {
     provider: record.provider,
     providerRef: record.providerRef || null,
     amountUsd: record.amountUsd,
+    currency: record.currency,
+    paymentStatus: record.paymentStatus || (record.meta && (record.meta.payment_status || record.meta.status)) || null,
     invoiceId: record.invoiceId,
     meta: record.meta || {},
   };
@@ -120,7 +124,8 @@ async function processQueue() {
         append(Object.assign({}, record, { event: 'settled', settledAt: nowIso(), result }));
       } catch (e) {
         lastError = e && e.message ? e.message : String(e);
-        if (record.attempts >= MAX_ATTEMPTS) {
+        const permanent = e && (e.status === 401 || e.status === 402 || e.status === 409);
+        if (permanent || record.attempts >= MAX_ATTEMPTS) {
           pending.delete(record.id);
           append(Object.assign({}, record, { event: 'discarded', discardedAt: nowIso(), error: lastError }));
           try {

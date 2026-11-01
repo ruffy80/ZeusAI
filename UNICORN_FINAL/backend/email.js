@@ -361,7 +361,8 @@ async function sendMail(opts) {
         orderId: fields.orderId,
         private: fields.private === true,
       });
-      if (via) return via;
+      if (via && via.ok) return via;
+      if (via && !isConfigured()) return via;
     } catch (err) {
       console.warn('[email] snm unavailable:', err && err.message);
     }

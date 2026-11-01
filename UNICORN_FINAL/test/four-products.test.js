@@ -25,7 +25,7 @@ const offerings = require('../backend/modules/product-offerings');
 
   const detail = shell.getHtml('/products/instant-website-audit');
   assert.match(detail, /Buy with BTC/);
-  assert.match(detail, /sample coming soon/);
+  assert.match(detail, /No sample file is stored for this offer/);
   assert.match(detail, /Signed delivery/);
   assert.match(detail, /"@type":"Product"/);
   assert.match(detail, /<title>Instant Website Audit \(AI\) — ZeusAI service — ZEUSAI<\/title>/);

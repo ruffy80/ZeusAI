@@ -1676,6 +1676,32 @@ try {
 } catch (e) {
   console.warn('[provider-settle-queue] unavailable:', e && e.message);
 }
+function _paypalCaptureAmount(resource) {
+  const values = [];
+  if (resource && resource.amount) values.push(resource.amount.value);
+  const unit = resource && resource.purchase_units && resource.purchase_units[0];
+  if (unit && unit.amount) values.push(unit.amount.value);
+  const capture = unit && unit.payments && unit.payments.captures && unit.payments.captures[0];
+  if (capture && capture.amount) values.push(capture.amount.value);
+  for (const value of values) {
+    const amount = Number(value);
+    if (Number.isFinite(amount) && amount > 0) return amount;
+  }
+  return null;
+}
+function _paypalCaptureCurrency(resource) {
+  const values = [];
+  if (resource && resource.amount) values.push(resource.amount.currency_code);
+  const unit = resource && resource.purchase_units && resource.purchase_units[0];
+  if (unit && unit.amount) values.push(unit.amount.currency_code);
+  const capture = unit && unit.payments && unit.payments.captures && unit.payments.captures[0];
+  if (capture && capture.amount) values.push(capture.amount.currency_code);
+  for (const value of values) {
+    const code = String(value || '').trim().toUpperCase();
+    if (code) return code;
+  }
+  return null;
+}
 function _internalSettleSecret() {
   return process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
 }
@@ -1694,6 +1720,8 @@ async function _postSovereignProviderSettle(payload) {
       paymentId: payload.paymentId || null,
       paypalOrderId: payload.paypalOrderId || null,
       amountUsd: payload.amountUsd,
+      currency: payload.currency || null,
+      paymentStatus: payload.paymentStatus || (payload.meta && payload.meta.payment_status) || null,
       invoiceId: payload.invoiceId,
       meta: payload.meta || {},
     }),
@@ -1716,6 +1744,8 @@ function _enqueueSovereignProviderSettle(payload, reason) {
       provider: payload.provider,
       providerRef: payload.providerRef || payload.paymentId || payload.paypalOrderId || payload.invoiceId || null,
       amountUsd: payload.amountUsd,
+      currency: payload.currency || null,
+      paymentStatus: payload.paymentStatus || null,
       invoiceId: payload.invoiceId,
       meta: Object.assign({}, payload.meta || {}, { queuedAfter: reason || 'settle_failed' }),
     });
@@ -9117,19 +9147,27 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
     // Sovereign storefront: custom_id / reference_id is ord_* → settle on site.
     const sovereignHint = String(hint || orderId || '').trim();
     if (/^ord_[a-zA-Z0-9_-]{6,64}$/.test(sovereignHint)) {
-      const settlePayload = {
-        orderId: sovereignHint,
-        provider: 'paypal',
-        providerRef: orderId || hint || null,
-        paypalOrderId: orderId || null,
-        meta: { eventType, paypalResourceId: resource.id || null },
-      };
-      _postSovereignProviderSettle(settlePayload)
-        .then(() => console.log('[PayPal Webhook] sovereign settle ok:', sovereignHint))
-        .catch((e) => {
-          console.warn('[PayPal Webhook] sovereign settle error:', e && e.message);
-          _enqueueSovereignProviderSettle(settlePayload, e && e.message);
-        });
+      const amountUsd = _paypalCaptureAmount(resource);
+      const currency = _paypalCaptureCurrency(resource);
+      if (amountUsd == null) {
+        console.warn('[PayPal Webhook] sovereign settle skipped: amount missing', sovereignHint);
+      } else {
+        const settlePayload = {
+          orderId: sovereignHint,
+          provider: 'paypal',
+          providerRef: orderId || hint || null,
+          paypalOrderId: orderId || null,
+          amountUsd,
+          currency,
+          meta: { eventType, paypalResourceId: resource.id || null },
+        };
+        _postSovereignProviderSettle(settlePayload)
+          .then(() => console.log('[PayPal Webhook] sovereign settle ok:', sovereignHint))
+          .catch((e) => {
+            console.warn('[PayPal Webhook] sovereign settle error:', e && e.message);
+            _enqueueSovereignProviderSettle(settlePayload, e && e.message);
+          });
+      }
     }
     const payment = findPaymentByOrderId(orderId, hint);
     if (payment) {
@@ -10021,7 +10059,9 @@ try {
             paymentId: evt.paymentId || null,
             invoiceId: evt.invoice_id || evt.invoiceId || null,
             amountUsd,
+            paymentStatus: 'finished',
             meta: {
+              payment_status: 'finished',
               payCurrency: evt.payCurrency || null,
               price_amount: evt.price_amount != null ? evt.price_amount : null,
               actually_paid: evt.actually_paid != null ? evt.actually_paid : null,
@@ -11110,10 +11150,12 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
       });
       const payAddress = (inv && (inv.payoutAddress || inv.btcAddress || inv.address)) || __OWNER_BTC;
       return res.json({
-        ok: true,
+        ok: false,
+        status: 'NOT CONFIGURED',
         fallback: true,
         fallbackRail: 'btc_direct',
         reason: invoice.reason || 'nowpayments_not_configured',
+        honesty: 'NOWPayments is not configured. This body is a Bitcoin invoice, not a NOWPayments payment.',
         id: inv.id,
         pay_currency: 'btc',
         pay_address: payAddress,
@@ -11236,6 +11278,7 @@ app.get(['/api/payment/methods', '/api/payments/methods'], (req, res) => {
     return res.json({
       methods,
       emailConfigured,
+      integration: require('../src/commerce/integration-status').snapshot(),
       honesty: 'config-backed',
       primaryRail: 'btc-direct',
       cardArmed: methods.some((m) => m && (m.id === 'card' || m.id === 'stripe')),

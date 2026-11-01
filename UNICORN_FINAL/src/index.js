@@ -2817,6 +2817,7 @@ function getPublicPaymentMethods() {
     methods,
     status,
     emailConfigured,
+    integration: require('./commerce/integration-status').snapshot(),
     primaryRail: 'btc-direct',
     honesty: {
       ethAdvertised: false,

@@ -665,7 +665,7 @@ const OFFER_TITLES = {
 };
 
 const OFFER_WHY = {
-  'instant-website-audit': 'The file is a Markdown audit of a URL you send. It does not open a repository and it does not fill in a score unless a provider key is armed.',
+  'instant-website-audit': 'The file is a Markdown audit of a URL you send. It fetches that URL after payment. The score counts only checks read from that response. A failed fetch leaves the score empty.',
   'instant-resume-makeover': 'The file is a resume and a LinkedIn headline written from text you supply. It does not invent an employer.',
   'professional-saas-mvp': 'The file is a kickoff: scope, an architecture sketch, and milestones. The finished product is not in the file.',
   'ent-engagement-kickoff': 'The file is a discovery brief, a proposal, and a draft statement of work. It does not include a license, a private cloud, or a code review.',

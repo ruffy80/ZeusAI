@@ -15,7 +15,7 @@ const SEED = [
     tier: 'instant',
     priceUSD: 49,
     deliveryMinutes: 5,
-    description: 'The file is a Markdown audit: scorecard, SEO, performance, accessibility, and a 30-day plan, written from your URL. No score is filled in unless a provider key is armed and the model writes one. The pack does not invent a measurement.',
+    description: 'The file is a Markdown audit of the URL on the order. The paid file fetches that URL and scores only the checks the response contained. A failed fetch leaves the score empty. The pack does not invent a measurement.',
     inputs: [
       { key: 'url', label: 'Website URL', required: true, type: 'url' },
       { key: 'email', label: 'Delivery Email', required: true, type: 'email' }
