@@ -13639,13 +13639,17 @@ a{color:#8a5cff;text-decoration:none}
         ssrParams.toolQuery = toolQuery;
       }
     } catch (_) { /* geo desk is optional for routes it does not own */ }
+    if (route === '/checkout' || route.startsWith('/services/')) {
+      const siteUrlQ = String(requestUrl.searchParams.get('url') || '').trim();
+      if (siteUrlQ) ssrParams.siteUrl = siteUrlQ.slice(0, 300);
+    }
     const __ssrMemoOk = !(ssrParams.plan || ssrParams.id || ssrParams.twinId || ssrParams.missingPath || ssrParams.toolQuery)
       && !requestUrl.search
       && !/^\/(dashboard|admin|checkout|order)\b/.test(route);
     // Buy-click instant: short-TTL memo for checkout chooser shells keyed by
     // lang + plan + rounded USD so SPA navigations hit warm HTML.
     const __checkoutShellMemoOk = route === '/checkout' && ssrParams.plan
-      && !(ssrParams.id || ssrParams.twinId || ssrParams.missingPath);
+      && !(ssrParams.id || ssrParams.twinId || ssrParams.missingPath || ssrParams.siteUrl);
     const __ssrMemoKey = __ssrMemoOk
       ? (String(lang || 'en') + '\0' + route)
       : (__checkoutShellMemoOk

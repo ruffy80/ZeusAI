@@ -51,6 +51,26 @@ function hostBlocked(hostname) {
   return null;
 }
 
+function normalizePublicUrl(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return { ok: false, reason: 'audit_url_required' };
+  if (text.length > 300) return { ok: false, reason: 'invalid_url' };
+  let candidate = text;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(candidate)) candidate = 'https://' + candidate;
+  let parsed;
+  try { parsed = new URL(candidate); } catch (_) {
+    return { ok: false, reason: 'invalid_url' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { ok: false, reason: 'unsupported_protocol' };
+  }
+  if (parsed.username || parsed.password) return { ok: false, reason: 'credentials_in_url' };
+  const blocked = hostBlocked(parsed.hostname);
+  if (blocked) return { ok: false, reason: blocked };
+  parsed.hash = '';
+  return { ok: true, url: parsed.toString() };
+}
+
 async function resolvePublic(hostname) {
   const blocked = hostBlocked(hostname);
   if (blocked) {
@@ -362,4 +382,4 @@ function render(opts) {
   ].join('\n');
 }
 
-module.exports = { scan, render, urlFromReceipt, measure };
+module.exports = { scan, render, urlFromReceipt, measure, normalizePublicUrl };

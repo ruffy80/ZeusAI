@@ -336,6 +336,24 @@ function collectOrderInputs() {
   return inputs;
 }
 
+function auditUrlField(serviceId) {
+  const sid = String(serviceId || '');
+  if (sid !== 'instant-website-audit' && sid !== 'website-audit') return null;
+  return document.querySelector('[data-order-input="url"]');
+}
+
+function auditUrlMissing(serviceId) {
+  const field = auditUrlField(serviceId);
+  if (!field) return false;
+  return !String(field.value || '').trim();
+}
+
+function typedAuditUrl(serviceId) {
+  const field = auditUrlField(serviceId);
+  if (!field) return '';
+  return String(field.value || '').trim().slice(0, 300);
+}
+
 function paymentLabels(){
   const ids = (STATE.paymentMethods || []).filter(m => m && m.active !== false).map(m => m.id || m.provider || '');
   const labels = ['BTC direct'];
@@ -3228,6 +3246,10 @@ async function sovereignBuy(serviceId, opts){
       window.location.href = '/enterprise#enterprise-contact';
       return;
     }
+    if (auditUrlMissing(sid)) {
+      toast('Enter the public website URL. The scan runs after payment.', 'err');
+      return;
+    }
     // Email is optional for invoice mint — restore one-click Buy → BTC QR.
     // Prefer inline #svcBuyEmail / hero field / remembered email; never block
     // on window.prompt (that was the "only asks for email" regression).
@@ -3336,12 +3358,37 @@ if (typeof window !== 'undefined') {
         mode === 'btc-direct' || t.hasAttribute('data-sovereign-instant')
         || t.id === 'coSovereignPrimary' || t.id === 'coPay'
       );
+      if (auditUrlMissing(id)) {
+        toast('Enter the public website URL. The scan runs after payment.', 'err');
+        return;
+      }
       if (instantBtc) {
         sovereignBuy(id, { preorder, el: t });
         return;
       }
-      const href = '/checkout/?plan=' + encodeURIComponent(id) + (preorder ? '&preorder=1' : '');
+      const typed = typedAuditUrl(id);
+      const href = '/checkout/?plan=' + encodeURIComponent(id) + (preorder ? '&preorder=1' : '') + (typed ? ('&url=' + encodeURIComponent(typed)) : '');
       goCheckoutSpa(href, t);
+    }, true);
+    document.addEventListener('click', function (ev) {
+      const link = ev.target && ev.target.closest && ev.target.closest('a[data-pay-rail]');
+      if (!link) return;
+      const box = link.closest && link.closest('[data-pay-options]');
+      const id = box ? box.getAttribute('data-pay-options') : '';
+      if (!auditUrlField(id)) return;
+      if (auditUrlMissing(id)) {
+        ev.preventDefault();
+        if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        toast('Enter the public website URL. The scan runs after payment.', 'err');
+        return;
+      }
+      const typed = typedAuditUrl(id);
+      if (!typed) return;
+      try {
+        const next = new URL(link.getAttribute('href') || '/checkout/', window.location.origin);
+        next.searchParams.set('url', typed);
+        link.setAttribute('href', next.pathname + next.search);
+      } catch (_) {}
     }, true);
   }
 }
@@ -4045,6 +4092,10 @@ function hydrateCheckout(){
     }
     if (email && !validEmail(email)) {
       toast('Email looks invalid — clear it or fix it', 'err');
+      return;
+    }
+    if (auditUrlMissing(pl)) {
+      toast('Enter the public website URL. The scan runs after payment.', 'err');
       return;
     }
     try { if (email) localStorage.setItem('u_email', email); } catch (_) {}
