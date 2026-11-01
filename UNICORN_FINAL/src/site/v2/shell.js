@@ -5015,6 +5015,10 @@ function renderRoute(route, params = {}) {
     const preview = pageDeliveryPreview(deliveryId);
     return preview || '<section style="padding-top:140px"><h1>This delivery is private.</h1></section>';
   }
+  try {
+    const roadPage = require('../../commerce/roadmap-desk').page(route, params);
+    if (roadPage) return roadPage;
+  } catch (_) { /* this route is not a roadmap desk */ }
   switch (route) {
     case '/': return pageHome();
     case '/origin': return pageOrigin(params);
@@ -7779,7 +7783,7 @@ function pageAffiliate() {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Affiliate</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Refer revenue, <span class="grad">get paid in BTC.</span></h1>
-  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live today — every visit is logged server-side with your ref code and tied to purchases. <strong style="color:#fff">BTC payouts are manual / early-access</strong>: the owner settles directly until automated payout rails ship.</p>
+  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live today — every visit is logged server-side with your ref code and tied to purchases. <strong style="color:#fff">BTC payouts are manual</strong>: the owner sends Bitcoin, then the txid is stored. The self-serve desk is <a href="/affiliate/desk" data-link>/affiliate/desk</a>. This page does not broadcast a transaction.</p>
   <div class="card" style="padding:22px;margin-top:24px;display:grid;gap:12px;max-width:640px">
     <label style="font-size:12px;color:var(--ink-dim)">Your ref code (pick anything unique — your brand, handle, etc.)</label>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -7794,7 +7798,7 @@ function pageAffiliate() {
     <div class="card" style="padding:18px"><span class="tag">2 · Tracked</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Hits are appended to a server-side ledger (timestamp + ref). Honest infrastructure: no cookies-of-doom, no third-party pixels.</p></div>
     <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms agreed per partner (typ. 10–25% of first-year revenue). <strong style="color:#fff">Payouts are currently manual</strong> — the owner settles directly in BTC to your wallet (early-access). <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
   </div>
-  <p style="color:var(--ink-dim);font-size:13px;margin-top:18px">Program status: early-access — tracking live, payouts handled directly by the owner until self-serve dashboards ship. Everything above is real today; nothing more is promised.</p>
+  <p style="color:var(--ink-dim);font-size:13px;margin-top:18px">Program status: tracking is live and the <a href="/affiliate/desk" data-link>desk</a> shows a txid only after one is recorded. Payouts stay manual. Nothing else is promised.</p>
   <script>
   (function(){var g=document.getElementById('affGen'),c=document.getElementById('affCode'),o=document.getElementById('affOut'),cp=document.getElementById('affCopy');if(!g)return;function gen(){var code=(c.value||'').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64);if(!code){o.style.display='block';o.textContent='Enter a code first.';return;}var link=location.origin+'/?ref='+encodeURIComponent(code);o.style.display='block';o.textContent=link;cp.style.display='flex';try{localStorage.setItem('aff_code',code)}catch(_){}}g.addEventListener('click',gen);c.addEventListener('keydown',function(e){if(e.key==='Enter')gen()});cp.addEventListener('click',function(){try{navigator.clipboard.writeText(o.textContent);cp.textContent='✓ Copied';setTimeout(function(){cp.textContent='Copy link'},1500)}catch(_){}});try{var saved=localStorage.getItem('aff_code');if(saved){c.value=saved;}}catch(_){}})();
   </script>
@@ -7809,7 +7813,7 @@ function pagePartners() {
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
     <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver engagement packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Resell the marketplace offers your client can actually receive. The public API is <a href="/docs" data-link>API &amp; Docs</a>. A kickoff file is not a finished deployment.</p></div>
-    <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. A machine quote uses the catalog list price at <a href="/agents/quote" data-link>/agents/quote</a>.</p></div>
   </div>
   <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <span style="color:var(--ink-dim);font-size:14px">Start the conversation:</span>
@@ -7832,20 +7836,22 @@ function pageRoadmap() {
         <li><a href="/enterprise" data-link>Enterprise engagement packs</a></li>
         <li>Ed25519-signed receipts + <a href="/trust" data-link>Trust Center</a></li>
         <li><a href="/refund" data-link>Refund contract</a> and <a href="/contact" data-link>owner contact</a></li>
+        <li><a href="/funnel" data-link>Self-optimizing conversion funnel</a> — yield is visits and conversions this process recorded. Nothing is promoted at zero.</li>
+        <li><a href="/recovery" data-link>Checkout abandonment recovery</a> — resume a checkout you already opened. This page does not send a message.</li>
+        <li><a href="/affiliate/desk" data-link>Affiliate self-serve dashboard</a> — a Bitcoin txid appears only after one is stored.</li>
+        <li><a href="/agents/quote" data-link>Machine-negotiated quotes</a> — the counter is the catalog list price.</li>
+        <li><a href="/pq" data-link>Hybrid Ed25519+ML-DSA</a> — one verified sample. Paid receipts stay Ed25519.</li>
+        <li><a href="/replicas" data-link>Sovereign replicas</a> — this process, plus URLs named in the environment. No extra region is invented.</li>
+        <li><a href="/byo" data-link>BYO-infra runbooks</a> — the file does not install an operating system.</li>
+        <li><a href="/module-registry" data-link>Third-party module registry</a> — empty until a name and a payout address are submitted.</li>
       </ul></div>
     <div class="card" style="padding:22px;border-color:rgba(255,211,106,.35)"><span class="tag" style="background:rgba(255,211,106,.12);color:#ffd36a">⚙ Now building</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
-        <li>Self-optimizing conversion funnel (yield-ranked URL promotion)</li>
-        <li>Checkout abandonment recovery agent</li>
-        <li>Affiliate self-serve dashboard with on-chain payout proofs</li>
-        <li>Deeper agent-to-agent commerce (machine-negotiated quotes)</li>
+        <li>Nothing is queued. A proposal sits here only while it has no page.</li>
       </ul></div>
     <div class="card" style="padding:22px"><span class="tag">→ Next horizon</span>
       <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
-        <li>Post-quantum signature migration (hybrid Ed25519+ML-DSA)</li>
-        <li>Multi-region sovereign replicas</li>
-        <li>Customer-deployable vertical OS instances (BYO-infra)</li>
-        <li>Revenue-share marketplace for third-party modules</li>
+        <li>Nothing is parked. The next proposal appears here when it is named and not yet openable.</li>
       </ul></div>
   </div>
   <p style="color:var(--ink-dim);font-size:13.5px;margin-top:22px">Receipts for the past live in the <a href="/changelog" data-link>changelog</a>.</p>
@@ -7932,7 +7938,7 @@ function pageAgents() {
   <p style="color:var(--ink-dim);max-width:720px;font-size:16px;line-height:1.7">ZeusAI ships an <strong style="color:var(--ink)">agent-first commerce surface</strong>: a discoverable manifest, a signed quote endpoint, a BTC-native checkout and cryptographic delivery receipts. AI agents can transact end-to-end with zero human-in-the-loop. The same endpoints work for humans, so nothing is hidden.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:26px 0">
     <div class="card" style="padding:20px"><span class="tag">1 · Discover</span><h3 style="margin:10px 0 6px;font-size:17px">GET <code>/agents.json</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">The manifest lists capabilities, pricing lanes, receipt schema, and the owner's BTC endpoint. Standard <em>well-known</em>-style discovery.</p></div>
-    <div class="card" style="padding:20px"><span class="tag">2 · Quote &amp; buy</span><h3 style="margin:10px 0 6px;font-size:17px">POST <code>/api/agent/order</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">Send a JSON body { serviceId, qty, email } and receive a signed order intent + a BTC pay-to address. Every step is reproducible.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">2 · Quote &amp; buy</span><h3 style="margin:10px 0 6px;font-size:17px">POST <code>/api/agent/order</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">Send a JSON body { serviceId, qty, email } and receive a signed order intent + a BTC pay-to address. Every step is reproducible. The list-price counter is at <a href="/agents/quote" data-link>/agents/quote</a>.</p></div>
     <div class="card" style="padding:20px"><span class="tag">3 · Settle &amp; verify</span><h3 style="margin:10px 0 6px;font-size:17px">GET <code>/api/order/:id/status</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">Poll until <code>status=paid</code>. Delivery pack (Ed25519-signed) becomes available at <code>/api/delivery/:orderId</code>. No opaque webhooks.</p></div>
   </div>
   <div class="card" style="padding:0;overflow:auto;margin:20px 0">
@@ -8176,6 +8182,10 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return HOME_TITLE;
   try {
+    const roadMeta = require('../../commerce/roadmap-desk').meta(route);
+    if (roadMeta && roadMeta.title) return roadMeta.title;
+  } catch (_) { /* title map below */ }
+  try {
     const productMeta = require('./four-products').meta(route);
     if (productMeta && productMeta.title) return productMeta.title;
   } catch (_) { /* shelf titles below */ }
@@ -8236,6 +8246,10 @@ function routeDescription(route) {
   if (authoredDesc && authoredDesc.description) return authoredDesc.description;
   const landingDesc = enterpriseLanding(route);
   if (landingDesc) return landingDesc.description;
+  try {
+    const roadMeta = require('../../commerce/roadmap-desk').meta(route);
+    if (roadMeta && roadMeta.description) return roadMeta.description;
+  } catch (_) { /* description map below */ }
   const map = {
     '/': HOME_DESCRIPTION,
     '/module-census': 'Public census of every Unicorn backend module: files, aliases, virtual workers, absent registry names, and refused names.',
@@ -8303,7 +8317,7 @@ function routeDescription(route) {
     '/outreach-desk': 'Internal outreach desk. Drafts are not sent from this page.',
     '/affiliate': 'ZeusAI affiliate program with live server-side referral tracking and BTC commission payouts — generate your link instantly.',
     '/partners': 'Partner with ZeusAI: reseller, integrator and agent-to-agent technology lanes with BTC-native settlement and direct owner access.',
-    '/roadmap': 'ZeusAI public roadmap: shipped capabilities you can verify live, what the autonomous loop is building now, and the next horizon.',
+    '/roadmap': 'ZeusAI public roadmap. Shipped means a buyer can open the page. Empty ledgers stay at zero.',
     '/careers': 'ZeusAI is an autonomous, owner-operated AI company — open human roles appear here first; outcome-based collaborations welcome.',
     '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.',
     '/agents': 'Agent Commerce Protocol: how AI agents discover, quote, buy and settle ZeusAI capabilities autonomously via /agents.json + BTC checkout + Ed25519 receipts.'

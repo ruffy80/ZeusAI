@@ -1116,6 +1116,12 @@ async function createOrder(ctx, input) {
       orderId,
     });
   } catch (_) { /* observe-only */ }
+  try {
+    const roadDesk = require('../commerce/roadmap-desk');
+    roadDesk.noteConversion('/checkout');
+    roadDesk.noteConversion('/services/' + String(serviceId || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 80));
+    roadDesk.markCheckoutOrdered(serviceId);
+  } catch (_) { /* conversion counter must not block checkout */ }
   // Canonical Settle Bridge — dual-write portal shadow off the create critical path.
   const orderForBridge = order;
   setImmediate(function () {

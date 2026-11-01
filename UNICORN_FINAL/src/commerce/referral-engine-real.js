@@ -25,7 +25,10 @@ function _secret(name, fallback) {
 }
 
 const DATA_DIR = path.resolve(__dirname, '..', '..', 'data', 'commerce');
-const DB_FILE = path.join(DATA_DIR, 'referrals.sqlite');
+function dbFile() {
+  if (process.env.NODE_ENV === 'test' && process.env.REFERRAL_DB_FILE) return process.env.REFERRAL_DB_FILE;
+  return path.join(DATA_DIR, 'referrals.sqlite');
+}
 
 let db = null;
 let usingSqlite = false;
@@ -37,8 +40,9 @@ function _init() {
   _inited = true;
   try {
     const Database = require('better-sqlite3');
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    db = new Database(DB_FILE);
+    const file = dbFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    db = new Database(file);
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.exec(`
@@ -68,7 +72,7 @@ function _init() {
       CREATE INDEX IF NOT EXISTS idx_redemption_email ON referral_redemptions(referred_email);
     `);
     usingSqlite = true;
-    console.log('[referral-real] SQLite WAL active at ' + DB_FILE);
+    console.log('[referral-real] SQLite WAL active at ' + file);
   } catch (e) {
     console.warn('[referral-real] SQLite unavailable, falling back to memory:', e.message);
     usingSqlite = false;
@@ -269,6 +273,51 @@ function markPaid(id, opts) {
   return { ok: true, ...rec, honesty: 'ledger_only_manual_btc' };
 }
 
+function publicProofs(code) {
+  _init();
+  const clean = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
+  const chainNote = 'This page does not query the Bitcoin network. The txid is the value stored after a manual send. This page does not broadcast a transaction.';
+  const emptyNote = 'No on-chain payout proof is stored. The owner settles manually. A txid appears only after one is recorded.';
+  const row = clean.length >= 3 ? lookupCode(clean) : null;
+  if (!row) {
+    return { ok: true, found: false, code: clean, redemptions: 0, payoutOwedUsd: 0, proofs: [], note: 'No code is stored under that name. ' + emptyNote };
+  }
+  let rows = [];
+  if (usingSqlite && db) {
+    rows = db.prepare(
+      'SELECT id, payout_usd, payout_status, payout_btc_txid FROM referral_redemptions WHERE code = ? ORDER BY id DESC LIMIT 50'
+    ).all(row.code);
+  } else {
+    rows = memoryStore.redemptions.filter((item) => item.code === row.code).map((item) => ({
+      id: item.id,
+      payout_usd: item.payoutUsd,
+      payout_status: item.payoutStatus,
+      payout_btc_txid: item.payoutBtcTxid || null,
+    }));
+  }
+  const proofs = rows
+    .filter((item) => item.payout_btc_txid && String(item.payout_btc_txid).length >= 8)
+    .map((item) => ({
+      redemptionId: item.id,
+      payoutUsd: Math.round(Number(item.payout_usd || 0) * 100) / 100,
+      txid: String(item.payout_btc_txid),
+    }));
+  const owed = rows
+    .filter((item) => item.payout_status === 'pending')
+    .reduce((sum, item) => sum + Number(item.payout_usd || 0), 0);
+  return {
+    ok: true,
+    found: true,
+    code: row.code,
+    discountPct: row.discount_pct,
+    payoutPct: row.payout_pct,
+    redemptions: rows.length,
+    payoutOwedUsd: Math.round(owed * 100) / 100,
+    proofs,
+    note: proofs.length ? chainNote : emptyNote,
+  };
+}
+
 function _resetForTests() {
   _init();
   if (usingSqlite && db) { db.exec('DELETE FROM referral_redemptions; DELETE FROM referral_codes;'); }
@@ -277,5 +326,5 @@ function _resetForTests() {
 
 module.exports = {
   getOrCreateCode, lookupCode, ensureTrackedCode, recordRedemption,
-  statsFor, globalStats, listPendingPayouts, markPaid, _resetForTests,
+  statsFor, globalStats, listPendingPayouts, markPaid, publicProofs, _resetForTests,
 };
