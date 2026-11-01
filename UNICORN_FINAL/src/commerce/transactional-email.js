@@ -399,6 +399,7 @@ async function sendTransactional({ to, template, data, direct, type, userId, ord
   const tpl = TEMPLATES[template];
   if (!tpl) return { ok: false, error: 'unknown_template' };
   const { subject, text, html } = tpl(data || {});
+  let meshMiss = null;
   if (direct !== true) {
     const via = await _routeSnm({
       to,
@@ -410,11 +411,12 @@ async function sendTransactional({ to, template, data, direct, type, userId, ord
       orderId: orderId || (data && data.orderId) || null,
       private: template === 'password_reset' || template === 'delivery_artifact' || (data && data.private === true),
     });
-    if (via) return via;
+    if (via && via.ok) return via;
+    if (via && via.ok === false) meshMiss = via;
   }
   const providers = configuredProviders();
   if (providers.length === 0) {
-    // Fail-honest: nothing was sent. Callers must NOT treat this as success.
+    if (meshMiss) return meshMiss;
     return { ok: false, reason: 'email_unconfigured', skipped: 'unconfigured' };
   }
 
@@ -452,7 +454,8 @@ async function sendRaw({ to, subject, text, html, direct, type, userId, orderId,
       orderId: orderId || null,
       private: isPrivate === true,
     });
-    if (via) return via;
+    if (via && via.ok) return via;
+    // A mesh miss is not an email. Continue to Resend, Brevo, MailerSend, then SMTP.
   }
   const providers = configuredProviders();
   if (providers.length === 0) {

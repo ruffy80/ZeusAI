@@ -74,7 +74,7 @@ function pageProduct(id) {
   const related = offerings.relatedProducts(id, item.category);
   const sampleHtml = sample
     ? '<pre>' + esc(sample.text) + '</pre>'
-    : '<p>sample coming soon</p>';
+    : '<p>No sample file is stored for this offer. The paid download is the delivery.</p>';
   const qr = item.btcUri ? ('/api/qr?d=' + encodeURIComponent(item.btcUri)) : '';
   const address = (item.btcUri || '').replace(/^bitcoin:/, '').split('?')[0];
   const relatedHtml = related.map((row) => '<a href="/products/' + encodeURIComponent(row.id) + '" data-link>' + esc(row.name) + '</a>').join(' · ');

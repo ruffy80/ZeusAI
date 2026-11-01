@@ -685,31 +685,20 @@ function writtenDeliverable(serviceId, receipt, recipe, opts) {
     return require('../../commerce/security-desk').deliver(serviceId, quoted);
   }
   if (recipeId === 'website-audit') {
-    return [
-      '## Scorecard',
-      'Subject: ' + seed,
-      'URL: ' + (quoted.map((line) => String(line)).find((line) => /^url:/i.test(line)) || 'not on the order. No page was fetched.'),
-      'No score is filled in. This copy did not fetch the page.',
-      '',
-      '## SEO findings',
-      '- Check the title, the meta description, one H1, and the canonical on that URL.',
-      '- Check whether the URL is in the sitemap.',
-      '',
-      '## Performance',
-      '- Check the largest image, render-blocking scripts, and cache headers.',
-      '',
-      '## Accessibility',
-      '- Check contrast, labels on form fields, and keyboard focus.',
-      '',
-      '## 30-day fix plan',
-      '1. Week 1: title, meta, and canonical.',
-      '2. Week 2: the largest image and cache headers.',
-      '3. Week 3: labels and focus.',
-      '4. Week 4: repeat the same checks. Do not invent a score.',
-    ].join('\n') + (function () {
-      try { return '\n' + require('../../../modules/witness/routes').citationBlock(serviceId || 'instant-website-audit'); }
-      catch (_) { return ''; }
-    }());
+    const scan = receipt && (receipt.auditScan || (receipt.meta && receipt.meta.auditScan));
+    let body = '';
+    try {
+      body = require('../../commerce/audit-scan').render({ seed, quoted, scan });
+    } catch (err) {
+      body = [
+        '## Scorecard',
+        'Subject: ' + seed,
+        'No score is filled in. Fetch failed: ' + clipText(err && err.message, 80) + '.',
+      ].join('\n');
+    }
+    try { body += '\n' + require('../../../modules/witness/routes').citationBlock(serviceId || 'instant-website-audit'); }
+    catch (_) { /* citation is optional */ }
+    return body;
   }
   if (recipeId === 'seo-content-pack') {
     return [
@@ -1116,6 +1105,23 @@ async function fulfillService(receipt, serviceId) {
     ? ENTERPRISE_RECIPE
     : (professional ? PROFESSIONAL_RECIPE : pickRecipe(serviceId));
   const tier = enterprise ? 'enterprise' : (professional ? 'professional' : 'standard');
+  if (recipe && recipe.id === 'website-audit') {
+    try {
+      const scanner = require('../../commerce/audit-scan');
+      const pageUrl = scanner.urlFromReceipt(receipt);
+      receipt.auditScan = pageUrl
+        ? await scanner.scan(pageUrl)
+        : { fetched: false, score: null, reason: 'url_missing', checks: [] };
+    } catch (err) {
+      receipt.auditScan = { fetched: false, score: null, reason: String(err && err.code || err && err.message || 'fetch_failed').slice(0, 80), checks: [] };
+    }
+    return attachEnterprisePack(buildDeterministicArtifact(receipt, serviceId, recipe, {
+      enterprise,
+      professional,
+      requiresHuman: human,
+      reason: 'measured_page',
+    }), receipt, serviceId);
+  }
   // High-ticket / professional stays on engagement/kickoff packs (never fake "AI delivered product").
   const shouldUseAi = !human && shouldUseAiForSku(serviceId);
   if (shouldUseAi && fulfillmentAiOs && typeof fulfillmentAiOs.reloadKeysFromSanctum === 'function') {

@@ -54,7 +54,7 @@ function status() {
     emergencyStop: String(process.env.GROWTH_EMERGENCY_STOP || '') === '1',
     primaryOffer: {
       id: 'instant-website-audit',
-      delivers: 'A Markdown audit file. A score is written only when a model provider key is armed.',
+      delivers: 'A Markdown audit file. The score is the count of checks read from the submitted URL. A failed fetch leaves the score empty.',
       refund: '/refund',
       price: null,
       priceNote: 'Read GET /api/price/instant-website-audit. This desk does not copy a dollar amount.',
