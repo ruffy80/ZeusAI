@@ -361,6 +361,19 @@ async function run() {
     assertBtcInvoice(uiCheckout.body, '/api/uaic/order');
     const receiptId = uiCheckout.body.receipt.id;
 
+    const unpaidCheckout = await request('/api/checkout/create', {
+      method: 'POST',
+      body: JSON.stringify({ serviceId: 'instant-website-audit', qty: 1, email: 'unpaid-delivery@example.com' }),
+    });
+    assert.ok(unpaidCheckout.status === 200 || unpaidCheckout.status === 201, 'checkout create ' + unpaidCheckout.status);
+    const unpaidOrder = unpaidCheckout.body.order || unpaidCheckout.body;
+    const unpaidId = unpaidOrder.orderId || unpaidOrder.id;
+    const unpaidToken = unpaidOrder.access_token;
+    assert.ok(unpaidId && unpaidToken, 'unpaid checkout must carry an order token');
+    const unpaidFile = await request('/api/delivery/' + encodeURIComponent(unpaidId) + '?format=artifact&access_token=' + encodeURIComponent(unpaidToken));
+    assert.equal(unpaidFile.status, 409, 'an unpaid order must not download the service');
+    assert.equal(unpaidFile.body.error, 'order_not_paid');
+
     const receiptBeforePay = await request('/api/receipt/' + encodeURIComponent(receiptId));
     assert.equal(receiptBeforePay.status, 200);
     assert.equal(receiptBeforePay.body.receipt.status, 'pending');
