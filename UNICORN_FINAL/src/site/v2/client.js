@@ -4151,7 +4151,7 @@ function hydrateCheckout(){
       } else if (rail === 'nowpayments' || rail === 'card') {
         const np = await api('/api/order/' + encodeURIComponent(order.orderId) + '/nowpayments/create', {
           method: 'POST',
-          body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any' }),
+          body: JSON.stringify({ access_token: order.access_token, payCurrency: 'any', rail: rail }),
         });
         if (np && np.invoiceUrl) {
           try { localStorage.setItem('u_preferred_rail', rail); } catch (_) {}
