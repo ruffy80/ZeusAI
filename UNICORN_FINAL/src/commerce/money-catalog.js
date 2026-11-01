@@ -192,6 +192,7 @@ function render(row, receipt) {
   if (row.tier === 'industry') {
     return sealMoney(head.concat([
       '## Outcomes',
+      '## KPI focus',
       'The page focus is: ' + row.kpi + '.',
       'That phrase is the focus label. It is not a measured result and it is not a certification.',
       '',

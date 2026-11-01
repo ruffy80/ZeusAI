@@ -163,7 +163,7 @@ function _fireDelivery(order) {
     if (payFulfill && typeof payFulfill.settleAndNotify === 'function') {
       Promise.resolve(payFulfill.settleAndNotify({
         receipt: receiptLike,
-        source: 'btc-sovereign',
+        source: order.paid_via || railPatch.paid_via || 'btc',
       })).catch((e) =>
         console.warn('[commerce] pay-fulfill notify error for ' + order.orderId + ':', e && e.message)
       );

@@ -3033,21 +3033,16 @@ function runDeliveryForReceipt(receipt, opts) {
     };
     try {
       const fulfillmentEngine = require('./site/v2/fulfillment-engine');
-      Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
-        .then((r) => {
-          if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total);
-          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
-          recordProofOfDelivery(latestDelivery || delivery);
-          _emitWsiDelivered(latestDelivery || delivery);
-          _firePayFulfillNotify(receipt, latestDelivery || delivery);
-        })
-        .catch((e) => {
-          console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message);
-          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
-          recordProofOfDelivery(latestDelivery || delivery);
-          _emitWsiDelivered(latestDelivery || delivery);
-          _firePayFulfillNotify(receipt, latestDelivery || delivery);
-        });
+      const syncResult = fulfillmentEngine.fulfillReceiptBlocking(receipt);
+      if (syncResult && syncResult.ok) {
+        console.log('[fulfillment] receipt=' + receipt.id + ' status=' + syncResult.fulfillmentStatus + ' delivered=' + syncResult.delivered + '/' + syncResult.total);
+      } else {
+        console.warn('[fulfillment] blocked for ' + receipt.id + ':', syncResult && syncResult.error);
+      }
+      const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
+      recordProofOfDelivery(latestDelivery || delivery);
+      _emitWsiDelivered(latestDelivery || delivery);
+      _firePayFulfillNotify(receipt, latestDelivery || delivery);
     } catch (e) {
       console.warn('[fulfillment] engine load failed:', e.message);
       recordProofOfDelivery(delivery);

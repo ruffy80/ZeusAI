@@ -322,6 +322,62 @@ async function post(orderId, body, headers) {
     assert.equal(JSON.stringify(snap.businessModules).includes('sk_'), false);
   });
 
+  await check('a paid file is stored before the delivery call returns', async () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'paid-file-'));
+    const previous = process.env.UNICORN_DATA_DIR;
+    process.env.UNICORN_DATA_DIR = tmp;
+    const registryPath = require.resolve('../src/site/v2/delivery-registry');
+    const enginePath = require.resolve('../src/site/v2/fulfillment-engine');
+    delete require.cache[registryPath];
+    delete require.cache[enginePath];
+    const registry = require('../src/site/v2/delivery-registry');
+    const paidEngine = require('../src/site/v2/fulfillment-engine');
+    const receipt = {
+      id: 'ord_block_email',
+      serviceId: 'instant-email-sequence',
+      serviceName: 'Instant Email Onboarding Sequence',
+      plan: 'instant-email-sequence',
+      status: 'paid',
+      email: 'buyer@example.com',
+      meta: { inputs: { product: 'Northwind' } },
+    };
+    registry.deliver(receipt);
+    const blocked = paidEngine.fulfillReceiptBlocking(receipt);
+    if (previous == null) delete process.env.UNICORN_DATA_DIR;
+    else process.env.UNICORN_DATA_DIR = previous;
+    assert.equal(blocked.ok, true, blocked.error);
+    const saved = registry.get(receipt.id);
+    assert.ok(saved.artifacts[0].content.includes('Northwind'));
+    assert.ok(saved.artifacts[0].content.includes('Email 5'));
+    const ent = registry.deliverableSet({ id: 'ord_entpack', email: 'buyer@example.com' }, 'ent-platform-license');
+    assert.equal(ent.files.some((file) => file.kind === 'license'), false);
+    assert.ok(/not in this download/i.test(ent.summary));
+    const src = fs.readFileSync(path.join(__dirname, '../src/site/sovereign-commerce.js'), 'utf8');
+    assert.ok(src.includes('source: order.paid_via'));
+    const shelf = require('../src/commerce/public-shelf');
+    const finished = require('../src/commerce/finished-delivery');
+    const gaps = [];
+    for (const item of shelf.publicShelf()) {
+      const out = await paidEngine.fulfillReceipt({
+        id: 'ord_gap_' + item.id,
+        serviceId: item.id,
+        serviceName: item.title,
+        plan: item.id,
+        status: 'paid',
+        amount: item.priceFloorUsd,
+        email: 'buyer@example.com',
+        meta: { inputs: { brief: 'Northwind', url: 'https://example.com', product: 'Northwind' } },
+      });
+      const text = out && out.artifacts && out.artifacts[0] && out.artifacts[0].content || '';
+      const review = finished.review(item, text);
+      if (!out.ok || !review.pass || text.indexOf(item.title) === -1) gaps.push(item.id);
+    }
+    assert.deepEqual(gaps, []);
+  });
+
   console.log('✅ prod-readiness: ' + passed + ' tests passed');
   process.exit(0);
 })().catch((err) => {
