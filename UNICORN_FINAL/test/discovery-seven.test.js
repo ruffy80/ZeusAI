@@ -81,18 +81,13 @@ check('buyable guide matches shelf price and checkout', () => {
   assert.ok(meta.description.includes(meta.title.slice(0, 24)));
 });
 
-check('the acquisition guide sells the pack and kickoff stays a paid start', () => {
-  const contact = shelf.byId('ent-acquisition-pack');
-  assert.ok(contact);
-  assert.strictEqual(contact.buyable, true);
-  const html = d7.guideHtml(contact.id);
-  assert.ok(/not in this download/i.test(html));
-  assert.ok(html.includes('/checkout/?plan=' + contact.id));
-  assert.ok(!/not a cart/i.test(html));
-  const kick = d7.guideHtml('ent-engagement-kickoff');
-  assert.ok(kick.includes('does not deliver the license'));
+check('the kickoff is the payable enterprise file and a contract figure is not on the shelf', () => {
+  assert.strictEqual(shelf.byId('ent-acquisition-pack'), null);
+  const html = d7.guideHtml('ent-engagement-kickoff');
+  assert.ok(html.includes('does not deliver the license'));
   const kickItem = shelf.byId('ent-engagement-kickoff');
-  assert.ok(kick.includes(kickItem.ctaHref));
+  assert.ok(kickItem.buyable);
+  assert.ok(html.includes(kickItem.ctaHref));
 });
 
 check('sitemap and IndexNow list the service page and omit guides and internal routes', () => {

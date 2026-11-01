@@ -21,7 +21,7 @@ const LANES = [
   { keys: ['magazin', 'ecommerce', 'e-commerce', 'shopify', 'store', 'shop'], ids: ['professional-ecommerce-store'], also: ['instant-landing-page', 'instant-seo-content-pack', 'professional-ai-chatbot'] },
   { keys: ['pipeline', 'dashboard', 'warehouse', 'kpi'], ids: ['professional-data-pipeline'], also: ['instant-website-audit'] },
   { keys: ['marketing', 'leads', 'campanie', 'clienți', 'clienti'], ids: ['professional-ai-marketing', 'instant-email-sequence'], also: ['instant-landing-page', 'instant-social-media-kit'] },
-  { keys: ['enterprise', 'licen', 'license', 'acquisition', 'achiziti', 'achiziți', 'source code', 'white-label', 'white label', 'on-prem', 'sovereign', 'suveran', 'private cloud', 'transformare'], ids: ['ent-engagement-kickoff'], also: ['ent-platform-license', 'ent-private-cloud', 'ent-acquisition-pack', 'ent-sovereign-deployment'] },
+  { keys: ['enterprise', 'licen', 'license', 'acquisition', 'achiziti', 'achiziți', 'source code', 'white-label', 'white label', 'on-prem', 'sovereign', 'suveran', 'private cloud', 'transformare'], ids: ['ent-engagement-kickoff'], also: ['instant-website-audit', 'professional-saas-mvp', 'instant-security-program'] },
   { keys: ['dropship', 'printful', 'cj dropshipping', 'supplier feed', 'furnizor', 'listing desk'], ids: ['dropship-listing-desk'], also: [] },
   { keys: ['frontier', 'refund shield', 'aura feed', 'bandit transparency'], ids: ['frontier-refund-shield'], also: ['frontier-aura-feed', 'frontier-bandit-transparency'] },
   { keys: ['penetration testing', 'penetration test', 'pentest'], ids: ['instant-security-test-brief'], also: ['instant-security-program'] },
@@ -152,6 +152,7 @@ function publicShelf() {
   try { money = require('./money-catalog').shelfRows() || []; } catch (_) { money = []; }
   for (const raw of instant.concat(enterprise, money)) {
     if (!raw || !raw.id || seen.has(String(raw.id))) continue;
+    if (require('./real-price').isContractFigure(raw.id)) continue;
     seen.add(String(raw.id));
     rows.push(toRecord(raw));
   }

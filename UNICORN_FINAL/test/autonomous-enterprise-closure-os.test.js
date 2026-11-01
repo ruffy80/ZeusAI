@@ -42,7 +42,7 @@ check('enterprise catalog includes kickoff', () => {
   assert.equal(Number(p.priceUSD), 2500);
 });
 
-check('kickoff stays a paid start and the license sells the engagement pack', () => {
+check('kickoff stays a paid start and a contract figure is not a checkout', () => {
   const kick = buyability.assessBuyability({
     id: 'ent-engagement-kickoff',
     tier: 'enterprise',
@@ -58,10 +58,9 @@ check('kickoff stays a paid start and the license sells the engagement pack', ()
     tier: 'enterprise',
     priceUSD: 250000,
   });
-  assert.equal(full.buyable, true);
-  assert.equal(full.mode, 'reserve');
-  assert.equal(full.reason, 'enterprise_pack');
-  assert.ok(String(full.ctaHref).includes('ent-platform-license'));
+  assert.equal(full.buyable, false);
+  assert.equal(full.reason, 'contract_figure_not_a_product_price');
+  assert.ok(!String(full.ctaHref).includes('ent-platform-license'));
 });
 
 check('closeFromContact returns dynamic kickoff quote + checkoutHref', () => {

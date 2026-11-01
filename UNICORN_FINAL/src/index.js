@@ -9691,7 +9691,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         id: it.id,
         title: it.title || it.name || it.id,
         description: it.description || '',
-        priceUsd: Number(it.priceUsd || it.price || 0),
+        priceUsd: Number(it.priceUsd || it.priceUSD || it.price || 0),
+        priceUSD: Number(it.priceUSD || it.priceUsd || it.price || 0),
         billing: it.billing || null,
         priceBtc: it.priceBtc,
         currency: it.currency || 'USD',
@@ -10551,13 +10552,17 @@ setInterval(function(){loadOrder().then(render);},10000);
     if (!entCatalog) { res.writeHead(503, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'catalog_offline' })); }
     const payload = (aecos && typeof aecos.enrichCatalogResponse === 'function')
       ? aecos.enrichCatalogResponse()
-      : { updatedAt: new Date().toISOString(), summary: entCatalog.summarize(), products: entCatalog.publicView() };
+      : { updatedAt: new Date().toISOString(), summary: entCatalog.publicSummary ? entCatalog.publicSummary() : entCatalog.summarize(), products: entCatalog.publicView() };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
     return res.end(JSON.stringify(payload));
   }
   if (urlPath.startsWith('/api/enterprise/product/')) {
     if (!entCatalog) { res.writeHead(503); return res.end('{}'); }
     const id = decodeURIComponent(urlPath.slice('/api/enterprise/product/'.length));
+    if (require('./commerce/real-price').isContractFigure(id)) {
+      res.writeHead(404, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error:'not_a_product_price', shelf:'/checkout/?plan=ent-engagement-kickoff' }));
+    }
     const p = entCatalog.byId(id);
     if (!p) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
     const out = (aecos && typeof aecos.enrichProductForUi === 'function') ? (aecos.enrichProductForUi(p) || p) : p;
@@ -11122,7 +11127,9 @@ setInterval(function(){loadOrder().then(render);},10000);
     const cat = unifiedCatalog || instantCatalog;
     let products = cat.publicView();
     if (tier && Array.isArray(products)) products = products.filter(p => (p.tier||'instant') === tier);
-    const summary = unifiedCatalog && typeof unifiedCatalog.summarize==='function' ? unifiedCatalog.summarize() : null;
+    const summary = unifiedCatalog && typeof unifiedCatalog.publicSummary === 'function'
+      ? unifiedCatalog.publicSummary(products)
+      : (unifiedCatalog && typeof unifiedCatalog.summarize === 'function' ? unifiedCatalog.summarize() : null);
     // Catalog is public + identical for every visitor. Allow nginx/browsers to
     // cache for 60s and serve stale-while-revalidate up to 10 min so a brief
     // backend hiccup never empties the storefront. P50 < 5ms when warm.

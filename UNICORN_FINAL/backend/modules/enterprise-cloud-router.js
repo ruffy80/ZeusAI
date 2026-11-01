@@ -213,7 +213,7 @@ function buildEnterpriseCloudRouter() {
       const cat = require('../../src/commerce/enterprise-catalog');
       return res.json({
         updatedAt: new Date().toISOString(),
-        summary: cat.summarize(),
+        summary: typeof cat.publicSummary === 'function' ? cat.publicSummary() : cat.summarize(),
         products: cat.publicView(),
       });
     } catch (e) {

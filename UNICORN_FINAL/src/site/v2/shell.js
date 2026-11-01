@@ -175,7 +175,9 @@ function _loadCatalog() {
       return _catalogMemo.items;
     }
     const u = require('../../commerce/unified-catalog');
-    const all = (typeof u.all === 'function') ? u.all() : [];
+    const all = ((typeof u.all === 'function') ? u.all() : []).filter((row) => {
+      try { return row && !require('../../commerce/real-price').isNotAProductPrice(row.id); } catch (_) { return true; }
+    });
     if (!Array.isArray(all)) return [];
     // Best-effort enrichment with the live AI-negotiated price computed by
     // backend/modules/dynamic-pricing.js (BASE_PRICES × demand × surge ×
@@ -304,7 +306,7 @@ function _ctaForProduct(p) {
     const tier = String((p && (p.tier || p.group)) || '').toLowerCase();
     const id = String((p && p.id) || '');
     if (/^ent-/i.test(id) && id !== 'ent-engagement-kickoff') {
-      return { mode: 'reserve', buyable: true, ctaLabel: 'Buy the engagement pack →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+      return { mode: 'unavailable', buyable: false, ctaLabel: 'Buy the kickoff file', ctaHref: '/checkout/?plan=ent-engagement-kickoff' };
     }
     if (id === 'ent-engagement-kickoff') {
       return { mode: 'reserve', buyable: true, ctaLabel: 'Start autonomous deal →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
@@ -419,7 +421,8 @@ function _catalogCard(p) {
   // with a sync fallback via _toBtc(usd) for items the broker hasn't tagged.
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
-  const payRails = (price > 0 && _ctaForProduct(p).mode !== 'contact')
+  const catalogCta = _ctaForProduct(p);
+  const payRails = (price > 0 && catalogCta.buyable === true && catalogCta.mode !== 'contact' && catalogCta.mode !== 'unavailable')
     ? require('../../commerce/pay-options').payOptionsHtml(p.id)
     : '';
   // World-Profit-OS: reinforce the native-BTC advantage right next to every
@@ -1690,6 +1693,7 @@ function _atlasEnterprise(fromCatalog) {
   const ids = [];
   for (const p of seed) {
     if (!p || !p.id || byId.has(String(p.id))) continue;
+    if (require('../../commerce/real-price').isContractFigure(p.id)) continue;
     const over = live.get(String(p.id)) || {};
     byId.set(String(p.id), Object.assign({}, p, over, {
       id: p.id,
@@ -1704,6 +1708,7 @@ function _atlasEnterprise(fromCatalog) {
   }
   for (const p of (fromCatalog || [])) {
     if (!p || !p.id || byId.has(String(p.id))) continue;
+    if (require('../../commerce/real-price').isContractFigure(p.id)) continue;
     byId.set(String(p.id), p);
     ids.push(String(p.id));
   }
@@ -1814,12 +1819,13 @@ function _atlasCard(p) {
   const cta = (p && p.ctaHref) ? p : _ctaForProduct(p);
   const href = cta.ctaHref || ('/checkout/?plan=' + encodeURIComponent(id));
   const label = cta.mode === 'contact' ? 'Request a proposal →' : (cta.ctaLabel || 'Buy → choose payment');
+  const canPay = price > 0 && cta.buyable === true && cta.mode !== 'contact' && cta.mode !== 'unavailable';
   const primary = cta.mode === 'contact'
     ? `<a class="btn btn-gold" href="${_esc(href)}" data-link aria-label="Request a proposal for ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
-    : (price > 0
+    : (canPay
       ? `<a class="btn btn-primary" href="${_esc(href)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="flex:1;justify-content:center">${_esc(label)}</a>`
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>View</a>`);
-  const payRails = (price > 0 && cta.mode !== 'contact')
+  const payRails = canPay
     ? require('../../commerce/pay-options').payOptionsHtml(id)
     : '';
   const schema = _merchantSchema(Object.assign({}, p, { priceUsd: price, priceUSD: price, price: price, priceBtc: 0 }));
@@ -1859,12 +1865,12 @@ function _homeAtlasHtml() {
   return `<section id="homeAtlas">
   <div class="section-title">
     <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
-    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is not a second product. A contract figure can be paid. The download is the engagement pack.</p>
+    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is the kickoff file, not a finished build. The enterprise price is the kickoff file.</p>
   </div>
   <nav class="atlas-clocks" aria-label="Delivery clocks">
     <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
     <a class="atlas-clock" href="#atlasDays"><b>Days</b><span>${professional.length} engagements · ${_esc(_atlasRange(professional))}</span></a>
-    <a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} figures · ${_esc(_atlasRange(enterprise))} listed</span></a>
+    <a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} ${enterprise.length === 1 ? 'file' : 'files'} · ${_esc(_atlasRange(enterprise))} listed</span></a>
   </nav>
   <div id="atlasMinutes" class="atlas-band">
     <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
@@ -1877,8 +1883,8 @@ function _homeAtlasHtml() {
     <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
   </div>
   <div id="atlasContract" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Contract</span><h2>Pay the listed figure. The download is the engagement pack.</h2></div>
-    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. Every other figure on this clock buys the engagement pack: MSA, statement of work, technical appendix, security pack, timeline, and payment schedule. The license, the source, and a private cloud are milestones in that pack. They are not in the download.</p></div>
+    <div class="section-title"><div><span class="kicker">Contract</span><h2>The enterprise price is the kickoff file.</h2></div>
+    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. A license, the source, a private cloud, and the company are not prices on this page.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
   </div>
   <p class="atlas-footnote">This is the public shelf. The listing desk, the frontier tool packs, and the industry architecture packs are files on this page. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
@@ -1947,8 +1953,8 @@ function pageHome() {
   <div id="homeEnterpriseRow" class="card" style="margin:18px 0 0;padding:16px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(138,92,255,.10),rgba(62,160,255,.06));border:1px solid rgba(138,92,255,.35)">
     <div style="min-width:240px;flex:1">
       <span class="kicker">Building at scale?</span>
-      <h3 style="margin:6px 0 2px;font-size:18px">Enterprise · outcome-priced, signed SLAs, dedicated Zeus cluster.</h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Value-Proof Ledger auto-invoices bps share on measured outcomes.</p>
+      <h3 style="margin:6px 0 2px;font-size:18px">Enterprise work starts with the kickoff file.</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">The price is the kickoff file: a discovery brief, a commercial proposal, and a draft statement of work. A license, the source, and a private cloud are not for sale here.</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <a class="btn btn-ghost" href="/services" data-link>Explore Enterprise →</a>
@@ -2416,7 +2422,7 @@ function pageServices() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
-    <p>The same public shelf as the homepage. Minute files can be paid now, including the listing desk, frontier tool packs, and industry architecture packs. Day engagements reserve a kickoff. Enterprise figures buy the engagement pack. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
+    <p>The same public shelf as the homepage. Minute files can be paid now, including the listing desk, frontier tool packs, and industry architecture packs. A day row buys that kickoff file. The enterprise price is the engagement kickoff file. Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p>
   </div>
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
@@ -2443,23 +2449,9 @@ function pageServices() {
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
     <span class="kicker">What you receive</span>
     <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. Enterprise figures buy the engagement pack. Each card names the file you get today. The headings are the template, not a past customer.</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. The enterprise card is the kickoff file. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
-  ${(() => {
-    const layer = _commercial();
-    let bundles = [];
-    try { bundles = layer ? layer.bundlesPayload().bundles : []; } catch (_) { bundles = []; }
-    if (!bundles.length) return '';
-    const cards = bundles.map((bundle) => `<article class="card bundle-card" data-bundle-id="${_esc(bundle.id)}">
-      <span class="tag">Save ${Number(bundle.discountPct)}%</span>
-      <h3>${_esc(bundle.name)}</h3>
-      <p>${bundle.serviceIds.map((id) => _esc(id)).join(' + ')}</p>
-      <p>$${Number(bundle.usd).toFixed(2)} · ${_esc(bundle.btc)} BTC <small>sum ${bundle.sumBtc} BTC</small></p>
-      ${_trustBadgeHtml()}
-      <p><a class="btn btn-primary" href="${_esc(bundle.btcUri || '#')}">Buy with BTC</a></p>
-    </article>`).join('');
-    return `<section id="serviceBundles"><h2>Save 15-25% with bundles</h2><div class="grid">${cards}</div></section>`;
-  })()}
+  <section id="serviceBundles"><h2>Each file is its own checkout</h2><p>A combined discount is not a payment. Buy the website audit, the logo kit, and the other files on their own cards.</p></section>
   <label for="serviceSearch">Search by name</label>
   <input id="serviceSearch" type="search" placeholder="Search services" aria-label="Search services by name"/>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
@@ -2629,33 +2621,11 @@ function pageService(id) {
 }
 
 function _subscriptionPlansHtml() {
-  const layer = _commercial();
-  let plans = [];
-  try { plans = layer ? layer.plansPayload().plans : []; } catch (_) { plans = []; }
-  const cards = plans.map((plan) => {
-    if (plan.contact) {
-      return `<article class="card service-card" data-category="subscription" data-name="${_esc(plan.name)}">
-        <span class="tag">Enterprise</span>
-        <h3>${_esc(plan.name)}</h3>
-        <p>${_esc(plan.includes)}</p>
-        ${_trustBadgeHtml()}
-        <p><a class="btn" href="/contact" data-link>Contact</a></p>
-      </article>`;
-    }
-    return `<article class="card service-card" data-category="subscription" data-name="${_esc(plan.name)}">
-      <span class="tag">Monthly</span>
-      <h3>${_esc(plan.name)}</h3>
-      <p>${_esc(plan.includes)}</p>
-      <p>$${Number(plan.usd).toFixed(2)}/month · ${_esc(plan.btc)} BTC</p>
-      ${_trustBadgeHtml()}
-      <form method="post" action="/api/subscribe">
-        <input type="hidden" name="plan" value="${_esc(plan.id)}"/>
-        <label>Email <input type="email" name="email" required placeholder="you@company.com"/></label>
-        <button class="btn btn-primary" type="submit">Subscribe with BTC</button>
-      </form>
-    </article>`;
-  }).join('');
-  return `<section id="subscriptionPlans"><h2>Monthly plans</h2><div class="grid">${cards}</div></section>`;
+  return `<section id="subscriptionPlans">
+  <h2>Monthly quotas are not a product</h2>
+  <p>A starter or pro payment does not issue audits, logos, or a landing page. Each of those files has its own price on the shelf.</p>
+  <p><a class="btn btn-primary" href="/services" data-link>Buy a file on the shelf</a></p>
+</section>`;
 }
 function pageReport() {
   const layer = _commercial();
@@ -2697,7 +2667,7 @@ function pagePricing() {
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing · the public shelf</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Same offers. <span class="grad">Three clocks.</span></h1></div>
-    <p>This page is the homepage shelf. Minute files, day engagements, and contract figures. Monthly plans below use the same price quote. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
+    <p>This page is the homepage shelf. Minute files, day kickoff files, and the enterprise kickoff file. A monthly quota is not a product. Bitcoin is live. Card and PayPal appear on checkout when they are configured. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">server</span></p>
   </div>
   ${_subscriptionPlansHtml()}
   ${require('./four-products').pageConsolidatedPricing()}
@@ -2721,9 +2691,19 @@ function pageCheckout(params) {
   const p = params || {};
   // Allow virtual SKU prefixes (dropship:…, social-tip:…) — colons must survive.
   const ssrPlan = String(p.plan || '').trim().replace(/[^a-zA-Z0-9_.:@-]/g, '').slice(0, 160);
-  const ghostPlan = !ssrPlan || ssrPlan === 'starter' || ssrPlan === 'pro' || ssrPlan === 'enterprise';
+  let contractFigure = false;
+  try { contractFigure = require('../../commerce/real-price').isContractFigure(ssrPlan); } catch (_) { contractFigure = false; }
+  const ghostPlan = !ssrPlan || ssrPlan === 'starter' || ssrPlan === 'pro' || ssrPlan === 'enterprise' || contractFigure;
   if (ghostPlan) {
-    return `<section style="padding-top:140px">
+    const refused = contractFigure
+      ? `<section style="padding-top:140px">
+  <div class="section-title">
+    <div><span class="kicker">Not for sale</span><h2>This figure is not a product price.</h2></div>
+    <p>The page named a contract figure. Paying it does not sell Unicorn, a license, the source, or a private cloud. The payable enterprise file is the engagement kickoff: a discovery brief, a commercial proposal, and a draft statement of work.</p>
+  </div>
+  <p><a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the kickoff file</a> <a class="btn" href="/services" data-link>See the shelf</a></p>
+</section>`
+      : `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">You are buying</span><h2>This checkout has no shelf offer yet.</h2></div>
     <p>Starter, Growth, and a bare enterprise plan are not products. Say what you do and what you want. The reply names a real offer, a price, and one button.</p>
@@ -2734,6 +2714,7 @@ function pageCheckout(params) {
     <p style="color:var(--ink-dim)">A shelf checkout quotes one amount, watches the payment, and issues a signed receipt. Open an offer from the shelf first.</p>
   </details>
 </section>`;
+    return refused;
   }
   let shelfItem = null;
   try { shelfItem = require('../../commerce/public-shelf').byId(ssrPlan); } catch (_) { shelfItem = null; }
@@ -3462,7 +3443,7 @@ function pageStore() {
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} curated products · honest checkout · $${totalUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} listed catalogue value</span>
     <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Real products. Real BTC settlement. Real delivery.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver the file named on the card after on-chain payment. A professional row buys that kickoff file. The finished build is not in the file. Enterprise figures buy the engagement pack at the listed price. The license, the source, and a private cloud are milestones in that pack. They are not in the download. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver the file named on the card after on-chain payment. A professional row buys that kickoff file. The finished build is not in the file. The enterprise price is the kickoff file: a discovery brief, a commercial proposal, and a draft statement of work. A license, the source, a private cloud, and the company are not for sale on this page. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
@@ -3474,7 +3455,7 @@ function pageStore() {
     ${kickoff ? `<div class="card" style="margin:18px 0;padding:18px;border:1px solid rgba(255,211,106,.35)">
       <span class="kicker" style="color:#ffd36a">Enterprise deal kickoff · $${Number(kickoff.priceUSD || kickoff.priceUsd || 2500).toLocaleString('en-US')}</span>
       <p style="color:var(--ink-dim);margin:8px 0">A discovery brief, commercial proposal, and draft statement of work. The payment is credited toward a signed engagement; it does not include a license, source code, or private cloud.</p>
-      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Start an autonomous deal →</a>
+      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link data-sovereign-buy="ent-engagement-kickoff" data-buy-mode="checkout">Start an autonomous deal →</a>
     </div>` : ''}
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
@@ -4391,7 +4372,7 @@ function pageAccount(opts) {
 function _enterprisePacks() {
   try {
     return require('../../commerce/enterprise-catalog').publicView()
-      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0);
+      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0 && !require('../../commerce/real-price').isContractFigure(p.id));
   } catch (_) {
     return [];
   }
@@ -4424,17 +4405,15 @@ function pageEnterprise() {
     : '<p style="color:var(--ink-dim);margin:0">Catalog did not return a pack. The price stays a dash.</p>';
   const packOptions = (packs.length ? packs : [
     { id: 'ent-engagement-kickoff', title: 'Engagement kickoff' },
-    { id: 'ent-acquisition-pack', title: 'Acquisition pack' },
-    { id: 'ent-sovereign-deployment', title: 'Sovereign deployment pack' },
   ]).map((p) => `<option value="${_esc(p.id)}">${_esc(p.title || p.id)}</option>`).join('')
     + '<option value="custom">Something else on the shelf</option>';
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:980px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">Enterprise · engagement packs</span>
-    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.05;margin:14px 0 18px;letter-spacing:-0.02em">Enterprise work is an engagement pack.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:760px;line-height:1.6">The payable enterprise offer is a pack on the marketplace. Bitcoin is the live rail. Card and PayPal appear only when they are configured. A kickoff file is the scope, the sketch, and the milestones. It is not a cloud healer, a license, or a finished deployment.</p>
+    <span class="kicker" style="color:#ffd36a">Enterprise · kickoff file</span>
+    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.05;margin:14px 0 18px;letter-spacing:-0.02em">The enterprise price is the kickoff file.</h1>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:760px;line-height:1.6">The payable enterprise offer is the kickoff file on the marketplace. Bitcoin is the live rail. Card and PayPal appear only when they are configured. That file is the brief, the proposal, and the draft statement of work. It is not a license, the source, a private cloud, or the company.</p>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 8px">
-      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the engagement pack</a>
+      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the kickoff file</a>
       <a class="btn" href="/services" data-link>Open the marketplace</a>
       <a class="btn btn-ghost" href="#enterprise-contact">Write to the owner</a>
     </div>
@@ -4443,9 +4422,8 @@ function pageEnterprise() {
       <div class="card" style="padding:20px"><span class="tag">Kickoff</span><h3 style="margin:8px 0">Professional reserve</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The reserve unlocks a kickoff file. The finished build is not in the download.</p></div>
       <div class="card" style="padding:20px"><span class="tag">Engagement</span><h3 style="margin:8px 0">Owner-delivered pack</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The owner delivers the pack that the shelf card describes. There is no autonomous close.</p></div>
     </div>
-    <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the public catalog. A dash means the catalog did not return that row.</p>
-    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px"></div>
+    <h2 style="font-size:28px;margin:48px 0 8px">The file you can pay for</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">The price comes from the public catalog. A dash means the catalog did not return that row.</p>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px">${packCards}</div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>

@@ -23,14 +23,14 @@ const PLAN_DEFS = Object.freeze([
     id: 'starter',
     name: 'Starter',
     quotedUsd: 29,
-    includes: '5 audits + 5 logos per month',
+    includes: 'Not a file. Buy the website audit and the logo kit on the shelf.',
     contact: false,
   },
   {
     id: 'pro',
     name: 'Pro',
     quotedUsd: 99,
-    includes: '20 audits + 20 logos + 1 landing page per month',
+    includes: 'Not a file. Buy each shelf file on its own card.',
     contact: false,
   },
   {
@@ -544,51 +544,15 @@ function ledgerStats() {
 
 async function subscribe(input) {
   const planId = String((input && input.plan) || '').trim().toLowerCase();
-  const email = String((input && input.email) || '').trim().toLowerCase();
   const plan = PLAN_DEFS.find((row) => row.id === planId);
   if (!plan) return { ok: false, error: 'unknown_plan', status: 400 };
   if (plan.contact) return { ok: false, error: 'enterprise_contact', href: '/contact', status: 400 };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'email_required', status: 400 };
-  const quote = quoteSync('sub-' + plan.id, { quotedUsd: plan.quotedUsd });
-  const id = crypto.randomUUID();
-  let invoice;
-  try {
-    invoice = await require('./btcInvoiceLedger').createInvoice({
-      service: 'sub-' + plan.id,
-      priceUsd: quote.usd,
-      customerEmail: email,
-      metadata: { subscriptionId: id, plan: plan.id },
-    });
-  } catch (err) {
-    return { ok: false, error: String(err && err.message || err), status: 500 };
-  }
-  const payExpires = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-  db().prepare(`
-    INSERT INTO subscriptions
-      (id, user_email, plan, status, btc_address, amount_btc, amount_usd, invoice_id, pay_expires_at)
-    VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
-  `).run(id, email, plan.id, invoice.payoutAddress, invoice.amountBtc, quote.usd, String(invoice.id), payExpires);
-  let qr = null;
-  const bip21 = 'bitcoin:' + invoice.payoutAddress + '?amount=' + invoice.amountBtc;
-  try {
-    qr = await require('qrcode').toDataURL(bip21);
-  } catch (err) {
-    qr = null;
-    spotError = spotError || String(err && err.message || err);
-  }
   return {
-    ok: true,
-    id,
-    plan: plan.id,
-    email,
-    usd: quote.usd,
-    quote_btc: quote.btc,
-    amount_btc: invoice.amountBtc,
-    btc_address: invoice.payoutAddress,
-    bip21,
-    qr,
-    expires_at: payExpires,
-    status: 'pending',
+    ok: false,
+    error: 'plan_not_a_product',
+    status: 404,
+    href: '/services',
+    detail: 'A monthly quota does not issue audit, logo, or landing-page files. Buy the file on the shelf.',
   };
 }
 

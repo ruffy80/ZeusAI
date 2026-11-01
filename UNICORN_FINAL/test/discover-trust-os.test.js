@@ -180,13 +180,12 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(shelfPage.includes('data-product-id="instant-website-audit"'));
   assert.ok(shelfPage.includes('data-product-id="professional-saas-mvp"'));
   assert.ok(shelfPage.includes('data-product-id="ent-engagement-kickoff"'));
-  assert.ok(shelfPage.includes('data-product-id="ent-acquisition-pack"'));
-  assert.ok(shelfPage.includes('data-product-id="ent-sovereign-deployment"'));
+  assert.ok(!shelfPage.includes('data-product-id="ent-acquisition-pack"'));
+  assert.ok(!shelfPage.includes('data-product-id="ent-sovereign-deployment"'));
   assert.ok(shelfPage.includes('It does not deliver the license'));
-  assert.ok(shelfPage.includes('They are not in the download'));
+  assert.ok(!shelfPage.includes('$4,000,000'));
   assert.ok(shelfPage.includes('not an instant download'));
-  assert.ok(shelfPage.includes('Buy the engagement pack →'));
-  assert.ok(shelfPage.includes('/checkout/?plan=ent-acquisition-pack'));
+  assert.ok(!shelfPage.includes('/checkout/?plan=ent-acquisition-pack'));
   assert.ok(shelfPage.includes('/checkout/?plan=ent-engagement-kickoff'));
   assert.ok(home.includes('"@type":"Service"'));
   assert.ok(!home.includes('id="homeRelayGraft"'));

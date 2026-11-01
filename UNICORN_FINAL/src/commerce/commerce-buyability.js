@@ -196,6 +196,17 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
+  // A contract figure is not a product price. The kickoff file is the payable enterprise offer.
+  if (require('./real-price').isContractFigure(id)) {
+    return {
+      mode: 'unavailable',
+      buyable: false,
+      reason: 'contract_figure_not_a_product_price',
+      ctaLabel: 'Buy the kickoff file',
+      ctaHref: '/checkout/?plan=ent-engagement-kickoff',
+    };
+  }
+
   // Paid start. The kickoff file is a brief, a proposal, and a draft SOW.
   if (id === 'ent-engagement-kickoff' || group === 'enterprise-kickoff') {
     return {
@@ -207,15 +218,14 @@ function assessBuyability(itemOrId, opts = {}) {
     };
   }
 
-  // Named ent-* rows sell the engagement pack at the listed figure.
-  // The download is that pack. License, source, and cloud are milestones in it.
+  // Any other ent-* id is not a shelf file. The kickoff returned above is the enterprise price.
   if (/^ent-/i.test(id)) {
     return {
-      mode: 'reserve',
-      buyable: true,
-      reason: 'enterprise_pack',
-      ctaLabel: 'Buy the engagement pack →',
-      ctaHref: '/checkout/?plan=' + encodeURIComponent(id),
+      mode: 'unavailable',
+      buyable: false,
+      reason: 'enterprise_id_not_a_shelf_file',
+      ctaLabel: 'Buy the kickoff file',
+      ctaHref: '/checkout/?plan=ent-engagement-kickoff',
     };
   }
 
@@ -357,8 +367,9 @@ function publicServiceIdsFromUnified() {
   try {
     const unified = require('./unified-catalog');
     const ids = new Set();
-    for (const p of unified.all() || []) {
-      if (p && p.id) ids.add(String(p.id));
+    const realPrice = require('./real-price');
+    for (const p of unified.publicView ? (unified.publicView() || []) : (unified.all() || [])) {
+      if (p && p.id && !realPrice.isNotAProductPrice(p.id)) ids.add(String(p.id));
     }
     return ids;
   } catch (_) {

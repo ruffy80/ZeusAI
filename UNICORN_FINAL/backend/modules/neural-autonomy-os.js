@@ -115,7 +115,7 @@ function senseCommerceHonesty() {
   const samples = [
     { item: { id: 'instant-seo-content-pack', group: 'instant', priceUsd: 79 }, expect: { buyable: true, mode: 'btc' } },
     { item: { id: 'professional-saas-mvp', group: 'professional', priceUsd: 1999 }, expect: { buyable: true, mode: 'reserve' } },
-    { item: { id: 'ent-platform-license', group: 'enterprise', priceUsd: 250000 }, expect: { buyable: false, mode: 'contact' } },
+    { item: { id: 'ent-platform-license', group: 'enterprise', priceUsd: 250000 }, expect: { buyable: false, mode: 'unavailable' } },
     { item: { id: 'zacc-demo-1', group: 'zacc', priceUsd: 99, synthetic: true }, expect: { buyable: false } },
   ];
   let ok = 0;
