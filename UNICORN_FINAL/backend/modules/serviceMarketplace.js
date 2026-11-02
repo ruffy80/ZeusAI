@@ -229,7 +229,11 @@ class ServiceMarketplace {
     const files = fs.readdirSync(modulesDir).filter(f => f.endsWith('.js') && f !== 'serviceMarketplace.js');
     for (const file of files) {
       try {
-        const mod = require(path.join(modulesDir, file));
+        const modulePath = path.join(modulesDir, file);
+        const mod = require(modulePath);
+        // Avoid Node circular-require warnings by never probing optional
+        // exports from modules that are still being initialized.
+        const cacheEntry = require.cache[require.resolve(modulePath)];
         const serviceId = file.replace('.js', '');
 
         let category = 'general';
@@ -241,11 +245,14 @@ class ServiceMarketplace {
         else if (serviceId.includes('trend')) category = 'analytics';
 
         const name = this.formatServiceName(serviceId);
+        const resolvedDescription = (cacheEntry && cacheEntry.loaded && mod && typeof mod === 'object' && typeof mod.description === 'string' && mod.description.trim())
+          ? mod.description.trim()
+          : ('Serviciu AI avansat pentru ' + name);
         this.services.set(serviceId, {
           id: serviceId,
           name,
           category,
-          description: mod.description || ('Serviciu AI avansat pentru ' + name),
+          description: resolvedDescription,
           basePrice: this.calculateBasePrice(serviceId, category),
           currentPrice: 0,
           demand: 0.5,
