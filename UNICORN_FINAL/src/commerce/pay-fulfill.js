@@ -73,6 +73,20 @@ function _record(key, extra) {
   return true;
 }
 
+function _deliveryLooksComplete(delivery) {
+  if (!delivery || typeof delivery !== 'object') return false;
+  const status = String(delivery.status || '').toLowerCase();
+  if (status === 'failed' || status === 'error') return false;
+  if (Array.isArray(delivery.items)) {
+    for (const item of delivery.items) {
+      if (Array.isArray(item && item.files) && item.files.length > 0) return true;
+    }
+  }
+  if (Array.isArray(delivery.artifacts) && delivery.artifacts.length > 0) return true;
+  if (Array.isArray(delivery.deliverables) && delivery.deliverables.length > 0) return true;
+  return false;
+}
+
 function hasRunDelivery(orderId) {
   if (!orderId) return false;
   _loadLedger();
@@ -89,7 +103,7 @@ function runDeliveryOnce(receipt, deliveryFn) {
   }
   const key = 'delivered:' + orderId;
   _loadLedger();
-  if (_seen.has(key)) return { ok: true, alreadyDelivered: true, orderId };
+  if (_seen.has(key)) return { ok: true, alreadyDelivered: true, delivered: true, orderId };
   let delivery = null;
   try {
     delivery = deliveryFn(receipt);
@@ -97,8 +111,11 @@ function runDeliveryOnce(receipt, deliveryFn) {
     console.warn('[pay-fulfill] deliveryFn threw for order=' + orderId + ':', e.message);
     return { ok: false, orderId, error: e.message };
   }
+  if (!_deliveryLooksComplete(delivery)) {
+    return { ok: false, orderId, error: 'delivery_not_verified', delivery };
+  }
   _record(key, { hasDelivery: !!delivery });
-  return { ok: true, alreadyDelivered: false, orderId, delivery };
+  return { ok: true, alreadyDelivered: false, delivered: true, orderId, delivery };
 }
 
 function receiptOrderId(receipt) {
@@ -311,7 +328,7 @@ async function settleAndNotify({ receipt, deliveryFn, source }) {
   if (typeof deliveryFn === 'function') {
     const delivered = runDeliveryOnce(receipt, deliveryFn);
     result.delivery = delivered;
-    if (delivered && (delivered.ok || delivered.delivery || delivered.alreadyDelivered)) {
+    if (delivered && (delivered.delivered === true || delivered.alreadyDelivered === true)) {
       _recordFunnel('delivered', receipt, { source: source || 'pay-fulfill' });
       result.funnel.delivered = true;
     }

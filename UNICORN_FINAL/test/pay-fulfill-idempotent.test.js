@@ -49,6 +49,22 @@ async function main() {
     assert.equal(payFulfill.hasRunDelivery('ord_dedup_1'), true);
     assert.equal(payFulfill.hasRunDelivery('ord_never'), false);
   });
+  payFulfill._resetForTests();
+  let failedCalls = 0;
+  const failedReceipt = { orderId: 'ord_failed_1', status: 'paid', email: 'buyer@example.com', serviceId: 'starter', amount: 199 };
+  const failedFn = () => { failedCalls++; return null; };
+  const f1 = payFulfill.runDeliveryOnce(failedReceipt, failedFn);
+  const f2 = payFulfill.runDeliveryOnce(failedReceipt, failedFn);
+  check('runDeliveryOnce does not mark delivery when package is missing', () => {
+    assert.equal(f1.ok, false);
+    assert.equal(f1.error, 'delivery_not_verified');
+    assert.equal(payFulfill.hasRunDelivery('ord_failed_1'), false);
+  });
+  check('runDeliveryOnce retries after an unverifiable delivery result', () => {
+    assert.equal(f2.ok, false);
+    assert.equal(failedCalls, 2);
+    assert.equal(payFulfill.hasRunDelivery('ord_failed_1'), false);
+  });
 
   // 2. sendOrderReceiptEmail fail-honest + dedup ---------------------------
   const receipt2 = { orderId: 'ord_email_1', status: 'paid', email: 'a@example.com', serviceId: 'starter', amount: 99 };
