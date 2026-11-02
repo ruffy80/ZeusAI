@@ -10117,6 +10117,15 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
   // ============================================================
   if (req.method === 'GET' && /^\/(tos|terms-of-service|imprint|legal|cookies|cookie-policy)$/.test(urlPath)) {
     const slug = urlPath.replace(/^\//, '').replace(/\/$/, '');
+    const siteBase = (process.env.APP_URL || process.env.PUBLIC_APP_URL || 'https://zeusai.pro').replace(/\/$/, '');
+    const aliasCanonical = {
+      tos: '/terms',
+      'terms-of-service': '/terms',
+      legal: '/imprint',
+      'cookie-policy': '/cookies',
+    };
+    const canonicalPath = aliasCanonical[slug] || ('/' + slug);
+    const shouldNoindexAlias = canonicalPath !== ('/' + slug);
     const titleMap = {
       tos: ['Terms of Service · ZeusAI', 'Termeni și condiții'],
       terms: ['Terms of Service · ZeusAI', 'Termeni și condiții'],
@@ -10162,11 +10171,15 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     }
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${titleEn}</title>
 <meta name="description" content="${titleEn} · ${titleRo}">
+<link rel="canonical" href="${siteBase + canonicalPath}">
+${shouldNoindexAlias ? '<meta name="robots" content="noindex,follow">' : ''}
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta property="og:title" content="${titleEn}"><meta property="og:type" content="website"><meta property="og:url" content="${(process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/, '') + urlPath}">
+<meta property="og:title" content="${titleEn}"><meta property="og:type" content="website"><meta property="og:url" content="${siteBase + canonicalPath}">
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:780px;margin:40px auto;padding:0 22px;line-height:1.6;color:#111}h1{font-size:30px}h2{font-size:18px;margin-top:28px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}a{color:#0050ff}.bilingual{color:#777;font-size:14px}</style></head>
 <body><a href="/">← ZeusAI</a><h1>${titleEn}</h1><div class="bilingual">${titleRo}</div>${body}<hr><p style="font-size:13px;color:#777">Last updated: ${new Date().toISOString().slice(0,10)} · Operator: ${owner} · <a href="/tos">ToS</a> · <a href="/privacy">Privacy</a> · <a href="/refund">Refund</a> · <a href="/imprint">Imprint</a> · <a href="/cookies">Cookies</a></p></body></html>`;
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+    const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' };
+    if (shouldNoindexAlias) headers['X-Robots-Tag'] = 'noindex, follow';
+    res.writeHead(200, headers);
     return res.end(html);
   }
 
