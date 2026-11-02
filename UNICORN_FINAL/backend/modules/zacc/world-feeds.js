@@ -18,6 +18,7 @@ const log = logger('world-feeds');
 const FETCH_MS = Number(process.env.ZACC_WORLD_FEED_TIMEOUT_MS || 6500);
 const LIMIT = Math.min(40, Math.max(8, Number(process.env.ZACC_WORLD_FEED_LIMIT || 24)));
 const MIN_FEED_RATING = Number(process.env.ZACC_WORLD_MIN_RATING || 4.0);
+const ERROR_LOG_COOLDOWN_MS = Math.max(10_000, Number(process.env.ZACC_WORLD_FEED_ERROR_COOLDOWN_MS || 120_000));
 
 const FETCH_HEADERS = {
   Accept: 'application/json',
@@ -26,6 +27,7 @@ const FETCH_HEADERS = {
 
 // EscuelaJS is a publicly writable sandbox — disabled unless explicitly armed.
 const ENABLE_ESCUELA = process.env.ZACC_ENABLE_ESCUELA === '1';
+const ERROR_LOG_GUARD = new Map();
 
 const JUNK_TITLE_RE = /^(test|asdf|null|undefined|product|item|sample|n\/a|demo|xxx|foo|bar)$/i;
 const HEX_ID_RE = /^[0-9a-f]{6,}$/i;
@@ -166,7 +168,17 @@ async function fetchJson(url, opts) {
     if (ct && !/json|javascript|text\/plain/i.test(ct)) return null;
     return await r.json();
   } catch (e) {
-    log.warn('fetch failed', url.split('?')[0], e.message);
+    const endpoint = String(url || '').split('?')[0];
+    const host = (() => {
+      try { return new URL(endpoint).host || 'unknown-host'; } catch (_) { return 'unknown-host'; }
+    })();
+    const key = host + '|' + String((e && e.code) || '') + '|' + String((e && e.message) || '');
+    const now = Date.now();
+    const until = ERROR_LOG_GUARD.get(key) || 0;
+    if (now >= until) {
+      ERROR_LOG_GUARD.set(key, now + ERROR_LOG_COOLDOWN_MS);
+      log.warn('fetch failed', endpoint, e.message);
+    }
     return null;
   }
 }
