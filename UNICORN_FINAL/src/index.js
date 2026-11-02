@@ -13789,7 +13789,8 @@ a{color:#8a5cff;text-decoration:none}
       || route === '/dashboard' || route === '/account'
       || route === '/admin' || route.indexOf('/admin/') === 0
       || route === '/login' || route === '/signup' || route === '/auth'
-      || route === '/outreach-desk';
+      || route === '/outreach-desk'
+      || route === '/operator' || route.indexOf('/operator/') === 0;
     if (__noindexRoute) {
       responseHeaders['X-Robots-Tag'] = (route === '/checkout' || route.indexOf('/checkout/') === 0)
         ? 'noindex'

@@ -670,6 +670,7 @@ function _canonicalUrl(base, route, opts) {
     return base + '/';
   }
   if (path === '/marketplace') return base + '/services';
+  if (path === '/tos') return base + '/terms';
   if (path === '/autonomy' || path === '/innovation-log') return base + '/live-actions';
   if (path === '/checkout') {
     const offer = _shelfCanonical(base, opts && opts.plan);
