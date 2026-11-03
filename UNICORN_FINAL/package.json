@@ -69,6 +69,7 @@
     "secrets:push": "node scripts/setup-github-secrets.js",
     "test": "node scripts/run-tests-resilient.js",
     "test:ci": "node scripts/run-tests-resilient.js",
+    "test:clockwork": "node test/swiss-clockwork-modules.test.js",
     "test:50y": "node test/innovations-50y.test.js",
     "test:100y": "node test/innovations-100y.test.js",
     "test:perf100y": "node test/performance-100y.test.js",

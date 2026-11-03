@@ -11,6 +11,7 @@
     "start": "node UNICORN_FINAL/src/index.js",
     "unicorn:start": "node UNICORN_FINAL/src/index.js",
     "unicorn:test": "npm --prefix UNICORN_FINAL test",
+    "unicorn:clockwork": "node UNICORN_FINAL/test/swiss-clockwork-modules.test.js",
     "lint": "npm --prefix UNICORN_FINAL run lint",
     "unicorn:lint": "npm --prefix UNICORN_FINAL run lint",
     "lint:syntax": "npm --prefix UNICORN_FINAL run lint:syntax",

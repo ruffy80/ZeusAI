@@ -6514,6 +6514,23 @@ app.get('/api/pool/summary', (req, res) => {
   res.json(_adaptivePool.listSummary());
 });
 
+// ---- Swiss Clockwork Precision Orchestrator (144-Module Mesh) ------------
+app.get('/api/clockwork/status', (req, res) => {
+  if (!_adaptivePool || !_adaptivePool.clockwork) return res.status(503).json({ error: 'clockwork unavailable' });
+  res.json(_adaptivePool.clockwork.getStatus());
+});
+
+app.post('/api/clockwork/run/:pipeline', express.json(), async (req, res) => {
+  if (!_adaptivePool || !_adaptivePool.runChain) return res.status(503).json({ error: 'clockwork unavailable' });
+  try {
+    const chainName = String(req.params.pipeline || '').toUpperCase();
+    const result = await _adaptivePool.runChain(chainName, req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
 
 
 // ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
