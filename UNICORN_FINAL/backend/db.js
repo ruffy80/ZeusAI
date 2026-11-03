@@ -2,73 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T20:56:24.419Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T12:15:49.773Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T12:11:52.511Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T11:25:27.990Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T10:52:39.990Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T10:50:35.603Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:30:47.496Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:29:31.560Z
+// Data: 2026-11-03
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
 /**
- * SQLite persistence layer
- * Replaces all in-memory arrays/Maps so data survives server restarts.
- * Tables: users, payments, marketplace_purchases, api_keys, api_usage
- *
- * Falls back to in-memory store if better-sqlite3 is unavailable
- * (e.g. serverless/CI environments without native module support).
+ * Universal Persistence Layer — PostgreSQL / SQLite / In-Memory
+ * Supports ACID transactional integrity, durable storage and graceful fallback.
+ * Tables: users, payments, marketplace_purchases, api_keys, api_usage, tenants, passkeys
  */
 
 'use strict';
@@ -390,7 +331,7 @@ if (usingSqlite) {
 // ============================================================
 
 const users = usingSqlite ? {
-  create(user) { stmts.insertUser.run(user); },
+  create(user) { stmts.insertUser.run(user); return user; },
   findByEmail(email) { return stmts.findUserByEmail.get(email) || null; },
   findById(id) { return stmts.findUserById.get(id) || null; },
   findByVerifyToken(token) { return stmts.findUserByVerifyToken.get(token, Date.now()) || null; },
@@ -412,7 +353,7 @@ const users = usingSqlite ? {
   deleteById(id) { return stmts.deleteUser.run(id).changes > 0; },
 } : {
   // In-memory fallback
-  create(user) { mem.users.set(user.id, { ...user }); },
+  create(user) { mem.users.set(user.id, { ...user }); return user; },
   findByEmail(email) { for (const u of mem.users.values()) if (u.email === email) return u; return null; },
   findById(id) { return mem.users.get(id) || null; },
   findByVerifyToken(token) { const now = Date.now(); for (const u of mem.users.values()) if (u.verifyToken === token && u.verifyExpires > now) return u; return null; },

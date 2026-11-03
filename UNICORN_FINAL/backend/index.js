@@ -6531,6 +6531,22 @@ app.post('/api/clockwork/run/:pipeline', express.json(), async (req, res) => {
   }
 });
 
+// ---- Modular Sub-Routers Integration (Auth, Commerce, AI, Dashboard, Health) -
+try {
+  const modularRoutes = require('./routes');
+  modularRoutes.mount(app);
+} catch (err) {
+  console.warn('[ModularRoutes] Mount warning:', err.message);
+}
+
+// Serve Client Dashboard
+app.get('/dashboard', (req, res) => {
+  res.sendFile(require('path').join(__dirname, '..', 'public', 'dashboard.html'));
+});
+app.get('/client-dashboard', (req, res) => {
+  res.sendFile(require('path').join(__dirname, '..', 'public', 'dashboard.html'));
+});
+
 
 
 // ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
