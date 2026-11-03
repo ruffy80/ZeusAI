@@ -1316,4 +1316,92 @@ body:has(#zeus-cookie:not([hidden])) .concierge{bottom:108px}
   border-color: #00ffa3 !important;
   box-shadow: 0 0 10px rgba(0,255,163,.25);
 }
+
+/* ZeusAI Social Sovereign Innovations & Viral Launchpad */
+.za-tip-btn {
+  background: linear-gradient(135deg, rgba(247,147,26,.18), rgba(255,211,106,.15)) !important;
+  border: 1px solid rgba(247,147,26,.45) !important;
+  color: #f7931a !important;
+  border-radius: 6px;
+  padding: 3px 8px !important;
+  font-weight: 700 !important;
+  font-size: 11.5px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.za-tip-btn:hover {
+  background: linear-gradient(135deg, rgba(247,147,26,.35), rgba(255,211,106,.30)) !important;
+  border-color: #f7931a !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(247,147,26,.25);
+}
+.za-filter-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 0 14px;
+  scrollbar-width: thin;
+}
+.za-filter-chip {
+  background: rgba(15,22,35,.75);
+  border: 1px solid rgba(111,242,192,.2);
+  color: var(--za-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .2s ease;
+}
+.za-filter-chip:hover {
+  border-color: var(--za-mint);
+  color: #fff;
+}
+.za-filter-chip.is-active {
+  background: rgba(111,242,192,.18);
+  border-color: var(--za-mint);
+  color: var(--za-mint);
+  box-shadow: 0 0 10px rgba(111,242,192,.2);
+}
+.za-proof-pill {
+  cursor: pointer;
+  border: 1px solid rgba(111,242,192,.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all .2s ease;
+}
+.za-proof-pill:hover {
+  background: rgba(111,242,192,.15);
+  border-color: var(--za-mint);
+  color: #fff !important;
+}
+.za-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3,5,10,.82);
+  backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  animation: zaModalFade .2s ease;
+}
+.za-modal-dialog {
+  background: #090e18;
+  border: 1px solid rgba(138,92,255,.4);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.6), 0 0 30px rgba(138,92,255,.15);
+  position: relative;
+  animation: zaModalPop .22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes zaModalFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zaModalPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 `;
