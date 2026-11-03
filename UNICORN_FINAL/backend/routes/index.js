@@ -13,6 +13,8 @@ const aiRoutes = require('./ai.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const healthRoutes = require('./health.routes');
 const synapseRoutes = require('./synapse.routes');
+const auditRoutes = require('./audit.routes');
+const openaiRoutes = require('./openai.routes');
 
 /**
  * Master Modular Route Manager
@@ -29,6 +31,9 @@ function mount(app) {
   app.use('/api/portal', dashboardRoutes);
   app.use('/api/health', healthRoutes);
   app.use('/api/synapse', synapseRoutes);
+  app.use('/api/audit', auditRoutes);
+  app.use('/api/v1', openaiRoutes);
+  app.use('/v1', openaiRoutes);
 
   // Initialize complementary integrations suite
   try {
@@ -49,4 +54,6 @@ module.exports = {
   dashboardRoutes,
   healthRoutes,
   synapseRoutes,
+  auditRoutes,
+  openaiRoutes,
 };

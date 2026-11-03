@@ -717,6 +717,8 @@ const ALL_SYNAPSE_MODULES = {
   "zeusAutonomousCore_siteCompleter": () => { try { return require("./zeusAutonomousCore/siteCompleter.js"); } catch (_) { return null; } },
   "zeusAutonomousCore_siteSyncBridge": () => { try { return require("./zeusAutonomousCore/siteSyncBridge.js"); } catch (_) { return null; } },
   "zk_revenue_proof": () => { try { return require("./zk-revenue-proof.js"); } catch (_) { return null; } },
+  "aposAuditEngine": () => { try { return require("./aposAuditEngine.js"); } catch (_) { return null; } },
+  "sovereignOpenAiProxy": () => { try { return require("./sovereignOpenAiProxy.js"); } catch (_) { return null; } },
 };
 
 module.exports = {

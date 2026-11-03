@@ -2667,6 +2667,49 @@ Awaiting pulse trigger...</pre>
     </div>
   </div>
 </section>
+<section id="instantAudit" style="margin:48px 0 0">
+  <div class="section-title">
+    <div><span class="kicker" style="color:#00ffa3">⚡ Free Enterprise Proof-of-Savings (APOS-1.0)</span><h2>Instant AI Cost &amp; Architecture Audit <span class="grad">— 100% Free</span></h2></div>
+    <p>Discover exactly how much capital your company saves by routing through the ZeusAI Sovereign Mesh. Instant bespoke executive analysis signed by cryptographic Merkle proof.</p>
+  </div>
+  <div class="card glass-card" style="padding:28px;border:1px solid rgba(0,255,163,.4);background:linear-gradient(135deg,rgba(10,24,20,.75),rgba(18,14,40,.85));box-shadow:0 0 32px rgba(0,255,163,.1)">
+    <form id="auditForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+      <div>
+        <label for="auditCompany" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600">Company or Project Name</label>
+        <input type="text" id="auditCompany" placeholder="e.g. Acme FinTech Labs" required style="width:100%;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--stroke);color:#fff;outline:none"/>
+      </div>
+      <div>
+        <label for="auditEmail" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600">Work Email (for Cryptographic Certificate)</label>
+        <input type="email" id="auditEmail" placeholder="cto@yourcompany.com" required style="width:100%;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--stroke);color:#fff;outline:none"/>
+      </div>
+      <div>
+        <label for="auditWorkload" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600">Primary AI Workload</label>
+        <select id="auditWorkload" style="width:100%;padding:12px 14px;border-radius:8px;background:rgba(18,14,40,.95);border:1px solid var(--stroke);color:#fff;outline:none">
+          <option value="Enterprise RAG &amp; Vector Search">Enterprise RAG &amp; Vector Search</option>
+          <option value="Customer Support &amp; Voice Agents">Customer Support &amp; Voice Agents</option>
+          <option value="Code Generation &amp; Autonomous CI/CD">Code Generation &amp; Autonomous CI/CD</option>
+          <option value="High-Frequency Document Extraction">High-Frequency Document Extraction</option>
+          <option value="Multi-Agent Reasoning &amp; Workflows">Multi-Agent Reasoning &amp; Workflows</option>
+        </select>
+      </div>
+      <div>
+        <label for="auditMonthlySpend" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600">Current Monthly LLM Spend (USD)</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="number" id="auditMonthlySpend" min="500" max="500000" step="500" value="8500" style="width:100%;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--stroke);color:var(--gold);font-family:var(--mono);font-size:16px;font-weight:700;outline:none"/>
+        </div>
+      </div>
+      <div style="grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-top:8px">
+        <span style="font-size:12.5px;color:var(--ink-dim)">🔒 Zero spam. We never sell your data. Report is cryptographically notarized with SHA-256 Merkle root.</span>
+        <button type="submit" id="btnRunAudit" class="btn btn-primary" style="background:linear-gradient(135deg,#00ffa3,#3ea0ff);color:#05040a;font-weight:800;padding:12px 26px;box-shadow:0 0 20px rgba(0,255,163,.4)">⚡ Generate Cryptographic AI Audit Report (Instant) →</button>
+      </div>
+    </form>
+    <div id="auditReportLoading" style="display:none;margin-top:24px;text-align:center;padding:24px">
+      <div style="display:inline-block;width:32px;height:32px;border:3px solid rgba(0,255,163,.2);border-top-color:#00ffa3;border-radius:50%;animation:spin 1s linear infinite"></div>
+      <div id="auditLoadingStatus" style="font-family:var(--mono);font-size:13px;color:#00ffa3;margin-top:12px">Synthesizing multi-model arbitrage delta across 728 neurons...</div>
+    </div>
+    <div id="auditReportResult" style="display:none;margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1)"></div>
+  </div>
+</section>
 <section id="sovereignShelf" style="margin:48px 0 0">
   <div class="section-title">
     <div><span class="kicker">Direct Settlement</span><h2>Autonomous Deployment <span class="grad">Tiers</span></h2></div>

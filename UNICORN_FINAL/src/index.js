@@ -4559,6 +4559,10 @@ async function unicornHandler(req, res) {
   const isVersionedAssetPath = requestedPath !== urlPath;
   const earlyPath = urlPath;
 
+  if (urlPath.startsWith('/v1/') || urlPath === '/v1') {
+    return proxyToBackend(req, res, process.env.BACKEND_API_URL || 'http://127.0.0.1:3000');
+  }
+
   if (urlPath === '/client-dashboard' || urlPath === '/portal' || urlPath === '/dashboard.html') {
     const fs = require('fs');
     const path = require('path');

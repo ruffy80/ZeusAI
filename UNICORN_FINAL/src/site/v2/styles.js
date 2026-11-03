@@ -1309,4 +1309,11 @@ body:has(#zeus-cookie:not([hidden])) .concierge{bottom:108px}
 .price-val {
   transition: color .25s ease;
 }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#instantAudit input:focus, #instantAudit select:focus {
+  border-color: #00ffa3 !important;
+  box-shadow: 0 0 10px rgba(0,255,163,.25);
+}
 `;
