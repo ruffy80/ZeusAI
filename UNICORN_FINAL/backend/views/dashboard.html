@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZeusAI — Enterprise Client Dashboard</title>
+  <title>ZeusAI — Enterprise Autonomous Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -16,6 +16,7 @@
       --accent-blue: #3b82f6;
       --accent-green: #10b981;
       --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
       --text: #f3f4f6;
       --text-muted: #9ca3af;
     }
@@ -71,8 +72,20 @@
       border-radius: 50%;
       box-shadow: 0 0 8px var(--accent-green);
     }
+    .badge-hypermesh {
+      background: rgba(139, 92, 246, 0.18);
+      color: #c4b5fd;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
     main {
-      max-width: 1380px;
+      max-width: 1400px;
       margin: 2rem auto;
       padding: 0 1.5rem;
       display: grid;
@@ -91,12 +104,13 @@
       border-color: rgba(255, 255, 255, 0.16);
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
     }
+    .col-3 { grid-column: span 3; }
     .col-4 { grid-column: span 4; }
     .col-6 { grid-column: span 6; }
     .col-8 { grid-column: span 8; }
     .col-12 { grid-column: span 12; }
     @media(max-width: 1024px) {
-      .col-4, .col-6, .col-8 { grid-column: span 12; }
+      .col-3, .col-4, .col-6, .col-8 { grid-column: span 12; }
     }
     .card-title {
       font-size: 0.95rem;
@@ -120,31 +134,49 @@
       color: var(--text-muted);
       margin-top: 0.35rem;
     }
-    .pipeline-grid {
+    .corridor-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
       gap: 1rem;
       margin-top: 1rem;
     }
-    .pipeline-item {
+    .corridor-item {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--card-border);
       border-radius: 0.75rem;
-      padding: 1rem;
+      padding: 1.15rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      position: relative;
+      overflow: hidden;
     }
-    .pipeline-name {
-      font-weight: 700;
-      font-size: 0.9rem;
+    .corridor-item::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      opacity: 0.7;
+    }
+    .corridor-item.corridor-gold::before {
+      background: linear-gradient(90deg, var(--accent-gold), #ea580c);
+    }
+    .corridor-item.corridor-green::before {
+      background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+    }
+    .corridor-name {
+      font-weight: 800;
+      font-size: 0.88rem;
       color: #fff;
       margin-bottom: 0.35rem;
+      letter-spacing: -0.01em;
     }
-    .pipeline-desc {
-      font-size: 0.8rem;
+    .corridor-desc {
+      font-size: 0.78rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
+      margin-bottom: 1.15rem;
+      line-height: 1.4;
     }
     .btn {
       background: rgba(255, 255, 255, 0.08);
@@ -153,7 +185,7 @@
       padding: 0.5rem 1rem;
       border-radius: 0.5rem;
       font-weight: 600;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -170,6 +202,16 @@
     .btn-gold:hover {
       background: linear-gradient(135deg, #fbbf24, #f59e0b);
       box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+    }
+    .btn-purple {
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    }
+    .btn-purple:hover {
+      background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
     }
     table {
       width: 100%;
@@ -196,6 +238,7 @@
     }
     .tag-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
     .tag-gold { background: rgba(245, 158, 11, 0.15); color: var(--accent-gold); }
+    .tag-purple { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; }
     .interactive-box {
       display: flex;
       flex-direction: column;
@@ -225,9 +268,19 @@
       padding: 0.75rem;
       font-size: 0.75rem;
       color: #10b981;
-      max-height: 150px;
+      max-height: 180px;
       overflow-y: auto;
     }
+    .search-input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      color: #fff;
+      font-size: 0.82rem;
+      width: 240px;
+    }
+    .search-input:focus { outline: none; border-color: var(--accent-purple); }
   </style>
 </head>
 <body>
@@ -235,7 +288,8 @@
   <header>
     <div class="logo">
       <span>⚡ ZeusAI</span>
-      <span class="badge-swiss">SWISS CLOCKWORK ACTIVE</span>
+      <span class="badge-hypermesh">SYNAPTIC HYPER-MESH (ASHM)</span>
+      <span class="badge-swiss">SWISS CLOCKWORK</span>
     </div>
     <div style="display: flex; gap: 1rem; align-items: center;">
       <span style="font-size: 0.85rem; color: var(--text-muted);" id="ownerBtc">BTC Rail: bc1q...22e</span>
@@ -245,83 +299,139 @@
 
   <main>
     <!-- Top KPI row -->
-    <div class="card col-4">
-      <div class="card-title">Clockwork Telemetry ⏱️</div>
-      <div class="metric-val mono" id="tickCount">0 Ticks</div>
-      <div class="metric-sub" id="escapementStatus">Escapements: Calibrated · 144 Workers</div>
+    <div class="card col-3">
+      <div class="card-title">Synaptic Neurons 🧠</div>
+      <div class="metric-val mono" id="neuronsCount">705</div>
+      <div class="metric-sub" id="synapseSub">0 Orphans · 100% Active Reachable</div>
     </div>
 
-    <div class="card col-4">
-      <div class="card-title">Token Savings & Efficiency ⚡</div>
-      <div class="metric-val mono" id="tokensSaved">+32.4%</div>
-      <div class="metric-sub">Adaptive Prompt Pruner (AdaptiveModule11)</div>
+    <div class="card col-3">
+      <div class="card-title">Autonomous Corridors 🌐</div>
+      <div class="metric-val mono" style="color: var(--accent-cyan);" id="corridorsCount">8 / 8</div>
+      <div class="metric-sub">Calibrated Multi-Module Pipelines</div>
     </div>
 
-    <div class="card col-4">
+    <div class="card col-3">
+      <div class="card-title">Pulse & Chronograph ⏱️</div>
+      <div class="metric-val mono" id="pulseCount">0 Pulses</div>
+      <div class="metric-sub" id="heartbeatStatus">Heartbeat: APCC-25s Active</div>
+    </div>
+
+    <div class="card col-3">
       <div class="card-title">Settlement Vault 🛡️</div>
       <div class="metric-val mono" style="color: var(--accent-gold);">100% BTC</div>
-      <div class="metric-sub">Auto-settlement to owner cold storage</div>
+      <div class="metric-sub">Self-custodial: bc1q4f7e...</div>
     </div>
 
-    <!-- Swiss Gear Trains Section -->
-    <div class="card col-8">
+    <!-- Master Autonomous Corridors Matrix -->
+    <div class="card col-12">
       <div class="card-title">
-        <span>🇨🇭 Calibrated Gear Trains (Pipelines)</span>
-        <span style="font-size: 0.8rem; text-transform: none; color: var(--accent-green);">Microsecond Precision</span>
+        <span>⚡ Autonomous Synaptic Hyper-Mesh Command Matrix (8 Sovereign Corridors)</span>
+        <span class="tag tag-purple mono" id="hyperMeshBadge">ASHM/1.0 ONLINE · ZERO DEFECTS</span>
       </div>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-        Sistemul execută fluxuri complexe de business înlănțuite între module specializate, asistate de Tourbillon-ul de absorbție a șocurilor.
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Toate cele 705 module din ecosistemul ZeusAI Unicorn sunt interconectate prin Tourbillon-ul de sincronizare și absorbție a șocurilor, executând autonom sarcini end-to-end de monetizare, securitate cuantică, AGI și self-healing.
       </p>
 
-      <div class="pipeline-grid">
-        <div class="pipeline-item">
+      <div class="corridor-grid">
+        <!-- Corridor 1 -->
+        <div class="corridor-item corridor-gold">
           <div>
-            <div class="pipeline-name">COMMERCE_CHECKOUT</div>
-            <div class="pipeline-desc">Fraud Shield → Surge Pricing → VAT → Ledger → Merkle Proof → HMAC Signer</div>
+            <div class="corridor-name">1. SOVEREIGN REVENUE & BILLING</div>
+            <div class="corridor-desc">Cotare dinamică → Elastic surge → TVA UE → Double-entry general ledger → Notarizare Merkle.</div>
           </div>
-          <button class="btn btn-gold" onclick="runPipeline('COMMERCE_CHECKOUT')">Test Run (2.6 ms) →</button>
+          <button class="btn btn-gold" onclick="runCorridor('CORRIDOR_SOVEREIGN_REVENUE')">Dispatch Revenue Corridor →</button>
         </div>
 
-        <div class="pipeline-item">
+        <!-- Corridor 2 -->
+        <div class="corridor-item">
           <div>
-            <div class="pipeline-name">AI_INFERENCE</div>
-            <div class="pipeline-desc">Pruner → PII Redaction → Anti-Jailbreak → LLM Arbiter → Semantic Cache</div>
+            <div class="corridor-name">2. COGNITIVE AI & ROUTING</div>
+            <div class="corridor-desc">PII scrubbing → Semantic route cache → Token pruning (32% economie) → Multi-model LLM arbiter.</div>
           </div>
-          <button class="btn" onclick="runPipeline('AI_INFERENCE')">Test Run →</button>
+          <button class="btn btn-purple" onclick="runCorridor('CORRIDOR_COGNITIVE_AI')">Dispatch Cognitive AI →</button>
         </div>
 
-        <div class="pipeline-item">
+        <!-- Corridor 3 -->
+        <div class="corridor-item corridor-green">
           <div>
-            <div class="pipeline-name">FRAUD_SHIELD</div>
-            <div class="pipeline-desc">Impossible Travel → Disposable Email → Bot Radar → Nonce Attestation</div>
+            <div class="corridor-name">3. SELF-HEALING & IMMORTALITY</div>
+            <div class="corridor-desc">Event-loop lag probing → Heap memory audit → Multicloud cost optimization → Predictive healing.</div>
           </div>
-          <button class="btn" onclick="runPipeline('FRAUD_SHIELD')">Test Run →</button>
+          <button class="btn" onclick="runCorridor('CORRIDOR_SELF_HEALING_IMMORTALITY')">Dispatch Self-Healing →</button>
         </div>
 
-        <div class="pipeline-item">
+        <!-- Corridor 4 -->
+        <div class="corridor-item">
           <div>
-            <div class="pipeline-name">SYSTEM_HEAL</div>
-            <div class="pipeline-desc">Event Loop Lag → Heap Radar → Handle Leaks → DB Reconnect → Immortality</div>
+            <div class="corridor-name">4. AUTONOMIC GROWTH & SEO</div>
+            <div class="corridor-desc">A/B landing testing → Viral demand modeling → SEO dynamic indexing → Negociator bot autonom.</div>
           </div>
-          <button class="btn" onclick="runPipeline('SYSTEM_HEAL')">Test Run →</button>
+          <button class="btn" onclick="runCorridor('CORRIDOR_AUTONOMIC_GROWTH_ACQUISITION')">Dispatch Growth Pulse →</button>
+        </div>
+
+        <!-- Corridor 5 -->
+        <div class="corridor-item corridor-gold">
+          <div>
+            <div class="corridor-name">5. PROPHETIC INTELLIGENCE</div>
+            <div class="corridor-desc">EWMA trend regression → 30-Day ARR forecast → Risk budget allocation → Economic pulse.</div>
+          </div>
+          <button class="btn" onclick="runCorridor('CORRIDOR_PROPHETIC_INTELLIGENCE')">Dispatch Prophetic Forecast →</button>
+        </div>
+
+        <!-- Corridor 6 -->
+        <div class="corridor-item">
+          <div>
+            <div class="corridor-name">6. CRYPTOGRAPHIC SOVEREIGNTY</div>
+            <div class="corridor-desc">Semnătură Ed25519 → Timestamp RFC 3161 UTC → Generare arbore Merkle → Audit ZK-Proof.</div>
+          </div>
+          <button class="btn" onclick="runCorridor('CORRIDOR_CRYPTOGRAPHIC_SOVEREIGNTY')">Dispatch Notary Proof →</button>
+        </div>
+
+        <!-- Corridor 7 -->
+        <div class="corridor-item">
+          <div>
+            <div class="corridor-name">7. MULTI-TENANT & CLOUD OPS</div>
+            <div class="corridor-desc">Izolare cote tenant → Compute billing → Cloud cost arbitration (Hetzner/AWS/GCP) → Zero downtime.</div>
+          </div>
+          <button class="btn" onclick="runCorridor('CORRIDOR_MULTI_TENANT_OPS')">Dispatch Tenant Ops →</button>
+        </div>
+
+        <!-- Corridor 8 -->
+        <div class="corridor-item corridor-green">
+          <div>
+            <div class="corridor-name">8. AGI SELF-EVOLUTION</div>
+            <div class="corridor-desc">Algorithmic capability routing → Evolutionary executor test harness → Innovation synergy scoring.</div>
+          </div>
+          <button class="btn btn-purple" onclick="runCorridor('CORRIDOR_AGI_SELF_EVOLUTION')">Dispatch Self-Evolution →</button>
         </div>
       </div>
 
       <div style="margin-top: 1.25rem;">
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">Live Execution Output:</div>
-        <div class="result-console mono" id="pipelineOutput">// Awaiting pipeline dispatch...</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">Live Synaptic Telemetry & Trace Output:</div>
+        <div class="result-console mono" id="corridorOutput">// Awaiting corridor trigger...</div>
       </div>
     </div>
 
-    <!-- AI Intelligence Studio -->
-    <div class="card col-4">
-      <div class="card-title">AI Intelligence Studio 🤖</div>
+    <!-- AI Studio & Interactive Redactor -->
+    <div class="card col-6">
+      <div class="card-title">AI Intelligence Studio & Prompt Pruner 🤖</div>
       <div class="interactive-box">
-        <p style="font-size: 0.8rem; color: var(--text-muted);">Testează optimizarea prompt-urilor și eliminarea automată a datelor confidențiale (Zero-Leak Redactor):</p>
-        <textarea id="promptInput" placeholder="Introduceți un prompt cu chei secrete sau text redundant... (ex: Cheia mea este ghp_abcdef1234567890abcdef1234567890abcdef)"></textarea>
-        <button class="btn" style="background: var(--accent-blue); border: none;" onclick="optimizePrompt()">Optimizează Prompt & Salvează Tokeni</button>
-        <div class="result-console mono" id="promptResult" style="min-height: 90px;">// Rezultat optimizare...</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Optimizare în timp real a prompturilor și eliminare automată PII (Zero-Leak Redactor):</p>
+        <textarea id="promptInput" placeholder="Introduceți promptul de testat... (ex: Cheia mea de producție este ghp_abcdef1234567890abcdef1234567890abcdef)"></textarea>
+        <button class="btn btn-purple" onclick="optimizePrompt()">Optimizează Prompt & Salvează Tokeni</button>
+        <div class="result-console mono" id="promptResult" style="min-height: 80px;">// Rezultat optimizare prompt...</div>
       </div>
+    </div>
+
+    <!-- Synaptic Neuron Explorer -->
+    <div class="card col-6">
+      <div class="card-title">
+        <span>🔎 Synaptic Neuron Explorer</span>
+        <input type="text" class="search-input mono" id="neuronSearch" placeholder="Filter 700+ neurons..." oninput="filterNeurons()">
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Căutare live prin toate cele 705 componente (Swiss Clockwork, Organs, Integrations):</p>
+      <div class="result-console mono" id="neuronsList" style="min-height: 140px;">// Loading neuron registry...</div>
     </div>
 
     <!-- Orders & Invoicing Ledger -->
@@ -350,31 +460,34 @@
   </main>
 
   <script>
-    async function loadStatus() {
+    async function loadSynapseStatus() {
       try {
-        const res = await fetch('/api/clockwork/status');
+        const res = await fetch('/api/synapse/status');
         const data = await res.json();
         if (data.ok) {
-          document.getElementById('tickCount').textContent = `${data.ticks} Ticks`;
-          document.getElementById('escapementStatus').textContent = `Escapements: ${data.escapementCount} · ${data.registeredWorkersCount} Workers Active`;
+          document.getElementById('neuronsCount').textContent = data.totalNeurons;
+          document.getElementById('corridorsCount').textContent = `${data.activeCorridorsCount} / 8`;
+          document.getElementById('pulseCount').textContent = `${data.pulseCount} Pulses`;
+          document.getElementById('synapseSub').textContent = `0 Orphans · Tourbillon: ${data.tourbillonIntegrity}`;
+          document.getElementById('hyperMeshBadge').textContent = `${data.system} · V${data.version}`;
         }
       } catch (e) {
-        console.warn('Status poll error:', e);
+        console.warn('Synapse status fetch error:', e);
       }
     }
 
-    async function runPipeline(chainName) {
-      const out = document.getElementById('pipelineOutput');
-      out.textContent = `// Dispatching ${chainName} through escapement train...`;
+    async function runCorridor(corridorId) {
+      const out = document.getElementById('corridorOutput');
+      out.textContent = `// Dispatching ${corridorId} through Autonomous Synaptic Hyper-Mesh...`;
       try {
-        const res = await fetch(`/api/clockwork/run/${chainName}`, {
+        const res = await fetch(`/api/synapse/run/${corridorId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ basePrice: 200, country: 'RO', prompt: 'ZeusAI Enterprise Execution Test' })
+          body: JSON.stringify({ basePrice: 249, country: 'RO', serviceId: 'sovereign-ai-enterprise' })
         });
         const data = await res.json();
         out.textContent = JSON.stringify(data, null, 2);
-        loadStatus();
+        loadSynapseStatus();
       } catch (err) {
         out.textContent = `// Error: ${err.message}`;
       }
@@ -383,9 +496,9 @@
     async function optimizePrompt() {
       const p = document.getElementById('promptInput').value;
       const resEl = document.getElementById('promptResult');
-      resEl.textContent = '// Running through AdaptiveModule11 & 19...';
+      resEl.textContent = '// Running through CORRIDOR_COGNITIVE_AI...';
       try {
-        const res = await fetch('/api/ai/optimize-prompt', {
+        const res = await fetch('/api/synapse/run/CORRIDOR_COGNITIVE_AI', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: p })
@@ -395,6 +508,39 @@
       } catch (e) {
         resEl.textContent = `// Error: ${e.message}`;
       }
+    }
+
+    let cachedNeurons = [];
+    async function loadNeurons() {
+      try {
+        const res = await fetch('/api/synapse/neurons');
+        const data = await res.json();
+        if (data.ok) {
+          cachedNeurons = data.neurons || [];
+          renderNeurons(cachedNeurons.slice(0, 15));
+        }
+      } catch (e) {
+        console.warn('Load neurons failed:', e);
+      }
+    }
+
+    function renderNeurons(list) {
+      const el = document.getElementById('neuronsList');
+      if (!list.length) {
+        el.textContent = '// No matching neurons found.';
+        return;
+      }
+      el.textContent = list.map(n => `[${n.category.padEnd(10, ' ')}] ${n.id.padEnd(28, ' ')} · calls: ${n.invocations} · latency: ${n.lastLatencyUs}µs · state: ${n.internalState ? 'OK' : 'ERR'}`).join('\n');
+    }
+
+    function filterNeurons() {
+      const term = document.getElementById('neuronSearch').value.toLowerCase().trim();
+      if (!term) {
+        renderNeurons(cachedNeurons.slice(0, 15));
+        return;
+      }
+      const filtered = cachedNeurons.filter(n => n.id.toLowerCase().includes(term) || n.category.toLowerCase().includes(term));
+      renderNeurons(filtered.slice(0, 30));
     }
 
     async function loadOrders() {
@@ -422,9 +568,10 @@
     }
 
     // Init
-    loadStatus();
+    loadSynapseStatus();
+    loadNeurons();
     loadOrders();
-    setInterval(loadStatus, 5000);
+    setInterval(loadSynapseStatus, 6000);
   </script>
 </body>
 </html>

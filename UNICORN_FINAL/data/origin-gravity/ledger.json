@@ -1,0 +1,19 @@
+{
+  "protocol": "OGP/1.0",
+  "genesis": {
+    "protocol": "OGP/1.0",
+    "type": "genesis",
+    "originIndex": 0,
+    "paidHumans": 0,
+    "statement": "Zero paid humans. The next confirmed on-chain or rail settlement is Origin #1. This emptiness is signed, crawlable, and scarce.",
+    "claim": "ZeusAI Origin Gravity Protocol publishes a hash-chained genesis that this AI-commerce OS has zero paid humans. The next confirmed settlement becomes Origin #1 and receives a Founding Origin Passport. Traction is never invented.",
+    "at": "2026-11-03T17:15:42.199Z",
+    "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hash": "ebad476f9251b22d12a2ea00ab961e35978bd5fec3ca368fa539d39e9cb81164"
+  },
+  "origins": [],
+  "invites": [],
+  "orderIndex": {},
+  "lastPulse": null,
+  "savedAt": "2026-11-03T17:15:42.199Z"
+}

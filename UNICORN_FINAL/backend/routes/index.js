@@ -12,6 +12,7 @@ const commerceRoutes = require('./commerce.routes');
 const aiRoutes = require('./ai.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const healthRoutes = require('./health.routes');
+const synapseRoutes = require('./synapse.routes');
 
 /**
  * Master Modular Route Manager
@@ -27,6 +28,15 @@ function mount(app) {
   app.use('/api/client/dashboard', dashboardRoutes);
   app.use('/api/portal', dashboardRoutes);
   app.use('/api/health', healthRoutes);
+  app.use('/api/synapse', synapseRoutes);
+
+  // Initialize complementary integrations suite
+  try {
+    const integrations = require('../modules/integrations');
+    if (integrations && typeof integrations.init === 'function') {
+      integrations.init({ app });
+    }
+  } catch (_) {}
 
   return app;
 }
@@ -37,5 +47,6 @@ module.exports = {
   commerceRoutes,
   aiRoutes,
   dashboardRoutes,
-  healthRoutes
+  healthRoutes,
+  synapseRoutes,
 };

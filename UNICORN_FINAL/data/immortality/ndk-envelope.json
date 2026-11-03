@@ -1,0 +1,13 @@
+{
+  "updatedAt": "2026-11-03T17:30:13.921Z",
+  "protocol": "NDK/1.0",
+  "health": "good",
+  "lagMs": 0,
+  "lagP95Ms": 0,
+  "diskUsedPct": 0,
+  "freeMemPct": 1,
+  "reasons": [],
+  "neverKill": true,
+  "healerFail": false,
+  "commerceBlocked": false
+}

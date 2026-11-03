@@ -49,3 +49,11 @@
 {"ts":"2026-08-06T20:00:42.090Z","type":"register","genomeId":"gnm_374b498afa37d5cc61","sku":"ent-white-label"}
 {"ts":"2026-08-06T20:00:42.092Z","type":"register","genomeId":"gnm_5b6b2cbc108758e38d","sku":"ent-sovereign-deployment"}
 {"ts":"2026-10-30T00:53:53.562Z","type":"register","genomeId":"gnm_4ff9961269bf7630d3","sku":"starter"}
+{"ts":"2026-11-03T17:15:34.226Z","type":"register","genomeId":"gnm_45d6a6a24b84ad0be9","sku":"instant-endpoint-ledger"}
+{"ts":"2026-11-03T17:15:34.227Z","type":"register","genomeId":"gnm_1ce24f01c3ccfaacbd","sku":"instant-control-evidence"}
+{"ts":"2026-11-03T17:15:34.227Z","type":"register","genomeId":"gnm_86eb2462e5809aef37","sku":"instant-network-partition"}
+{"ts":"2026-11-03T17:15:34.228Z","type":"register","genomeId":"gnm_fb16b973e0217a90e0","sku":"instant-security-test-brief"}
+{"ts":"2026-11-03T17:15:34.228Z","type":"register","genomeId":"gnm_43effa9eee6222bf1d","sku":"instant-operations-watch"}
+{"ts":"2026-11-03T17:15:34.228Z","type":"register","genomeId":"gnm_cbd34854d71f4ff838","sku":"instant-incident-clock"}
+{"ts":"2026-11-03T17:15:34.228Z","type":"register","genomeId":"gnm_2f5175221ac6ee0749","sku":"instant-security-program"}
+{"ts":"2026-11-03T17:15:34.229Z","type":"register","genomeId":"gnm_12f4e6df772d29e992","sku":"ent-engagement-kickoff"}

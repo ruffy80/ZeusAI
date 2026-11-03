@@ -1,3 +1,10 @@
 {
-  "events": []
+  "events": [
+    {
+      "type": "process-probe-unknown",
+      "probe": "unavailable",
+      "inventsHeal": false,
+      "ts": "2026-11-03T17:15:34.875Z"
+    }
+  ]
 }

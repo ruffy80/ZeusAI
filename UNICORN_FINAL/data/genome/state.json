@@ -1,9 +1,9 @@
 {
   "startedAt": null,
-  "registrations": 51,
-  "genomesBorn": 51,
-  "edgesCreated": 238,
-  "opportunities": 32,
+  "registrations": 59,
+  "genomesBorn": 59,
+  "edgesCreated": 401,
+  "opportunities": 35,
   "evolutions": 0,
   "orchestratorTicks": 0,
   "maintenanceOps": 6,
@@ -11,5 +11,5 @@
   "errors": 0,
   "lastOrchestratorAt": null,
   "lastEvolveAt": null,
-  "savedAt": "2026-10-30T00:55:20.411Z"
+  "savedAt": "2026-11-03T17:15:39.231Z"
 }

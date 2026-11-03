@@ -1,0 +1,10 @@
+{
+  "protocol": "CPG/1.0",
+  "updatedAt": "2026-11-03T17:30:13.921Z",
+  "commerceBlocked": false,
+  "reasons": [],
+  "health": "good",
+  "diskUsedPct": 0,
+  "freeMemPct": 1,
+  "source": "never-down-kernel"
+}
