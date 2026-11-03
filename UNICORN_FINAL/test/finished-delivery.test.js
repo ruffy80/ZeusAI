@@ -8,6 +8,7 @@ const shelf = require('../src/commerce/public-shelf');
 const engine = require('../src/site/v2/fulfillment-engine');
 const finished = require('../src/commerce/finished-delivery');
 const shell = require('../src/site/v2/shell');
+const moneyCatalog = require('../src/commerce/money-catalog');
 
 let passed = 0;
 const pending = [];
@@ -80,6 +81,60 @@ check('an enterprise kickoff page collects the brief and the file keeps it', () 
     assert.ok(/draft statement of work/i.test(file));
     assert.ok(file.includes('## The problem this file solves'));
   });
+});
+
+check('every buyable shelf offer has a tier-specific executable artifact', async () => {
+  const rows = shelf.publicShelf().filter((item) => item.buyable === true);
+  for (const item of rows) {
+    if (item.mode === 'contact' || item.mode === 'unavailable') continue;
+    const receipt = {
+      id: 'ord_exec_' + item.id,
+      orderId: 'ord_exec_' + item.id,
+      email: 'buyer@example.com',
+      serviceId: item.id,
+      serviceName: item.title,
+      plan: item.id,
+      services: [item.id],
+      amount: Number(item.priceUsd) || 0,
+      status: 'paid',
+      buy_mode: item.mode,
+      meta: { requiresHumanFulfillment: item.mode === 'reserve' },
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const artifact = await engine.fulfillService(receipt, item.id);
+    assert.ok(artifact && artifact.status === 'delivered', item.id + ' not delivered');
+    assert.ok(typeof artifact.content === 'string' && artifact.content.length > 200, item.id + ' content too short');
+    assert.ok(/## The problem this file solves/i.test(artifact.content), item.id + ' missing problem contract');
+    const moneyRow = moneyCatalog.byId(item.id);
+    if (moneyRow) {
+      assert.strictEqual(artifact.generatedBy, 'money-catalog', item.id + ' expected money-catalog path');
+      if (item.tier === 'frontier') {
+        assert.ok(artifact.content.includes('## Tool contract'), item.id + ' missing tool contract');
+        assert.ok(artifact.content.includes('## Live route'), item.id + ' missing live route');
+      } else if (item.tier === 'industry') {
+        assert.ok(artifact.content.includes('## KPI focus'), item.id + ' missing KPI focus');
+        assert.ok(/does not install an operating system/i.test(artifact.content), item.id + ' missing installation boundary');
+      } else if (item.tier === 'dropship') {
+        assert.ok(artifact.content.includes('## Supplier status'), item.id + ' missing supplier status');
+        assert.ok(/does not dispatch a parcel/i.test(artifact.content), item.id + ' missing dispatch boundary');
+      }
+      continue;
+    }
+    if (item.id === 'ent-engagement-kickoff') {
+      assert.ok(/## Discovery brief/i.test(artifact.content), item.id + ' missing discovery brief');
+      assert.ok(/## Draft statement of work/i.test(artifact.content), item.id + ' missing draft statement of work');
+      assert.ok(/does not deliver the license/i.test(artifact.content), item.id + ' missing engagement boundary');
+    } else if (item.mode === 'reserve' || item.clock === 'days' || item.clock === 'contract') {
+      assert.ok(/## Scope/i.test(artifact.content), item.id + ' missing scope');
+      assert.ok(/## Milestones/i.test(artifact.content), item.id + ' missing milestones');
+      assert.ok(/finished build is not in this file/i.test(artifact.content), item.id + ' missing human-delivery boundary');
+    } else {
+      const preview = engine.offerPreview(item.id, item);
+      for (const section of (preview.sections || [])) {
+        assert.ok(artifact.content.toLowerCase().includes(String(section).toLowerCase()), item.id + ' missing section ' + section);
+      }
+    }
+  }
 });
 
 Promise.all(pending).then(() => {

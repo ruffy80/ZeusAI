@@ -63,6 +63,19 @@ check('a buyable offer without a checkout href fails', () => {
   assert.ok(bad.failures.indexOf('buyable_without_checkout') !== -1);
 });
 
+check('a buyable offer without a mapped execution recipe fails', () => {
+  const bad = integrity.evaluate({
+    id: 'instant-totally-new-sku',
+    mode: 'btc',
+    clock: 'minutes',
+    buyable: true,
+    priceUsd: 39,
+    ctaHref: '/checkout/?plan=instant-totally-new-sku',
+  }, { kind: 'activation', fileTitle: 'Service Activation Pack' });
+  assert.strictEqual(bad.pass, false);
+  assert.ok(bad.failures.indexOf('unmapped_execution_recipe') !== -1);
+});
+
 check('an id that is not on the shelf is not a delivery', () => {
   const missing = integrity.proofFor('not-a-real-shelf-id');
   assert.strictEqual(missing.onShelf, false);
