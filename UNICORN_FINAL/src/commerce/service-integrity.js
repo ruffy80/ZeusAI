@@ -26,6 +26,25 @@ function previewOf(item) {
   });
 }
 
+function hasExecutableRecipe(item) {
+  if (!item || item.buyable !== true) return true;
+  const mode = String(item.mode || '');
+  if (mode === 'contact' || mode === 'unavailable') return true;
+  try {
+    const money = require('./money-catalog');
+    if (money && typeof money.byId === 'function' && money.byId(item.id)) return true;
+  } catch (_) { /* recipe checks below */ }
+  const human = mode === 'reserve' || item.clock === 'days' || item.clock === 'contract';
+  if (human) return true;
+  try {
+    const engine = require('../site/v2/fulfillment-engine');
+    const recipe = engine && typeof engine.pickRecipe === 'function' ? engine.pickRecipe(item.id) : null;
+    return !!(recipe && recipe.id && recipe.id !== 'consulting-brief');
+  } catch (_) {
+    return false;
+  }
+}
+
 function evaluate(item, preview) {
   const failures = [];
   if (!item || !item.id) failures.push('no_shelf_offer');
@@ -45,6 +64,7 @@ function evaluate(item, preview) {
   if (item && item.buyable === true) {
     if (!(Number(item.priceUsd) > 0)) failures.push('buyable_without_price');
     if (href.indexOf('/checkout') === -1) failures.push('buyable_without_checkout');
+    if (!hasExecutableRecipe(item)) failures.push('unmapped_execution_recipe');
   } else if (href.indexOf('/checkout') !== -1) {
     failures.push('unbuyable_opened_a_cart');
   }
