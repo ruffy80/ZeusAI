@@ -2106,6 +2106,17 @@ const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
 const rateLimit = require('express-rate-limit');
 
+function timingSafeStrEqual(a, b) {
+  try {
+    const left = Buffer.from(String(a || ''), 'utf8');
+    const right = Buffer.from(String(b || ''), 'utf8');
+    if (!left.length || !right.length || left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
+  } catch (_) {
+    return false;
+  }
+}
+
 // --- DEBUG RAPID: Log ENV critice și path logs PM2 la startup ---
 console.log('[UNICORN] Startup backend index.js');
 console.log('[UNICORN] ENV PORT:', process.env.PORT);
@@ -2678,7 +2689,7 @@ function adminSecretMiddleware(req, res, next) {
   const bearerSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const provided = headerSecret || bearerSecret || req.query.adminSecret;
 
-  if (!expected || !provided || provided !== expected) {
+  if (!timingSafeStrEqual(provided, expected)) {
     return res.status(401).json({ error: 'Invalid admin secret' });
   }
 
@@ -6955,7 +6966,7 @@ function _timingSafeHexEqual(a, b) {
 function _authorizePaymentConfirm(req, payload, method) {
   const confirmToken = process.env.PAYMENT_CONFIRM_TOKEN || process.env.ADMIN_SECRET || '';
   const providedToken = String(req.headers['x-payment-token'] || req.headers['x-admin-secret'] || '');
-  const tokenOk = !!(confirmToken && providedToken && providedToken === confirmToken);
+  const tokenOk = timingSafeStrEqual(providedToken, confirmToken);
 
   const pqSecret = process.env.PQ_CONFIRM_SECRET || '';
   const pqSig = String(req.headers['x-pq-signature'] || '');
@@ -6993,7 +7004,7 @@ function requireAdminSecretOrJwt(req, res, next) {
     || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
     || ''
   );
-  if (expected && provided && provided === expected) return next();
+  if (timingSafeStrEqual(provided, expected)) return next();
   if (!expected) {
     // Fail closed when no admin secret is configured (except unit-test env).
     if (process.env.NODE_ENV === 'test') return next();
@@ -12442,7 +12453,7 @@ app.post('/api/autonomy/os/tick', sensitiveRateLimit({ maxRequests: 30, windowMs
 app.post('/api/autonomy/os/arm', sensitiveRateLimit({ maxRequests: 8, windowMs: 60_000, cooldownMs: 180_000 }), (req, res, next) => {
   const provided = req.headers['x-admin-secret'] || req.body?.adminSecret || req.query?.adminSecret || '';
   const expected = process.env.ADMIN_SECRET || '';
-  if (expected && provided && provided === expected) { req._adminBypass = true; return next(); }
+  if (timingSafeStrEqual(provided, expected)) { req._adminBypass = true; return next(); }
   return adminTokenMiddleware(req, res, next);
 }, (req, res) => {
   if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
@@ -16650,7 +16661,7 @@ app.post('/api/autonomy/activate', sensitiveRateLimit({ maxRequests: 12, windowM
   // Allow direct activation via ADMIN_SECRET header (server-side bootstrap)
   const provided = req.headers['x-admin-secret'] || req.body?.adminSecret || req.query?.adminSecret || '';
   const expected = process.env.ADMIN_SECRET || '';
-  if (expected && provided && provided === expected) { req._adminBypass = true; return next(); }
+  if (timingSafeStrEqual(provided, expected)) { req._adminBypass = true; return next(); }
   return adminTokenMiddleware(req, res, next);
 }, (req, res) => {
   const results = [];

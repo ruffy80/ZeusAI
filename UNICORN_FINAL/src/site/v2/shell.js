@@ -939,28 +939,23 @@ ${route === '/checkout' || String(route || '').indexOf('/checkout/') === 0 ? '' 
 
 function navBar(route) {
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
-  const langMark = `<span class="lang-mark" title="English. One page for every country. This address is not redirected.">EN</span>`;
+  const langMark = `<span class="lang-mark" title="English public edition">EN</span>`;
   return `<nav class="nav" data-nav-open="false">
 <div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" data-fallback="hide"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Enterprise router · Marketplace</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/products', 'Services')}${L('/services', 'Marketplace')}${L('/api-product', 'APIs')}${L('/orchestrator', 'SDK')}${L('/pricing', 'Pricing')}${L('/docs', 'Docs')}${L('/ledger', 'Ledger')}${L('/report', 'Report')}
-<div class="nav-more" data-nav-more>
-  <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
-  <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
-    <div class="nav-more-label" role="presentation">Solutions</div>
+${L('/', 'Home')}${L('/products', 'Products')}${L('/services', 'Marketplace')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/trust', 'Trust &amp; Security')}${L('/docs', 'Developers')}${L('/account', 'Account')}
+<a href="/buy" data-link hidden aria-hidden="true" tabindex="-1">Buy</a>
+<div class="nav-more" data-nav-more hidden aria-hidden="true">
+  <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn hidden tabindex="-1">More</button>
+  <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden aria-hidden="true">
     ${L('/solutions/model-routing', 'Model Routing')}
     ${L('/solutions/self-healing', 'Self-Healing')}
     ${L('/solutions/autonomous-agents', 'Autonomous Agents')}
-    <div class="nav-more-label" role="presentation">Buy</div>
-    ${L('/buy', 'Buy')}
     ${L('/enterprise', 'Enterprise')}
     ${L('/wizard', 'Find my plan')}
-    <div class="nav-more-label" role="presentation">Workspace</div>
-    ${L('/account', 'Account')}
-    ${L('/docs', 'API &amp; Docs')}
     ${L('/trust', 'Trust Center')}
   </div>
 </div>
@@ -968,8 +963,9 @@ ${L('/', 'Home')}${L('/products', 'Services')}${L('/services', 'Marketplace')}${
 <div class="nav-cta">
 ${langMark}
 <a class="btn" href="/telegram" data-link data-telegram="header">Telegram</a>
-<a class="btn btn-primary" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
-<a class="btn btn-primary nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
+<a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
+<a class="btn btn-primary" href="/products" data-link>Browse products</a>
+<a class="btn nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
 </nav>`;
 }
