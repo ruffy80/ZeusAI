@@ -1951,6 +1951,7 @@ function _homeFeaturedServices() {
 }
 
 function pageHome() {
+  try { require('../../commerce/relay-graft-os'); } catch (_) {}
   return `<section class="hero" id="costHero">
   <div class="zeus-scene" aria-hidden="true">
     <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.avif')}" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" data-fallback="${assetPath('/assets/zeus/placeholder.svg')}"/></picture>
