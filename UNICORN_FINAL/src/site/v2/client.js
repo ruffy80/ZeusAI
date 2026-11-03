@@ -791,7 +791,7 @@ function routePath(value){
 // load so the boot script is parser-inserted with a matching nonce.
 function isIdentityRoute(value){
   const p = routePath(value);
-  return p === '/account' || p === '/login' || p === '/signup' || p === '/auth'
+  return p === '/account' || p === '/myaccount' || p === '/my-account' || p === '/dashboard' || p === '/login' || p === '/signup' || p === '/auth'
     || p === '/forgot-password' || p === '/reset-password';
 }
 function navigate(to, push=true){
@@ -2050,10 +2050,11 @@ async function hydratePage(route){
   try { if (route === '/enterprise') await hydrateEnterprise(); } catch (e) { console.warn('hydratePage:enterprise', e && e.message); }
   try { if (route === '/store') await hydrateStore(); } catch (e) { console.warn('hydratePage:store', e && e.message); }
   try {
-    if (route === '/account') {
+    if (route === '/account' || route === '/myaccount' || route === '/my-account' || route === '/dashboard') {
       try { if (typeof window.__zeusCryptoAuthRefresh === 'function') window.__zeusCryptoAuthRefresh(); } catch (_) {}
       bindAccountOrderLookup();
       hydrateAccount().catch(function(){});
+      hydrateDashboard().catch(function(){});
     }
   } catch (e) { console.warn('hydratePage:account', e && e.message); }
   try { if (route === '/admin/services') await hydrateAdminServices(); } catch (e) { console.warn('hydratePage:adminServices', e && e.message); }
@@ -6370,17 +6371,17 @@ function refreshCustomerNav(){
     document.documentElement.setAttribute('data-customer-authenticated', active ? '1' : '0');
     document.documentElement.setAttribute('data-cryptoauth', cryptoToken ? '1' : '0');
     document.querySelectorAll('[data-customer-link]').forEach((el) => {
-      el.textContent = active ? 'My Account' : 'Create Account';
+      el.textContent = active ? 'Account' : 'Create Account';
       if (customer && customer.email) el.setAttribute('title', customer.email);
       else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
     document.querySelectorAll('[data-customer-cta]').forEach((el) => {
       const guestLabel = el.getAttribute('data-guest-label');
       if (guestLabel) {
-        el.textContent = active ? (el.getAttribute('data-auth-label') || 'My Account') : guestLabel;
-        el.setAttribute('href', active ? (el.getAttribute('data-auth-href') || '/account') : (el.getAttribute('data-guest-href') || '/contact'));
+        el.textContent = active ? (el.getAttribute('data-auth-label') || guestLabel) : guestLabel;
+        el.setAttribute('href', active ? (el.getAttribute('data-auth-href') || el.getAttribute('data-guest-href') || '/contact') : (el.getAttribute('data-guest-href') || '/contact'));
       } else {
-        el.textContent = active ? 'My Account' : 'Sign up';
+        el.textContent = active ? 'Account' : 'Sign up';
       }
       if (customer && customer.email) el.setAttribute('title', customer.email);
       else if (cryptoUser) el.setAttribute('title', cryptoUser);

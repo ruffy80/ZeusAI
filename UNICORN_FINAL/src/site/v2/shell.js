@@ -964,7 +964,7 @@ ${L('/', 'Home')}${L('/products', 'Products')}${L('/services', 'Marketplace')}${
 <div class="nav-cta">
 ${langMark}
 <a class="btn" href="/telegram" data-link data-telegram="header">Telegram</a>
-<a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
+<a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/contact" data-auth-label="Book Demo">Book Demo</a>
 <a class="btn btn-primary" href="/products" data-link>Browse products</a>
 <a class="btn btn-primary nav-console-btn" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);box-shadow:0 0 16px rgba(138,92,255,.45);font-weight:700">Launch Console →</a>
 <a class="btn nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
@@ -1495,8 +1495,8 @@ function globalChrome(N) {
     try { token = localStorage.getItem('u_cust_token') || localStorage.getItem('zeus_cryptoauth_token') || ''; } catch(_){}
     if (token) {
       document.querySelectorAll('[data-customer-cta][data-guest-label]').forEach(function(el){
-        el.textContent = el.getAttribute('data-auth-label') || 'My Account';
-        el.setAttribute('href', el.getAttribute('data-auth-href') || '/account');
+        el.textContent = el.getAttribute('data-auth-label') || el.getAttribute('data-guest-label') || 'Book Demo';
+        el.setAttribute('href', el.getAttribute('data-auth-href') || el.getAttribute('data-guest-href') || '/contact');
       });
     }
   } catch(_){}
@@ -3328,41 +3328,8 @@ function pageSolution(kind) {
 </section>`;
 }
 
-function pageDashboard() {
-  return `<section style="padding-top:140px">
-  <div class="section-title">
-    <div><span class="kicker">Dashboard</span><h1>My <span class="grad">ZeusAI</span></h1></div>
-    <p>Live telemetry from your ZeusAI instance. All numbers sourced from the server — no mocks.</p>
-  </div>
-  <div class="co-box" id="passkeyBox" style="margin-bottom:22px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-    <div><span class="kicker">Sovereign login</span><h3 style="margin:4px 0 0;font-size:18px">Sign in with a passkey — no passwords, ever.</h3><p style="color:var(--ink-dim);font-size:13.5px;margin:6px 0 0">WebAuthn (FIDO2). Private key never leaves your device. Signed DID binds your account to the ZeusAI autonomy chain.</p></div>
-    <div style="display:flex;gap:10px;align-items:center">
-      <input id="pkEmail" placeholder="you@company.com" style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:14px;font-family:inherit;min-width:220px"/>
-      <button class="btn" id="pkLogin">Sign in</button>
-      <button class="btn btn-primary" id="pkRegister">Create passkey</button>
-    </div>
-  </div>
-  <div class="dash-grid" id="dashKpis"></div>
-  <div class="co-box" style="margin:22px 0">
-    <span class="kicker">Command Center</span>
-    <h3 style="margin:6px 0 10px">Next best actions</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
-      <a class="btn" href="/trust" data-link>Trust Center</a>
-      <a class="btn" href="/docs" data-link>API &amp; Docs</a>
-    </div>
-  </div>
-  <div class="grid" id="dashServices"><div class="card"><p>Loading services…</p><p class="dash-offline" style="color:var(--ink-dim);font-size:12px;margin:8px 0 0">If this stays blank, open <a href="/services" data-link>Marketplace</a>.</p></div></div>
-  <div class="section-title" style="margin-top:50px"><div><h2 style="font-size:24px">Recent receipts</h2></div></div>
-  <div id="dashReceipts" class="card"><p>Loading receipts…</p></div>
-  <div class="co-box" style="margin-top:22px">
-    <span class="kicker">Affiliate program</span>
-    <h3 style="margin:6px 0 10px">Your referral link · 10% signed split</h3>
-    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 10px">Every paid sovereign order attributed to your <code class="inline">?ref=</code> code is recorded in the referral ledger with a pending commission. BTC payouts stay manual. A txid appears on <a href="/affiliate/desk" data-link>/affiliate/desk</a> only after one is stored.</p>
-    <input id="affLink" readonly style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:ui-monospace,monospace;font-size:13px" onclick="this.select();document.execCommand&&document.execCommand('copy')"/>
-  </div>
-</section>`;
+function pageDashboard(opts) {
+  return pageAccount(opts);
 }
 
 function pageHow() {
@@ -3929,7 +3896,7 @@ function pageAccount(opts) {
   var _nonce = (opts && opts.nonce) ? String(opts.nonce) : '';
   var _N = _nonce ? ' nonce="' + _nonce + '"' : '';
   return `<section style="padding:120px 0 80px;min-height:100vh" data-iic="1">
-  <div style="max-width:760px;margin:0 auto;padding:0 20px">
+  <div style="max-width:860px;margin:0 auto;padding:0 20px">
     <span class="kicker" style="color:#7cffb8">Cryptographic identity \u00b7 Ed25519 \u00b7 Instant Identity Continuum</span>
     <h1 style="font-size:clamp(32px,4vw,48px);line-height:1.05;margin:14px 0 10px;letter-spacing:-0.02em">Your account</h1>
     <p id="acaTagline" style="color:var(--ink-dim);font-size:16px;line-height:1.55;margin:0 0 28px">No passwords. No emails to verify. Your device generates the keypair \u2014 the private key never leaves your browser. To recover, import the encrypted backup file you download once at registration.</p>
@@ -3971,6 +3938,76 @@ function pageAccount(opts) {
           <input id="acaVaultFile" type="file" accept=".zeus-vault,.json,application/json" style="width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px">
           <button type="button" id="acaImport" class="btn btn-ghost" style="width:100%;padding:10px">Import &amp; sign in \u2192</button>
         </div>
+      </div>
+    </div>
+
+    <div class="co-box" id="passkeyBox" style="margin-top:22px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid rgba(138,92,255,.3);background:rgba(138,92,255,.05);border-radius:12px;padding:18px">
+      <div>
+        <span class="kicker" style="color:#a78bfa">Alternative login · FIDO2</span>
+        <h3 style="margin:4px 0 0;font-size:17px">Sign in with a passkey — Touch ID / Face ID / Security key</h3>
+        <p style="color:var(--ink-dim);font-size:13px;margin:6px 0 0">WebAuthn sovereign DID. Private key hardware-isolated in your device enclave.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="pkEmail" placeholder="you@company.com" style="padding:10px 14px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px;font-family:inherit;min-width:200px"/>
+        <button class="btn btn-ghost" id="pkLogin" type="button" style="padding:10px 16px">Sign in</button>
+        <button class="btn btn-primary" id="pkRegister" type="button" style="padding:10px 16px">Create passkey</button>
+      </div>
+    </div>
+
+    <div class="card" id="accountOpenAiGateway" style="margin-top:22px;padding:22px;border:1px solid rgba(62,160,255,.35);background:linear-gradient(135deg,rgba(62,160,255,.06),rgba(138,92,255,.06))">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <span class="kicker" style="color:#3ea0ff">OpenAI-Compatible Gateway · Sovereign Routing</span>
+          <h3 style="margin:4px 0 0;font-size:18px">Your Private AI Inference Gateway</h3>
+        </div>
+        <span class="chip on" style="background:rgba(62,160,255,.2);color:#3ea0ff;border:1px solid rgba(62,160,255,.4)">✓ /v1 Gateway Active</span>
+      </div>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:10px 0 14px">
+        Drop-in replacement for OpenAI SDKs (<code class="inline">baseURL: "https://zeusai.pro/v1"</code>). Calls are routed through local sovereign LLMs or cost-arbitraged upstream models with zero prompt logging.
+      </p>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:var(--ink-dim);margin-bottom:4px">Gateway Base URL</label>
+        <input readonly value="https://zeusai.pro/v1" style="width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.7);color:#7cffb8;font-family:ui-monospace,monospace;font-size:13px;cursor:pointer" onclick="this.select();navigator.clipboard&amp;&amp;navigator.clipboard.writeText(this.value);" title="Click to copy base URL">
+      </div>
+      <div style="background:rgba(5,4,10,.85);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;color:#cdd5e6;overflow-x:auto">
+        <span style="color:#8a5cff">curl</span> https://zeusai.pro/v1/chat/completions \<br>
+        &nbsp;&nbsp;-H <span style="color:#7cffb8">"Content-Type: application/json"</span> \<br>
+        &nbsp;&nbsp;-H <span style="color:#ffd36a">"Authorization: Bearer $(cat ~/.zeus_token)"</span> \<br>
+        &nbsp;&nbsp;-d <span style="color:#3ea0ff">'{"model":"sovereign-smart","messages":[{"role":"user","content":"Ping ZeusAI"}]}'</span>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-ghost" href="/docs" data-link style="padding:7px 14px;font-size:12.5px">Developer Docs →</a>
+        <a class="btn btn-ghost" href="/api-explorer" data-link style="padding:7px 14px;font-size:12.5px">API Explorer →</a>
+      </div>
+    </div>
+
+    <div class="card" id="accountAffiliate" style="margin-top:22px;padding:22px;border:1px solid rgba(124,255,184,.3);background:linear-gradient(135deg,rgba(124,255,184,.05),rgba(5,4,10,.6))">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <span class="kicker" style="color:#7cffb8">Partner &amp; Affiliate Program</span>
+          <h3 style="margin:4px 0 0;font-size:18px">Your Referral Link · 10% Signed Split</h3>
+        </div>
+        <a class="btn btn-ghost" href="/affiliate/desk" data-link style="padding:6px 12px;font-size:12px">Affiliate Ledger →</a>
+      </div>
+      <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:8px 0 12px">Every order attributed to your <code class="inline">?ref=</code> link records a pending 10% commission in the sovereign referral ledger. Direct Bitcoin payouts.</p>
+      <input id="affLink" readonly placeholder="Generating your unique referral link…" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(124,255,184,.3);background:rgba(5,4,10,.65);color:#7cffb8;font-family:ui-monospace,monospace;font-size:13px;cursor:pointer" onclick="this.select();navigator.clipboard&amp;&amp;navigator.clipboard.writeText(this.value);" title="Click to copy referral link">
+    </div>
+
+    <div style="margin-top:22px">
+      <div class="section-title" style="margin-bottom:12px"><div><h3 style="font-size:18px;margin:0">Recent Receipts &amp; Entitlements</h3></div></div>
+      <div id="dashReceipts" class="card" style="padding:16px"><p style="color:var(--ink-dim);font-size:13px;margin:0">Loading receipts…</p></div>
+    </div>
+
+    <div class="co-box" style="margin-top:22px;padding:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);border-radius:12px">
+      <span class="kicker">Command Center</span>
+      <h3 style="margin:4px 0 8px;font-size:17px">Direct Platform Actions</h3>
+      <p style="color:var(--ink-dim);font-size:13px;margin:0 0 14px">Jump directly into live services, cost audits, or high-throughput enterprise infrastructure.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/services" data-link style="padding:8px 16px;font-size:13px">Marketplace Offers</a>
+        <a class="btn btn-ghost" href="/#instantAudit" data-link style="padding:8px 16px;font-size:13px">Instant AI Audit</a>
+        <a class="btn btn-ghost" href="/client-dashboard" data-link style="padding:8px 16px;font-size:13px">Live Console →</a>
+        <a class="btn btn-ghost" href="/trust" data-link style="padding:8px 16px;font-size:13px">Trust Center</a>
+        <a class="btn btn-ghost" href="/status" data-link style="padding:8px 16px;font-size:13px">System Status</a>
       </div>
     </div>
 
@@ -5465,7 +5502,7 @@ function renderRoute(route, params = {}) {
     case '/solutions/continuous-rd': return pageEnterpriseLanding(route);
     case '/checkout':
     case '/checkout/': return pageCheckout(params);
-    case '/dashboard': return pageDashboard();
+    case '/dashboard': return pageDashboard(params);
     case '/how': return pageHow();
     case '/docs': return pageDocs();
     case '/about': return pageAbout();
@@ -5485,7 +5522,9 @@ function renderRoute(route, params = {}) {
     case '/innovation-log': return pageLiveActions(params);
     case '/live-actions':
     case '/autonomy': return pageLiveActions(params);
-    case '/account': return pageAccount(params);
+    case '/account':
+    case '/myaccount':
+    case '/my-account': return pageAccount(params);
     case '/auth': return pageAccount(params);
     case '/login': return pageAccount(params);
     case '/signup': return pageAccount(params);
@@ -5912,7 +5951,7 @@ function pageSocialNetwork() {
       var pub=document.getElementById('zaPublishBtn');
       if(me&&me.profile){
         label.textContent='Signed in as @'+me.profile.handle+' · '+me.profile.displayName;
-        cta.textContent='My Account'; cta.href='/account';
+        cta.textContent='Account'; cta.href='/account';
         if(hero){ hero.textContent='Open feed as @'+me.profile.handle; hero.href='#za-app'; }
         if(hint) hint.hidden=true;
         if(pub) pub.disabled=false;

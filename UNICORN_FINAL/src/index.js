@@ -13533,7 +13533,7 @@ a{color:#8a5cff;text-decoration:none}
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
-    '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
+    '/enterprise', '/store', '/account', '/myaccount', '/my-account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
     '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace',
     '/social-network', '/admin/social-network',
