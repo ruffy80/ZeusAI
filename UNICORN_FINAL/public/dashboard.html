@@ -400,7 +400,8 @@
     async function loadOrders() {
       const tbody = document.getElementById('ordersTableBody');
       try {
-        const res = await fetch('/api/dashboard/orders');
+        let res = await fetch('/api/client/dashboard/orders');
+        if (!res.ok) res = await fetch('/api/dashboard/orders');
         const data = await res.json();
         if (data.ok && data.orders) {
           tbody.innerHTML = data.orders.map(o => `

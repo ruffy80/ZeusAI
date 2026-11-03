@@ -4559,6 +4559,19 @@ async function unicornHandler(req, res) {
   const isVersionedAssetPath = requestedPath !== urlPath;
   const earlyPath = urlPath;
 
+  if (urlPath === '/client-dashboard' || urlPath === '/portal' || urlPath === '/dashboard.html') {
+    const fs = require('fs');
+    const path = require('path');
+    const dashFile = path.join(__dirname, '..', 'public', 'dashboard.html');
+    if (fs.existsSync(dashFile)) {
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      return res.end(fs.readFileSync(dashFile, 'utf8'));
+    }
+  }
+
   if (urlPath === '/go' || urlPath.startsWith('/api/roadmap') || (req.method === 'GET' && /^\/byo\/[a-z0-9-]+\.(txt|js)$/.test(urlPath))) {
     try {
       const roadDesk = require('./commerce/roadmap-desk');

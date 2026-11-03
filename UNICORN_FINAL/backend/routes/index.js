@@ -24,6 +24,8 @@ function mount(app) {
   app.use('/api/commerce', commerceRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/client/dashboard', dashboardRoutes);
+  app.use('/api/portal', dashboardRoutes);
   app.use('/api/health', healthRoutes);
 
   return app;
