@@ -141,7 +141,29 @@ function toRecord(raw) {
   return record;
 }
 
+let _shelfCache = null;
+let _shelfMapCache = null;
+let _shelfCacheAt = 0;
+let _shelfCacheSpot = 0;
+const SHELF_CACHE_TTL_MS = 5000;
+
+function invalidateShelfCache() {
+  _shelfCache = null;
+  _shelfMapCache = null;
+  _shelfCacheAt = 0;
+}
+
 function publicShelf() {
+  const now = Date.now();
+  const currentSpot = spotUsd();
+  if (
+    _shelfCache
+    && process.env.PUBLIC_SHELF_NO_CACHE !== '1'
+    && (now - _shelfCacheAt) < SHELF_CACHE_TTL_MS
+    && _shelfCacheSpot === currentSpot
+  ) {
+    return _shelfCache;
+  }
   const seen = new Set();
   const rows = [];
   let instant = [];
@@ -164,12 +186,19 @@ function publicShelf() {
     if (b.id === 'ent-engagement-kickoff') return 1;
     return Number(a.priceUsd || 0) - Number(b.priceUsd || 0);
   });
+  _shelfCache = rows;
+  _shelfMapCache = new Map(rows.map((p) => [p.id, p]));
+  _shelfCacheAt = now;
+  _shelfCacheSpot = currentSpot;
   return rows;
 }
 
 function byId(id) {
   const key = String(id || '');
-  return publicShelf().find((p) => p.id === key) || null;
+  if (!key) return null;
+  publicShelf();
+  if (_shelfMapCache) return _shelfMapCache.get(key) || null;
+  return (_shelfCache || []).find((p) => p.id === key) || null;
 }
 
 function langOf(text) {

@@ -222,7 +222,12 @@ class SocialSurface {
   }
 
   /** Union posts and users from disk so the site and the backend do not drop each other's rows. */
-  reloadMerge() {
+  reloadMerge(force = false) {
+    const now = Date.now();
+    if (!force && this._lastReloadAt && (now - this._lastReloadAt) < 2000) {
+      return { ok: true, mergedPosts: 0, cached: true };
+    }
+    this._lastReloadAt = now;
     try {
       if (!fs.existsSync(DATA_FILE)) return { ok: true, mergedPosts: 0 };
       const disk = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -571,23 +576,23 @@ class SocialSurface {
 
   timeline(mode = 'for-you', limit = 24, actorId = null) {
     const lim = Math.max(1, Math.min(40, Number(limit) || 24));
-    let items = this.state.posts.map((p) => this._enrichPost(p));
+    let rawItems = this.state.posts.slice();
     const intent = (actorId ? this._session(actorId).intent : this.state.session.intent) || 'discover';
 
     if (mode === 'following') {
       if (!actorId) return { ok: false, error: 'auth_required', items: [] };
       const following = new Set(this.state.follows.filter((f) => f[0] === actorId).map((f) => f[1]));
-      items = items.filter((p) => following.has(p.author.id) || p.author.id === actorId);
+      rawItems = rawItems.filter((p) => p && (following.has(p.authorId) || p.authorId === actorId));
     } else if (typeof mode === 'string' && mode.startsWith('tag:')) {
       const raw = mode.slice(4);
       let tag = raw;
       try { tag = decodeURIComponent(raw); } catch (_) { /* already decoded */ }
       tag = String(tag).toLowerCase().replace(/^#/, '');
-      items = items
-        .filter((p) => (p.tags || []).some((t) => String(t).toLowerCase().replace(/^#/, '') === tag))
+      rawItems = rawItems
+        .filter((p) => p && (p.tags || []).some((t) => String(t).toLowerCase().replace(/^#/, '') === tag))
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     } else if (mode === 'chrono') {
-      items = items.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      rawItems = rawItems.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     } else {
       // Intent-Match Feed — novel ranking
       const intentBoost = {
@@ -598,19 +603,23 @@ class SocialSurface {
         discover: () => 1,
       };
       const boost = intentBoost[intent] || intentBoost.discover;
-      items = items.slice().sort((a, b) => {
-        const sa = (a.stats.likes + a.stats.shares * 2 + a.stats.views * 0.01) * boost(a);
-        const sb = (b.stats.likes + b.stats.shares * 2 + b.stats.views * 0.01) * boost(b);
+      rawItems = rawItems.sort((a, b) => {
+        const stA = a.stats || { likes: 0, shares: 0, views: 0 };
+        const stB = b.stats || { likes: 0, shares: 0, views: 0 };
+        const sa = ((stA.likes || 0) + (stA.shares || 0) * 2 + (stA.views || 0) * 0.01) * boost(a);
+        const sb = ((stB.likes || 0) + (stB.shares || 0) * 2 + (stB.views || 0) * 0.01) * boost(b);
         return sb - sa;
       });
     }
+
+    const items = rawItems.slice(0, lim).map((p) => this._enrichPost(p));
 
     return {
       ok: true,
       mode,
       intent,
       invention: mode === 'for-you' ? 'intent-match-feed' : null,
-      items: items.slice(0, lim),
+      items,
     };
   }
 

@@ -222,17 +222,23 @@ async function runTests() {
   });
 
   await test('POST /api/payment/nowpayments/create → fallback BTC invoice when API key absent', async () => {
-    const r = await apiRequest('POST', '/api/payment/nowpayments/create', {
-      amountUsd: 49,
-      itemName: 'Smoke Service',
-      itemId: 'smoke-service',
-      clientId: 'test-client'
-    });
-    assert.equal(r.status, 200);
-    assert.ok(r.body.id);
-    assert.equal(r.body.pay_currency, 'btc');
-    assert.ok(r.body.pay_address);
-    assert.equal(r.body.fallback, true);
+    const prevKey = process.env.NOWPAYMENTS_API_KEY;
+    delete process.env.NOWPAYMENTS_API_KEY;
+    try {
+      const r = await apiRequest('POST', '/api/payment/nowpayments/create', {
+        amountUsd: 49,
+        itemName: 'Smoke Service',
+        itemId: 'smoke-service',
+        clientId: 'test-client'
+      });
+      assert.equal(r.status, 200);
+      assert.ok(r.body.id);
+      assert.equal(r.body.pay_currency, 'btc');
+      assert.ok(r.body.pay_address);
+      assert.equal(r.body.fallback, true);
+    } finally {
+      if (prevKey !== undefined) process.env.NOWPAYMENTS_API_KEY = prevKey;
+    }
   });
 
   console.log('\nQuantum Integrity Shield:');

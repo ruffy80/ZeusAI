@@ -90,7 +90,16 @@ async function run() {
   await check('fulfillment AI allowlist defaults to 6 clear digital SKUs including hero resume', () => {
     // Eternal OS: unset/auto without keys stays off; force-on uses allowlist.
     delete process.env.FULFILLMENT_AI_ENABLED;
-    assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), false);
+    const aiKeyNames = ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY'];
+    const savedKeys = {};
+    for (const k of aiKeyNames) {
+      if (process.env[k] !== undefined) { savedKeys[k] = process.env[k]; delete process.env[k]; }
+    }
+    try {
+      assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), false);
+    } finally {
+      for (const [k, v] of Object.entries(savedKeys)) process.env[k] = v;
+    }
     process.env.FULFILLMENT_AI_ENABLED = '1';
     assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), true);
     assert.strictEqual(engine.shouldUseAiForSku('instant-landing-page'), true);

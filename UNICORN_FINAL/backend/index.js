@@ -5532,8 +5532,18 @@ try {
 // ==================== RUTE API ====================
 
 // --- API: SaaS Catalog (REAL, derived from live engines) ---
+let _backendCatalogCache = null;
+let _backendCatalogCacheAt = 0;
+
 app.get('/api/catalog', async (req, res) => {
   const skipSite = process.env.NODE_ENV === 'test' || process.env.UNICORN_CATALOG_SITE_PROXY === '0';
+  const now = Date.now();
+  if (_backendCatalogCache && (now - _backendCatalogCacheAt) < 10000 && !skipSite) {
+    res.setHeader('X-Proxied-From', _backendCatalogCache.proxiedFrom || 'unicorn-site');
+    res.setHeader('X-Catalog-Truth', _backendCatalogCache.truth || 'site');
+    res.setHeader('Content-Type', _backendCatalogCache.contentType || 'application/json; charset=utf-8');
+    return res.status(200).send(_backendCatalogCache.text);
+  }
   if (!skipSite) {
     try {
       const target = SITE_INTERNAL_BASE + '/api/catalog';
@@ -5547,6 +5557,8 @@ app.get('/api/catalog', async (req, res) => {
         res.setHeader('X-Catalog-Truth', 'site');
         const ct = r.headers.get('content-type');
         if (ct) res.setHeader('Content-Type', ct);
+        _backendCatalogCache = { text, proxiedFrom: 'unicorn-site', truth: 'site', contentType: ct || 'application/json; charset=utf-8' };
+        _backendCatalogCacheAt = Date.now();
         try {
           const parsed = JSON.parse(text);
           const items = Array.isArray(parsed) ? parsed : (parsed && parsed.items) || [];
@@ -11239,8 +11251,8 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
     cancelUrl,
     payCurrency: chosenCurrency,
   });
-  if (invoice && invoice.ok === false) {
-    // Honest handoff to direct BTC ledger when NOWPayments is unarmed.
+  if (!invoice || invoice.ok === false || !invoice.id) {
+    // Honest handoff to direct BTC ledger when NOWPayments is unarmed or upstream fails.
     // Flatten fields so checkout + API smoke keep a stable contract.
     try {
       const inv = await btcLedger.createInvoice({
@@ -11370,9 +11382,17 @@ app.get('/api/payment/nowpayments/security', (req, res) => {
   res.json(nowPayments.getSecurityStatus());
 });
 
+let _paymentMethodsCache = null;
+let _paymentMethodsCacheAt = 0;
+
 app.get(['/api/payment/methods', '/api/payments/methods'], (req, res) => {
   // Derive public methods from the same honesty rails as /api/payments/config/status
   // so the storefront never advertises ETH/Bank/Stripe when they cannot settle.
+  const now = Date.now();
+  if (_paymentMethodsCache && (now - _paymentMethodsCacheAt) < 5000 && process.env.NODE_ENV !== 'test') {
+    res.set('Cache-Control', 'no-cache');
+    return res.json(_paymentMethodsCache);
+  }
   let emailConfigured = false;
   try {
     const mailer = require('../src/commerce/transactional-email');
@@ -11385,15 +11405,18 @@ app.get(['/api/payment/methods', '/api/payments/methods'], (req, res) => {
       ? (truth.sanitizePublicMetrics({ methods: raw }).methods || raw)
       : raw;
     const methods = (Array.isArray(sanitized) ? sanitized : raw).filter((m) => m && m.active);
-    res.set('Cache-Control', 'no-cache');
-    return res.json({
+    const payload = {
       methods,
       emailConfigured,
       integration: require('../src/commerce/integration-status').snapshot(),
       honesty: 'config-backed',
       primaryRail: 'btc-direct',
       cardArmed: methods.some((m) => m && (m.id === 'card' || m.id === 'stripe')),
-    });
+    };
+    _paymentMethodsCache = payload;
+    _paymentMethodsCacheAt = now;
+    res.set('Cache-Control', 'no-cache');
+    return res.json(payload);
   } catch (_) {
     res.json({
       methods: paymentGateway.getPaymentMethods().filter((m) => m && m.active),

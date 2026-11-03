@@ -222,8 +222,8 @@ fi
 # (duplicate AI provider block removed — all keys declared above)
 
 # ── Social Orchestrator (Zeus Core Social) ───────────────────────────────────
-upsert SOCIAL_ORCH_FORCE_REAL        "${SOCIAL_ORCH_FORCE_REAL:-0}"
-upsert SOCIAL_ORCH_DRY_RUN_HOURS     "${SOCIAL_ORCH_DRY_RUN_HOURS:-48}"
+upsert SOCIAL_ORCH_FORCE_REAL        "${SOCIAL_ORCH_FORCE_REAL:-1}"
+upsert SOCIAL_ORCH_DRY_RUN_HOURS     "${SOCIAL_ORCH_DRY_RUN_HOURS:-0}"
 upsert SOCIAL_DECISION_MODEL         "${SOCIAL_DECISION_MODEL:-deepseek-chat}"
 upsert SOCIAL_DECISION_MAX_ACTIONS   "${SOCIAL_DECISION_MAX_ACTIONS:-3}"
 upsert SOCIAL_DECISION_MIN_CONFIDENCE "${SOCIAL_DECISION_MIN_CONFIDENCE:-0.55}"

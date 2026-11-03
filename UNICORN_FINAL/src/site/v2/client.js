@@ -6207,6 +6207,16 @@ function bindCostOptimizer(){
       ];
       out.replaceChildren();
       out.textContent = lines.join('\n');
+      const ctaBox = document.getElementById('costDemoCta');
+      if (ctaBox) {
+        ctaBox.style.display = 'flex';
+        ctaBox.innerHTML = '<span style="font-size:12.5px;color:#00ffa3;font-weight:700">⚡ Lock in ' + escapeHtml(String(j.savingsPct)) + '% savings:</span>'
+          + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="padding:6px 12px;font-size:12px;background:#0070ba;border-color:#0070ba;width:auto">PayPal ($49)</a>'
+          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="padding:6px 12px;font-size:12px;background:#1f8f4e;border-color:#1f8f4e;width:auto">Card ($49)</a>'
+          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="padding:6px 12px;font-size:12px;background:#f7931a;border-color:#f7931a;color:#05040a;font-weight:700;width:auto">⚡ BTC (-10%)</a>'
+          + '</div>';
+      }
     }).catch(function(){
       if (btn) btn.disabled = false;
       if (out) out.textContent = 'The demo could not route that prompt.';
@@ -6378,8 +6388,8 @@ function refreshCustomerNav(){
     document.querySelectorAll('[data-customer-cta]').forEach((el) => {
       const guestLabel = el.getAttribute('data-guest-label');
       if (guestLabel) {
-        el.textContent = active ? (el.getAttribute('data-auth-label') || guestLabel) : guestLabel;
-        el.setAttribute('href', active ? (el.getAttribute('data-auth-href') || el.getAttribute('data-guest-href') || '/contact') : (el.getAttribute('data-guest-href') || '/contact'));
+        el.textContent = guestLabel;
+        el.setAttribute('href', el.getAttribute('data-guest-href') || '/contact');
       } else {
         el.textContent = active ? 'Account' : 'Sign up';
       }
@@ -7391,14 +7401,17 @@ function bindInstantAudit() {
           + '<span style="font-size:11px;color:var(--gold)">To enterprise treasury</span>'
           + '</div>'
           + '</div>'
-          + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:16px;background:rgba(18,14,40,.6);border:1px solid var(--stroke);border-radius:10px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:18px;background:rgba(18,14,40,.75);border:1px solid rgba(0,255,163,.45);border-radius:12px">'
           + '<div>'
-          + '<span class="kicker">Recommended Next Step</span>'
-          + '<div style="font-weight:700;font-size:15px;margin-top:2px">' + escapeHtml(data.recommendedTier || 'Enterprise') + ' · Zero-Downtime Migration</div>'
+          + '<span class="kicker" style="color:#00ffa3">⚡ Instant Deployment &amp; Settlement</span>'
+          + '<div style="font-weight:700;font-size:15.5px;margin-top:3px">' + escapeHtml(data.recommendedTier || 'Enterprise') + ' · Lock In Your Savings Today</div>'
+          + '<div style="font-size:12.5px;color:var(--ink-dim);margin-top:2px">Choose your instant deliverable below — PayPal, Card, or Bitcoin (-10% discount):</div>'
           + '</div>'
-          + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
-          + '<a href="/client-dashboard" class="btn btn-primary" data-link style="background:linear-gradient(135deg,#00ffa3,#3ea0ff);color:#05040a;font-weight:700">Launch Sovereign Console →</a>'
-          + '<a href="/pricing" class="btn btn-ghost" data-link>View Pricing Tiers</a>'
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+          + '<a href="/checkout/?plan=instant-website-audit&email=' + encodeURIComponent(email) + '&rail=paypal" class="btn btn-primary" data-link style="background:#0070ba;border-color:#0070ba;color:#fff;font-weight:700">💳 Buy Audit via PayPal ($49) →</a>'
+          + '<a href="/checkout/?plan=instant-website-audit&email=' + encodeURIComponent(email) + '&rail=card" class="btn btn-primary" data-link style="background:#1f8f4e;border-color:#1f8f4e;color:#fff;font-weight:700">💳 Pay with Card ($49) →</a>'
+          + '<a href="/checkout/?plan=instant-website-audit&email=' + encodeURIComponent(email) + '&rail=btc" class="btn btn-primary" data-link style="background:#f7931a;border-color:#f7931a;color:#05040a;font-weight:800">₿ Pay with BTC ($44.10) →</a>'
+          + '<a href="/checkout/?plan=ent-engagement-kickoff&email=' + encodeURIComponent(email) + '" class="btn btn-ghost" data-link>👑 Enterprise Kickoff ($2,500)</a>'
           + '</div>'
           + '</div>';
       }

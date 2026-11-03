@@ -326,14 +326,17 @@ function configure(nextDeps = {}) {
 
 function start() {
   if (state.started) return { ok: true, alreadyStarted: true, mode: state.mode };
-  const dryHours = Number(process.env.SOCIAL_ORCH_DRY_RUN_HOURS || 48);
-  const forceReal = process.env.SOCIAL_ORCH_FORCE_REAL === '1';
+  const isTest = process.env.NODE_ENV === 'test';
+  const explicitDry = process.env.SOCIAL_ORCH_DRY_RUN === '1';
+  const dryHours = Number(process.env.SOCIAL_ORCH_DRY_RUN_HOURS || (isTest ? 48 : 0));
+  const forceReal = process.env.SOCIAL_ORCH_FORCE_REAL === '1' || (!isTest && !explicitDry);
 
   state.startedAt = Date.now();
-  state.dryRunUntilTs = state.startedAt + Math.max(1, dryHours) * 60 * 60 * 1000;
+  state.dryRunUntilTs = forceReal ? state.startedAt : (state.startedAt + Math.max(1, dryHours) * 60 * 60 * 1000);
   state.dryRun = !forceReal;
   state.mode = state.dryRun ? 'dry-run' : 'live';
   state.started = true;
+  _statusCache = null;
 
   // Core autonomous loops
   const job1 = cron.schedule('*/1 * * * *', () => { _runHealth().catch(() => {}); }, { timezone: 'UTC' });
@@ -414,11 +417,18 @@ function getPulse(limit) {
   });
 }
 
+let _statusCache = null;
+let _statusCacheAt = 0;
+
 function _status() {
+  const now = Date.now();
+  if (_statusCache && (now - _statusCacheAt) < 3000 && _statusCache.mode === state.mode) {
+    return _statusCache;
+  }
   const metrics = state.lastMetrics || _deriveMetrics();
   const modules = Object.values(state.moduleState);
   const pulse = getPulse(12);
-  return {
+  const res = {
     ok: true,
     name: NAME,
     brand: BRAND,
@@ -446,6 +456,9 @@ function _status() {
     lastDecisions: state.decisions.slice(0, 20),
     logsTail: state.logs.slice(-25),
   };
+  _statusCache = res;
+  _statusCacheAt = now;
+  return res;
 }
 
 function getStatus() {

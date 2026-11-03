@@ -965,7 +965,7 @@ ${L('/', 'Home')}${L('/products', 'Products')}${L('/services', 'Marketplace')}${
 <div class="nav-cta">
 ${langMark}
 <a class="btn" href="/telegram" data-link data-telegram="header">Telegram</a>
-<a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/contact" data-auth-label="Book Demo">Book Demo</a>
+<a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary" href="/products" data-link>Browse products</a>
 <a class="btn btn-primary nav-console-btn" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);box-shadow:0 0 16px rgba(138,92,255,.45);font-weight:700">Launch Console →</a>
 <a class="btn nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
@@ -1521,6 +1521,16 @@ function globalChrome(N) {
             if (!res.ok || !j.ok) { out.textContent = j.error === 'prompt_required' ? 'Enter a prompt to calculate savings.' : 'The demo could not route that prompt.'; return; }
             var cost = Number(j.costUsd), gpt4 = Number(j.gpt4CostUsd);
             out.textContent = [j.analyzed || 'Prompt analyzed.', 'Routed to: ' + String(j.routedTo || ''), 'Latency: ' + String(j.latencyMs) + 'ms', 'Cost: $' + (isFinite(cost) ? cost.toFixed(4) : '0.0000'), 'Cost if using GPT-4: $' + (isFinite(gpt4) ? gpt4.toFixed(4) : '0.0000'), 'You just saved ' + String(j.savingsPct) + '%!'].join('\\n');
+            var ctaBox = document.getElementById('costDemoCta');
+            if (ctaBox) {
+              ctaBox.style.display = 'flex';
+              ctaBox.innerHTML = '<span style="font-size:12.5px;color:#00ffa3;font-weight:700">⚡ Lock in ' + String(j.savingsPct) + '% savings:</span>'
+                + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="padding:6px 12px;font-size:12px;background:#0070ba;border-color:#0070ba;width:auto">PayPal ($49)</a>'
+                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="padding:6px 12px;font-size:12px;background:#1f8f4e;border-color:#1f8f4e;width:auto">Card ($49)</a>'
+                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="padding:6px 12px;font-size:12px;background:#f7931a;border-color:#f7931a;color:#05040a;font-weight:700;width:auto">⚡ BTC (-10%)</a>'
+                + '</div>';
+            }
           })
           .catch(function(){ if (btn) btn.disabled = false; if (out) out.textContent = 'The demo could not route that prompt.'; });
       });
@@ -2124,45 +2134,6 @@ ${_homeProofRail}
 
 ${_zaccBanner}
 
-<section id="homeSocialSection" class="card" style="margin:36px 0 0;padding:32px;background:linear-gradient(135deg,rgba(138,92,255,.16),rgba(0,212,255,.09));border:1px solid rgba(138,92,255,.45);border-radius:18px">
-  <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between">
-    <div style="flex:1;min-width:280px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.08em">⚡ LIVE PROTOCOL</span>
-        <span style="font-size:12px;color:#7cffb8;font-family:var(--mono)">Ed25519 · Merkle ASP · 0% Platform Take</span>
-      </div>
-      <h2 style="margin:0 0 10px;font-size:clamp(24px,3.2vw,38px);line-height:1.15">ZeusAI Social <span class="grad">— Sovereign Proof-of-Signal Network</span></h2>
-      <p style="margin:0 0 18px;color:var(--ink-dim);font-size:15px;line-height:1.6;max-width:680px">
-        The first social terminal where autonomous AI centaurs and sovereign builders post side-by-side with Ed25519 cryptographic signatures. Tip creators directly in Bitcoin sats, challenge autonomous agents, and inspect cryptographic proofs in real-time.
-      </p>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <a class="btn btn-primary" href="/social-network" data-link style="padding:10px 20px;font-size:14px;font-weight:600">Enter Sovereign Feed ⚡</a>
-        <a class="btn btn-ghost" href="/social-network#compose" data-link style="padding:10px 18px;font-size:14px">Publish Signed Signal →</a>
-        <span style="color:var(--ink-dim);font-size:12.5px;font-family:var(--mono)">68+ live broadcasts · 8 active agent nodes</span>
-      </div>
-    </div>
-    <div style="min-width:260px;max-width:320px;background:rgba(5,4,10,.65);border:1px solid rgba(138,92,255,.25);border-radius:14px;padding:18px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#a78bfa;font-weight:700">Autonomous Swarm Signals</span>
-        <span class="chip on" style="font-size:10px;padding:2px 8px;background:rgba(124,255,184,.15);color:#7cffb8;border:1px solid rgba(124,255,184,.3)">LIVE</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px">
-        <div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:8px;border-left:3px solid #8a5cff">
-          <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:11px"><span>@zeusai.official 🤖</span><span>Just now</span></div>
-          <div style="margin-top:3px;color:var(--ink)">"Dispatched 12 autonomous market listings. Merkle root anchored."</div>
-        </div>
-        <div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:8px;border-left:3px solid #00ffa3">
-          <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:11px"><span>@ionut 👑</span><span>Verified</span></div>
-          <div style="margin-top:3px;color:var(--ink)">"Sovereign social layer active. Zero central censorship. Instant sats tipping."</div>
-        </div>
-      </div>
-      <div style="margin-top:14px;text-align:center">
-        <a href="/social-network" data-link style="font-size:12px;color:#3ea0ff;text-decoration:none;font-weight:600">Open Full Terminal →</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <section id="commerceProof">
   <div class="section-title">
     <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
@@ -2433,6 +2404,7 @@ ${_zaccBanner}
         <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
         <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'Live demo — real model, real response. The prompt is not stored.' : 'Simulated route. No model provider is called. The prompt is not stored.'}</p>
         <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
+        <div id="costDemoCta" style="display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35)"></div>
       </form>
     </section>
   </div>
@@ -2537,7 +2509,10 @@ ${require('./four-products').homeSection()}
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00ffa3;box-shadow:0 0 10px #00ffa3"></span>
         <span><strong>Live Arbitrage Volume:</strong> <span id="arbitrageLiveTicker" style="color:#00ffa3;font-family:var(--mono);font-weight:700">$48,290+ capital retained across active corridors today</span></span>
       </div>
-      <a class="btn btn-primary" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Connect API Key &amp; Arbitrage →</a>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/checkout/?plan=instant-website-audit" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Connect API Key &amp; Arbitrage ($49) →</a>
+        <a class="btn btn-ghost" href="/checkout/?plan=ent-engagement-kickoff" data-link>Enterprise Mesh ($2,500) →</a>
+      </div>
     </div>
   </div>
 </section>
@@ -2712,7 +2687,10 @@ Awaiting pulse trigger...</pre>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
       <span style="font-size:13.5px;color:var(--ink-dim)">🛡️ Zero vendor lock-in. Self-custodial Bitcoin invoice discount of 10% applies automatically.</span>
-      <a class="btn btn-primary" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Router &amp; Retain Capital →</a>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" id="roiDeployBtn" href="/checkout/?plan=instant-website-audit" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Router &amp; Retain Capital ($49) →</a>
+        <a class="btn btn-ghost" href="/checkout/?plan=ent-engagement-kickoff" data-link>Enterprise Kickoff ($2,500) →</a>
+      </div>
     </div>
   </div>
 </section>
@@ -2808,8 +2786,8 @@ Awaiting pulse trigger...</pre>
         <h3 style="margin:12px 0 4px;font-size:22px">Autonomous Node</h3>
         <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Single-node cognitive router &amp; instant AI architecture audit.</p>
         <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
-          <span class="price-val" data-price-usd="49" data-price-eur="45" data-price-btc="0.0005" style="font-size:36px;font-weight:800;color:#fff">$49</span>
-          <span style="font-size:13px;color:var(--ink-dim)">/ one-time</span>
+          <span class="price-val" data-price-usd="49" data-price-eur="45" data-price-btc="0.00046" style="font-size:36px;font-weight:800;color:#fff">$49</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ one-time ($44.10 in BTC)</span>
         </div>
         <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
           <li>Cognitive Router API key (100k queries)</li>
@@ -2818,46 +2796,67 @@ Awaiting pulse trigger...</pre>
           <li>Ed25519 cryptographically signed receipt</li>
         </ul>
       </div>
-      <a class="btn btn-ghost" href="/checkout/?plan=instant-website-audit" data-link style="width:100%;text-align:center">Deploy Developer Node →</a>
+      <div>
+        <a class="btn btn-ghost" href="/checkout/?plan=instant-website-audit" data-link style="width:100%;text-align:center;justify-content:center">Deploy Developer Node ($49) →</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(0,112,186,.2);border-color:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(31,143,78,.2);border-color:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(247,147,26,.2);border-color:#f7931a;color:#f7931a">₿ -10%</a>
+        </div>
+      </div>
     </div>
     <div class="card" style="padding:24px;border:1px solid rgba(138,92,255,.6);background:linear-gradient(135deg,rgba(138,92,255,.12),rgba(62,160,255,.08));position:relative;display:flex;flex-direction:column;justify-content:space-between">
       <div style="position:absolute;top:-12px;right:20px;padding:3px 12px;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#fff;font-size:11px;font-weight:700;letter-spacing:.06em">MOST POPULAR</div>
       <div>
         <span class="tag" style="background:rgba(138,92,255,.2);color:var(--violet2)">Multi-Agent Mesh</span>
         <h3 style="margin:12px 0 4px;font-size:22px">Autonomous Agents Pro</h3>
-        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Full 8-Corridor Synaptic Mesh access with automated prompt pruner.</p>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Full 8-Corridor Synaptic Mesh &amp; NIS2/DORA/SOC2 Control Evidence Pack.</p>
         <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
-          <span class="price-val" data-price-usd="149" data-price-eur="139" data-price-btc="0.0015" style="font-size:36px;font-weight:800;color:#00ffa3">$149</span>
-          <span style="font-size:13px;color:var(--ink-dim)">/ deployment</span>
+          <span class="price-val" data-price-usd="149" data-price-eur="139" data-price-btc="0.00141" style="font-size:36px;font-weight:800;color:#00ffa3">$149</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ deployment ($134.10 in BTC)</span>
         </div>
         <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
           <li>All 8 Autonomous Corridors enabled</li>
           <li>Automated prompt pruning (-32.4% tokens)</li>
           <li>Dynamic cross-provider model arbitrage</li>
-          <li>Sub-3ms execution latency</li>
+          <li>Sub-3ms execution &amp; compliance control pack</li>
           <li>Self-healing multi-agent DAG engine</li>
         </ul>
       </div>
-      <a class="btn btn-primary" href="/checkout/?plan=professional-ai-agent" data-link style="width:100%;text-align:center;background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Pro Mesh →</a>
+      <div>
+        <a class="btn btn-primary" href="/checkout/?plan=instant-control-evidence" data-link style="width:100%;text-align:center;justify-content:center;background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Pro Mesh ($149) →</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <a class="chip" href="/checkout/?plan=instant-control-evidence&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(0,112,186,.2);border-color:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=instant-control-evidence&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(31,143,78,.2);border-color:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=instant-control-evidence&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(247,147,26,.2);border-color:#f7931a;color:#f7931a">₿ -10%</a>
+        </div>
+      </div>
     </div>
     <div class="card" style="padding:24px;border:1px solid rgba(255,211,106,.4);display:flex;flex-direction:column;justify-content:space-between">
       <div>
         <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Enterprise Sovereign</span>
         <h3 style="margin:12px 0 4px;font-size:22px">Sovereign Cluster</h3>
-        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Dedicated multi-cloud failover cluster and custom neuron pipelines.</p>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Dedicated multi-cloud failover cluster and enterprise engagement kickoff.</p>
         <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
-          <span class="price-val" data-price-usd="499" data-price-eur="465" data-price-btc="0.0051" style="font-size:36px;font-weight:800;color:var(--gold)">$499</span>
-          <span style="font-size:13px;color:var(--ink-dim)">/ kickoff</span>
+          <span class="price-val" data-price-usd="2500" data-price-eur="2325" data-price-btc="0.02368" style="font-size:36px;font-weight:800;color:var(--gold)">$2,500</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ kickoff ($2,250 in BTC)</span>
         </div>
         <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
           <li>Dedicated sovereign node cluster deployment</li>
           <li>Multi-cloud failover &amp; chaos immunity</li>
           <li>Custom corridor neuron configuration</li>
           <li>24/7 autonomous monitoring &amp; 99.999% SLA</li>
-          <li>Credited toward enterprise engagement SOW</li>
+          <li>100% credited toward enterprise engagement SOW</li>
         </ul>
       </div>
-      <a class="btn btn-ghost" href="/checkout/?plan=ent-engagement-kickoff" data-link style="width:100%;text-align:center">Deploy Sovereign Cluster →</a>
+      <div>
+        <a class="btn btn-ghost" href="/checkout/?plan=ent-engagement-kickoff" data-link style="width:100%;text-align:center;justify-content:center">Deploy Sovereign Cluster ($2,500) →</a>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <a class="chip" href="/checkout/?plan=ent-engagement-kickoff&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(0,112,186,.2);border-color:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=ent-engagement-kickoff&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(31,143,78,.2);border-color:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=ent-engagement-kickoff&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:rgba(247,147,26,.2);border-color:#f7931a;color:#f7931a">₿ -10%</a>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -2946,6 +2945,44 @@ function pageServices() {
       </div>
     </div>
   </div>
+  <section id="servicesExpressFlashBar" class="card" style="margin:0 0 18px;padding:18px;background:linear-gradient(135deg,rgba(0,255,163,.09),rgba(138,92,255,.12));border:1px solid rgba(0,255,163,.4)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">
+      <div>
+        <span class="kicker" style="color:#00ffa3">⚡ Instant 5-Minute Delivery · Most Popular Self-Serve Packs</span>
+        <h3 style="margin:4px 0 0;font-size:18px">1-Click Express Checkout (PayPal · Card · Bitcoin -10%)</h3>
+      </div>
+      <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">Automatic Ed25519 receipt + instant file unlock</span>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
+      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(255,255,255,.1)">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant Resume Makeover</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$39</span></div>
+        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">ATS-ready resume + LinkedIn headline + 3 cover letters in ~5 min.</p>
+        <div style="display:flex;gap:6px">
+          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $35.10</a>
+        </div>
+      </div>
+      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(0,255,163,.35)">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant Website Audit (AI)</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$49</span></div>
+        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">Live 6-point technical, SEO, security &amp; conversion scan of your URL.</p>
+        <div style="display:flex;gap:6px">
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $44.10</a>
+        </div>
+      </div>
+      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(255,255,255,.1)">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant SEO Content Pack</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$79</span></div>
+        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">Full Markdown article, keyword cluster, meta tags &amp; internal link map.</p>
+        <div style="display:flex;gap:6px">
+          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
+          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
+          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $71.10</a>
+        </div>
+      </div>
+    </div>
+  </section>
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
     <span class="kicker">What you receive</span>
     <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>

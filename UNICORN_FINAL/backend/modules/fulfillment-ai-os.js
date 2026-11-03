@@ -97,6 +97,7 @@ function sanctumFiles() {
  * Never logs values. Returns count of restored keys.
  */
 function reloadKeysFromSanctum() {
+  if (process.env.NODE_ENV === 'test' && process.env.FULFILLMENT_AI_SANCTUM_IN_TEST !== '1') return 0;
   let restored = 0;
   for (const file of sanctumFiles()) {
     let text;
