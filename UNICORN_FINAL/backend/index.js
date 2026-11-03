@@ -6540,11 +6540,15 @@ try {
 }
 
 // Serve Client Dashboard
-app.get('/dashboard', (req, res) => {
-  res.sendFile(require('path').join(__dirname, '..', 'public', 'dashboard.html'));
-});
-app.get('/client-dashboard', (req, res) => {
-  res.sendFile(require('path').join(__dirname, '..', 'public', 'dashboard.html'));
+app.get(['/dashboard', '/client-dashboard', '/portal'], (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const candidate = [
+    path.join(__dirname, 'views', 'dashboard.html'),
+    path.join(__dirname, '..', 'public', 'dashboard.html')
+  ].find(p => fs.existsSync(p));
+  if (candidate) return res.sendFile(candidate);
+  res.status(404).send('Dashboard template not found');
 });
 
 

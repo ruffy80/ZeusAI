@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZeusAI — Enterprise Client Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07090e;
+      --card-bg: rgba(18, 22, 34, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-gold: #f59e0b;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-purple: #8b5cf6;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(245, 158, 11, 0.08) 0%, transparent 40%);
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(7, 9, 14, 0.85);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+    .badge-swiss {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .badge-swiss::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+    main {
+      max-width: 1380px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+    .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
+    .col-8 { grid-column: span 8; }
+    .col-12 { grid-column: span 12; }
+    @media(max-width: 1024px) {
+      .col-4, .col-6, .col-8 { grid-column: span 12; }
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .metric-val {
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #fff;
+    }
+    .metric-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+    }
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .pipeline-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .pipeline-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #fff;
+      margin-bottom: 0.35rem;
+    }
+    .pipeline-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid var(--card-border);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #000;
+      border: none;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+    }
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    th {
+      text-align: left;
+      padding: 0.75rem 0.5rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--card-border);
+    }
+    td {
+      padding: 0.85rem 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .tag {
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.35rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .tag-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+    .tag-gold { background: rgba(245, 158, 11, 0.15); color: var(--accent-gold); }
+    .interactive-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 0.5rem;
+      color: #fff;
+      padding: 0.75rem;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.85rem;
+      resize: vertical;
+      min-height: 80px;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+    .result-console {
+      background: #040608;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      color: #10b981;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span>⚡ ZeusAI</span>
+      <span class="badge-swiss">SWISS CLOCKWORK ACTIVE</span>
+    </div>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <span style="font-size: 0.85rem; color: var(--text-muted);" id="ownerBtc">BTC Rail: bc1q...22e</span>
+      <a href="/" class="btn" style="text-decoration: none;">← Public Site</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Top KPI row -->
+    <div class="card col-4">
+      <div class="card-title">Clockwork Telemetry ⏱️</div>
+      <div class="metric-val mono" id="tickCount">0 Ticks</div>
+      <div class="metric-sub" id="escapementStatus">Escapements: Calibrated · 144 Workers</div>
+    </div>
+
+    <div class="card col-4">
+      <div class="card-title">Token Savings & Efficiency ⚡</div>
+      <div class="metric-val mono" id="tokensSaved">+32.4%</div>
+      <div class="metric-sub">Adaptive Prompt Pruner (AdaptiveModule11)</div>
+    </div>
+
+    <div class="card col-4">
+      <div class="card-title">Settlement Vault 🛡️</div>
+      <div class="metric-val mono" style="color: var(--accent-gold);">100% BTC</div>
+      <div class="metric-sub">Auto-settlement to owner cold storage</div>
+    </div>
+
+    <!-- Swiss Gear Trains Section -->
+    <div class="card col-8">
+      <div class="card-title">
+        <span>🇨🇭 Calibrated Gear Trains (Pipelines)</span>
+        <span style="font-size: 0.8rem; text-transform: none; color: var(--accent-green);">Microsecond Precision</span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Sistemul execută fluxuri complexe de business înlănțuite între module specializate, asistate de Tourbillon-ul de absorbție a șocurilor.
+      </p>
+
+      <div class="pipeline-grid">
+        <div class="pipeline-item">
+          <div>
+            <div class="pipeline-name">COMMERCE_CHECKOUT</div>
+            <div class="pipeline-desc">Fraud Shield → Surge Pricing → VAT → Ledger → Merkle Proof → HMAC Signer</div>
+          </div>
+          <button class="btn btn-gold" onclick="runPipeline('COMMERCE_CHECKOUT')">Test Run (2.6 ms) →</button>
+        </div>
+
+        <div class="pipeline-item">
+          <div>
+            <div class="pipeline-name">AI_INFERENCE</div>
+            <div class="pipeline-desc">Pruner → PII Redaction → Anti-Jailbreak → LLM Arbiter → Semantic Cache</div>
+          </div>
+          <button class="btn" onclick="runPipeline('AI_INFERENCE')">Test Run →</button>
+        </div>
+
+        <div class="pipeline-item">
+          <div>
+            <div class="pipeline-name">FRAUD_SHIELD</div>
+            <div class="pipeline-desc">Impossible Travel → Disposable Email → Bot Radar → Nonce Attestation</div>
+          </div>
+          <button class="btn" onclick="runPipeline('FRAUD_SHIELD')">Test Run →</button>
+        </div>
+
+        <div class="pipeline-item">
+          <div>
+            <div class="pipeline-name">SYSTEM_HEAL</div>
+            <div class="pipeline-desc">Event Loop Lag → Heap Radar → Handle Leaks → DB Reconnect → Immortality</div>
+          </div>
+          <button class="btn" onclick="runPipeline('SYSTEM_HEAL')">Test Run →</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.25rem;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">Live Execution Output:</div>
+        <div class="result-console mono" id="pipelineOutput">// Awaiting pipeline dispatch...</div>
+      </div>
+    </div>
+
+    <!-- AI Intelligence Studio -->
+    <div class="card col-4">
+      <div class="card-title">AI Intelligence Studio 🤖</div>
+      <div class="interactive-box">
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Testează optimizarea prompt-urilor și eliminarea automată a datelor confidențiale (Zero-Leak Redactor):</p>
+        <textarea id="promptInput" placeholder="Introduceți un prompt cu chei secrete sau text redundant... (ex: Cheia mea este ghp_abcdef1234567890abcdef1234567890abcdef)"></textarea>
+        <button class="btn" style="background: var(--accent-blue); border: none;" onclick="optimizePrompt()">Optimizează Prompt & Salvează Tokeni</button>
+        <div class="result-console mono" id="promptResult" style="min-height: 90px;">// Rezultat optimizare...</div>
+      </div>
+    </div>
+
+    <!-- Orders & Invoicing Ledger -->
+    <div class="card col-12">
+      <div class="card-title">
+        <span>📜 Registru de Comenzi & Chitanțe Criptografice (Double-Entry Ledger)</span>
+        <button class="btn" style="font-size: 0.75rem;" onclick="loadOrders()">Refresh Ledger</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Transaction ID</th>
+            <th>Serviciu / Produs</th>
+            <th>Sumă USD</th>
+            <th>Echivalent BTC</th>
+            <th>Metodă</th>
+            <th>Status</th>
+            <th>Dovadă Criptografică</th>
+          </tr>
+        </thead>
+        <tbody id="ordersTableBody">
+          <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Loading ledger...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/clockwork/status');
+        const data = await res.json();
+        if (data.ok) {
+          document.getElementById('tickCount').textContent = `${data.ticks} Ticks`;
+          document.getElementById('escapementStatus').textContent = `Escapements: ${data.escapementCount} · ${data.registeredWorkersCount} Workers Active`;
+        }
+      } catch (e) {
+        console.warn('Status poll error:', e);
+      }
+    }
+
+    async function runPipeline(chainName) {
+      const out = document.getElementById('pipelineOutput');
+      out.textContent = `// Dispatching ${chainName} through escapement train...`;
+      try {
+        const res = await fetch(`/api/clockwork/run/${chainName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ basePrice: 200, country: 'RO', prompt: 'ZeusAI Enterprise Execution Test' })
+        });
+        const data = await res.json();
+        out.textContent = JSON.stringify(data, null, 2);
+        loadStatus();
+      } catch (err) {
+        out.textContent = `// Error: ${err.message}`;
+      }
+    }
+
+    async function optimizePrompt() {
+      const p = document.getElementById('promptInput').value;
+      const resEl = document.getElementById('promptResult');
+      resEl.textContent = '// Running through AdaptiveModule11 & 19...';
+      try {
+        const res = await fetch('/api/ai/optimize-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: p })
+        });
+        const data = await res.json();
+        resEl.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        resEl.textContent = `// Error: ${e.message}`;
+      }
+    }
+
+    async function loadOrders() {
+      const tbody = document.getElementById('ordersTableBody');
+      try {
+        let res = await fetch('/api/client/dashboard/orders');
+        if (!res.ok) res = await fetch('/api/dashboard/orders');
+        const data = await res.json();
+        if (data.ok && data.orders) {
+          tbody.innerHTML = data.orders.map(o => `
+            <tr>
+              <td class="mono" style="font-weight: 700; color: #fff;">${o.id}</td>
+              <td>${o.service}</td>
+              <td class="mono">$${o.amountUsd.toFixed(2)}</td>
+              <td class="mono" style="color: var(--accent-gold);">${o.amountBtc} BTC</td>
+              <td><span class="tag ${o.method.includes('BTC') ? 'tag-gold' : 'tag-green'}">${o.method}</span></td>
+              <td><span class="tag tag-green">${o.status}</span></td>
+              <td class="mono" style="font-size: 0.7rem; color: var(--text-muted);">${o.merkleProof.slice(0, 16)}...</td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color: red;">Eroare la încărcarea registrului.</td></tr>`;
+      }
+    }
+
+    // Init
+    loadStatus();
+    loadOrders();
+    setInterval(loadStatus, 5000);
+  </script>
+</body>
+</html>

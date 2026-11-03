@@ -548,6 +548,7 @@ jobs:
             --exclude='UNICORN_FINAL/.archive' \
             --exclude='UNICORN_FINAL/.unicorn-backups' \
             --exclude='UNICORN_FINAL/generated' \
+            --exclude='UNICORN_FINAL/public' \
             --exclude='UNICORN_FINAL/*.log' \
             --exclude='UNICORN_FINAL/.DS_Store' \
             --exclude='UNICORN_FINAL/._*' \

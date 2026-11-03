@@ -4562,8 +4562,11 @@ async function unicornHandler(req, res) {
   if (urlPath === '/client-dashboard' || urlPath === '/portal' || urlPath === '/dashboard.html') {
     const fs = require('fs');
     const path = require('path');
-    const dashFile = path.join(__dirname, '..', 'public', 'dashboard.html');
-    if (fs.existsSync(dashFile)) {
+    const dashFile = [
+      path.join(__dirname, '..', 'backend', 'views', 'dashboard.html'),
+      path.join(__dirname, '..', 'public', 'dashboard.html')
+    ].find(p => fs.existsSync(p));
+    if (dashFile) {
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',

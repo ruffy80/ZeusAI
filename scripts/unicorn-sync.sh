@@ -81,6 +81,7 @@ rsync -az --delete \
   --exclude 'client/build/' \
   --exclude 'client/build_mirror/' \
   --exclude 'generated/' \
+  --exclude 'public/' \
   --exclude 'data/' \
   --exclude 'db/' \
   --exclude 'backups/' \
