@@ -1274,4 +1274,39 @@ body:has(#zeus-cookie:not([hidden])) .concierge{bottom:108px}
   body:has(#zeus-cookie:not([hidden])) .concierge{bottom:210px}
 }
 
+/* ============ INNOVATIONS V2: ARBITRAGE MATRIX, SYNAPTIC MESH & ROI SIMULATOR ============ */
+.corridor-card {
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+  background: linear-gradient(135deg, rgba(18,14,40,.55), rgba(10,8,24,.75));
+}
+.corridor-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(138,92,255,.6) !important;
+  box-shadow: 0 12px 30px -10px rgba(138,92,255,.35);
+}
+.btn-pulse {
+  transition: all .2s ease;
+}
+.btn-pulse:hover {
+  background: rgba(0,255,163,.15) !important;
+  border-color: #00ffa3 !important;
+  color: #00ffa3 !important;
+}
+.preset-pill {
+  transition: all .2s ease;
+}
+.preset-pill:hover {
+  background: rgba(138,92,255,.28) !important;
+  color: #fff !important;
+  border-color: rgba(138,92,255,.6) !important;
+}
+.currency-toggle-btn {
+  transition: all .2s ease;
+}
+.currency-toggle-btn:hover {
+  filter: brightness(1.15);
+}
+.price-val {
+  transition: color .25s ease;
+}
 `;

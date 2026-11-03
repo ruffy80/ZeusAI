@@ -957,6 +957,7 @@ ${L('/', 'Home')}${L('/products', 'Products')}${L('/services', 'Marketplace')}${
     ${L('/enterprise', 'Enterprise')}
     ${L('/wizard', 'Find my plan')}
     ${L('/trust', 'Trust Center')}
+    ${L('/#synaptic-mesh', 'Synaptic Hyper-Mesh')}
   </div>
 </div>
 </div>
@@ -965,6 +966,7 @@ ${langMark}
 <a class="btn" href="/telegram" data-link data-telegram="header">Telegram</a>
 <a class="btn" href="/contact" data-link data-customer-cta data-guest-href="/contact" data-guest-label="Book Demo" data-auth-href="/account" data-auth-label="My Account">Book Demo</a>
 <a class="btn btn-primary" href="/products" data-link>Browse products</a>
+<a class="btn btn-primary nav-console-btn" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);box-shadow:0 0 16px rgba(138,92,255,.45);font-weight:700">Launch Console →</a>
 <a class="btn nav-offer" id="navOfferCta" href="#concierge" hidden>Ask ZeusAI</a>
 </div>
 </nav>`;
@@ -1949,390 +1951,6 @@ function _homeFeaturedServices() {
 }
 
 function pageHome() {
-  // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
-  // from each tier so the page always shows a buyable price range without
-  // depending on JS hydration.
-  const _all = _loadCatalog();
-  const _byTier = { instant: [], professional: [], enterprise: [] };
-  _all.forEach(p => { const t = String(p.tier || 'professional'); if (_byTier[t]) _byTier[t].push(p); });
-  // World-Profit-OS: featured strip = instant + professional ONLY (no enterprise
-  // hero card spam). Enterprise gets its own explicit CTA row underneath so
-  // scaling buyers still have a signalled path.
-  const _featured = []
-    .concat(_byTier.instant.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
-    .concat(_byTier.professional.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2));
-  const _featuredHtml = _featured.length
-    ? `<section id="homeFeatured" style="margin:40px 0 0">
-  <div class="section-title">
-    <div><span class="kicker">Featured services</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
-    <p>Four concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
-  </div>
-  ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
-  <div id="homeEnterpriseRow" class="card" style="margin:18px 0 0;padding:16px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(138,92,255,.10),rgba(62,160,255,.06));border:1px solid rgba(138,92,255,.35)">
-    <div style="min-width:240px;flex:1">
-      <span class="kicker">Building at scale?</span>
-      <h3 style="margin:6px 0 2px;font-size:18px">Enterprise work starts with the kickoff file.</h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">The price is the kickoff file: a discovery brief, a commercial proposal, and a draft statement of work. A license, the source, and a private cloud are not for sale here.</p>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-ghost" href="/services" data-link>Explore Enterprise →</a>
-      <a class="btn" href="/pricing" data-link>See pricing</a>
-    </div>
-  </div>
-  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
-</section>` : '';
-  // Post-featured commerce proof rail: live on-chain sales + BTC-discount chip.
-  // Both are SSR containers hydrated by client.js hydrateHomeProof().
-  const _homeProofRail = `<section id="homeProofRail" style="margin:26px 0 0">
-  <div class="grid phone-stack" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
-    <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
-        <span style="font-size:11px;color:var(--ink-dim)">Bitcoin live · card and PayPal when configured</span>
-      </div>
-      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Settlements appear here after a payment is confirmed. <a href="#concierge" style="color:#00ffa3">Ask what to buy →</a></div>
-    </div>
-    <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
-      <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
-      <h3 style="margin:0;font-size:22px;line-height:1.2">Pay in BTC → <span class="grad">save 10%</span></h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13px">Catalog prices include the BTC discount. Prefer PayPal or card/crypto? Same checkout — choose your rail.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <a class="btn btn-primary" href="/services" data-link>Buy → choose payment</a>
-        <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
-      </div>
-    </div>
-  </div>
-</section>`;
-  // Hero quick-buy — First-Dollar Gravity: default SKU is the cheapest
-  // honest instant deliverable (instant-resume-makeover), never api-call
-  // or global-giants. Checkout path: /checkout/?plan=instant-resume-makeover
-  // The form stays in source for the gravity pin. The homepage renders the concierge.
-  let _heroQuickPicks = [];
-  try {
-    const gravity = require('../../commerce/storefront-gravity-os');
-    _heroQuickPicks = gravity.pickHeroQuickPicks(_all, 6);
-  } catch (_) {
-    _heroQuickPicks = _all
-      .filter(p => Number(p.priceUSD || p.priceUsd || p.price || 0) >= 29)
-      .sort((a,b)=> (Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0)))
-      .slice(0, 6);
-  }
-  const _heroQuickOpts = _heroQuickPicks.map(p => {
-    const id = _esc(p.id || '');
-    const title = _esc(p.title || p.id || 'Service');
-    const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
-    const label = price > 0 ? (title + ' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : title;
-    const selected = id === 'instant-resume-makeover' ? ' selected' : '';
-    return `<option value="${id}"${selected}>${label}</option>`;
-  }).join('');
-  const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
-      <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · Bitcoin live · card and PayPal when configured</span>
-      <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
-      <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
-      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
-    </form>` : '';
-  // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
-  // before any other section, so the world\u2019s first fully-autonomous economic
-  // engine is impossible to miss from the homepage.
-  const _zaccBanner = `<section id="homeZacc" style="margin:48px 0 0">
-  <div class="card phone-stack" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
-    <div>
-      <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
-      <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
-      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">The listing desk file is for sale. A parcel ships only when a supplier key is armed and the row is dispatchable. Inspect <code class="inline">/api/zacc/status</code> for the measured tick — we do not claim live Printful/CJ feeds until the status says enabled.</p>
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <a class="btn btn-primary" href="/checkout/?plan=dropship-listing-desk" data-link>Buy the listing desk →</a>
-        <a class="btn" href="/zacc" data-link>\u26a1 Open dropship cockpit \u2192</a>
-        <button type="button" class="btn" data-live-inspect="/api/zacc/status" data-live-title="Inspect ZACC status" style="margin-top:8px">Inspect ZACC status</button>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr;gap:10px">
-      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Status</div><div style="font-size:18px;font-weight:700;margin-top:4px;color:#ffb020">Listing desk for sale</div><p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-dim);line-height:1.5">Auto-ship waits for a CJ, Printful, or Printify key. The paid file is the listing desk. No invented source counts on this banner.</p></div>
-    </div>
-  </div>
-</section>`;
-  try { require('../../commerce/relay-graft-os'); } catch (_) {}
-  const _offHome = `${discoverTrust.objectionHtml()}
-
-${sellSurface.homeBuyStripHtml(_all.length)}
-
-<section id="homeOriginGravity" class="card" style="margin:28px 0 0;padding:22px 24px;background:linear-gradient(135deg,rgba(0,255,163,.10),rgba(138,92,255,.08));border:1px solid rgba(0,255,163,.38)" data-ogp-banner>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
-    <div style="min-width:240px;flex:1">
-      <span class="kicker" style="color:#00ffa3">OGP/1.0 · Origin Gravity</span>
-      <h2 style="margin:8px 0 6px;font-size:clamp(22px,3vw,32px);line-height:1.15">The public ledger is the proof. <span class="grad">Be Origin #1.</span></h2>
-      <p id="ogpBannerCopy" style="margin:0;color:var(--ink-dim);font-size:14.5px;line-height:1.55;max-width:640px">This AI-commerce OS publishes a hash-chained genesis that admits zero customers. The next confirmed payment becomes a Founding Origin Passport — verifiable forever. No fake “trusted by thousands.”</p>
-      <p style="margin:10px 0 0;font-family:var(--mono);font-size:12px;color:var(--ink-dim)">paidHumans <b id="ogpHumans" style="color:#00ffa3">0</b> · next seat <b id="ogpSeat" style="color:#fff">Origin #1</b> · <span id="ogpHash">genesis on /origin</span></p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
-      <a class="btn btn-primary" href="/buy" data-link id="ogpBannerCta">Claim Origin #1 →</a>
-      <a class="btn btn-ghost" href="/origin" data-link>Read the public ledger</a>
-    </div>
-  </div>
-</section>
-
-<section id="homeSocialGravity" class="card" style="margin:16px 0 0;padding:20px 24px;border:1px solid rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(138,92,255,.08),rgba(0,212,255,.05))" data-sgp-banner>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
-    <div style="min-width:240px;flex:1">
-      <span class="kicker" style="color:#8a5cff">SGP/1.0 · Social Gravity</span>
-      <h2 style="margin:8px 0 6px;font-size:clamp(18px,2.4vw,26px);line-height:1.2">Every autoviral post lands on a tracked Origin seat — <span class="grad">not a random homepage dump.</span></h2>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Facebook, X, Instagram, Telegram and the rest now share <code>/from/{channel}</code> with UTM + referral codes. Clicks are page loads. Buyers are paidHumans. Reach is never invented.</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
-      <a class="btn btn-primary" href="/from/x" data-link>Open X landing →</a>
-      <a class="btn btn-ghost" href="/.well-known/social-gravity.json" data-allow-raw="1">social-gravity.json</a>
-    </div>
-  </div>
-</section>
-
-<section id="homeViralUnification" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(0,212,255,.28);background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(138,92,255,.05))" data-vuk-banner>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
-    <div style="min-width:240px;flex:1">
-      <span class="kicker" style="color:#00d4ff">VUK/1.0 · Viral Unification</span>
-      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">One outbound mutex — <span class="grad">viralizer, outbound, AACOS and CVR cannot double-post.</span></h2>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Site autoviralization used to race on the same Telegram/X/Discord tokens. VUK admits every social HTTP call, canonicalizes copy to Social Gravity landings, and coalesces IndexNow. Reach is never invented.</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
-      <a class="btn btn-primary" href="/.well-known/viral-unification.json" data-allow-raw="1">viral-unification.json</a>
-      <a class="btn btn-ghost" href="/from/x" data-link>X landing →</a>
-    </div>
-  </div>
-</section>
-
-<section id="homeVisibleSocial" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(255,176,32,.35);background:linear-gradient(135deg,rgba(255,176,32,.08),rgba(0,212,255,.04))" data-vsp-banner>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
-    <div style="min-width:240px;flex:1">
-      <span class="kicker" style="color:#ffb020">VSP/1.0 · Visible Surface</span>
-      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">A Facebook post exists only if you can <span class="grad">open a public permalink.</span></h2>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Telegram bots, Discord webhooks, and generic webhooks are operator rails — they are not posts on Facebook, X, TikTok, or Instagram. Open /visible. If gazeLit is empty, those apps were not posted to. Reach is never invented.</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
-      <a class="btn btn-primary" href="/visible" data-link>Open gaze proof →</a>
-      <a class="btn btn-ghost" href="/.well-known/visible-social.json" data-allow-raw="1">visible-social.json</a>
-    </div>
-  </div>
-</section>
-
-${merchantStandardSurface.homeStripHtml()}
-
-${_featuredHtml}
-
-${_homeProofRail}
-
-${_zaccBanner}
-
-<section id="commerceProof">
-  <div class="section-title">
-    <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
-    <p>Not just hidden APIs: the catalogue, multi-rail checkout (BTC · PayPal · card/crypto), automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
-  </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
-    <div class="card" style="border-color:rgba(255,211,106,.42)">
-      <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Master Catalog</span>
-      <h3 id="commerceProofCatalog">See live count on /services</h3>
-      <p>Buyable SKUs are measured from the public catalog API — open <a href="/services" data-link>/services</a> for the current shelf (hero stats hydrate from <code class="inline">/api/status</code>).</p>
-      <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
-    </div>
-    <div class="card" style="border-color:rgba(247,147,26,.45)">
-      <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">Multi-rail pay</span>
-      <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
-      <p id="commerceProofPaymentCopy">BTC direct is primary. PayPal and NOWPayments appear only when credentials + settle webhooks are armed live.</p>
-      <a class="btn btn-primary" href="/checkout/?plan=instant-website-audit" data-link>Test checkout →</a>
-    </div>
-    <div class="card" style="border-color:rgba(110,231,183,.42)">
-      <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
-      <h3 id="commerceProofDelivery">serviceId → deliver()</h3>
-      <p>Paid orders generate real deliverables: API key, workspace, task, webhook secret, report, onboarding and license.</p>
-      <a class="btn btn-ghost" href="/docs" data-link>See API docs →</a>
-    </div>
-    <div class="card" style="border-color:rgba(138,92,255,.42)">
-      <span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">Customer Portal</span>
-      <h3>Orders · licenses · downloads</h3>
-      <p>Email account access for orders, active services, API keys, pending payments, invoices and deliverable downloads.</p>
-      <a class="btn btn-primary" href="/account" data-link>Open portal →</a>
-    </div>
-    <div class="card" style="border-color:rgba(255,120,160,.42)">
-      <span class="tag" style="background:rgba(255,120,160,.16);color:#ff9cbe">Admin Commerce</span>
-      <h3 id="commerceProofAdmin">Refund protected</h3>
-      <p>Admin endpoints cover receipts, paid/unpaid, manual confirm, refund, resend license and retry delivery.</p>
-      <a class="btn btn-ghost" href="/admin" data-link>Admin login →</a>
-    </div>
-    <div class="card" style="border-color:rgba(62,160,255,.42)">
-      <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
-      <h3 id="commerceProofSmoke">CI smoke on deploy</h3>
-      <p>Post-deploy smoke validates catalog reachability, checkout, confirmation, license, delivery, refund protection and cleanup — thresholds come from CI env, not this headline.</p>
-      <button type="button" class="btn" data-live-inspect="/health" data-live-title="Inspect health" style="margin-top:8px">Inspect health</button>
-    </div>
-  </div>
-</section>
-
-<section id="finalLive">
-  <div class="section-title">
-    <div><span class="kicker">Final upgrade</span><h2>ZeusAI Final mode is <span class="grad">live now.</span></h2></div>
-    <p>This section proves runtime integration in production: service sync, user services and real-time event stream.</p>
-  </div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-    <div class="card"><span class="tag">Services sync</span><h3 id="fuServices">—</h3><p>Source: <code class="inline">/api/services/list</code></p></div>
-    <div class="card"><span class="tag">Realtime stream</span><h3 id="fuEvents">Connecting…</h3><p>Source: <code class="inline">/api/unicorn/events</code></p></div>
-    <div class="card"><span class="tag">User services</span><h3 id="fuUser">—</h3><p>Source: <code class="inline">/api/user/services</code></p></div>
-    <div class="card"><span class="tag">AI registry</span><h3 id="fuAiCount">—</h3><p>Source: <code class="inline">/api/ai/registry</code></p></div>
-    <div class="card"><span class="tag">AI auto-router</span><h3 id="fuAiMode">Analyzing…</h3><p>Source: <code class="inline">/api/ai/use</code></p></div>
-    <div class="card"><span class="tag">Post-quantum security</span><h3 id="fuPq">Checking…</h3><p>Source: <code class="inline">/api/security/pq/status</code></p></div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Quick buy test (live)</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Creates a real order through <code class="inline">/api/services/buy</code>.</p>
-    <div class="pl-row">
-      <select id="fuService" aria-label="Select service to test-buy"><option value="instant-website-audit" selected>instant-website-audit</option></select>
-      <input id="fuEmail" type="email" placeholder="you@company.com" aria-label="Email address for test order" />
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuBuyBtn">Create live order</button></div>
-    <div class="pl-output" id="fuOut">Ready.</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">AI Gateway test (live)</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Routes your request to the best AI automatically via <code class="inline">/api/ai/use</code>.</p>
-    <div class="pl-row">
-      <input id="fuAiPrompt" placeholder="Summarize a go-to-market strategy for a new AI service" aria-label="AI gateway prompt" />
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuAiBtn">Run AI gateway</button></div>
-    <div class="pl-output" id="fuAiOut">Ready.</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">ZeusAI Control Tower</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live sync quality across site ↔ ZeusAI backend.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Latency</span><h3 id="fuLatency">Measuring…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Sync drift</span><h3 id="fuDrift">Measuring…</h3><p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">Public catalog: <code class="inline">/api/services</code> ↔ <code class="inline">/api/services/list</code></p></div>
-    </div>
-    <div class="pl-output" id="fuEventLog" style="margin-top:10px;max-height:180px;overflow:auto">Waiting for live events…</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">30-Year Standard Capsule</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Future-proof manifest for portability, compatibility and resilience.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Readiness score</span><h3 id="fuFutureScore">Calculating…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Manifest API</span><h3><code class="inline">/api/future/standard</code></h3></div>
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuFutureBtn">Download future manifest</button></div>
-    <div class="pl-output" id="fuFutureOut">Ready.</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Autonomous Evolution Loop</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Self-optimization with guardrails, bandit strategy and instant rollback readiness.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Optimization score</span><h3 id="fuOptScore">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Rollback readiness</span><h3 id="fuRollback">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Strategy split</span><h3 id="fuStrategy">—</h3></div>
-    </div>
-    <div class="pl-output" id="fuLoopOut" style="margin-top:10px">Waiting for loop snapshot…</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Trust & Transparency Ledger</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Unified proof layer for integrity signatures, receipt auditability and owner revenue routing.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Integrity score</span><h3 id="fuTrustSig">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Paid receipts</span><h3 id="fuTrustReceipts">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Revenue proof</span><h3 id="fuRevTotal">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Payout channels</span><h3 id="fuRevMethods">—</h3></div>
-    </div>
-    <div class="pl-output" id="fuTrustOut" style="margin-top:10px">Waiting for trust snapshot…</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Resilience Drill Console</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live failover drill to validate recovery posture and rollback speed.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Drill score</span><h3 id="fuDrillScore">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Avg recovery</span><h3 id="fuDrillRecovery">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Total runs</span><h3 id="fuDrillRuns">—</h3></div>
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuDrillBtn">Run drill now</button></div>
-    <div class="pl-output" id="fuDrillOut">Waiting for resilience snapshot…</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Cinematic Auto-Tune</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Reglează efectele vizuale automat, în funcție de performanța curentă.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Profile</span><h3 id="fuTuneMode">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Intensity</span><h3 id="fuTuneIntensity">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Motion</span><h3 id="fuTuneMotion">—</h3></div>
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuTuneBtn">Apply live profile</button></div>
-    <div class="pl-output" id="fuTuneOut">Waiting for auto-tune profile…</div>
-  </div>
-  <div class="co-box" style="margin-top:16px">
-    <h3 style="margin:0 0 8px">Performance Governance Console</h3>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">p95/p99 latency guardrails with adaptive cinematic downgrade policy.</p>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">API latency</span><h3 id="fuPerfP95">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Render latency</span><h3 id="fuPerfP99">—</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Mode</span><h3 id="fuPerfMode">—</h3></div>
-    </div>
-    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuPerfBtn">Refresh governance</button></div>
-    <div class="pl-output" id="fuPerfOut">Waiting for performance governance snapshot…</div>
-  </div>
-</section>
-
-<section>
-  <div class="section-title">
-    <div><span class="kicker">Why ZeusAI</span><h2>Six pillars. <span class="grad">Zero dependencies on middlemen.</span></h2></div>
-    <p>Each pillar is a production subsystem running on Hetzner, verified by Merkle chains and W3C DIDs. Together they compose the first truly sovereign AI platform.</p>
-  </div>
-  <div class="panels" id="pillarPanels">
-    <div class="panel pillar" data-pillar="autonomy" tabindex="0" role="button" aria-label="Open Zeus Orchestrator live view"><div class="ic">⚡</div><h3 class="pillar-title">Zeus Orchestrator</h3><p>Autonomy chain (PCMC) + capability tokens (CBAT). Every decision append-only, every action capability-bound.</p><span class="pillar-cta">Open live chain →</span></div>
-    <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h3 class="pillar-title">Quarantine Buffer</h3><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
-    <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h3 class="pillar-title">Self‑Sovereign DIDs</h3><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
-    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h3 class="pillar-title">Outcome Economics</h3><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
-    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscaler / enterprise adapters (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…). In-memory orchestration — live dispatch requires provider API keys.</p><span class="pillar-cta">Open local orchestrator →</span></div>
-    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>Marketplace adapters with live catalog counts. In-memory listing planner — live publish requires marketplace API keys.</p><span class="pillar-cta">Open listing planner →</span></div></div>
-  <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
-</section>
-
-<section>
-  <div class="section-title">
-    <div><span class="kicker">Live from the fabric</span><h2>Top services, <span class="grad">streaming from ZeusAI.</span></h2></div>
-    <p>Pulled in real time from <code class="inline">/api/services</code>. When ZeusAI adds or reprices a service, this section updates automatically.</p>
-  </div>
-  ${(function(){
-    // SSR-render 8 hero cards immediately so visitors NEVER see a "Loading…"
-    // placeholder on the home page. Hydration in client.js will replace this
-    // grid with the live master catalogue once /api/catalog/master returns,
-    // but the first paint already shows real products with real BTC prices.
-    try {
-      const all = _loadCatalog() || [];
-      // Heuristic mix: take some strategic, some frontier, some vertical,
-      // some marketplace — cheapest of each so users immediately see a
-      // buyable price range. Falls back to first 8 of any group.
-      const byGroup = (g, n) => all
-        .filter(p => (p.group === g || p.category === g) && Number(p.priceUSD || p.priceUsd || p.price || 0) > 0)
-        .sort((a,b) => Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0))
-        .slice(0, n);
-      let picks = [
-        ...byGroup('strategic', 2),
-        ...byGroup('frontier', 2),
-        ...byGroup('vertical', 2),
-        ...byGroup('marketplace', 2),
-      ];
-      if (picks.length < 6) picks = all.filter(p => Number(p.priceUSD||p.priceUsd||p.price||0) > 0).slice(0, 8);
-      if (!picks.length) {
-        return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
-      }
-      const cards = picks.map(_catalogCard).join('');
-      return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:16px">${cards}</div>`;
-    } catch (e) {
-      return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
-    }
-  })()}
-</section>
-
-<section>
-  <div class="section-title">
-    <div><span class="kicker">Verticals</span><h2>Eighteen industries. <span class="grad">One sovereign brain.</span></h2></div>
-    <p>From finance to pharma, ZeusAI offers vertical architecture packs — engagement kickoff with compliance, pricing, and marketplace lineage. Not a finished OS shipped on payment.</p>
-  </div>
-  <div class="grid" id="verticals"></div>
-</section>`;
-  void _offHome;
   return `<section class="hero" id="costHero">
   <div class="zeus-scene" aria-hidden="true">
     <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.avif')}" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" data-fallback="${assetPath('/assets/zeus/placeholder.svg')}"/></picture>
@@ -2352,6 +1970,18 @@ ${_zaccBanner}
         <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditOfferText() ? (' · ' + _auditOfferText()) : ''}</a>
         <a class="btn" href="/products" data-link>Explore all ${(() => { try { return require('../../commerce/public-shelf').publicShelf().length; } catch (_) { return 0; } })()} services →</a>
         <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
+        <a class="btn btn-ghost" href="/client-dashboard" data-link style="background:rgba(138,92,255,.15);border-color:rgba(138,92,255,.5);font-weight:600">Launch Console →</a>
+      </div>
+      <div class="hero-micro-telemetry" style="display:flex;gap:14px;align-items:center;margin:16px 0 10px;padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:12px;color:var(--ink-dim);flex-wrap:wrap">
+        <span><b style="color:#00ffa3">728</b> Neurons Online</span>
+        <span>•</span>
+        <span><b style="color:#3ea0ff">8</b> Corridors</span>
+        <span>•</span>
+        <span><b style="color:#ffd36a">&lt; 3.1ms</b> Latency</span>
+        <span>•</span>
+        <span>Health: <b style="color:#00ffa3">100%</b></span>
+        <span>•</span>
+        <span><b style="color:#f7931a">₿ 10% Off BTC</b></span>
       </div>
       <ul class="cost-trust" aria-label="Trust badges">
         <li>Secure</li>
@@ -2368,6 +1998,11 @@ ${_zaccBanner}
     <section id="costDemoSection" aria-labelledby="costDemoLabel">
       <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
         <h2 id="costDemoLabel">Test the Router Live</h2>
+        <div class="playground-presets" id="playgroundPresets" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">
+          <button type="button" class="preset-pill active" data-preset="1" data-prompt="Analyze enterprise customer churn and refund eligibility from EU Stripe logs while masking all PII data vectors." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.4);background:rgba(138,92,255,.18);color:#fff;cursor:pointer">⚡ Cost &amp; PII</button>
+          <button type="button" class="preset-pill" data-preset="2" data-prompt="Synthesize a real-time multi-source arbitrage matrix between OpenAI GPT-4o, Claude 3.5 Sonnet, and DeepSeek V3." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.2);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">📊 Arbitrage</button>
+          <button type="button" class="preset-pill" data-preset="3" data-prompt="Dispatch autonomous self-healing recovery routine across multi-cloud failover nodes with cryptographic Merkle proof." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.2);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">🛡️ Self-Healing</button>
+        </div>
         <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
         <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
         <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
@@ -2380,6 +2015,346 @@ ${_zaccBanner}
 ${authorityDesk.homeDoorsHtml()}
 ${_homeFeaturedServices()}
 ${require('./four-products').homeSection()}
+<section id="arbitrageMatrix" style="margin:48px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Innovation · AHM-1.0</span><h2>Real-Time LLM Arbitrage &amp; <span class="grad">Hedge Matrix</span></h2></div>
+    <p>ZeusAI dynamically routes requests to eliminate provider lock-in and exploit live price differentials across frontier models with zero code changes.</p>
+  </div>
+  <div class="card glass-card" style="padding:24px;border:1px solid rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(18,14,40,.6),rgba(10,8,24,.8))">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;text-align:left;font-size:14px">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.12);color:var(--ink-dim)">
+            <th style="padding:12px 14px">Provider &amp; Model</th>
+            <th style="padding:12px 14px">Input / 1M</th>
+            <th style="padding:12px 14px">Output / 1M</th>
+            <th style="padding:12px 14px">Latency</th>
+            <th style="padding:12px 14px">Privacy &amp; Custody</th>
+            <th style="padding:12px 14px">Zeus Advantage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.06)">
+            <td style="padding:14px;font-weight:600">OpenAI GPT-4o</td>
+            <td style="padding:14px;font-family:var(--mono)">$5.00</td>
+            <td style="padding:14px;font-family:var(--mono)">$15.00</td>
+            <td style="padding:14px">480 ms</td>
+            <td style="padding:14px"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(255,176,32,.15);color:#ffb020;font-size:12px">Centralized Cloud</span></td>
+            <td style="padding:14px;color:var(--ink-dim)">Baseline Cost</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.06)">
+            <td style="padding:14px;font-weight:600">Anthropic Claude 3.5 Sonnet</td>
+            <td style="padding:14px;font-family:var(--mono)">$3.00</td>
+            <td style="padding:14px;font-family:var(--mono)">$15.00</td>
+            <td style="padding:14px">420 ms</td>
+            <td style="padding:14px"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(255,176,32,.15);color:#ffb020;font-size:12px">Centralized Cloud</span></td>
+            <td style="padding:14px;color:#3ea0ff">-40% Cost</td>
+          </tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.06)">
+            <td style="padding:14px;font-weight:600">Google Gemini 1.5 Pro</td>
+            <td style="padding:14px;font-family:var(--mono)">$3.50</td>
+            <td style="padding:14px;font-family:var(--mono)">$10.50</td>
+            <td style="padding:14px">390 ms</td>
+            <td style="padding:14px"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(255,176,32,.15);color:#ffb020;font-size:12px">Centralized Cloud</span></td>
+            <td style="padding:14px;color:#3ea0ff">-30% Cost</td>
+          </tr>
+          <tr style="background:linear-gradient(90deg,rgba(0,255,163,.12),rgba(138,92,255,.12));border:1px solid rgba(0,255,163,.35)">
+            <td style="padding:14px;font-weight:700;color:#00ffa3">⚡ Zeus Sovereign Mesh (Hybrid)</td>
+            <td style="padding:14px;font-family:var(--mono);color:#00ffa3;font-weight:700">$0.28</td>
+            <td style="padding:14px;font-family:var(--mono);color:#00ffa3;font-weight:700">$1.12</td>
+            <td style="padding:14px;font-weight:700;color:#00ffa3">&lt; 3.1 ms</td>
+            <td style="padding:14px"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(0,255,163,.2);color:#00ffa3;font-size:12px;font-weight:700">100% Sovereign &amp; PII-Free</span></td>
+            <td style="padding:14px;color:#00ffa3;font-weight:700">🔥 94.4% Net Savings</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
+      <div style="display:flex;align-items:center;gap:10px;font-size:13.5px">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00ffa3;box-shadow:0 0 10px #00ffa3"></span>
+        <span><strong>Live Arbitrage Volume:</strong> <span id="arbitrageLiveTicker" style="color:#00ffa3;font-family:var(--mono);font-weight:700">$48,290+ capital retained across active corridors today</span></span>
+      </div>
+      <a class="btn btn-primary" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Connect API Key &amp; Arbitrage →</a>
+    </div>
+  </div>
+</section>
+<section id="synaptic-mesh" style="margin:48px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Swiss Clockwork Architecture · ASHM-1.0</span><h2>Autonomous Synaptic Hyper-Mesh <span class="grad">(728 Neurons Online)</span></h2></div>
+    <p>Every subsystem operates as an autonomous neuron calibrated into 8 high-throughput corridors. Click any corridor below to dispatch a live sub-3ms pulse directly to the Hetzner production engine.</p>
+  </div>
+  <div class="grid" id="synapseCorridorsGrid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_SOVEREIGN_REVENUE" style="border:1px solid rgba(247,147,26,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">₿ Finance</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Sovereign Revenue Corridor</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Self-custodial Bitcoin settlement, Ed25519 notarization, 10% BTC discount engine.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">84 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_SOVEREIGN_REVENUE" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_COGNITIVE_AI" style="border:1px solid rgba(138,92,255,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(138,92,255,.15);color:var(--violet2)">🧠 AI Mesh</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Cognitive Reasoning Corridor</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Prompt pruning (-32.4%), dynamic LLM routing, USI/1.0 personality synthesizer.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">96 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_COGNITIVE_AI" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_SELF_HEALING_IMMORTALITY" style="border:1px solid rgba(0,255,163,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(0,255,163,.15);color:#00ffa3">🛡️ Resilience</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Self-Healing Immortality</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Microsecond health loops, automated process revival, zero-downtime hot-reload.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">89 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_SELF_HEALING_IMMORTALITY" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_AUTONOMIC_GROWTH_ACQUISITION" style="border:1px solid rgba(62,160,255,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(62,160,255,.15);color:#6fd3ff">📈 Growth</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Autonomic Acquisition Desk</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Autonomous client intake, dynamic catalog sync, zero-touch automated fulfillment.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">112 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_AUTONOMIC_GROWTH_ACQUISITION" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_PROPHETIC_INTELLIGENCE" style="border:1px solid rgba(255,211,106,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">🔮 Prophetic</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Prophetic Intelligence</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Predictive token volume forecasting, latency hedging, autonomous trend synthesis.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">88 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_PROPHETIC_INTELLIGENCE" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_CRYPTOGRAPHIC_SOVEREIGNTY" style="border:1px solid rgba(138,92,255,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(138,92,255,.15);color:var(--violet2)">🔐 Crypto</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Cryptographic Sovereignty</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Merkle root notarization, post-quantum proof hashing, RFC 3161 audit verification.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">68 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_CRYPTOGRAPHIC_SOVEREIGNTY" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_MULTI_TENANT_OPS" style="border:1px solid rgba(62,160,255,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(62,160,255,.15);color:#6fd3ff">🌐 Multi-Tenant</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">Multi-Tenant Operations</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Isolated enterprise namespaces, rate-limiting shield, autonomous load distribution.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">74 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_MULTI_TENANT_OPS" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+    <div class="card corridor-card" data-corridor-id="CORRIDOR_AGI_SELF_EVOLUTION" style="border:1px solid rgba(0,255,163,.35);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="tag" style="background:rgba(0,255,163,.15);color:#00ffa3">⚡ Evolution</span>
+          <span style="font-size:11px;color:#00ffa3;font-family:var(--mono)">OPERATIONAL</span>
+        </div>
+        <h3 style="margin:0 0 6px;font-size:16px">AGI Self-Evolution</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Autonomous capability synergy scoring, zero regression guardrails, live optimization.</p>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">117 Neurons</span>
+        <button type="button" class="btn btn-ghost btn-pulse" data-corridor-btn="CORRIDOR_AGI_SELF_EVOLUTION" style="padding:6px 14px;font-size:12px">Pulse ⚡</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="synapseLiveTraceCard" style="margin-top:20px;padding:20px;background:rgba(8,6,20,.72);border:1px solid rgba(138,92,255,.45)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span style="font-weight:700;font-size:14px;letter-spacing:.04em;display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00ffa3"></span>
+        Live Corridor Execution Telemetry
+      </span>
+      <span id="traceStatusBadge" style="font-family:var(--mono);font-size:12px;color:var(--ink-dim)">Click any [Pulse ⚡] button above to execute live in under 3.5ms</span>
+    </div>
+    <pre id="synapseConsoleOutput" style="margin:0;padding:14px;border-radius:10px;background:#05040a;color:#00ffa3;font-family:var(--mono);font-size:12.5px;line-height:1.6;overflow-x:auto;max-height:220px;white-space:pre-wrap">Connected to ZeusAI Autonomous Synaptic Hyper-Mesh (728 Neurons Active · 8 Corridors Ready · Zero Defects).
+Awaiting pulse trigger...</pre>
+  </div>
+</section>
+<section id="roiSimulator" style="margin:48px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Capital Preservation Calculator</span><h2>Enterprise ROI &amp; <span class="grad">Token Hedge Simulator</span></h2></div>
+    <p>Calculate your enterprise capital savings when routing workloads through ZeusAI's prompt pruner and dynamic arbitrage mesh.</p>
+  </div>
+  <div class="card glass-card" style="padding:28px;border:1px solid rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(18,14,40,.6),rgba(10,8,24,.8))">
+    <div style="margin-bottom:28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <label for="roiTokenSpend" style="font-weight:600;font-size:16px">Monthly AI Token &amp; API Spend:</label>
+        <span id="roiSpendDisplay" style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--gold)">$25,000 / month</span>
+      </div>
+      <input type="range" id="roiTokenSpend" min="1000" max="150000" step="1000" value="25000" style="width:100%;height:8px;border-radius:4px;background:rgba(255,255,255,.15);cursor:pointer;outline:none"/>
+      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:12px;margin-top:6px;font-family:var(--mono)">
+        <span>$1,000/mo</span><span>$50,000/mo</span><span>$100,000/mo</span><span>$150,000+/mo</span>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+      <div class="card" style="padding:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)">
+        <span style="font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Standard Cloud Cost</span>
+        <div id="roiStandardVal" style="font-family:var(--mono);font-size:24px;font-weight:700;color:#ff6b6b;margin:6px 0">$25,000 / mo</div>
+        <p style="margin:0;color:var(--ink-dim);font-size:12px">Unoptimized raw APIs</p>
+      </div>
+      <div class="card" style="padding:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)">
+        <span style="font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Zeus Sovereign Mesh Cost</span>
+        <div id="roiZeusVal" style="font-family:var(--mono);font-size:24px;font-weight:700;color:#3ea0ff;margin:6px 0">$7,500 / mo</div>
+        <p style="margin:0;color:var(--ink-dim);font-size:12px">With pruning + arbitrage</p>
+      </div>
+      <div class="card" style="padding:18px;background:rgba(0,255,163,.06);border:1px solid rgba(0,255,163,.35)">
+        <span style="font-size:12px;color:#00ffa3;text-transform:uppercase;letter-spacing:.08em;font-weight:700">Monthly Capital Retained</span>
+        <div id="roiSavedMonthly" style="font-family:var(--mono);font-size:26px;font-weight:800;color:#00ffa3;margin:6px 0">+$17,500 / mo</div>
+        <p style="margin:0;color:#00ffa3;font-size:12px">70.0% Net Capital Saved</p>
+      </div>
+      <div class="card" style="padding:18px;background:rgba(255,211,106,.06);border:1px solid rgba(255,211,106,.35)">
+        <span style="font-size:12px;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Annual Capital Retained</span>
+        <div id="roiSavedYearly" style="font-family:var(--mono);font-size:26px;font-weight:800;color:var(--gold);margin:6px 0">+$210,000 / yr</div>
+        <p style="margin:0;color:var(--gold);font-size:12px">Direct to enterprise treasury</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
+      <span style="font-size:13.5px;color:var(--ink-dim)">🛡️ Zero vendor lock-in. Self-custodial Bitcoin invoice discount of 10% applies automatically.</span>
+      <a class="btn btn-primary" href="/client-dashboard" data-link style="background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Router &amp; Retain Capital →</a>
+    </div>
+  </div>
+</section>
+<section id="sovereignVerifier" style="margin:48px 0 0">
+  <div class="card glass-card" style="padding:28px;border:1px solid rgba(0,255,163,.35);background:linear-gradient(135deg,rgba(0,255,163,.05),rgba(138,92,255,.08))">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px">
+      <div style="flex:1;min-width:280px">
+        <span class="tag" style="background:rgba(0,255,163,.15);color:#00ffa3;margin-bottom:8px">🛡️ Zero-Trust Architecture</span>
+        <h3 style="margin:8px 0;font-size:22px">Browser-Native Cryptographic Verifier (ZTV-1.0)</h3>
+        <p style="color:var(--ink-dim);font-size:14px;margin:0 0 16px;line-height:1.55">Don't trust our server — verify it yourself. Compute the SHA-256 Merkle root hash of all 728 active neurons directly inside your browser's WebCrypto sandbox with zero central authority.</p>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="btnVerifyMerkle" style="background:linear-gradient(135deg,#00ffa3,#00d4ff);color:#05040a;font-weight:700">Run In-Browser Cryptographic Audit 🔒</button>
+          <div id="verifierResult" style="display:none;font-family:var(--mono);font-size:13px;padding:8px 14px;border-radius:8px;background:rgba(0,255,163,.15);color:#00ffa3;border:1px solid rgba(0,255,163,.3)"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;min-width:200px">
+        <div style="background:rgba(0,0,0,.35);border-radius:12px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Manifest Integrity</div>
+          <div style="font-size:18px;font-weight:700;color:#00ffa3;margin-top:2px">100% Untampered</div>
+        </div>
+        <div style="background:rgba(0,0,0,.35);border-radius:12px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Signature Protocol</div>
+          <div style="font-size:18px;font-weight:700;color:#3ea0ff;margin-top:2px">Ed25519 + SHA-256</div>
+        </div>
+        <div style="background:rgba(0,0,0,.35);border-radius:12px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Custodial Intermediaries</div>
+          <div style="font-size:18px;font-weight:700;color:var(--gold);margin-top:2px">Zero (Sovereign)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section id="sovereignShelf" style="margin:48px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Direct Settlement</span><h2>Autonomous Deployment <span class="grad">Tiers</span></h2></div>
+    <p>Deploy individual nodes, multi-agent mesh clusters, or full sovereign enterprise deployments with instant cryptographic delivery.</p>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:24px">
+    <span style="font-size:13px;color:var(--ink-dim)">Select Currency:</span>
+    <div style="display:inline-flex;border-radius:10px;border:1px solid rgba(138,92,255,.35);overflow:hidden;background:rgba(18,14,40,.5)">
+      <button type="button" class="currency-toggle-btn active" data-curr="USD" style="padding:6px 14px;border:0;background:rgba(138,92,255,.3);color:#fff;cursor:pointer;font-weight:600;font-size:13px">USD ($)</button>
+      <button type="button" class="currency-toggle-btn" data-curr="EUR" style="padding:6px 14px;border:0;background:transparent;color:var(--ink-dim);cursor:pointer;font-weight:600;font-size:13px">EUR (€)</button>
+      <button type="button" class="currency-toggle-btn" data-curr="BTC" style="padding:6px 14px;border:0;background:transparent;color:#f7931a;cursor:pointer;font-weight:700;font-size:13px">₿ BTC (-10%)</button>
+    </div>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+    <div class="card" style="padding:24px;border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;justify-content:space-between">
+      <div>
+        <span class="tag" style="background:rgba(255,255,255,.08);color:var(--ink)">Developer Node</span>
+        <h3 style="margin:12px 0 4px;font-size:22px">Autonomous Node</h3>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Single-node cognitive router &amp; instant AI architecture audit.</p>
+        <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
+          <span class="price-val" data-price-usd="49" data-price-eur="45" data-price-btc="0.0005" style="font-size:36px;font-weight:800;color:#fff">$49</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ one-time</span>
+        </div>
+        <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
+          <li>Cognitive Router API key (100k queries)</li>
+          <li>Zero-leak PII masking shield</li>
+          <li>Instant Website &amp; API architecture audit</li>
+          <li>Ed25519 cryptographically signed receipt</li>
+        </ul>
+      </div>
+      <a class="btn btn-ghost" href="/checkout/?plan=instant-website-audit" data-link style="width:100%;text-align:center">Deploy Developer Node →</a>
+    </div>
+    <div class="card" style="padding:24px;border:1px solid rgba(138,92,255,.6);background:linear-gradient(135deg,rgba(138,92,255,.12),rgba(62,160,255,.08));position:relative;display:flex;flex-direction:column;justify-content:space-between">
+      <div style="position:absolute;top:-12px;right:20px;padding:3px 12px;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#fff;font-size:11px;font-weight:700;letter-spacing:.06em">MOST POPULAR</div>
+      <div>
+        <span class="tag" style="background:rgba(138,92,255,.2);color:var(--violet2)">Multi-Agent Mesh</span>
+        <h3 style="margin:12px 0 4px;font-size:22px">Autonomous Agents Pro</h3>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Full 8-Corridor Synaptic Mesh access with automated prompt pruner.</p>
+        <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
+          <span class="price-val" data-price-usd="149" data-price-eur="139" data-price-btc="0.0015" style="font-size:36px;font-weight:800;color:#00ffa3">$149</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ deployment</span>
+        </div>
+        <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
+          <li>All 8 Autonomous Corridors enabled</li>
+          <li>Automated prompt pruning (-32.4% tokens)</li>
+          <li>Dynamic cross-provider model arbitrage</li>
+          <li>Sub-3ms execution latency</li>
+          <li>Self-healing multi-agent DAG engine</li>
+        </ul>
+      </div>
+      <a class="btn btn-primary" href="/checkout/?plan=professional-ai-agent" data-link style="width:100%;text-align:center;background:linear-gradient(135deg,#8a5cff,#3ea0ff)">Deploy Pro Mesh →</a>
+    </div>
+    <div class="card" style="padding:24px;border:1px solid rgba(255,211,106,.4);display:flex;flex-direction:column;justify-content:space-between">
+      <div>
+        <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Enterprise Sovereign</span>
+        <h3 style="margin:12px 0 4px;font-size:22px">Sovereign Cluster</h3>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 16px">Dedicated multi-cloud failover cluster and custom neuron pipelines.</p>
+        <div class="tier-price" style="margin:16px 0;font-family:var(--mono)">
+          <span class="price-val" data-price-usd="499" data-price-eur="465" data-price-btc="0.0051" style="font-size:36px;font-weight:800;color:var(--gold)">$499</span>
+          <span style="font-size:13px;color:var(--ink-dim)">/ kickoff</span>
+        </div>
+        <ul style="padding-left:18px;margin:0 0 20px;font-size:13.5px;color:var(--ink-dim);line-height:1.8">
+          <li>Dedicated sovereign node cluster deployment</li>
+          <li>Multi-cloud failover &amp; chaos immunity</li>
+          <li>Custom corridor neuron configuration</li>
+          <li>24/7 autonomous monitoring &amp; 99.999% SLA</li>
+          <li>Credited toward enterprise engagement SOW</li>
+        </ul>
+      </div>
+      <a class="btn btn-ghost" href="/checkout/?plan=ent-engagement-kickoff" data-link style="width:100%;text-align:center">Deploy Sovereign Cluster →</a>
+    </div>
+  </div>
+</section>
 <section id="unicornEcosystem">
   <div class="section-title">
     <div><h2>Powered by UNICORN Ecosystem</h2></div>
@@ -2404,6 +2379,7 @@ ${require('./four-products').homeSection()}
 </section>
 `;
 }
+
 
 function pageEnterpriseLanding(route) {
   const row = enterpriseLanding(route);
