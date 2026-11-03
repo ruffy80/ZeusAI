@@ -1951,7 +1951,391 @@ function _homeFeaturedServices() {
 }
 
 function pageHome() {
+  // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
+  // from each tier so the page always shows a buyable price range without
+  // depending on JS hydration.
+  const _all = _loadCatalog();
+  const _byTier = { instant: [], professional: [], enterprise: [] };
+  _all.forEach(p => { const t = String(p.tier || 'professional'); if (_byTier[t]) _byTier[t].push(p); });
+  // World-Profit-OS: featured strip = instant + professional ONLY (no enterprise
+  // hero card spam). Enterprise gets its own explicit CTA row underneath so
+  // scaling buyers still have a signalled path.
+  const _featured = []
+    .concat(_byTier.instant.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
+    .concat(_byTier.professional.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2));
+  const _featuredHtml = _featured.length
+    ? `<section id="homeFeatured" style="margin:40px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Featured services</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
+    <p>Four concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
+  </div>
+  ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
+  <div id="homeEnterpriseRow" class="card" style="margin:18px 0 0;padding:16px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(138,92,255,.10),rgba(62,160,255,.06));border:1px solid rgba(138,92,255,.35)">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker">Building at scale?</span>
+      <h3 style="margin:6px 0 2px;font-size:18px">Enterprise work starts with the kickoff file.</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">The price is the kickoff file: a discovery brief, a commercial proposal, and a draft statement of work. A license, the source, and a private cloud are not for sale here.</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-ghost" href="/services" data-link>Explore Enterprise →</a>
+      <a class="btn" href="/pricing" data-link>See pricing</a>
+    </div>
+  </div>
+  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
+</section>` : '';
+  // Post-featured commerce proof rail: live on-chain sales + BTC-discount chip.
+  // Both are SSR containers hydrated by client.js hydrateHomeProof().
+  const _homeProofRail = `<section id="homeProofRail" style="margin:26px 0 0">
+  <div class="grid phone-stack" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
+    <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span class="kicker" style="color:#00ffa3">⚡ Live settlements</span>
+        <span style="font-size:11px;color:var(--ink-dim)">Bitcoin live · card and PayPal when configured</span>
+      </div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Settlements appear here after a payment is confirmed. <a href="#concierge" style="color:#00ffa3">Ask what to buy →</a></div>
+    </div>
+    <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
+      <span class="kicker" style="color:#f7931a">₿ BTC primary · multi-rail ready</span>
+      <h3 style="margin:0;font-size:22px;line-height:1.2">Pay in BTC → <span class="grad">save 10%</span></h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13px">Catalog prices include the BTC discount. Prefer PayPal or card/crypto? Same checkout — choose your rail.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <a class="btn btn-primary" href="/services" data-link>Buy → choose payment</a>
+        <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
+      </div>
+    </div>
+  </div>
+</section>`;
+  // Hero quick-buy — First-Dollar Gravity: default SKU is the cheapest
+  // honest instant deliverable (instant-resume-makeover), never api-call
+  // or global-giants. Checkout path: /checkout/?plan=instant-resume-makeover
+  // The form stays in source for the gravity pin. The homepage renders the concierge.
+  let _heroQuickPicks = [];
+  try {
+    const gravity = require('../../commerce/storefront-gravity-os');
+    _heroQuickPicks = gravity.pickHeroQuickPicks(_all, 6);
+  } catch (_) {
+    _heroQuickPicks = _all
+      .filter(p => Number(p.priceUSD || p.priceUsd || p.price || 0) >= 29)
+      .sort((a,b)=> (Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0)))
+      .slice(0, 6);
+  }
+  const _heroQuickOpts = _heroQuickPicks.map(p => {
+    const id = _esc(p.id || '');
+    const title = _esc(p.title || p.id || 'Service');
+    const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
+    const label = price > 0 ? (title + ' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : title;
+    const selected = id === 'instant-resume-makeover' ? ' selected' : '';
+    return `<option value="${id}"${selected}>${label}</option>`;
+  }).join('');
+  const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
+      <span class="kicker" style="width:100%;margin-bottom:4px">30-second checkout · Bitcoin live · card and PayPal when configured</span>
+      <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
+      <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
+      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
+    </form>` : '';
+  // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
+  // before any other section, so the world\u2019s first fully-autonomous economic
+  // engine is impossible to miss from the homepage.
+  const _zaccBanner = `<section id="homeZacc" style="margin:48px 0 0">
+  <div class="card phone-stack" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
+    <div>
+      <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
+      <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">The listing desk file is for sale. A parcel ships only when a supplier key is armed and the row is dispatchable. Inspect <code class="inline">/api/zacc/status</code> for the measured tick — we do not claim live Printful/CJ feeds until the status says enabled.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/checkout/?plan=dropship-listing-desk" data-link>Buy the listing desk →</a>
+        <a class="btn" href="/zacc" data-link>\u26a1 Open dropship cockpit \u2192</a>
+        <button type="button" class="btn" data-live-inspect="/api/zacc/status" data-live-title="Inspect ZACC status" style="margin-top:8px">Inspect ZACC status</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Status</div><div style="font-size:18px;font-weight:700;margin-top:4px;color:#ffb020">Listing desk for sale</div><p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-dim);line-height:1.5">Auto-ship waits for a CJ, Printful, or Printify key. The paid file is the listing desk. No invented source counts on this banner.</p></div>
+    </div>
+  </div>
+</section>`;
   try { require('../../commerce/relay-graft-os'); } catch (_) {}
+  const _offHome = `${discoverTrust.objectionHtml()}
+
+${sellSurface.homeBuyStripHtml(_all.length)}
+
+<section id="homeOriginGravity" class="card" style="margin:28px 0 0;padding:22px 24px;background:linear-gradient(135deg,rgba(0,255,163,.10),rgba(138,92,255,.08));border:1px solid rgba(0,255,163,.38)" data-ogp-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#00ffa3">OGP/1.0 · Origin Gravity</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(22px,3vw,32px);line-height:1.15">The public ledger is the proof. <span class="grad">Be Origin #1.</span></h2>
+      <p id="ogpBannerCopy" style="margin:0;color:var(--ink-dim);font-size:14.5px;line-height:1.55;max-width:640px">This AI-commerce OS publishes a hash-chained genesis that admits zero customers. The next confirmed payment becomes a Founding Origin Passport — verifiable forever. No fake “trusted by thousands.”</p>
+      <p style="margin:10px 0 0;font-family:var(--mono);font-size:12px;color:var(--ink-dim)">paidHumans <b id="ogpHumans" style="color:#00ffa3">0</b> · next seat <b id="ogpSeat" style="color:#fff">Origin #1</b> · <span id="ogpHash">genesis on /origin</span></p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/buy" data-link id="ogpBannerCta">Claim Origin #1 →</a>
+      <a class="btn btn-ghost" href="/origin" data-link>Read the public ledger</a>
+    </div>
+  </div>
+</section>
+
+<section id="homeSocialGravity" class="card" style="margin:16px 0 0;padding:20px 24px;border:1px solid rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(138,92,255,.08),rgba(0,212,255,.05))" data-sgp-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#8a5cff">SGP/1.0 · Social Gravity</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(18px,2.4vw,26px);line-height:1.2">Every autoviral post lands on a tracked Origin seat — <span class="grad">not a random homepage dump.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Facebook, X, Instagram, Telegram and the rest now share <code>/from/{channel}</code> with UTM + referral codes. Clicks are page loads. Buyers are paidHumans. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/from/x" data-link>Open X landing →</a>
+      <a class="btn btn-ghost" href="/.well-known/social-gravity.json" data-allow-raw="1">social-gravity.json</a>
+    </div>
+  </div>
+</section>
+
+<section id="homeViralUnification" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(0,212,255,.28);background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(138,92,255,.05))" data-vuk-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#00d4ff">VUK/1.0 · Viral Unification</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">One outbound mutex — <span class="grad">viralizer, outbound, AACOS and CVR cannot double-post.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Site autoviralization used to race on the same Telegram/X/Discord tokens. VUK admits every social HTTP call, canonicalizes copy to Social Gravity landings, and coalesces IndexNow. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/.well-known/viral-unification.json" data-allow-raw="1">viral-unification.json</a>
+      <a class="btn btn-ghost" href="/from/x" data-link>X landing →</a>
+    </div>
+  </div>
+</section>
+
+<section id="homeVisibleSocial" class="card" style="margin:16px 0 0;padding:18px 24px;border:1px solid rgba(255,176,32,.35);background:linear-gradient(135deg,rgba(255,176,32,.08),rgba(0,212,255,.04))" data-vsp-banner>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;justify-content:space-between">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker" style="color:#ffb020">VSP/1.0 · Visible Surface</span>
+      <h2 style="margin:8px 0 6px;font-size:clamp(16px,2.2vw,22px);line-height:1.25">A Facebook post exists only if you can <span class="grad">open a public permalink.</span></h2>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:680px">Telegram bots, Discord webhooks, and generic webhooks are operator rails — they are not posts on Facebook, X, TikTok, or Instagram. Open /visible. If gazeLit is empty, those apps were not posted to. Reach is never invented.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px">
+      <a class="btn btn-primary" href="/visible" data-link>Open gaze proof →</a>
+      <a class="btn btn-ghost" href="/.well-known/visible-social.json" data-allow-raw="1">visible-social.json</a>
+    </div>
+  </div>
+</section>
+
+${merchantStandardSurface.homeStripHtml()}
+
+${_featuredHtml}
+
+${_homeProofRail}
+
+${_zaccBanner}
+
+<section id="commerceProof">
+  <div class="section-title">
+    <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
+    <p>Not just hidden APIs: the catalogue, multi-rail checkout (BTC · PayPal · card/crypto), automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
+    <div class="card" style="border-color:rgba(255,211,106,.42)">
+      <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Master Catalog</span>
+      <h3 id="commerceProofCatalog">See live count on /services</h3>
+      <p>Buyable SKUs are measured from the public catalog API — open <a href="/services" data-link>/services</a> for the current shelf (hero stats hydrate from <code class="inline">/api/status</code>).</p>
+      <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
+    </div>
+    <div class="card" style="border-color:rgba(247,147,26,.45)">
+      <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">Multi-rail pay</span>
+      <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
+      <p id="commerceProofPaymentCopy">BTC direct is primary. PayPal and NOWPayments appear only when credentials + settle webhooks are armed live.</p>
+      <a class="btn btn-primary" href="/checkout/?plan=instant-website-audit" data-link>Test checkout →</a>
+    </div>
+    <div class="card" style="border-color:rgba(110,231,183,.42)">
+      <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
+      <h3 id="commerceProofDelivery">serviceId → deliver()</h3>
+      <p>Paid orders generate real deliverables: API key, workspace, task, webhook secret, report, onboarding and license.</p>
+      <a class="btn btn-ghost" href="/docs" data-link>See API docs →</a>
+    </div>
+    <div class="card" style="border-color:rgba(138,92,255,.42)">
+      <span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">Customer Portal</span>
+      <h3>Orders · licenses · downloads</h3>
+      <p>Email account access for orders, active services, API keys, pending payments, invoices and deliverable downloads.</p>
+      <a class="btn btn-primary" href="/account" data-link>Open portal →</a>
+    </div>
+    <div class="card" style="border-color:rgba(255,120,160,.42)">
+      <span class="tag" style="background:rgba(255,120,160,.16);color:#ff9cbe">Admin Commerce</span>
+      <h3 id="commerceProofAdmin">Refund protected</h3>
+      <p>Admin endpoints cover receipts, paid/unpaid, manual confirm, refund, resend license and retry delivery.</p>
+      <a class="btn btn-ghost" href="/admin" data-link>Admin login →</a>
+    </div>
+    <div class="card" style="border-color:rgba(62,160,255,.42)">
+      <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
+      <h3 id="commerceProofSmoke">CI smoke on deploy</h3>
+      <p>Post-deploy smoke validates catalog reachability, checkout, confirmation, license, delivery, refund protection and cleanup — thresholds come from CI env, not this headline.</p>
+      <button type="button" class="btn" data-live-inspect="/health" data-live-title="Inspect health" style="margin-top:8px">Inspect health</button>
+    </div>
+  </div>
+</section>
+
+<section id="finalLive">
+  <div class="section-title">
+    <div><span class="kicker">Final upgrade</span><h2>ZeusAI Final mode is <span class="grad">live now.</span></h2></div>
+    <p>This section proves runtime integration in production: service sync, user services and real-time event stream.</p>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div class="card"><span class="tag">Services sync</span><h3 id="fuServices">—</h3><p>Source: <code class="inline">/api/services/list</code></p></div>
+    <div class="card"><span class="tag">Realtime stream</span><h3 id="fuEvents">Connecting…</h3><p>Source: <code class="inline">/api/unicorn/events</code></p></div>
+    <div class="card"><span class="tag">User services</span><h3 id="fuUser">—</h3><p>Source: <code class="inline">/api/user/services</code></p></div>
+    <div class="card"><span class="tag">AI registry</span><h3 id="fuAiCount">—</h3><p>Source: <code class="inline">/api/ai/registry</code></p></div>
+    <div class="card"><span class="tag">AI auto-router</span><h3 id="fuAiMode">Analyzing…</h3><p>Source: <code class="inline">/api/ai/use</code></p></div>
+    <div class="card"><span class="tag">Post-quantum security</span><h3 id="fuPq">Checking…</h3><p>Source: <code class="inline">/api/security/pq/status</code></p></div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Quick buy test (live)</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Creates a real order through <code class="inline">/api/services/buy</code>.</p>
+    <div class="pl-row">
+      <select id="fuService" aria-label="Select service to test-buy"><option value="instant-website-audit" selected>instant-website-audit</option></select>
+      <input id="fuEmail" type="email" placeholder="you@company.com" aria-label="Email address for test order" />
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuBuyBtn">Create live order</button></div>
+    <div class="pl-output" id="fuOut">Ready.</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">AI Gateway test (live)</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Routes your request to the best AI automatically via <code class="inline">/api/ai/use</code>.</p>
+    <div class="pl-row">
+      <input id="fuAiPrompt" placeholder="Summarize a go-to-market strategy for a new AI service" aria-label="AI gateway prompt" />
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuAiBtn">Run AI gateway</button></div>
+    <div class="pl-output" id="fuAiOut">Ready.</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">ZeusAI Control Tower</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live sync quality across site ↔ ZeusAI backend.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Latency</span><h3 id="fuLatency">Measuring…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Sync drift</span><h3 id="fuDrift">Measuring…</h3><p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">Public catalog: <code class="inline">/api/services</code> ↔ <code class="inline">/api/services/list</code></p></div>
+    </div>
+    <div class="pl-output" id="fuEventLog" style="margin-top:10px;max-height:180px;overflow:auto">Waiting for live events…</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">30-Year Standard Capsule</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Future-proof manifest for portability, compatibility and resilience.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Readiness score</span><h3 id="fuFutureScore">Calculating…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Manifest API</span><h3><code class="inline">/api/future/standard</code></h3></div>
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuFutureBtn">Download future manifest</button></div>
+    <div class="pl-output" id="fuFutureOut">Ready.</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Autonomous Evolution Loop</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Self-optimization with guardrails, bandit strategy and instant rollback readiness.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Optimization score</span><h3 id="fuOptScore">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Rollback readiness</span><h3 id="fuRollback">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Strategy split</span><h3 id="fuStrategy">—</h3></div>
+    </div>
+    <div class="pl-output" id="fuLoopOut" style="margin-top:10px">Waiting for loop snapshot…</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Trust & Transparency Ledger</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Unified proof layer for integrity signatures, receipt auditability and owner revenue routing.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Integrity score</span><h3 id="fuTrustSig">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Paid receipts</span><h3 id="fuTrustReceipts">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Revenue proof</span><h3 id="fuRevTotal">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Payout channels</span><h3 id="fuRevMethods">—</h3></div>
+    </div>
+    <div class="pl-output" id="fuTrustOut" style="margin-top:10px">Waiting for trust snapshot…</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Resilience Drill Console</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live failover drill to validate recovery posture and rollback speed.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Drill score</span><h3 id="fuDrillScore">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Avg recovery</span><h3 id="fuDrillRecovery">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Total runs</span><h3 id="fuDrillRuns">—</h3></div>
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuDrillBtn">Run drill now</button></div>
+    <div class="pl-output" id="fuDrillOut">Waiting for resilience snapshot…</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Cinematic Auto-Tune</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Reglează efectele vizuale automat, în funcție de performanța curentă.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">Profile</span><h3 id="fuTuneMode">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Intensity</span><h3 id="fuTuneIntensity">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Motion</span><h3 id="fuTuneMotion">—</h3></div>
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuTuneBtn">Apply live profile</button></div>
+    <div class="pl-output" id="fuTuneOut">Waiting for auto-tune profile…</div>
+  </div>
+  <div class="co-box" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Performance Governance Console</h3>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">p95/p99 latency guardrails with adaptive cinematic downgrade policy.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="margin:0"><span class="tag">API latency</span><h3 id="fuPerfP95">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Render latency</span><h3 id="fuPerfP99">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Mode</span><h3 id="fuPerfMode">—</h3></div>
+    </div>
+    <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuPerfBtn">Refresh governance</button></div>
+    <div class="pl-output" id="fuPerfOut">Waiting for performance governance snapshot…</div>
+  </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <div><span class="kicker">Why ZeusAI</span><h2>Six pillars. <span class="grad">Zero dependencies on middlemen.</span></h2></div>
+    <p>Each pillar is a production subsystem running on Hetzner, verified by Merkle chains and W3C DIDs. Together they compose the first truly sovereign AI platform.</p>
+  </div>
+  <div class="panels" id="pillarPanels">
+    <div class="panel pillar" data-pillar="autonomy" tabindex="0" role="button" aria-label="Open Zeus Orchestrator live view"><div class="ic">⚡</div><h3 class="pillar-title">Zeus Orchestrator</h3><p>Autonomy chain (PCMC) + capability tokens (CBAT). Every decision append-only, every action capability-bound.</p><span class="pillar-cta">Open live chain →</span></div>
+    <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h3 class="pillar-title">Quarantine Buffer</h3><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
+    <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h3 class="pillar-title">Self‑Sovereign DIDs</h3><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
+    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h3 class="pillar-title">Outcome Economics</h3><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
+    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscaler / enterprise adapters (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…). In-memory orchestration — live dispatch requires provider API keys.</p><span class="pillar-cta">Open local orchestrator →</span></div>
+    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>Marketplace adapters with live catalog counts. In-memory listing planner — live publish requires marketplace API keys.</p><span class="pillar-cta">Open listing planner →</span></div></div>
+  <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
+</section>
+
+<section>
+  <div class="section-title">
+    <div><span class="kicker">Live from the fabric</span><h2>Top services, <span class="grad">streaming from ZeusAI.</span></h2></div>
+    <p>Pulled in real time from <code class="inline">/api/services</code>. When ZeusAI adds or reprices a service, this section updates automatically.</p>
+  </div>
+  ${(function(){
+    // SSR-render 8 hero cards immediately so visitors NEVER see a "Loading…"
+    // placeholder on the home page. Hydration in client.js will replace this
+    // grid with the live master catalogue once /api/catalog/master returns,
+    // but the first paint already shows real products with real BTC prices.
+    try {
+      const all = _loadCatalog() || [];
+      // Heuristic mix: take some strategic, some frontier, some vertical,
+      // some marketplace — cheapest of each so users immediately see a
+      // buyable price range. Falls back to first 8 of any group.
+      const byGroup = (g, n) => all
+        .filter(p => (p.group === g || p.category === g) && Number(p.priceUSD || p.priceUsd || p.price || 0) > 0)
+        .sort((a,b) => Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0))
+        .slice(0, n);
+      let picks = [
+        ...byGroup('strategic', 2),
+        ...byGroup('frontier', 2),
+        ...byGroup('vertical', 2),
+        ...byGroup('marketplace', 2),
+      ];
+      if (picks.length < 6) picks = all.filter(p => Number(p.priceUSD||p.priceUsd||p.price||0) > 0).slice(0, 8);
+      if (!picks.length) {
+        return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
+      }
+      const cards = picks.map(_catalogCard).join('');
+      return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:16px">${cards}</div>`;
+    } catch (e) {
+      return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
+    }
+  })()}
+</section>
+
+<section>
+  <div class="section-title">
+    <div><span class="kicker">Verticals</span><h2>Eighteen industries. <span class="grad">One sovereign brain.</span></h2></div>
+    <p>From finance to pharma, ZeusAI offers vertical architecture packs — engagement kickoff with compliance, pricing, and marketplace lineage. Not a finished OS shipped on payment.</p>
+  </div>
+  <div class="grid" id="verticals"></div>
+</section>`;
+  void _offHome;
+
   return `<section class="hero" id="costHero">
   <div class="zeus-scene" aria-hidden="true">
     <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.avif')}" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" data-fallback="${assetPath('/assets/zeus/placeholder.svg')}"/></picture>
@@ -2462,7 +2846,7 @@ function pageServices() {
 </section>`;
 }
 
-function pageService(id, params) {
+function pageService(id) { const params = arguments[1];
   const siteUrl = _auditDoorUrl(params && params.siteUrl);
   // First paint is the shelf card. A real module file stays on the server.
   // An id that is neither a shelf offer nor a module file is not found.
