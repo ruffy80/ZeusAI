@@ -629,6 +629,22 @@ function timingSafeEqHex(a, b) {
   try { const A = Buffer.from(a, 'hex'), B = Buffer.from(b, 'hex'); if (A.length !== B.length) return false; return crypto.timingSafeEqual(A, B); }
   catch { return false; }
 }
+function timingSafeEqStr(a, b) {
+  try {
+    const A = Buffer.from(String(a || ''), 'utf8');
+    const B = Buffer.from(String(b || ''), 'utf8');
+    if (!A.length || !B.length || A.length !== B.length) return false;
+    return crypto.timingSafeEqual(A, B);
+  } catch {
+    return false;
+  }
+}
+function resolveProviderSettleSecret() {
+  const internal = String(process.env.INTERNAL_SETTLE_SECRET || '').trim();
+  if (internal) return { expected: internal, internalOnly: true };
+  const fallback = String(process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '').trim();
+  return { expected: fallback, internalOnly: false };
+}
 
 // ── Idempotency cache (24h, in-memory; #3 forward-only) ────────────────────
 // Replays prior responses for repeat POST /api/checkout/create with the
@@ -2466,9 +2482,11 @@ async function handle(req, res, ctx) {
     const order = ORDERS.get(mProviderSettle[1]);
     if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
     const body = await readBody(req);
-    const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
-    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || '');
-    const secretOk = !!(expected && provided && provided === expected);
+    const settleAuth = resolveProviderSettleSecret();
+    const providedInternal = String(req.headers['x-internal-settle-secret'] || '');
+    const providedFallback = String(req.headers['x-admin-secret'] || '');
+    const provided = settleAuth.internalOnly ? providedInternal : (providedInternal || providedFallback);
+    const secretOk = timingSafeEqStr(provided, settleAuth.expected);
     if (!secretOk) {
       return sendJson(res, 401, { error: 'unauthorized', honesty: 'provider_settle_requires_verified_backend_secret' }), true;
     }
@@ -2532,9 +2550,11 @@ async function handle(req, res, ctx) {
     const order = ORDERS.get(mProviderRevoke[1]);
     if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
     const body = await readBody(req);
-    const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
-    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || '');
-    if (!expected || !provided || provided !== expected) {
+    const settleAuth = resolveProviderSettleSecret();
+    const providedInternal = String(req.headers['x-internal-settle-secret'] || '');
+    const providedFallback = String(req.headers['x-admin-secret'] || '');
+    const provided = settleAuth.internalOnly ? providedInternal : (providedInternal || providedFallback);
+    if (!timingSafeEqStr(provided, settleAuth.expected)) {
       return sendJson(res, 401, { error: 'unauthorized' }), true;
     }
     const revoked = revokeOrderFromProvider(order.orderId, {

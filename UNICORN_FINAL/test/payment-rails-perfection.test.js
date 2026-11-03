@@ -51,11 +51,11 @@ function seedOrder(commerce, overrides) {
   return order;
 }
 
-function jsonReq(url, body) {
+function jsonReq(url, body, extraHeaders) {
   const req = Readable.from([JSON.stringify(body || {})]);
   req.url = url;
   req.method = 'POST';
-  req.headers = { 'content-type': 'application/json' };
+  req.headers = Object.assign({ 'content-type': 'application/json' }, extraHeaders || {});
   req.socket = { remoteAddress: '127.0.0.1' };
   return req;
 }
@@ -221,11 +221,48 @@ function jsonRes() {
     assert.match(fs.readFileSync(queueFile, 'utf8'), /ord_queue01/);
   });
 
+  await check('provider settle uses INTERNAL_SETTLE_SECRET exclusively when configured', async () => {
+    const commerce = require('../src/site/sovereign-commerce');
+    const priorInternal = process.env.INTERNAL_SETTLE_SECRET;
+    const priorAdmin = process.env.ADMIN_SECRET;
+    process.env.INTERNAL_SETTLE_SECRET = 'internal-settle-secret-only';
+    process.env.ADMIN_SECRET = 'admin-secret-not-accepted-when-internal-is-set';
+    try {
+      const rejected = seedOrder(commerce, { orderId: 'ord_internal_only_reject', access_token: 'tok_internal_reject' });
+      const resRejected = jsonRes();
+      const handledRejected = await commerce.handle(
+        jsonReq('/api/order/' + rejected.orderId + '/provider-settle', { provider: 'paypal', amountUsd: 49, currency: 'USD' }, { 'x-admin-secret': process.env.ADMIN_SECRET }),
+        resRejected,
+        {}
+      );
+      assert.equal(handledRejected, true);
+      assert.equal(resRejected.statusCode, 401);
+      assert.equal(commerce.ORDERS.get(rejected.orderId).status, 'pending');
+
+      const accepted = seedOrder(commerce, { orderId: 'ord_internal_only_accept', access_token: 'tok_internal_accept' });
+      const resAccepted = jsonRes();
+      const handledAccepted = await commerce.handle(
+        jsonReq('/api/order/' + accepted.orderId + '/provider-settle', { provider: 'paypal', amountUsd: 49, currency: 'USD' }, { 'x-internal-settle-secret': process.env.INTERNAL_SETTLE_SECRET }),
+        resAccepted,
+        {}
+      );
+      assert.equal(handledAccepted, true);
+      assert.equal(resAccepted.statusCode, 200);
+      assert.equal(commerce.ORDERS.get(accepted.orderId).status, 'paid');
+    } finally {
+      if (priorInternal == null) delete process.env.INTERNAL_SETTLE_SECRET;
+      else process.env.INTERNAL_SETTLE_SECRET = priorInternal;
+      if (priorAdmin == null) delete process.env.ADMIN_SECRET;
+      else process.env.ADMIN_SECRET = priorAdmin;
+    }
+  });
+
   await check('source contains provider-settle expected amount and invoice checks', () => {
     const commerceSrc = read('src/site/sovereign-commerce.js');
     assert.ok(commerceSrc.includes('provider_amount_mismatch'));
     assert.ok(commerceSrc.includes('paypal_capture_amount_mismatch'));
     assert.ok(commerceSrc.includes('meta.invoiceId'));
+    assert.ok(commerceSrc.includes('resolveProviderSettleSecret'));
   });
 
   await check('settle queue alerts Telegram on discard; email includes BTC address; explorer fallback', () => {
