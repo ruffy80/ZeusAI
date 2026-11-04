@@ -1743,12 +1743,15 @@ function _atlasFile(p) {
   const download = preview.downloadHref
     ? `<p style="margin:8px 0 0"><a href="${_esc(preview.downloadHref)}" download>Download the proposal</a></p>`
     : '';
-  return `<div class="atlas-file" style="margin:8px 0 0;padding:10px 12px;border:1px dashed var(--stroke);border-radius:10px">
-    <span class="kicker">File today</span>
-    <b style="display:block;margin-top:4px;font-size:14px">${_esc(preview.fileTitle)}</b>
+  return `<div class="atlas-file" style="margin:0 0 12px;padding:12px 14px;border:1px solid rgba(62,160,255,.2);background:rgba(62,160,255,.05);border-radius:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span class="kicker" style="color:#6fd3ff;font-size:11px">📁 Verified Deliverable</span>
+      <span style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">instant unlock</span>
+    </div>
+    <b style="display:block;margin-top:4px;font-size:13.5px;color:#fff">${_esc(preview.fileTitle)}</b>
     ${list}
     ${download}
-    <p style="margin:6px 0 0;color:var(--ink-dim);font-size:12px">${_esc(preview.note)}</p>
+    <p style="margin:6px 0 0;color:var(--ink-dim);font-size:11.5px;line-height:1.4">${_esc(preview.note)}</p>
   </div>`;
 }
 function _commercial() {
@@ -1871,16 +1874,25 @@ function _atlasCard(p) {
     ? `<div itemprop="offers" itemscope itemtype="https://schema.org/Offer" itemid="${_esc(schema.url)}#offer">${schema.offerHtml}${priceFigure}</div>`
     : priceFigure;
   const category = _esc(p.tier || p.category || p.clock || 'service');
-  return `<article class="card atlas-card service-card" data-tier="${_esc(p.tier || '')}" data-category="${category}" data-name="${title}" data-product-id="${_esc(id)}"${productAttrs}>
+  return `<article class="card atlas-card service-card" data-tier="${_esc(p.tier || '')}" data-category="${category}" data-name="${title}" data-product-id="${_esc(id)}"${productAttrs} style="display:flex;flex-direction:column;justify-content:space-between;height:100%;padding:24px;border-radius:18px;background:rgba(12,10,24,.75);border:1px solid rgba(138,92,255,.24);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 6px 24px rgba(0,0,0,.35)">
     ${identity}
-    <span class="tag">${category}</span>
-    <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
-    <div class="atlas-card-top">${_tierBadge(p.tier)}<div class="atlas-price">${offerBlock}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</div></div>
-    <h3${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
-    <p${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
-    ${_trustBadgeHtml()}
-    ${_atlasFile(p)}
-    <div class="atlas-actions">${primary}${payRails}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div style="display:flex;flex-direction:column;flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="tag" style="background:rgba(138,92,255,.14);color:#c7a8ff;border:1px solid rgba(138,92,255,.3);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600">${category}</span>
+          ${_tierBadge(p.tier)}
+        </div>
+        <span class="atlas-when">${_esc(p.when || _atlasWhen(p))}</span>
+      </div>
+      <div class="atlas-card-top" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px">
+        <h3 style="margin:0;font-size:19px;font-weight:700;line-height:1.25;color:#fff;flex:1"${schema.merchant ? ' itemprop="name"' : ''}>${title}</h3>
+        <div class="atlas-price" style="font-family:var(--mono);font-size:21px;font-weight:800;color:var(--gold);text-align:right">${offerBlock}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</div>
+      </div>
+      <p style="margin:0 0 14px;color:var(--ink-dim);font-size:13.5px;line-height:1.55;flex:1"${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
+      ${_trustBadgeHtml()}
+      ${_atlasFile(p)}
+    </div>
+    <div class="atlas-actions" style="display:flex;gap:8px;margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);align-items:center">${primary}${payRails}<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}" style="padding:10px 14px;border-radius:10px">Details</a></div>
   </article>`;
 }
 function _homeAtlasHtml() {
@@ -1894,6 +1906,7 @@ function _homeAtlasHtml() {
   const total = instant.length + professional.length + enterprise.length;
   const cards = (items) => items.map(_atlasCard).join('');
   return `<section id="homeAtlas">
+  <div id="catalogGrid">
   <div class="section-title">
     <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
     <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is the kickoff file, not a finished build. The enterprise price is the kickoff file.</p>
@@ -1917,6 +1930,7 @@ function _homeAtlasHtml() {
     <div class="section-title"><div><span class="kicker">Contract</span><h2>The enterprise price is the kickoff file.</h2></div>
     <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. A license, the source, a private cloud, and the company are not prices on this page.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
+  </div>
   </div>
   <p class="atlas-footnote">This is the public shelf. The listing desk, the frontier tool packs, and the industry architecture packs are files on this page. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
 </section>`;
@@ -2945,41 +2959,19 @@ function pageServices() {
       </div>
     </div>
   </div>
-  <section id="servicesExpressFlashBar" class="card" style="margin:0 0 18px;padding:18px;background:linear-gradient(135deg,rgba(0,255,163,.09),rgba(138,92,255,.12));border:1px solid rgba(0,255,163,.4)">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">
+  <section id="servicesExpressFlashBar" class="card" style="margin:0 0 20px;padding:16px 20px;background:linear-gradient(135deg,rgba(0,255,163,.08),rgba(138,92,255,.10));border:1px solid rgba(0,255,163,.35);border-radius:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
       <div>
-        <span class="kicker" style="color:#00ffa3">⚡ Instant 5-Minute Delivery · Most Popular Self-Serve Packs</span>
-        <h3 style="margin:4px 0 0;font-size:18px">1-Click Express Checkout (PayPal · Card · Bitcoin -10%)</h3>
-      </div>
-      <span style="font-size:12px;color:var(--ink-dim);font-family:var(--mono)">Automatic Ed25519 receipt + instant file unlock</span>
-    </div>
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
-      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(255,255,255,.1)">
-        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant Resume Makeover</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$39</span></div>
-        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">ATS-ready resume + LinkedIn headline + 3 cover letters in ~5 min.</p>
-        <div style="display:flex;gap:6px">
-          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
-          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
-          <a class="chip" href="/checkout/?plan=instant-resume-makeover&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $35.10</a>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00ffa3;box-shadow:0 0 8px #00ffa3"></span>
+          <span class="kicker" style="color:#00ffa3;margin:0">1-Click Express Checkout · 5-Minute Delivery</span>
         </div>
+        <div style="font-size:13.5px;color:var(--ink-dim);margin-top:2px">Instant Ed25519 signed deliverables · Bitcoin (-10%), PayPal, or Card:</div>
       </div>
-      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(0,255,163,.35)">
-        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant Website Audit (AI)</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$49</span></div>
-        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">Live 6-point technical, SEO, security &amp; conversion scan of your URL.</p>
-        <div style="display:flex;gap:6px">
-          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
-          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
-          <a class="chip" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $44.10</a>
-        </div>
-      </div>
-      <div class="card" style="padding:14px;background:rgba(5,4,10,.55);border:1px solid rgba(255,255,255,.1)">
-        <div style="display:flex;justify-content:space-between;align-items:center"><strong>Instant SEO Content Pack</strong><span style="color:#00ffa3;font-family:var(--mono);font-weight:800">$79</span></div>
-        <p style="font-size:12px;color:var(--ink-dim);margin:6px 0 10px">Full Markdown article, keyword cluster, meta tags &amp; internal link map.</p>
-        <div style="display:flex;gap:6px">
-          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=paypal" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#0070ba;color:#fff">PayPal</a>
-          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=card" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#1f8f4e;color:#fff">Card</a>
-          <a class="chip" href="/checkout/?plan=instant-seo-content-pack&rail=btc" data-link style="flex:1;text-align:center;font-size:11px;text-decoration:none;background:#f7931a;color:#05040a;font-weight:700">₿ $71.10</a>
-        </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <a class="chip" href="/checkout/?plan=instant-website-audit" data-link style="background:rgba(0,255,163,.12);border-color:rgba(0,255,163,.4);color:#a3ffce;padding:8px 14px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">⚡ Website Audit <strong style="color:#fff">$49</strong></a>
+        <a class="chip" href="/checkout/?plan=instant-resume-makeover" data-link style="background:rgba(138,92,255,.15);border-color:rgba(138,92,255,.4);color:#d0b8ff;padding:8px 14px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">⚡ Resume Makeover <strong style="color:#fff">$39</strong></a>
+        <a class="chip" href="/checkout/?plan=instant-seo-content-pack" data-link style="background:rgba(62,160,255,.15);border-color:rgba(62,160,255,.4);color:#9ad7ff;padding:8px 14px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">⚡ SEO Pack <strong style="color:#fff">$79</strong></a>
       </div>
     </div>
   </section>
@@ -2989,9 +2981,14 @@ function pageServices() {
     <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. The enterprise card is the kickoff file. Each card names the file you get today. The headings are the template, not a past customer.</p>
   </section>
   <section id="serviceBundles"><h2>Each file is its own checkout</h2><p>A combined discount is not a payment. Buy the website audit, the logo kit, and the other files on their own cards.</p></section>
-  <label for="serviceSearch">Search by name</label>
-  <input id="serviceSearch" type="search" placeholder="Search services" aria-label="Search services by name"/>
-  <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock">
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin:22px 0 14px">
+    <div style="flex:1;min-width:280px">
+      <label for="serviceSearch" style="display:block;margin-bottom:6px;font-size:13px;color:var(--ink-dim)">Search marketplace deliverables</label>
+      <input id="serviceSearch" type="search" placeholder="🔍 Search by name, keyword or category..." aria-label="Search services by name" style="width:100%;padding:14px 18px;border-radius:12px;border:1px solid rgba(138,92,255,.35);background:rgba(8,6,20,.7);color:#fff;font-size:15px;box-shadow:inset 0 1px 3px rgba(0,0,0,.4)"/>
+    </div>
+    <div id="serviceSearchCount" style="font-size:13px;color:var(--ink-dim);font-family:var(--mono);padding-top:22px">Showing ${catalog.length} services</div>
+  </div>
+  <div class="filters" id="catFilters" role="tablist" aria-label="Filter the public shelf by clock" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
     <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
     <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
@@ -2999,6 +2996,7 @@ function pageServices() {
     <button class="chip" data-group="frontier" type="button">Frontier (${counts.frontier || 0})</button>
     <button class="chip" data-group="industry" type="button">Industry (${counts.industry || 0})</button>
     <button class="chip" data-group="dropship" type="button">Listing desk (${counts.dropship || 0})</button>
+    <a class="chip" href="/wizard" data-link style="background:linear-gradient(135deg,rgba(255,211,106,.15),rgba(247,147,26,.15));border-color:rgba(255,211,106,.4);color:var(--gold)">Find my plan →</a>
   </div>
   ${_homeAtlasHtml()}
 </section>`;

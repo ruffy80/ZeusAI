@@ -1374,11 +1374,30 @@ document.addEventListener('input', (event) => {
   const box = event.target;
   if (!box || (box.id !== 'serviceSearch' && box.id !== 'productSearch')) return;
   const query = String(box.value || '').trim().toLowerCase();
+  let count = 0;
+  let total = 0;
   document.querySelectorAll('.service-card, .product-card').forEach((card) => {
+    total++;
     const name = String(card.getAttribute('data-name') || '').toLowerCase();
     const category = String(card.getAttribute('data-category') || '').toLowerCase();
-    card.hidden = !!(query && name.indexOf(query) === -1 && category.indexOf(query) === -1);
+    const pid = String(card.getAttribute('data-product-id') || '').toLowerCase();
+    const pEl = card.querySelector('p');
+    const desc = pEl ? String(pEl.textContent || '').toLowerCase() : '';
+    const matches = !query || name.indexOf(query) !== -1 || category.indexOf(query) !== -1 || pid.indexOf(query) !== -1 || desc.indexOf(query) !== -1;
+    card.style.display = matches ? '' : 'none';
+    if (matches) count++;
   });
+  const bands = document.querySelectorAll('.atlas-band');
+  bands.forEach(function(b){
+    const bandCards = b.querySelectorAll('[data-product-id]');
+    let anyVisible = false;
+    bandCards.forEach(function(bc){ if (bc.style.display !== 'none') anyVisible = true; });
+    b.style.display = anyVisible ? '' : 'none';
+  });
+  const countEl = document.getElementById('serviceSearchCount');
+  if (countEl) {
+    countEl.textContent = query ? ('Found ' + count + ' of ' + total + ' services') : ('Showing ' + total + ' services');
+  }
 });
 
 document.querySelectorAll('[data-price-lock]').forEach((node) => {
@@ -3460,20 +3479,21 @@ async function hydrateMasterCatalog(){
     let visible = 0;
     cards.forEach(function(c){
       const tier = String(c.getAttribute('data-tier') || '').toLowerCase();
-      const matches = (group === 'all') || (tier === group);
-      // Use the empty string (not `block`) to restore the original display
-      // value; cards use `display:flex` from the .card style and forcing
-      // `block` would break the inner flex layout.
+      const cat = String(c.getAttribute('data-category') || '').toLowerCase();
+      const matches = (group === 'all') || (tier === group) || (cat === group);
       c.style.display = matches ? '' : 'none';
       if (matches) visible += 1;
     });
-    // Update the small status line to reflect the active filter without
-    // wiping the SSR `${N} products SSR · hydrating…` text on first paint.
-    const statusEl = document.getElementById('autonomousStatus');
+    const bands = grid.querySelectorAll('.atlas-band');
+    bands.forEach(function(b){
+      const bandCards = b.querySelectorAll('[data-product-id]');
+      let anyVisible = false;
+      bandCards.forEach(function(bc){ if (bc.style.display !== 'none') anyVisible = true; });
+      b.style.display = anyVisible ? '' : 'none';
+    });
+    const statusEl = document.getElementById('serviceSearchCount') || document.getElementById('autonomousStatus');
     if (statusEl) {
-      const total = cards.length;
-      statusEl.textContent = visible + ' / ' + total + ' products · ' +
-        (group === 'all' ? 'all tiers' : group) + ' (SSR)';
+      statusEl.textContent = 'Showing ' + visible + ' / ' + cards.length + ' services · ' + (group === 'all' ? 'all tiers' : group);
     }
   }
   if (filters && !filters.dataset.bound) {

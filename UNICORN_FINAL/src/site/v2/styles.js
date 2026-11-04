@@ -217,23 +217,24 @@ html[data-customer-authenticated="0"] .nav-links > a[href="/account"]{display:no
 .how-steps p{color:var(--ink-dim);line-height:1.6}
 #howItWorks,#resumeSample,#homeTrust,#homeAtlas,#atlasMinutes,#atlasDays,#atlasContract{scroll-margin-top:96px}
 .atlas-clocks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 8px}
-.atlas-clock{display:flex;flex-direction:column;gap:4px;padding:16px 16px 18px;border-radius:18px;text-decoration:none;color:var(--ink);background:rgba(12,10,24,.55);border:1px solid rgba(62,160,255,.35);box-shadow:0 0 0 1px rgba(138,92,255,.18),0 18px 40px -28px rgba(62,160,255,.8)}
-.atlas-clock:hover{border-color:rgba(180,220,255,.8);transform:translateY(-2px)}
-.atlas-clock b{font-size:18px}
-.atlas-clock span{color:var(--ink-dim);font-size:13px;line-height:1.4}
-.atlas-band{margin-top:28px}
-.atlas-grid{grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px}
-.atlas-card{display:flex;flex-direction:column;gap:10px}
-.atlas-card h3{margin:0;font-size:18px;line-height:1.25}
-.atlas-card p{margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1}
-.atlas-when{align-self:flex-start;padding:3px 8px;border-radius:999px;border:1px solid rgba(62,160,255,.45);color:#b7dcff;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
-.atlas-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.atlas-price{font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right}
+.atlas-clock{display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:18px;text-decoration:none;color:var(--ink);background:rgba(12,10,24,.65);border:1px solid rgba(138,92,255,.28);box-shadow:0 0 0 1px rgba(138,92,255,.12),0 18px 40px -28px rgba(138,92,255,.6);transition:all .2s ease}
+.atlas-clock:hover{border-color:rgba(111,211,255,.8);transform:translateY(-2px);box-shadow:0 0 0 1px rgba(111,211,255,.3),0 22px 48px -24px rgba(111,211,255,.7)}
+.atlas-clock b{font-size:20px;letter-spacing:-.01em}
+.atlas-clock span{color:var(--ink-dim);font-size:13px;line-height:1.45}
+.atlas-band{margin-top:36px}
+.atlas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:20px;align-items:stretch}
+.atlas-card{display:flex;flex-direction:column;justify-content:space-between;height:100%;min-height:380px;padding:24px;border-radius:18px;background:rgba(12,10,24,.75);border:1px solid rgba(138,92,255,.24);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 6px 24px rgba(0,0,0,.35);transition:transform .22s cubic-bezier(.16,1,.3,1),border-color .22s,box-shadow .22s}
+.atlas-card:hover{transform:translateY(-4px);border-color:rgba(138,92,255,.65);box-shadow:0 16px 40px -10px rgba(138,92,255,.4),0 0 24px -4px rgba(0,232,160,.2)}
+.atlas-card h3{margin:8px 0 6px;font-size:19px;font-weight:700;line-height:1.3;color:#fff}
+.atlas-card p{margin:0 0 14px;color:var(--ink-dim);font-size:13.5px;line-height:1.55;flex:1}
+.atlas-when{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;border:1px solid rgba(62,160,255,.35);background:rgba(62,160,255,.08);color:#8ad3ff;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.atlas-card-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.atlas-price{font-family:var(--mono);font-size:21px;font-weight:800;color:var(--gold);text-align:right;line-height:1.2}
 .atlas-price .btc-line,.atlas-price .btc-discount,.atlas-share{display:block;font-size:11px;font-weight:600;margin-top:3px}
 .atlas-price .btc-line{color:#f7a13b}
 .atlas-price .btc-discount,.atlas-share{color:#ffd36a}
-.atlas-actions{display:flex;gap:8px;margin-top:6px}
-.atlas-footnote{margin:22px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:78ch}
+.atlas-actions{display:flex;gap:10px;margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);align-items:center}
+.atlas-footnote{margin:28px 0 0;color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:78ch}
 .shelf-ask{display:flex;flex-direction:column;gap:10px;max-width:720px;margin:8px 0 0}
 .shelf-ask label{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim)}
 .shelf-ask textarea{width:100%;min-height:96px;resize:vertical;padding:14px 16px;border-radius:16px;border:1px solid rgba(62,160,255,.45);background:rgba(8,6,20,.72);color:var(--ink);font:inherit;line-height:1.45;box-shadow:0 0 0 1px rgba(138,92,255,.2),0 18px 40px -28px rgba(62,160,255,.9)}
