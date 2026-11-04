@@ -5260,17 +5260,8 @@ async function hydrateEnterprise(){
 
   entShelfPacks = readRenderedEntPacks();
   const cat = await api('/api/enterprise/catalog');
-  const contractFigure = {
-    'ent-acquisition-pack': 1,
-    'ent-sovereign-deployment': 1,
-    'ent-ai-transformation': 1,
-    'ent-white-label': 1,
-    'ent-platform-license': 1,
-    'ent-private-cloud': 1,
-    'ent-revenue-share': 1,
-  };
   const products = (cat && Array.isArray(cat.products) ? cat.products : [])
-    .filter((p) => p && !contractFigure[String(p.id || '')] && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD != null ? p.priceUSD : p.priceUsd) > 0);
+    .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD != null ? p.priceUSD : p.priceUsd) > 0);
   if (!products.length) return;
   entShelfPacks = products.map((p) => ({
     id: String(p.id),

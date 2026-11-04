@@ -525,7 +525,7 @@ async function handle(req, res, ctx) {
       '- Autonomous Synaptic Hyper-Mesh: 728 verified neural units across 8 corridors. Real-time status at /api/synapse/status.',
       '- OpenAI-Compatible Drop-In Proxy: Zero-code integration via https://zeusai.pro/v1/chat/completions (and /v1/models).',
       '- Instant Enterprise AI Audit (APOS-1.0): Cryptographic proof-of-savings and architecture evaluation at https://zeusai.pro/#instantAudit and /api/audit/generate-report.',
-      '- Model router: /solutions/model-routing describes routing a request to a capable model.',
+      '- Model router: /solutions/model-routing describes routing a request to a capable model. The homepage slogan is not a measured customer saving.',
       '- Self-healing: /solutions/self-healing describes guarded remediation with an operator-visible record.',
       '- Marketplace: /services lists shelf offers. /pricing groups the same shelf by delivery clock.',
       '- Price: each offer has a USD list price. priceBtc on the card is that list price divided by the spot rate on the page. The live quote is GET /api/price/{id}.',

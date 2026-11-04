@@ -10626,10 +10626,6 @@ setInterval(function(){loadOrder().then(render);},10000);
   if (urlPath.startsWith('/api/enterprise/product/')) {
     if (!entCatalog) { res.writeHead(503); return res.end('{}'); }
     const id = decodeURIComponent(urlPath.slice('/api/enterprise/product/'.length));
-    if (require('./commerce/real-price').isContractFigure(id)) {
-      res.writeHead(404, { 'Content-Type':'application/json' });
-      return res.end(JSON.stringify({ error:'not_a_product_price', shelf:'/checkout/?plan=ent-engagement-kickoff' }));
-    }
     const p = entCatalog.byId(id);
     if (!p) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
     const out = (aecos && typeof aecos.enrichProductForUi === 'function') ? (aecos.enrichProductForUi(p) || p) : p;

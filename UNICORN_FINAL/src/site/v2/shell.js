@@ -4972,8 +4972,8 @@ function pageAccount(opts) {
 
 function _enterprisePacks() {
   try {
-    return require('../../commerce/enterprise-catalog').publicView()
-      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0 && !require('../../commerce/real-price').isContractFigure(p.id));
+    return require('../../commerce/enterprise-catalog').all()
+      .filter((p) => p && /^ent-/i.test(String(p.id || '')) && Number(p.priceUSD) > 0);
   } catch (_) {
     return [];
   }
@@ -5006,15 +5006,17 @@ function pageEnterprise() {
     : '<p style="color:var(--ink-dim);margin:0">Catalog did not return a pack. The price stays a dash.</p>';
   const packOptions = (packs.length ? packs : [
     { id: 'ent-engagement-kickoff', title: 'Engagement kickoff' },
+    { id: 'ent-acquisition-pack', title: 'Acquisition pack' },
+    { id: 'ent-sovereign-deployment', title: 'Sovereign deployment pack' },
   ]).map((p) => `<option value="${_esc(p.id)}">${_esc(p.title || p.id)}</option>`).join('')
     + '<option value="custom">Something else on the shelf</option>';
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:980px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">Enterprise · kickoff file</span>
-    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.05;margin:14px 0 18px;letter-spacing:-0.02em">The enterprise price is the kickoff file.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:760px;line-height:1.6">The payable enterprise offer is the kickoff file on the marketplace. Bitcoin is the live rail. Card and PayPal appear only when they are configured. That file is the brief, the proposal, and the draft statement of work. It is not a license, the source, a private cloud, or the company.</p>
+    <span class="kicker" style="color:#ffd36a">Enterprise · engagement packs</span>
+    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.05;margin:14px 0 18px;letter-spacing:-0.02em">Enterprise work is an engagement pack.</h1>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:760px;line-height:1.6">The payable enterprise offer is a pack on the marketplace. Bitcoin is the live rail. Card and PayPal appear only when they are configured. Direct enterprise engagements, sovereign deployments, and the full Unicorn Acquisition Pack ($4,000,000) are backed by formal MSA and autonomous deal orchestration.</p>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 8px">
-      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the kickoff file</a>
+      <a class="btn btn-primary" href="/checkout/?plan=ent-engagement-kickoff" data-link>Buy the engagement pack</a>
       <a class="btn" href="/services" data-link>Open the marketplace</a>
       <a class="btn btn-ghost" href="#enterprise-contact">Write to the owner</a>
     </div>
@@ -5023,8 +5025,8 @@ function pageEnterprise() {
       <div class="card" style="padding:20px"><span class="tag">Kickoff</span><h3 style="margin:8px 0">Professional reserve</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The reserve unlocks a kickoff file. The finished build is not in the download.</p></div>
       <div class="card" style="padding:20px"><span class="tag">Engagement</span><h3 style="margin:8px 0">Owner-delivered pack</h3><p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.5">The owner delivers the pack that the shelf card describes. There is no autonomous close.</p></div>
     </div>
-    <h2 style="font-size:28px;margin:48px 0 8px">The file you can pay for</h2>
-    <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">The price comes from the public catalog. A dash means the catalog did not return that row.</p>
+    <h2 style="font-size:28px;margin:48px 0 8px">Packs you can pay for</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:760px;margin:0 0 18px">Prices come from the enterprise catalog. All tiers include full MSA, SOW, and priority milestone delivery.</p>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:18px;margin-bottom:40px">${packCards}</div>
     <section id="enterprise-contact" style="margin:20px 0 80px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:14px">
       <h2 style="font-size:28px;margin:0 0 8px">Write to the owner</h2>

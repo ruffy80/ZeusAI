@@ -180,7 +180,7 @@ function byId(id) {
   return row ? honestRow(row) : null;
 }
 function publicView() {
-  return all().filter((p) => p && !require('./real-price').isContractFigure(p.id)).map(p => ({
+  return all().map(p => ({
     id: p.id, title: p.title, tier: p.tier || 'enterprise',
     priceUSD: p.priceUSD, billing: p.billing, currency: p.currency || 'USD',
     description: p.description, sla: p.sla, seats: p.seats,
