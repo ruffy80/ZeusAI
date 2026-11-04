@@ -1778,8 +1778,17 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <div class="row"><span class="k">Exact sats</span><span class="v mono">${sats.toLocaleString()} <button class="copy" data-copy="${escapeHtml(String(sats))}">copy</button></span></div>
   <div class="row"><span class="k">BIP-21 URI</span><span class="v mono">${bip21} <button class="copy" data-copy="${bip21}">copy</button></span></div>
   <div class="row"><span class="k">Share invoice</span><span class="v mono" id="shareInvoiceUrl">/checkout/${orderId} <button class="copy" data-copy="${escapeHtml(OWNER_DOMAIN)}/checkout/${orderId}">copy link</button></span></div>
-  <p style="margin-top:16px"><a class="cta" href="${bip21}" target="_blank" rel="noopener">Open in wallet</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a></p>
+  <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <a class="cta" id="openInWalletBtn" href="${bip21}" rel="noopener" style="background:#f7931a;color:#05040a;font-weight:700">⚡ Open in wallet</a>
+    <button type="button" class="cta" id="copyDetailsBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line);cursor:pointer">📋 Copy address &amp; sats</button>
+    <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a>
+  </div>
+  <div id="walletFeedback" style="display:none;margin-top:14px;padding:14px 16px;border-radius:12px;background:rgba(247,147,26,.12);border:1px solid rgba(247,147,26,.35);font-size:13.5px;line-height:1.6">
+    <div style="font-weight:700;color:#ffd36a;margin-bottom:6px" id="walletFeedbackTitle">⚡ Wallet triggered &amp; payment details copied!</div>
+    <div id="walletFeedbackBody" style="color:#eaf0ff">
+      If your wallet application did not open automatically, your address and exact sats have been copied to clipboard. You can paste them into your wallet (Exodus, BlueWallet, Muun, Binance, Kraken, Trust Wallet, etc.) or scan the QR code above.
+    </div>
+  </div>
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
   <p class="note">Email is optional. When this page says paid, reload it. The file link is on this page and does not need an inbox.</p>
 </div>
@@ -1848,11 +1857,86 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   var TOK='${accessTokenJs}';
   var ORDER_ID='${orderIdJs}';
   var expSec=${expiresIn};
-  function copy(s){try{navigator.clipboard&&navigator.clipboard.writeText(s)}catch(e){}}
+  var URI='${bip21Js}';
+  var ADDR='${receiveAddressJs}';
+  var SATS='${escapeHtml(String(sats))}';
+  var BTC_AMT='${btcJs}';
+
+  function copy(s, btn){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(s);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = s; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      if(btn){
+        var prevText = btn.textContent;
+        var prevBg = btn.style.background;
+        var prevColor = btn.style.color;
+        btn.textContent = 'Copied! ✓';
+        btn.style.background = '#28f088';
+        btn.style.color = '#05040a';
+        setTimeout(function(){
+          btn.textContent = prevText;
+          btn.style.background = prevBg;
+          btn.style.color = prevColor;
+        }, 2000);
+      }
+    }catch(e){}
+  }
   document.addEventListener('click',function(ev){
     var b=ev.target&&ev.target.closest&&ev.target.closest('button.copy[data-copy]');
-    if(b){copy(b.getAttribute('data-copy'));}
+    if(b){copy(b.getAttribute('data-copy'), b);}
   });
+
+  var openWalletBtn = document.getElementById('openInWalletBtn');
+  var walletFeedback = document.getElementById('walletFeedback');
+  if (openWalletBtn) {
+    openWalletBtn.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      copy(URI);
+      if (walletFeedback) {
+        walletFeedback.style.display = 'block';
+        var tEl = document.getElementById('walletFeedbackTitle');
+        var bEl = document.getElementById('walletFeedbackBody');
+        if (tEl) tEl.textContent = '⚡ Wallet triggered & details copied!';
+        if (bEl) bEl.innerHTML = 'Payment URI copied to clipboard. If your wallet application (Electrum, BlueWallet, Exodus, Muun, etc.) did not pop up automatically, paste the address below or scan the QR code.<br><div style="margin-top:6px;font-family:ui-monospace,monospace;font-size:12px;color:#8ad3ff">Address: ' + ADDR + '<br>Exact amount: ' + BTC_AMT + ' BTC (' + Number(SATS).toLocaleString() + ' sats)</div>';
+        try { walletFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_) {}
+      }
+      if (window.webln && typeof window.webln.enable === 'function') {
+        window.webln.enable().catch(function() {});
+      }
+      try {
+        var ifr = document.createElement('iframe');
+        ifr.style.display = 'none';
+        ifr.src = URI;
+        document.body.appendChild(ifr);
+        setTimeout(function(){ try { document.body.removeChild(ifr); } catch(_){} }, 2000);
+      } catch(_) {}
+      setTimeout(function() {
+        try { window.location.href = URI; } catch(_) {}
+      }, 50);
+    });
+  }
+
+  var copyDetailsBtn = document.getElementById('copyDetailsBtn');
+  if (copyDetailsBtn) {
+    copyDetailsBtn.addEventListener('click', function() {
+      var fullDetails = 'Address: ' + ADDR + '\nAmount: ' + BTC_AMT + ' BTC (' + SATS + ' sats)\nURI: ' + URI;
+      copy(fullDetails, copyDetailsBtn);
+      if (walletFeedback) {
+        walletFeedback.style.display = 'block';
+        var tEl = document.getElementById('walletFeedbackTitle');
+        var bEl = document.getElementById('walletFeedbackBody');
+        if (tEl) tEl.textContent = '📋 Payment details copied to clipboard!';
+        if (bEl) bEl.innerHTML = 'Paste the address <b>' + ADDR + '</b> and amount <b>' + BTC_AMT + ' BTC</b> (' + Number(SATS).toLocaleString() + ' sats) directly into your Bitcoin wallet.';
+        try { walletFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_) {}
+      }
+    });
+  }
   setInterval(function(){if(expSec>0){expSec--;var cd=document.getElementById('cd');if(cd)cd.textContent=expSec+'s';}},1000);
   function poll(){
     fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){

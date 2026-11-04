@@ -8999,6 +8999,26 @@ function pageOrderPassport(id) {
           btcWallet.href = uri || inv;
           btcWallet.textContent = uri ? 'Open in BTC wallet' : 'Open invoice';
           btcWallet.style.opacity='1'; btcWallet.style.pointerEvents='auto';
+          if (!btcWallet.dataset.bound) {
+            btcWallet.dataset.bound = '1';
+            btcWallet.addEventListener('click', function(ev) {
+              var targetHref = btcWallet.getAttribute('href') || '';
+              if (targetHref.indexOf('bitcoin:') === 0) {
+                ev.preventDefault();
+                try { navigator.clipboard && navigator.clipboard.writeText(targetHref); } catch(_) {}
+                if (paymentHint) paymentHint.textContent = 'BTC payment URI & address copied to clipboard. Opening wallet…';
+                if (typeof toast === 'function') toast('BTC payment details copied to clipboard!', 'ok');
+                try {
+                  var ifr = document.createElement('iframe');
+                  ifr.style.display = 'none';
+                  ifr.src = targetHref;
+                  document.body.appendChild(ifr);
+                  setTimeout(function(){ try { document.body.removeChild(ifr); } catch(_){} }, 2000);
+                } catch(_) {}
+                setTimeout(function(){ try { window.location.href = targetHref; } catch(_) {} }, 50);
+              }
+            });
+          }
         }
         if (altPp) {
           var pp = j.rails && j.rails.paypal && j.rails.paypal.approveHref;

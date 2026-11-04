@@ -3445,6 +3445,35 @@ if (typeof window !== 'undefined') {
       }
       window.prompt('Copy this door. It has no score.', href);
     }, true);
+
+    document.addEventListener('click', function (ev) {
+      const el = ev.target && ev.target.closest && ev.target.closest('[data-copy]');
+      if (!el || el.hasAttribute('data-copy-measure-door')) return;
+      const val = String(el.getAttribute('data-copy') || el.textContent || '').trim();
+      if (!val || val.includes('appears after') || val.length < 3) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(val).catch(() => {});
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = val; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        toast('Copied to clipboard: ' + (val.length > 24 ? val.slice(0, 12) + '…' + val.slice(-8) : val), 'ok');
+        const prevText = el.textContent;
+        if (el.tagName === 'BUTTON' || el.classList.contains('btc-addr') || el.classList.contains('chip') || el.classList.contains('copy')) {
+          el.dataset.prevText = prevText;
+          el.textContent = 'Copied! ✓';
+          setTimeout(() => {
+            if (el.dataset.prevText) {
+              el.textContent = el.dataset.prevText;
+              delete el.dataset.prevText;
+            }
+          }, 2000);
+        }
+      } catch (_) {}
+    });
   }
 }
 

@@ -491,7 +491,8 @@ section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>s
 .co-method .chip.on{background:linear-gradient(135deg,var(--violet),var(--blue));color:#fff;border-color:transparent}
 .co-qr{aspect-ratio:1/1;border-radius:var(--radius);background:#fff;padding:14px;display:flex;align-items:center;justify-content:center}
 .co-qr canvas{width:100%;height:100%;max-width:min(320px,100%);height:auto}
-.btc-addr{font-family:var(--mono);font-size:12px;word-break:break-all;background:rgba(0,0,0,.35);padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);margin-top:12px;color:var(--gold2)}
+.btc-addr{font-family:var(--mono);font-size:12px;word-break:break-all;background:rgba(0,0,0,.35);padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);margin-top:12px;color:var(--gold2);cursor:pointer;user-select:all;transition:border-color .2s,background .2s}
+.btc-addr:hover{border-color:var(--gold);background:rgba(255,211,106,.08)}
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .field label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-dim)}
 .field input,.field select{padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.5);color:var(--ink);font-size:14px;font-family:inherit}
