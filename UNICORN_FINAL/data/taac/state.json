@@ -1,0 +1,15 @@
+{
+  "protocol": "TAAC/1.0",
+  "updatedAt": "2026-11-11T17:09:55.944Z",
+  "startedAt": "2026-11-11T17:09:55.944Z",
+  "lastTickAt": null,
+  "lastArm": null,
+  "organs": {},
+  "counts": {
+    "ticks": 0,
+    "arms": 0,
+    "rearmed": 0,
+    "skips": 0,
+    "errors": 0
+  }
+}

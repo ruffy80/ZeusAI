@@ -1,0 +1,68 @@
+{
+  "name": "zeusAutonomousCore",
+  "version": "1.0.0",
+  "description": "Zeus Autonomous Core (ZAC) daemon for ecosystem scanning, self-healing, site sync, and profit optimization",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "scan",
+      "type": "read",
+      "schedule": "0 */10 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "banner",
+      "type": "read",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "recordAlert",
+      "type": "notification",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "ecosystem_scanner",
+    "self_healer",
+    "profit_maximizer"
+  ],
+  "failureModes": [
+    {
+      "symptom": "scanner IO timeout",
+      "recovery": "restart"
+    },
+    {
+      "symptom": "unhandled subsystem alert",
+      "recovery": "escalate"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 200,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "getStatus"
+}

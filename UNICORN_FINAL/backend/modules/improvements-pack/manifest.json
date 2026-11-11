@@ -1,0 +1,35 @@
+{
+  "name": "improvements-pack",
+  "version": "1.0.0",
+  "description": "Internal health aggregation, CSP violation reporting, funnel tracking, and webhook idempotency pack",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "internal_health_aggregation",
+    "csp_reporting",
+    "funnel_tracking",
+    "revenue_dashboard"
+  ],
+  "failureModes": [
+    {
+      "symptom": "snapshot cache stale",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 100,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "handle"
+}

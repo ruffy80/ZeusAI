@@ -1,0 +1,44 @@
+{
+  "name": "integrations",
+  "version": "1.0.0",
+  "description": "Aggregator for 7 complementary integration bridges (A/B testing, predictive healing, auto-doc, cloud wrapper)",
+  "capabilities": [
+    {
+      "id": "getLoaded",
+      "type": "read",
+      "schedule": "0 */10 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "init",
+      "type": "write",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "complementary_integrations",
+    "ab_test_bridge",
+    "predictive_healing_bridge"
+  ],
+  "failureModes": [
+    {
+      "symptom": "sub-integration load failure",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 150,
+    "maxErrorRate": 0.05
+  },
+  "healthCheck": "getLoaded"
+}

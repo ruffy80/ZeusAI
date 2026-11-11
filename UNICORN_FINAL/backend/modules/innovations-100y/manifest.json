@@ -1,0 +1,34 @@
+{
+  "name": "innovations-100y",
+  "version": "1.0.0",
+  "description": "100-year horizon civilization protocol, post-quantum readiness, and data sovereignty attestations",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "100y_civilization_protocol",
+    "pq_readiness",
+    "data_sovereignty"
+  ],
+  "failureModes": [
+    {
+      "symptom": "attestation digest mismatch",
+      "recovery": "escalate"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 80,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

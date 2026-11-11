@@ -1,0 +1,102 @@
+{
+  "name": "orchestrator",
+  "version": "1.0.0",
+  "description": "Coordinates all capabilities with locks, state machine, resource budgets, consensus, and circuit breakers",
+  "capabilities": [
+    {
+      "id": "healthCheck",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "syncPrices",
+      "type": "write",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "processPaidOrders",
+      "type": "write",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 30000,
+      "resourceBudget": {
+        "maxCpuMs": 10000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "autoRepair",
+      "type": "destructive",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "backupDatabase",
+      "type": "read",
+      "schedule": "0 3 * * *",
+      "timeout_ms": 300000,
+      "resourceBudget": {
+        "maxCpuMs": 30000,
+        "maxMemoryMb": 512
+      }
+    },
+    {
+      "id": "commercialMonitor",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "priceNegotiator",
+    "btcInvoiceLedger",
+    "witness",
+    "score",
+    "commercial-layer"
+  ],
+  "provides": [
+    "scheduling",
+    "locks",
+    "circuit_breakers",
+    "health_aggregation",
+    "state_machine",
+    "consensus",
+    "blue_green"
+  ],
+  "failureModes": [
+    {
+      "symptom": "capability timeout",
+      "recovery": "restart"
+    },
+    {
+      "symptom": "destructive action without consensus",
+      "recovery": "escalate"
+    },
+    {
+      "symptom": "repeated capability failure (3x)",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 100,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "health"
+}

@@ -1,0 +1,79 @@
+{
+  "name": "cryptoBridge",
+  "version": "1.0.0",
+  "description": "Self-custodial BTC/ETH oracle, fee lock, smart bump, and sovereign payment routing bridge",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "getBtcUsdRate",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "revenueSummary",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "listServices",
+      "type": "read",
+      "schedule": "0 */10 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "feeLock",
+      "type": "write",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "btc_rate_oracle",
+    "crypto_bridge",
+    "smart_routing",
+    "fee_lock"
+  ],
+  "failureModes": [
+    {
+      "symptom": "external rate feed unreachable",
+      "recovery": "skip"
+    },
+    {
+      "symptom": "bridge state corruption",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 250,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "health"
+}

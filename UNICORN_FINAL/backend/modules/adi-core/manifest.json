@@ -1,0 +1,69 @@
+{
+  "name": "adi-core",
+  "version": "1.0.0",
+  "description": "Autonomous Discovery & Integration (ADI) core for API provider evaluation, routing, and world scanning",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "listProviders",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "worldScan",
+      "type": "read",
+      "schedule": "0 0 */6 * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "runADI",
+      "type": "write",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "api_discovery",
+    "provider_evaluation",
+    "dynamic_routing",
+    "world_scanner"
+  ],
+  "failureModes": [
+    {
+      "symptom": "provider scan timeout",
+      "recovery": "skip"
+    },
+    {
+      "symptom": "adapter evaluation error",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 500,
+    "maxErrorRate": 0.05
+  },
+  "healthCheck": "getStatus"
+}

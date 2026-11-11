@@ -1,0 +1,35 @@
+{
+  "name": "innovations-50y",
+  "version": "1.0.0",
+  "description": "50-year horizon cryptographic agility, tamper-evident audit, CycloneDX SBOM, and JSON schema registry",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "crypto_agility",
+    "tamper_evident_audit",
+    "sbom_cyclonedx",
+    "schema_registry"
+  ],
+  "failureModes": [
+    {
+      "symptom": "merkle chain drift",
+      "recovery": "escalate"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 80,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

@@ -1,0 +1,36 @@
+{
+  "name": "performance-100y-v2",
+  "version": "1.0.0",
+  "description": "Second-wave visionary performance primitives: causal render graph, tail-latency pledge, and INP attribution",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "performance-100y"
+  ],
+  "provides": [
+    "causal_render_graph",
+    "tail_latency_pledge",
+    "inp_attribution"
+  ],
+  "failureModes": [
+    {
+      "symptom": "tail latency spike",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 50,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

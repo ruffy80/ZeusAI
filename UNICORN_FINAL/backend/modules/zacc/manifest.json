@@ -1,0 +1,60 @@
+{
+  "name": "zacc",
+  "version": "1.0.0",
+  "description": "Zeus Autonomic Commerce Core (ZACC) for catalog synthesis, pricing, fulfillment, and world continuum",
+  "capabilities": [
+    {
+      "id": "status",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "publicSnapshot",
+      "type": "read",
+      "schedule": "0 */10 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "worldContinuumStatus",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "closed-loop-commerce-os"
+  ],
+  "provides": [
+    "autonomic_commerce",
+    "world_catalog",
+    "dropship_fulfillment"
+  ],
+  "failureModes": [
+    {
+      "symptom": "supplier feed timeout",
+      "recovery": "skip"
+    },
+    {
+      "symptom": "catalog persistence lock",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 300,
+    "maxErrorRate": 0.03
+  },
+  "healthCheck": "status"
+}
