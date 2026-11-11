@@ -6052,6 +6052,146 @@ app.post('/api/orchestrator/emergency-resume', _verifyOrchestratorBearer, expres
     res.status(e.statusCode || 400).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// ZEUSAI SOVEREIGN SINGULARITY ENGINE — 5 WORLD-FIRST INNOVATIONS
+// 1. Reverse-SaaS Cryptographic Escrow Vault (Pre-Built Deliverable)
+// 2. Agent-to-Agent (A2A) Sovereign Clearinghouse (/.well-known/agent-commerce.json)
+// 3. Real-Time Economic Darwinism (ROIC — Return on Inference & Compute)
+// 4. Closed-Loop Autopoietic Self-Healing (StateMachine -> Consensus -> Blue/Green)
+// 5. Proof-of-Outcome Viral Loop (Ed25519 Signed Public Certificates & Badges)
+// ============================================================================
+app.get(['/.well-known/agent-commerce.json', '/api/a2a/agent-commerce.json', '/api/singularity/agent-commerce.json'], (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    if (orch.discoveredModules.size === 0) orch.registerCapabilities();
+    res.set('Cache-Control', 'no-store');
+    res.json(orch.singularity.getAgentCommerceManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/singularity/status', (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    if (orch.discoveredModules.size === 0) orch.registerCapabilities();
+    orch.singularity._loadStateFromDisk();
+    const merged = _getOrchestratorMergedStatus();
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ...orch.singularity.getStatus(),
+      orchestrator: {
+        running: merged.running,
+        degradationLevel: merged.degradationLevel,
+        modules: merged.modules,
+        capabilities: merged.capabilities,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/singularity/roic', (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    orch.singularity._loadStateFromDisk();
+    res.set('Cache-Control', 'no-store');
+    res.json(orch.singularity.getRoicLeaderboard());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/singularity/escrow/generate', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    const out = orch.singularity.generateEscrowPreview(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/singularity/escrow/unlock', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    orch.singularity._loadStateFromDisk();
+    const escrowId = req.body && req.body.escrowId;
+    const out = orch.singularity.unlockEscrowVault(escrowId, req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 402).json(out);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/a2a/instant-deal', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    if (orch.discoveredModules.size === 0) orch.registerCapabilities();
+    const out = await orch.singularity.executeInstantA2ADeal(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 402).json(out);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/singularity/autopoiesis/heal', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    if (orch.discoveredModules.size === 0) orch.registerCapabilities();
+    const capabilityId = (req.body && req.body.capabilityId) || 'adi-core.worldScan';
+    const out = await orch.singularity.runAutopoieticHeal(capabilityId, req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/singularity/outcomes', (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    orch.singularity._loadStateFromDisk();
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      outcomes: [...orch.singularity.outcomes.values()].slice(-25).reverse(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/singularity/outcome/:id', (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    orch.singularity._loadStateFromDisk();
+    const cert = orch.singularity.getOutcomeCertificate(req.params.id);
+    if (!cert) return res.status(404).json({ ok: false, error: 'certificate_not_found' });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ ok: true, certificate: cert });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/singularity/outcome/:id/badge.svg', (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    orch.singularity._loadStateFromDisk();
+    const svg = orch.singularity.renderOutcomeBadgeSvg(req.params.id);
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(svg);
+  } catch (e) {
+    res.status(500).send('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

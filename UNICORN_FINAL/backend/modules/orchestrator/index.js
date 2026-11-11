@@ -19,6 +19,8 @@ const { discoverModules, buildDependencyGraph, topologicalSort } = require('./di
 const { STATES, CapabilityStateMachine } = require('./stateMachine');
 const { requiresConsensus, requestConsensus } = require('./consensus');
 const { BlueGreenManager } = require('./blueGreen');
+const { UniversalCapabilityDispatcher } = require('./dispatcher');
+const { SovereignSingularityEngine } = require('./singularity');
 
 const STATE_DIR = process.env.ZEUS_STATE_DIR || '/opt/zeusai/state';
 
@@ -96,6 +98,8 @@ class UnifiedOrchestrator extends EventEmitter {
 
     this.stateMachine = new CapabilityStateMachine();
     this.blueGreen = new BlueGreenManager();
+    this.dispatcher = new UniversalCapabilityDispatcher(this);
+    this.singularity = new SovereignSingularityEngine(this);
 
     this.state = {
       running: false,
@@ -386,6 +390,10 @@ class UnifiedOrchestrator extends EventEmitter {
         cpuMs: Math.max(1, Math.round(cpuUsedMs)),
         memoryMb: Math.round(memAfterMb),
       };
+
+      if (this.singularity) {
+        this.singularity.recordExecution(name, moduleName, cpuUsedMs, memAfterMb, 0);
+      }
 
       this.failures.set(name, { count: 0, blockedUntil: 0 });
       this.updatePrediction(name, duration);
@@ -966,6 +974,7 @@ class UnifiedOrchestrator extends EventEmitter {
         },
         healthReport: report,
         capabilitiesList: this.getCapabilitiesList(),
+        singularity: this.singularity ? this.singularity.getStatus() : null,
         versions: this.versionSnapshot(),
       }));
     } catch (_) { /* status file is best-effort */ }
@@ -999,6 +1008,10 @@ class UnifiedOrchestrator extends EventEmitter {
       const commRes = this.isCapabilityAllowedInTier('commercialMonitor')
         ? await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()))
         : { skipped: true, tier: this.state.degradationLevel };
+
+      const dispatchRes = this.dispatcher
+        ? await this.dispatcher.runDueCapabilities(Date.now())
+        : { executed: 0 };
 
       this.state.cycles += 1;
       if (!this.state.shadowMode) {
