@@ -1,0 +1,15 @@
+{
+  "amos_money": {
+    "tgId": "amos_money",
+    "username": "money_surface",
+    "firstName": null,
+    "code": "UDIAL-5ABFC124",
+    "issuedAt": "2026-11-11T17:09:29.077Z",
+    "clicks": 0,
+    "checkouts": 0,
+    "paid": 0,
+    "invites": 0,
+    "rankScore": 1,
+    "lastSeenAt": "2026-11-11T17:13:48.851Z"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "startedAt": null,
+  "dialsIssued": 1,
+  "dialClicks": 0,
+  "attributedCheckouts": 0,
+  "attributedPaid": 0,
+  "echoes": 0,
+  "governorBlocks": 0,
+  "lastEchoAt": 0,
+  "lastTickAt": 0,
+  "sendTimestamps": [],
+  "creativeWeights": {},
+  "swarmScore": 0,
+  "savedAt": "2026-11-11T17:13:48.851Z"
+}

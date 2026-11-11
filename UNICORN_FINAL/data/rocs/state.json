@@ -1,0 +1,26 @@
+{
+  "protocol": "ROCS/1.0",
+  "invention": "Reality Ops Continuum",
+  "updatedAt": "2026-11-11T17:09:55.952Z",
+  "startedAt": "2026-11-11T17:09:55.942Z",
+  "lastTickAt": null,
+  "lastVerdict": null,
+  "counts": {
+    "ticks": 0,
+    "verdicts": 0,
+    "alerts": 0,
+    "alertSkips": 0,
+    "remediations": 0,
+    "errors": 0
+  },
+  "policy": {
+    "inventGmv": "never",
+    "inventSerp": "never",
+    "inventReach": "never",
+    "fakeMetrics": "refused",
+    "fileMutators": "never",
+    "backups": "owner_periodic_external_never_managed_by_rocs",
+    "vsPrometheus": "causal_verdicts_not_metric_scrapes",
+    "vsGrafana": "decision_cards_not_chart_panels"
+  }
+}

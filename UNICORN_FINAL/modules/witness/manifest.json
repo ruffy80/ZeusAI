@@ -1,0 +1,54 @@
+{
+  "name": "witness",
+  "version": "1.0.0",
+  "description": "Cryptographic Search Console witness and Ed25519 contract verifier",
+  "capabilities": [
+    {
+      "id": "publicKeyBase64",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "jsonList",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "syncNow",
+      "type": "write",
+      "schedule": "0 0 */6 * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "cryptographic_witness",
+    "gsc_attestation",
+    "contract_verification"
+  ],
+  "failureModes": [
+    {
+      "symptom": "GSC feed unavailable",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 200,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "publicKeyBase64"
+}

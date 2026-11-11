@@ -1,0 +1,60 @@
+{
+  "name": "universal-ai-connector",
+  "version": "1.0.0",
+  "description": "Universal AI model connector with dynamic model discovery, latency/cost routing, and fallback execution",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "getModels",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "discoverNewModels",
+      "type": "write",
+      "schedule": "0 0 */6 * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "llamaBridge"
+  ],
+  "provides": [
+    "multi_llm_connector",
+    "model_discovery",
+    "prompt_routing"
+  ],
+  "failureModes": [
+    {
+      "symptom": "upstream LLM API timeout",
+      "recovery": "skip"
+    },
+    {
+      "symptom": "model registry corruption",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 800,
+    "maxErrorRate": 0.05
+  },
+  "healthCheck": "getStatus"
+}

@@ -1,0 +1,50 @@
+{
+  "createdAt": "2026-11-11T17:09:39.503Z",
+  "updatedAt": "2026-11-11T17:09:39.558Z",
+  "ticks": 1,
+  "signals": 1,
+  "ingests": 26,
+  "lastIngestAt": "2026-11-11T17:09:39.558Z",
+  "ingestCounts": {
+    "general": 4,
+    "home": 8,
+    "electronics": 18,
+    "beauty": 3,
+    "fashion": 8,
+    "fitness": 5,
+    "outdoor": 2
+  },
+  "ingestTotals": {
+    "products": 48,
+    "sources": [
+      "zacc.publisher"
+    ]
+  },
+  "demand": {
+    "ai-services": 450,
+    "saas": 0,
+    "dropshipping": 0,
+    "automation": 0,
+    "analytics": 0,
+    "security": 0,
+    "infrastructure": 0,
+    "electronics": 2299.72,
+    "fashion": 1192.38,
+    "home": 981.58,
+    "beauty": 456.11,
+    "fitness": 571.32,
+    "pets": 0,
+    "outdoor": 215.58,
+    "general": 451.37
+  },
+  "history": [
+    {
+      "ts": "2026-11-11T17:09:39.558Z",
+      "top": [
+        "electronics",
+        "fashion",
+        "home"
+      ]
+    }
+  ]
+}

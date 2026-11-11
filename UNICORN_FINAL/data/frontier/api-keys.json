@@ -1,0 +1,76 @@
+{
+  "keys": [
+    {
+      "id": "key_b4f4434499da34a2c6a3",
+      "ownerEmail": "pro@example.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:professional-saas-mvp:r_pro",
+      "rateLimit": 60,
+      "tokenHash": "571bda8cbee950cf31b3427853e993653621b500c9454f72ad7ae377e7e02a39",
+      "createdAt": "2026-11-11T17:09:31.907Z",
+      "revokedAt": null
+    },
+    {
+      "id": "key_9ae90f8b60f1c044465d",
+      "ownerEmail": "d@example.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:instant-seo-content-pack:r_del",
+      "rateLimit": 60,
+      "tokenHash": "4917f7dacd5a3bd3d91c0390773a7b4c245aef7285e53e3a3c975faf0ac86139",
+      "createdAt": "2026-11-11T17:09:31.909Z",
+      "revokedAt": null
+    },
+    {
+      "id": "key_d230a24db78602cec5f8",
+      "ownerEmail": "cycle@example.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:instant-seo-content-pack:r_cycle",
+      "rateLimit": 60,
+      "tokenHash": "51fccb620ed8ce34520935068b1e5cce5278c51b7ec2d3c29c55d467927b71de",
+      "createdAt": "2026-11-11T17:09:32.527Z",
+      "revokedAt": null
+    },
+    {
+      "id": "key_1af974374e7ce5ed46d1",
+      "ownerEmail": "t@example.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:instant-seo-content-pack:r_det",
+      "rateLimit": 60,
+      "tokenHash": "c65af42fb1e335cf6be1a0e49117d44d15b4dca99d086e06c7f6d76a7f1e2f12",
+      "createdAt": "2026-11-11T17:09:40.060Z",
+      "revokedAt": null
+    },
+    {
+      "id": "key_01f088e197843a089a60",
+      "ownerEmail": "t@example.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:instant-seo-content-pack:r1",
+      "rateLimit": 60,
+      "tokenHash": "e8aeb7ba0452a5acc31af53baa6d6c4f7b66374a6e179780c192913bb9cfd5e1",
+      "createdAt": "2026-11-11T17:09:40.063Z",
+      "revokedAt": null
+    },
+    {
+      "id": "key_44e05b4ac3eb1a2ec51a",
+      "ownerEmail": "ceo@corp.com",
+      "scopes": [
+        "read"
+      ],
+      "label": "delivery:enterprise-tier:r_ent",
+      "rateLimit": 60,
+      "tokenHash": "536a0c77857d3fdb78762e27f831cbb75b32a445f301be4d4c66dd4a454ab27c",
+      "createdAt": "2026-11-11T17:09:40.069Z",
+      "revokedAt": null
+    }
+  ]
+}

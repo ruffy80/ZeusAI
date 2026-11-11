@@ -1,0 +1,49 @@
+{
+  "name": "marketing-innovations",
+  "version": "1.2.0",
+  "description": "Autonomous multichannel marketing, bandit optimizer, programmatic SEO, attribution, and viral amplification suite",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "handle",
+      "type": "write",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "multichannel_marketing",
+    "seo_automation",
+    "viral_amplification",
+    "attribution"
+  ],
+  "failureModes": [
+    {
+      "symptom": "outbound channel rate limit",
+      "recovery": "skip"
+    },
+    {
+      "symptom": "campaign scheduler stall",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 200,
+    "maxErrorRate": 0.05
+  },
+  "healthCheck": "getStatus"
+}

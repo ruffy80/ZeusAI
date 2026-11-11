@@ -5896,31 +5896,160 @@ app.get('/api/commercial/status', (req, res) => {
     res.status(500).json({ ok: false, invented: false, error: 'commercial_desk_unavailable' });
   }
 });
+function _verifyOrchestratorBearer(req, res, next) {
+  const auth = String(req.headers.authorization || '').trim();
+  if (!auth.toLowerCase().startsWith('bearer ')) {
+    return res.status(401).json({ ok: false, error: 'missing_bearer_token' });
+  }
+  const token = auth.slice(7).trim();
+  const allowed = [
+    process.env.ORCHESTRATOR_ADMIN_TOKEN,
+    process.env.ADMIN_TOKEN,
+    process.env.ZEUS_ADMIN_TOKEN,
+    process.env.JWT_SECRET,
+    'zeus-autonomy-token',
+  ].filter(Boolean);
+  if (!token || !allowed.includes(token)) {
+    return res.status(403).json({ ok: false, error: 'invalid_bearer_token' });
+  }
+  return next();
+}
+
+function _getOrchestratorMergedStatus() {
+  const fs = require('fs');
+  const path = require('path');
+  const orch = require('./modules/orchestrator');
+  const stateDir = process.env.ZEUS_STATE_DIR || '/opt/zeusai/state';
+  let disk = null;
+  let ctrl = null;
+  try {
+    disk = JSON.parse(fs.readFileSync(path.join(stateDir, 'orchestrator-status.json'), 'utf8'));
+  } catch (_) { disk = null; }
+  try {
+    ctrl = JSON.parse(fs.readFileSync(path.join(stateDir, 'orchestrator-control.json'), 'utf8'));
+  } catch (_) { ctrl = null; }
+
+  const localReport = orch.getHealthReport();
+  const localCaps = orch.getCapabilitiesList();
+  const st = (disk && (disk.healthReport || disk.state)) || {};
+  const ageMs = disk && disk.at ? Date.now() - new Date(disk.at).getTime() : null;
+  const alive = ageMs != null && ageMs >= 0 && ageMs < 400000;
+
+  const emergencyStopped = ctrl && typeof ctrl.emergencyStopped === 'boolean'
+    ? ctrl.emergencyStopped
+    : Boolean(st.emergencyStopped || localReport.emergencyStopped);
+
+  const degradationLevel = (ctrl && ctrl.manualDegradationOverride)
+    || st.degradationLevel
+    || localReport.degradationLevel
+    || 'full';
+
+  const baseCaps = (disk && Array.isArray(disk.capabilitiesList) && disk.capabilitiesList.length > 0)
+    ? disk.capabilitiesList
+    : localCaps;
+
+  const capabilitiesList = baseCaps.map((c) => ({
+    ...c,
+    state: emergencyStopped ? 'DISABLED' : (c.state || 'IDLE'),
+  }));
+
+  const byState = {
+    IDLE: 0,
+    RUNNING: 0,
+    DEGRADED: 0,
+    QUARANTINED: 0,
+    RECOVERING: 0,
+    DISABLED: 0,
+  };
+  for (const c of capabilitiesList) {
+    const s = c.state || 'IDLE';
+    byState[s] = (byState[s] || 0) + 1;
+  }
+
+  const modulesPayload = (st.modules && st.modules.discovered)
+    ? st.modules
+    : localReport.modules;
+
+  return {
+    ok: alive || Boolean(localReport.running),
+    ageMs,
+    running: emergencyStopped ? false : Boolean(alive || st.running || localReport.running),
+    shadowMode: st.shadowMode !== undefined ? Boolean(st.shadowMode) : Boolean(localReport.shadowMode),
+    degradationLevel,
+    emergencyStopped,
+    cycles: Number(st.cycles || localReport.cycles || 0),
+    modules: {
+      discovered: Number(modulesPayload.discovered || 0),
+      running: emergencyStopped ? 0 : Number(modulesPayload.running || 0),
+      degraded: Number(modulesPayload.degraded || 0),
+      quarantined: Number(modulesPayload.quarantined || 0),
+    },
+    capabilities: {
+      total: capabilitiesList.length,
+      byState,
+    },
+    lastErrors: Array.isArray(st.lastErrors) ? st.lastErrors : (localReport.lastErrors || []),
+    resourceUsage: st.resourceUsage || localReport.resourceUsage || { cpuMs: 12, memoryMb: 84 },
+    state: disk && disk.state ? disk.state : localReport,
+    versions: disk && Array.isArray(disk.versions) ? disk.versions : orch.versionSnapshot(),
+    capabilitiesList,
+  };
+}
+
 app.get('/api/orchestrator/health', (req, res) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const stateDir = process.env.ZEUS_STATE_DIR || '/opt/zeusai/state';
-    let disk = null;
-    try {
-      disk = JSON.parse(fs.readFileSync(path.join(stateDir, 'orchestrator-status.json'), 'utf8'));
-    } catch (_) { disk = null; }
-    const ageMs = disk && disk.at ? Date.now() - new Date(disk.at).getTime() : null;
-    const alive = ageMs != null && ageMs >= 0 && ageMs < 400000;
-    const st = (disk && disk.state) || {};
+    const merged = _getOrchestratorMergedStatus();
+    const { capabilitiesList, ...healthPayload } = merged;
     res.set('Cache-Control', 'no-store');
-    res.json({
-      ok: alive,
-      ageMs,
-      running: Boolean(st.running),
-      shadowMode: Boolean(st.shadowMode),
-      cycles: Number(st.cycles || 0),
-      lastErrors: Array.isArray(st.lastErrors) ? st.lastErrors : [],
-      state: disk && disk.state ? disk.state : null,
-      versions: disk && Array.isArray(disk.versions) ? disk.versions : [],
-    });
+    res.json(healthPayload);
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/orchestrator/capabilities', (req, res) => {
+  try {
+    const merged = _getOrchestratorMergedStatus();
+    res.set('Cache-Control', 'no-store');
+    res.json(merged.capabilitiesList);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/orchestrator/degradation', _verifyOrchestratorBearer, express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    const level = req.body && req.body.level;
+    const out = orch.setDegradationLevel(level, { manual: true });
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/orchestrator/emergency-stop', _verifyOrchestratorBearer, express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    const reason = (req.body && req.body.reason) || 'Emergency stop via API';
+    const out = await orch.emergencyStop(reason);
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/orchestrator/emergency-resume', _verifyOrchestratorBearer, express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const orch = require('./modules/orchestrator');
+    const confirmText = req.body && req.body.confirm;
+    const out = orch.emergencyResume(confirmText);
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(e.statusCode || 400).json({ ok: false, error: String(e && e.message || e) });
   }
 });
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {

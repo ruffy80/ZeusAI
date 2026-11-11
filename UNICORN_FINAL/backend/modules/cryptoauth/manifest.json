@@ -1,0 +1,38 @@
+{
+  "name": "cryptoauth",
+  "version": "1.0.0",
+  "description": "Ed25519 passwordless cryptographic authentication and challenge-response session manager",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "write",
+      "schedule": "0 */10 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "ed25519_passwordless_auth",
+    "challenge_response",
+    "session_jwt"
+  ],
+  "failureModes": [
+    {
+      "symptom": "challenge store lock",
+      "recovery": "restart"
+    },
+    {
+      "symptom": "invalid signature flood",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 50,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "required": ["name", "version", "capabilities", "healthCheck"],
+  "properties": {
+    "name": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string" },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "enum": ["read", "write", "destructive", "notification"] },
+          "schedule": { "type": "string", "description": "cron or interval ms" },
+          "timeout_ms": { "type": "integer", "default": 25000 },
+          "resourceBudget": {
+            "type": "object",
+            "properties": {
+              "maxCpuMs": { "type": "integer", "default": 5000 },
+              "maxMemoryMb": { "type": "integer", "default": 256 }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string", "description": "module name required before this one runs" }
+    },
+    "provides": {
+      "type": "array",
+      "items": { "type": "string", "description": "services this module provides to others" }
+    },
+    "failureModes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symptom": { "type": "string" },
+          "recovery": { "enum": ["restart", "skip", "quarantine", "escalate"] }
+        }
+      }
+    },
+    "sla": {
+      "type": "object",
+      "properties": {
+        "maxLatencyMs": { "type": "integer" },
+        "maxErrorRate": { "type": "number" }
+      }
+    },
+    "healthCheck": { "type": "string", "description": "exported function name that returns {ok, latencyMs, details}" }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "score",
+  "version": "1.0.0",
+  "description": "Public AI Business Scorecard analyzer, viral badge generator, and signed score ledger",
+  "capabilities": [
+    {
+      "id": "stats",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "leaderboard",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "repair",
+      "type": "destructive",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 25000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "witness"
+  ],
+  "provides": [
+    "business_scorecard",
+    "viral_badge",
+    "score_repair"
+  ],
+  "failureModes": [
+    {
+      "symptom": "sqlite lock on business_scores",
+      "recovery": "restart"
+    },
+    {
+      "symptom": "corrupt score record",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 150,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "stats"
+}

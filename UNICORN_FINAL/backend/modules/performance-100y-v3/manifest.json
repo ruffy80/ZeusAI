@@ -1,0 +1,36 @@
+{
+  "name": "performance-100y-v3",
+  "version": "1.0.0",
+  "description": "Third-wave performance primitives: mobile parity pact, content provenance chain, and graceful degradation matrix",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "performance-100y-v2"
+  ],
+  "provides": [
+    "mobile_parity_pact",
+    "content_provenance_chain",
+    "graceful_degradation_matrix"
+  ],
+  "failureModes": [
+    {
+      "symptom": "provenance chain mismatch",
+      "recovery": "escalate"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 50,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

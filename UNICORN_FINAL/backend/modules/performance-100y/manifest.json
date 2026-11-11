@@ -1,0 +1,34 @@
+{
+  "name": "performance-100y",
+  "version": "1.0.0",
+  "description": "First-wave 100-year web performance budgets, Web Vitals attestation, and zero-energy cache policies",
+  "capabilities": [
+    {
+      "id": "handle",
+      "type": "read",
+      "schedule": "0 */30 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "perf_budgets",
+    "web_vitals_attestation",
+    "cache_policy"
+  ],
+  "failureModes": [
+    {
+      "symptom": "render budget exceeded",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 50,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "handle"
+}

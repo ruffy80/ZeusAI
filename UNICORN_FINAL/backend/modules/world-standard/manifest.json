@@ -1,0 +1,44 @@
+{
+  "name": "world-standard",
+  "version": "1.0.0",
+  "description": "World-Standard Inventions (WSI/1.0): Proof-of-Outcome, Agent Capability Exchange, and Delivery Passport Standard",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "discovery",
+      "type": "read",
+      "schedule": "0 */15 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "proof_of_outcome",
+    "agent_capability_exchange",
+    "delivery_passport"
+  ],
+  "failureModes": [
+    {
+      "symptom": "quorum verification timeout",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 120,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "getStatus"
+}

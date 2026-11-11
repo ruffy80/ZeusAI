@@ -1,0 +1,114 @@
+{
+  "createdAt": "2026-11-11T17:09:39.449Z",
+  "updatedAt": "2026-11-11T17:09:39.505Z",
+  "ticks": 1,
+  "lastScore": 100,
+  "lastCoveredDomains": [
+    "reasoning",
+    "code",
+    "vision",
+    "embeddings",
+    "speech",
+    "negotiation",
+    "forecasting"
+  ],
+  "lastGapDomains": [],
+  "usage": {
+    "openai": {
+      "calls": 0.9,
+      "ok": 0.9,
+      "fail": 0,
+      "totalLatencyMs": 198,
+      "lastUsedAt": "2026-11-11T17:09:39.449Z",
+      "costUsd": 0.019
+    },
+    "anthropic": {
+      "calls": 5.4,
+      "ok": 5.4,
+      "fail": 0,
+      "totalLatencyMs": 1179,
+      "lastUsedAt": "2026-11-11T17:09:39.505Z",
+      "costUsd": 0.048
+    },
+    "deepseek": {
+      "calls": 4.5,
+      "ok": 0,
+      "fail": 4.5,
+      "totalLatencyMs": 18000,
+      "lastUsedAt": "2026-11-11T17:09:39.504Z",
+      "costUsd": 0
+    }
+  },
+  "domainUsage": {
+    "reasoning": {
+      "calls": 2,
+      "ok": 2,
+      "fail": 0
+    },
+    "code": {
+      "calls": 10,
+      "ok": 5,
+      "fail": 5
+    }
+  },
+  "lastRecommendations": [
+    {
+      "at": "2026-11-11T17:09:39.503Z",
+      "domain": "negotiation",
+      "provider": "local",
+      "model": "zeus-heuristic-v1",
+      "reason": "highest routing score 52 for \"negotiation\"; class-leading in this domain"
+    },
+    {
+      "at": "2026-11-11T17:09:39.503Z",
+      "domain": "reasoning",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "reason": "highest routing score 121.56 for \"reasoning\"; class-leading in this domain; observed success rate 100%"
+    }
+  ],
+  "probe": {
+    "source": "aiProviders",
+    "configured": [
+      "anthropic",
+      "openai"
+    ],
+    "at": "2026-11-11T17:09:39.541Z"
+  },
+  "history": [
+    {
+      "ts": "2026-11-11T17:09:39.505Z",
+      "score": 100,
+      "enabledProviders": 3,
+      "health": "excellent"
+    }
+  ],
+  "ledger": {
+    "totalCostUsd": 0.067,
+    "totalCalls": 12,
+    "byProvider": {
+      "openai": {
+        "costUsd": 0.019,
+        "calls": 1,
+        "lastAt": "2026-11-11T17:09:39.449Z"
+      },
+      "anthropic": {
+        "costUsd": 0.048,
+        "calls": 6,
+        "lastAt": "2026-11-11T17:09:39.505Z"
+      },
+      "deepseek": {
+        "costUsd": 0,
+        "calls": 5,
+        "lastAt": "2026-11-11T17:09:39.504Z"
+      }
+    },
+    "startedAt": "2026-11-11T17:09:39.449Z"
+  },
+  "dailyBudget": {
+    "day": "2026-11-11",
+    "spentUsd": 0.067,
+    "calls": 12,
+    "blocked": 0
+  }
+}

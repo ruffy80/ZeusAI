@@ -1,0 +1,54 @@
+{
+  "name": "polish-pack",
+  "version": "1.0.0",
+  "description": "RFC 9116 security.txt, humans.txt, and resilient offline fallback surface",
+  "capabilities": [
+    {
+      "id": "securityTxt",
+      "type": "read",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "humansTxt",
+      "type": "read",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "offlineHtml",
+      "type": "read",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "security_txt",
+    "humans_txt",
+    "offline_fallback"
+  ],
+  "failureModes": [
+    {
+      "symptom": "static template render error",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 30,
+    "maxErrorRate": 0.01
+  },
+  "healthCheck": "securityTxt"
+}

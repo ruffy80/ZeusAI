@@ -1,0 +1,54 @@
+{
+  "name": "notificationMesh",
+  "version": "1.0.0",
+  "description": "Signed notification mesh with Ed25519 receipts and WebSocket delivery channels",
+  "capabilities": [
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "enabled",
+      "type": "read",
+      "schedule": "0 */5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "getPublicKey",
+      "type": "read",
+      "schedule": "0 0 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 5000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [],
+  "provides": [
+    "signed_notifications",
+    "websocket_broadcast",
+    "notification_receipts"
+  ],
+  "failureModes": [
+    {
+      "symptom": "channel delivery timeout",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 100,
+    "maxErrorRate": 0.02
+  },
+  "healthCheck": "getStatus"
+}
