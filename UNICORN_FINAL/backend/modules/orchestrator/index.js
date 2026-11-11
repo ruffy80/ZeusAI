@@ -435,11 +435,11 @@ class UnifiedOrchestrator extends EventEmitter {
   startScheduler() {
     const tick = async () => {
       this.state.shadowMode = process.env.SHADOW_MODE === 'true';
-      await this.withLock('health', () => this.safeRun('healthCheck', () => this.healthCheck()));
-      await this.withLock('prices', () => this.safeRun('syncPrices', () => this.syncPrices()));
-      await this.withLock('orders', () => this.safeRun('processPaidOrders', () => this.processPaidOrders()));
-      await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
-      await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
+      const healthRes = await this.withLock('health', () => this.safeRun('healthCheck', () => this.healthCheck()));
+      const pricesRes = await this.withLock('prices', () => this.safeRun('syncPrices', () => this.syncPrices()));
+      const ordersRes = await this.withLock('orders', () => this.safeRun('processPaidOrders', () => this.processPaidOrders()));
+      const repairRes = await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
+      const commRes = await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
       this.state.cycles += 1;
       this.writeStatus();
       console.log(JSON.stringify({
@@ -447,6 +447,13 @@ class UnifiedOrchestrator extends EventEmitter {
         shadowMode: this.state.shadowMode,
         mem: process.memoryUsage().heapUsed,
         locks: [...this.locks.keys()],
+        results: {
+          healthCheck: healthRes,
+          syncPrices: pricesRes,
+          processPaidOrders: ordersRes,
+          autoRepair: repairRes,
+          commercialMonitor: commRes,
+        },
       }));
     };
     this._timer = setInterval(tick, Number(process.env.ORCHESTRATOR_TICK_MS || 30000));
