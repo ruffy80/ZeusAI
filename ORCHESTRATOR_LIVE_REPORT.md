@@ -42,7 +42,12 @@ Script rollback: `/opt/zeusai/rollback_orch.sh`
    public | subscriptions     | table | zeusai
   (12 rows)
   ```
-- **Date migrate din SQLite (`/opt/zeusai/state/commercial.sqlite`):** **150 rânduri** (`bundles`: 3, `plans`: 3, `referrals`: 1, `reports`: 3, `commercial_orders`: 1, `price_locks`: 139) — count verificat 1:1 între SQLite și PostgreSQL.
+- **Date migrate din SQLite și catalog (`/opt/zeusai/state/commercial.sqlite`, `unicorn.db` și catalogul activ):** **358 rânduri** (`services`: 203, `orders`: 4, `deliveries`: 1, `bundles`: 3, `plans`: 3, `subscriptions`: 0, `referrals`: 1, `reports`: 3, `commercial_orders`: 1, `price_locks`: 139) — count verificat 1:1 în PostgreSQL:
+  ```text
+   services | orders | deliveries | plans | bundles | subscriptions | referrals | reports | commercial_orders | price_locks 
+  ----------+--------+------------+-------+---------+---------------+-----------+---------+-------------------+-------------
+        203 |      4 |          1 |     3 |       3 |             0 |         1 |       3 |                 1 |         139
+  ```
 
 ---
 
@@ -108,10 +113,10 @@ Script rollback: `/opt/zeusai/rollback_orch.sh`
 ## ✅ Execuție reală (confirmată — Pasul 5)
 - **Status curent:** **ACTIVATĂ 24/7** (`SHADOW_MODE=false`, interval `30000ms`, `systemctl enable zeus-orchestrator`) după confirmarea explicită `CONFIRM`.
 - **Watchdog 1 minut + SNM:** `/opt/zeusai/watchdog_orchestrator.sh` rulează la fiecare minut prin `/etc/cron.d/zeus-orchestrator-watchdog`, loghează în `/var/log/orchestrator-live.log` și trimite alertă critică prin SNM dacă apar erori.
-- **Cicluri executate:** `2+` cicluri reale consecutive (la interval de `30s`, în creștere continuă)
+- **Cicluri executate:** `80+` cicluri reale consecutive (la interval de `30s`, în creștere continuă)
 - **Comenzi procesate:** `0`
 - **Module reparate automat:** `0`
-- **Backup-uri făcute:** `1` (`pg_dump` în `/opt/zeusai/state/backups/`)
+- **Backup-uri făcute:** `2` (`pg_dump` în `/opt/zeusai/state/backups/`)
 - **Erori:** `0` (`lastErrors: []`)
 - **Status final:** `healthy`
 - **Raport live 24h:** [`LIVE_24H_REPORT.md`](./LIVE_24H_REPORT.md) (actualizat automat de `/opt/zeusai/generate_live_24h_report.sh`)
