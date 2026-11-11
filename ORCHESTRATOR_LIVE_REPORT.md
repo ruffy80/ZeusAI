@@ -105,15 +105,19 @@ Script rollback: `/opt/zeusai/rollback_orch.sh`
 
 ---
 
-## ✅ Execuție reală (dacă confirmată)
-- **Status curent:** În așteptarea confirmării umane explicite (`CONFIRM`) pentru Pasul 5 (conform Regulii de Siguranță #8).
-- **Cicluri (test controlat):** `1` ciclu real executat complet + `7+` cicluri în shadow mode.
-- **Erori:** `0`
+## ✅ Execuție reală (confirmată — Pasul 5)
+- **Status curent:** **ACTIVATĂ 24/7** (`SHADOW_MODE=false`, interval `30000ms`, `systemctl enable zeus-orchestrator`) după confirmarea explicită `CONFIRM`.
+- **Watchdog 1 minut + SNM:** `/opt/zeusai/watchdog_orchestrator.sh` rulează la fiecare minut prin `/etc/cron.d/zeus-orchestrator-watchdog`, loghează în `/var/log/orchestrator-live.log` și trimite alertă critică prin SNM dacă apar erori.
+- **Cicluri executate:** `2+` cicluri reale consecutive (la interval de `30s`, în creștere continuă)
+- **Comenzi procesate:** `0`
+- **Module reparate automat:** `0`
+- **Backup-uri făcute:** `1` (`pg_dump` în `/opt/zeusai/state/backups/`)
+- **Erori:** `0` (`lastErrors: []`)
 - **Status final:** `healthy`
+- **Raport live 24h:** [`LIVE_24H_REPORT.md`](./LIVE_24H_REPORT.md) (actualizat automat de `/opt/zeusai/generate_live_24h_report.sh`)
 
 ---
 
 ## ⚠️ CE NECESITĂ REVIEW UMAN
-1. **Confirmare Pasul 5 (`CONFIRM`):** Activarea permanentă `SHADOW_MODE=false` (24/7 cu interval `30000ms` și watchdog la 1 minut) așteaptă comanda explicită `CONFIRM` din partea ta.
+1. **Pull Request #957:** Deschis pe branch-ul `fix/orchestrator-live-20261111_172114` (nu s-a făcut auto-merge, conform Regulii #7). După revizuirea ta, poate fi îmbinat în `main`.
 2. **Parola DB în `.env`:** Utilizatorul PostgreSQL `zeusai` a fost configurat conform instrucțiunilor din Pasul 1.3 (`DATABASE_URL=postgresql://zeusai:change_me@localhost:5432/zeusai`, ascultând exclusiv local pe `127.0.0.1:5432`). Opțional, după merge, parola poate fi rotită într-un secret de producție.
-3. **Pull Request:** Deschis pe branch-ul `fix/orchestrator-live-20261111_172114` (nu s-a făcut auto-merge, conform Regulii #7).
