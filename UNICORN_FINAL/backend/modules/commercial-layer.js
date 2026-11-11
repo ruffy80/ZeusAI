@@ -73,22 +73,75 @@ function stateDir() {
   return process.env.ZEUS_STATE_DIR || process.env.SNM_STATE_DIR || '/opt/zeusai/state';
 }
 
-function probePort(port) {
+function parseDatabaseUrl() {
+  const raw = String(process.env.DATABASE_URL || '').trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return {
+      url: raw,
+      host: u.hostname || '127.0.0.1',
+      port: Number(u.port || 5432),
+      user: decodeURIComponent(u.username || 'zeusai'),
+      password: decodeURIComponent(u.password || ''),
+      database: decodeURIComponent((u.pathname || '/zeusai').replace(/^\//, '') || 'zeusai'),
+    };
+  } catch (_) {
+    return { url: raw, host: '127.0.0.1', port: 5432, user: 'zeusai', password: 'change_me', database: 'zeusai' };
+  }
+}
+
+function isPostgresPrimary() {
+  if (process.env.NODE_ENV === 'test' && !process.env.FORCE_POSTGRES_TEST) return false;
+  return Boolean(String(process.env.DATABASE_URL || '').trim()) || process.env.STORAGE_ENGINE === 'postgresql';
+}
+
+function pgExecSync(sql) {
+  if (!isPostgresPrimary()) return null;
+  const cfg = parseDatabaseUrl();
+  if (!cfg) throw new Error('DATABASE_URL is required when PostgreSQL is primary');
+  const { execFileSync } = require('child_process');
+  try {
+    return execFileSync('psql', ['-U', cfg.user, '-d', cfg.database, '-t', '-A', '-c', sql], {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: Object.assign({}, process.env, { PGPASSWORD: cfg.password }),
+    });
+  } catch (err) {
+    const msg = 'PostgreSQL query failed (no SQLite fallback): ' + String(err && err.message || err);
+    probes.postgres = msg;
+    throw new Error(msg);
+  }
+}
+
+function probePort(port, host = '127.0.0.1') {
+  const connectHost = host === 'localhost' ? '127.0.0.1' : host;
   return new Promise((resolve) => {
-    const socket = net.connect({ host: '127.0.0.1', port, timeout: 400 });
+    const socket = net.connect({ host: connectHost, port, timeout: 1500 });
     const finish = (value) => {
       try { socket.destroy(); } catch (_) { /* closed */ }
       resolve(value);
     };
     socket.on('connect', () => finish(null));
-    socket.on('timeout', () => finish('timeout 127.0.0.1:' + port));
+    socket.on('timeout', () => finish('timeout ' + connectHost + ':' + port));
     socket.on('error', (err) => finish(String(err && err.message || err)));
   });
 }
 
 async function probeStores() {
-  if (!probes.postgres) probes.postgres = await probePort(5432);
-  if (!probes.redis) probes.redis = await probePort(6379);
+  const pgCfg = parseDatabaseUrl();
+  const pgHost = (pgCfg && pgCfg.host) || '127.0.0.1';
+  const pgPort = (process.env.NODE_ENV === 'test' && !process.env.FORCE_POSTGRES_TEST)
+    ? Number(process.env.TEST_PG_PORT || 65432)
+    : Number((pgCfg && pgCfg.port) || 5432);
+  const redisPort = (process.env.NODE_ENV === 'test' && !process.env.FORCE_POSTGRES_TEST)
+    ? Number(process.env.TEST_REDIS_PORT || 63790)
+    : 6379;
+  probes.postgres = await probePort(pgPort, pgHost);
+  probes.redis = await probePort(redisPort, '127.0.0.1');
+  if (isPostgresPrimary() && probes.postgres) {
+    throw new Error('PostgreSQL primary database unreachable (' + pgHost + ':' + pgPort + '): ' + probes.postgres);
+  }
   return { postgres: probes.postgres, redis: probes.redis };
 }
 
@@ -376,6 +429,10 @@ function priceLock(ip, offerId) {
   if (!id) return { ok: false, error: 'offer_required' };
   const key = lockKey(ip, id);
   const now = Date.now();
+  const engine = isPostgresPrimary() ? 'postgresql' : 'sqlite';
+  if (isPostgresPrimary() && probes.postgres) {
+    throw new Error('PostgreSQL primary database unavailable: ' + probes.postgres);
+  }
   const existing = db().prepare('SELECT * FROM price_locks WHERE lock_key = ?').get(key);
   if (existing && Number(existing.expires_at) > now) {
     return {
@@ -384,12 +441,23 @@ function priceLock(ip, offerId) {
       locked_price_btc: existing.locked_price_btc,
       locked_price_usd: existing.locked_price_usd,
       expires_at: new Date(Number(existing.expires_at)).toISOString(),
-      storage: 'sqlite',
+      storage: engine,
       redisError: probes.redis,
     };
   }
   const quote = quoteSync(id);
   const expires = now + 900000;
+  if (isPostgresPrimary()) {
+    pgExecSync(
+      "INSERT INTO price_locks (lock_key, offer_id, locked_price_btc, locked_price_usd, expires_at) VALUES ('"
+      + String(key).replace(/'/g, "''") + "', '"
+      + String(id).replace(/'/g, "''") + "', '"
+      + String(quote.btc).replace(/'/g, "''") + "', "
+      + Number(quote.usd || 0) + ', '
+      + Number(expires)
+      + ') ON CONFLICT (lock_key) DO UPDATE SET locked_price_btc = EXCLUDED.locked_price_btc, locked_price_usd = EXCLUDED.locked_price_usd, expires_at = EXCLUDED.expires_at;'
+    );
+  }
   db().prepare(`
     INSERT INTO price_locks (lock_key, offer_id, locked_price_btc, locked_price_usd, expires_at)
     VALUES (?, ?, ?, ?, ?)
@@ -404,7 +472,7 @@ function priceLock(ip, offerId) {
     locked_price_btc: quote.btc,
     locked_price_usd: quote.usd,
     expires_at: new Date(expires).toISOString(),
-    storage: 'sqlite',
+    storage: engine,
     redisError: probes.redis,
   };
 }
@@ -775,6 +843,15 @@ async function maybePublishWeekly() {
 }
 
 function storageNote() {
+  if (isPostgresPrimary()) {
+    if (probes.postgres) {
+      throw new Error('PostgreSQL primary database unavailable (no SQLite fallback): ' + probes.postgres);
+    }
+    return {
+      engine: 'postgresql',
+      postgresError: null,
+    };
+  }
   return {
     engine: 'sqlite',
     postgresError: probes.postgres,

@@ -32,6 +32,9 @@ class UnifiedOrchestrator extends EventEmitter {
     this.state = {
       running: false,
       cycles: 0,
+      ordersProcessed: 0,
+      modulesRepaired: 0,
+      backupsDone: 0,
       lastErrors: [],
       shadowMode: process.env.SHADOW_MODE === 'true',
     };
@@ -167,15 +170,15 @@ class UnifiedOrchestrator extends EventEmitter {
     const rows = [
       ['healthCheck', 'GET /api/health'],
       ['syncPrices', 'priceNegotiator.getPrice'],
-      ['processPaidOrders', 'btcInvoiceLedger.listPending (read only)'],
-      ['autoRepair', 'observe zac + docker; do not restart postgres'],
-      ['backupDatabase', 'existing backup timer; this facade does not dump the live db'],
-      ['commercialMonitor', 'commercial-layer.status (monitoring only)'],
+      ['processPaidOrders', 'btcInvoiceLedger + on-chain verify + paid-delivery (write)'],
+      ['autoRepair', 'auto-heal zac + docker + postgresql'],
+      ['backupDatabase', 'pg_dump zeusai + state snapshot'],
+      ['commercialMonitor', 'commercial-layer.status (postgresql primary)'],
     ];
     for (const [capability, migratedFrom] of rows) {
       const hash = crypto.createHash('sha256').update(capability + '|' + migratedFrom).digest('hex').slice(0, 16);
       this.versions.set(capability, {
-        version: '1.0.0',
+        version: '2.0.0',
         migrated_from: migratedFrom,
         fingerprint_hash: hash,
         rolled_back_at: null,
@@ -185,22 +188,54 @@ class UnifiedOrchestrator extends EventEmitter {
     this.writeStatus();
   }
 
+  logShadow({ capability, wouldDo, affectedResources = [], estimatedImpact = '' }) {
+    const payload = {
+      shadow: true,
+      capability: String(capability || ''),
+      wouldDo: String(wouldDo || ''),
+      affectedResources: Array.isArray(affectedResources) ? affectedResources : [],
+      estimatedImpact: String(estimatedImpact || ''),
+      timestamp: new Date().toISOString(),
+    };
+    const line = JSON.stringify(payload);
+    console.log(line);
+    const logFile = process.env.ORCHESTRATOR_SHADOW_LOG || '/var/log/orchestrator-shadow.log';
+    try {
+      fs.appendFileSync(logFile, line + '\n');
+    } catch (_) { /* non-root test environment */ }
+    return payload;
+  }
+
+  probePostgres(port = 5432, host = '127.0.0.1') {
+    const net = require('net');
+    return new Promise((resolve) => {
+      const socket = net.connect({ host, port, timeout: 1500 });
+      const done = (ok) => {
+        try { socket.destroy(); } catch (_) {}
+        resolve(ok);
+      };
+      socket.on('connect', () => done(true));
+      socket.on('timeout', () => done(false));
+      socket.on('error', () => done(false));
+    });
+  }
+
   async healthCheck() {
     const port = Number(process.env.PORT || 3000);
-    return new Promise((resolve, reject) => {
+    const res = await new Promise((resolve, reject) => {
       const req = http.get({
         hostname: '127.0.0.1',
         port,
         path: '/api/health',
         timeout: 4000,
-      }, (res) => {
+      }, (resp) => {
         const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
+        resp.on('data', (c) => chunks.push(c));
+        resp.on('end', () => {
           const text = Buffer.concat(chunks).toString('utf8');
           try {
             const body = JSON.parse(text);
-            resolve({ statusCode: res.statusCode, ok: body && body.ok === true, status: body && body.status });
+            resolve({ statusCode: resp.statusCode, ok: body && body.ok === true, status: body && body.status });
           } catch (e) {
             reject(new Error('health_not_json'));
           }
@@ -209,11 +244,28 @@ class UnifiedOrchestrator extends EventEmitter {
       req.on('timeout', () => { req.destroy(); reject(new Error('health_timeout')); });
       req.on('error', reject);
     });
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'healthCheck',
+        wouldDo: 'Probe GET /api/health on 127.0.0.1:' + port + ' (status ' + res.statusCode + ')',
+        affectedResources: ['backend:3000'],
+        estimatedImpact: 'Health status verified (' + (res.status || 'ok') + ')',
+      });
+    }
+    return res;
   }
 
   async syncPrices() {
     const priceNegotiator = require('../priceNegotiator');
     const quote = await priceNegotiator.getPrice('website-audit', {});
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'syncPrices',
+        wouldDo: 'Sync live BTC/USD quote ($' + (quote && quote.usd) + ') from ' + (quote && quote.source),
+        affectedResources: ['priceNegotiator', 'catalog'],
+        estimatedImpact: 'Keep catalog BTC spot quotes synchronized',
+      });
+    }
     return {
       serviceId: quote && quote.serviceId,
       usd: quote && quote.usd,
@@ -224,32 +276,161 @@ class UnifiedOrchestrator extends EventEmitter {
 
   async processPaidOrders() {
     const ledger = require('../btcInvoiceLedger');
+    const paidDelivery = require('../paid-delivery');
     const pending = typeof ledger.listPending === 'function' ? ledger.listPending() : [];
-    return { pending: Array.isArray(pending) ? pending.length : 0, mutated: false };
+    const paidList = typeof ledger.listInvoices === 'function' ? ledger.listInvoices({ status: 'paid', limit: 200 }) : [];
+    const delivDir = paidDelivery.deliveryDir();
+    const undelivered = paidList.filter((inv) => {
+      if (!inv || inv.id == null) return false;
+      return !fs.existsSync(path.join(delivDir, String(inv.id) + '.json'));
+    });
+
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'processPaidOrders',
+        wouldDo: 'Verify ' + pending.length + ' pending BTC invoices on-chain and fulfill ' + undelivered.length + ' paid undelivered orders',
+        affectedResources: ['orders', 'deliveries', 'btcInvoiceLedger'],
+        estimatedImpact: pending.length + ' pending orders checked, ' + undelivered.length + ' deliveries would be generated',
+      });
+      return {
+        processed: 0,
+        pending: pending.length,
+        undelivered: undelivered.length,
+        shadow: true,
+        mutated: false,
+      };
+    }
+
+    let verified = 0;
+    let delivered = 0;
+    const deliveredOrders = [];
+    const verifier = require('../btcPaymentVerifier').createPaymentVerifier({
+      address: ledger.PAYOUT_ADDRESS,
+      onPaid: (inv) => {
+        verified += 1;
+        const out = paidDelivery.writePaidDelivery(inv, { licenseId: 'lic_' + inv.id });
+        if (out && out.ok) {
+          delivered += 1;
+          deliveredOrders.push(inv.id);
+          paidDelivery.queueDeliveryEmail(inv).catch(() => {});
+        }
+      },
+    });
+    await verifier.tick();
+
+    for (const inv of undelivered) {
+      const out = paidDelivery.writePaidDelivery(inv, { licenseId: 'lic_' + inv.id });
+      if (out && out.ok && !out.already) {
+        delivered += 1;
+        deliveredOrders.push(inv.id);
+        paidDelivery.queueDeliveryEmail(inv).catch(() => {});
+      }
+    }
+
+    return {
+      processed: verified + delivered,
+      verified,
+      delivered,
+      deliveredOrders,
+      pending: ledger.listPending().length,
+      mutated: (verified + delivered) > 0,
+    };
   }
 
   async autoRepair() {
+    const pgUp = await this.probePostgres(5432, '127.0.0.1');
+    const health = { postgres: pgUp ? 'up' : 'down' };
+
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'autoRepair',
+        wouldDo: health.postgres === 'down'
+          ? 'Restart PostgreSQL via systemctl restart postgresql || docker restart unicorn-postgres'
+          : 'Verify PostgreSQL (up) and run score.repair()',
+        affectedResources: health.postgres === 'down' ? ['postgresql', 'unicorn-postgres'] : ['postgresql', 'score'],
+        estimatedImpact: health.postgres === 'down'
+          ? 'PostgreSQL service/container restarted to restore port 5432'
+          : '0 restarts needed (PostgreSQL and services healthy)',
+      });
+      return {
+        action: 'shadow',
+        postgres: health.postgres,
+        restarted: [],
+        wouldRestart: health.postgres === 'down' ? ['postgresql'] : [],
+      };
+    }
+
+    const restarted = [];
+    if (health.postgres === 'down') {
+      const { execSync } = require('child_process');
+      execSync('systemctl restart postgresql 2>/dev/null || docker restart unicorn-postgres', { timeout: 20000 });
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      const pgAfter = await this.probePostgres(5432, '127.0.0.1');
+      health.postgres = pgAfter ? 'up' : 'down';
+      restarted.push('postgresql');
+    }
+
     let scoreRepair = null;
     try {
-      scoreRepair = require('../../../modules/score').repair();
+      let scoreMod;
+      try {
+        scoreMod = require('../../../modules/score');
+      } catch (_) {
+        try {
+          scoreMod = require('../score');
+        } catch (__) {
+          scoreMod = require('/var/www/unicorn/current/modules/score');
+        }
+      }
+      scoreRepair = scoreMod.repair();
     } catch (err) {
       scoreRepair = { ok: false, error: err && err.message };
     }
     return {
-      action: 'observe',
-      restarted: [],
+      action: restarted.length > 0 ? 'repaired' : 'healthy',
+      postgres: health.postgres,
+      restarted,
       scoreRepair,
-      note: 'Repair intent only. postgres and redis are not restarted from this facade.',
     };
   }
 
   async backupDatabase() {
-    return { action: 'skip', reason: 'live database backup stays on the existing timer' };
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'backupDatabase',
+        wouldDo: 'Dump PostgreSQL database zeusai to /opt/zeusai/state/backups',
+        affectedResources: ['postgresql:zeusai'],
+        estimatedImpact: 'Create timestamped SQL backup file',
+      });
+      return { action: 'shadow', wouldBackup: 'zeusai' };
+    }
+    try {
+      const { execSync } = require('child_process');
+      const dir = path.join(STATE_DIR, 'backups');
+      ensureDir(dir);
+      const file = path.join(dir, 'zeusai_' + Date.now() + '.sql');
+      execSync('docker exec -i unicorn-postgres pg_dump -U zeusai zeusai > ' + JSON.stringify(file), { timeout: 60000 });
+      this.state.backupsDone = (this.state.backupsDone || 0) + 1;
+      return { action: 'backed_up', file };
+    } catch (err) {
+      return { action: 'error', error: err && err.message };
+    }
   }
 
   async commercialMonitor() {
     const layer = require('../commercial-layer');
+    if (typeof layer.probeStores === 'function') {
+      await layer.probeStores();
+    }
     const snap = layer.status();
+    if (this.state.shadowMode) {
+      this.logShadow({
+        capability: 'commercialMonitor',
+        wouldDo: 'Monitor commercial layer storage (' + (snap.storage && snap.storage.engine) + ') and plans/bundles',
+        affectedResources: ['commercial-layer', 'postgresql'],
+        estimatedImpact: 'Verified storage engine=' + (snap.storage && snap.storage.engine) + ', plans=' + snap.plans + ', bundles=' + snap.bundles,
+      });
+    }
     return { ok: true, monitoring: true, repaired: false, plans: snap.plans, bundles: snap.bundles, storage: snap.storage };
   }
 
@@ -267,24 +448,49 @@ class UnifiedOrchestrator extends EventEmitter {
 
   startScheduler() {
     const tick = async () => {
-      if (this.state.shadowMode) {
-        console.log('[SHADOW] would run: health, prices, orders, repair');
-        this.state.cycles += 1;
-        this.writeStatus();
-        return;
-      }
-      await this.withLock('health', () => this.safeRun('healthCheck', () => this.healthCheck()));
-      await this.withLock('prices', () => this.safeRun('syncPrices', () => this.syncPrices()));
-      await this.withLock('orders', () => this.safeRun('processPaidOrders', () => this.processPaidOrders()));
-      await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
-      await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
+      this.state.shadowMode = process.env.SHADOW_MODE === 'true';
+      const healthRes = await this.withLock('health', () => this.safeRun('healthCheck', () => this.healthCheck()));
+      const pricesRes = await this.withLock('prices', () => this.safeRun('syncPrices', () => this.syncPrices()));
+      const ordersRes = await this.withLock('orders', () => this.safeRun('processPaidOrders', () => this.processPaidOrders()));
+      const repairRes = await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
+      const commRes = await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
       this.state.cycles += 1;
+      if (!this.state.shadowMode) {
+        if (ordersRes && typeof ordersRes.processed === 'number') {
+          this.state.ordersProcessed = (this.state.ordersProcessed || 0) + ordersRes.processed;
+        }
+        if (repairRes && Array.isArray(repairRes.restarted)) {
+          this.state.modulesRepaired = (this.state.modulesRepaired || 0) + repairRes.restarted.length;
+        }
+        if (this.state.cycles === 1 && !this.state.backupsDone) {
+          await this.withLock('backup', () => this.safeRun('backupDatabase', () => this.backupDatabase(), 300000));
+        }
+      }
       this.writeStatus();
-      console.log(JSON.stringify({
+      const entry = JSON.stringify({
         cycle: this.state.cycles,
+        shadowMode: this.state.shadowMode,
+        ordersProcessed: this.state.ordersProcessed || 0,
+        modulesRepaired: this.state.modulesRepaired || 0,
+        backupsDone: this.state.backupsDone || 0,
         mem: process.memoryUsage().heapUsed,
         locks: [...this.locks.keys()],
-      }));
+        timestamp: new Date().toISOString(),
+        results: {
+          healthCheck: healthRes,
+          syncPrices: pricesRes,
+          processPaidOrders: ordersRes,
+          autoRepair: repairRes,
+          commercialMonitor: commRes,
+        },
+      });
+      console.log(entry);
+      if (!this.state.shadowMode) {
+        try {
+          const liveLog = process.env.ORCHESTRATOR_LIVE_LOG || '/var/log/orchestrator-live.log';
+          fs.appendFileSync(liveLog, entry + '\n');
+        } catch (_) { /* best-effort in read-only test env */ }
+      }
     };
     this._timer = setInterval(tick, Number(process.env.ORCHESTRATOR_TICK_MS || 30000));
     this._backupTimer = setInterval(() => {
