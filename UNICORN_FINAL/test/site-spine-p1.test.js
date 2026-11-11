@@ -58,7 +58,7 @@ check('public nav is Home / Marketplace / Pricing plus a buyer More menu', () =>
   assert.ok(/Find my plan/.test(nav), 'plan finder stays in More');
   assert.ok(/Trust Center/.test(nav), 'trust stays in More');
   assert.ok(!/Dropship/.test(nav), 'paused dropship desk stays out of public nav');
-  assert.ok(!/ZeusAI Social/.test(nav), 'social stays out of public nav');
+  assert.ok(/ZeusAI Social/.test(nav), 'social is accessible in More menu');
   assert.ok(!/Frontier/.test(nav), 'frontier stays out of public nav');
   assert.ok(!/Innovations/.test(nav), 'innovations stay out of public nav');
   assert.ok(!/Live actions/.test(nav), 'live actions stay out of public nav');
