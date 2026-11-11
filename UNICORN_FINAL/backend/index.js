@@ -5899,16 +5899,23 @@ app.get('/api/commercial/status', (req, res) => {
 app.get('/api/orchestrator/health', (req, res) => {
   try {
     const fs = require('fs');
+    const path = require('path');
+    const stateDir = process.env.ZEUS_STATE_DIR || '/opt/zeusai/state';
     let disk = null;
     try {
-      disk = JSON.parse(fs.readFileSync('/opt/zeusai/state/orchestrator-status.json', 'utf8'));
+      disk = JSON.parse(fs.readFileSync(path.join(stateDir, 'orchestrator-status.json'), 'utf8'));
     } catch (_) { disk = null; }
     const ageMs = disk && disk.at ? Date.now() - new Date(disk.at).getTime() : null;
-    const alive = ageMs != null && ageMs >= 0 && ageMs < 120000;
+    const alive = ageMs != null && ageMs >= 0 && ageMs < 400000;
+    const st = (disk && disk.state) || {};
     res.set('Cache-Control', 'no-store');
     res.json({
       ok: alive,
       ageMs,
+      running: Boolean(st.running),
+      shadowMode: Boolean(st.shadowMode),
+      cycles: Number(st.cycles || 0),
+      lastErrors: Array.isArray(st.lastErrors) ? st.lastErrors : [],
       state: disk && disk.state ? disk.state : null,
       versions: disk && Array.isArray(disk.versions) ? disk.versions : [],
     });
