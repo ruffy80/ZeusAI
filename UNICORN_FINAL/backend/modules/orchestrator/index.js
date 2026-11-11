@@ -32,6 +32,9 @@ class UnifiedOrchestrator extends EventEmitter {
     this.state = {
       running: false,
       cycles: 0,
+      ordersProcessed: 0,
+      modulesRepaired: 0,
+      backupsDone: 0,
       lastErrors: [],
       shadowMode: process.env.SHADOW_MODE === 'true',
     };
@@ -407,6 +410,7 @@ class UnifiedOrchestrator extends EventEmitter {
       ensureDir(dir);
       const file = path.join(dir, 'zeusai_' + Date.now() + '.sql');
       execSync('docker exec -i unicorn-postgres pg_dump -U zeusai zeusai > ' + JSON.stringify(file), { timeout: 60000 });
+      this.state.backupsDone = (this.state.backupsDone || 0) + 1;
       return { action: 'backed_up', file };
     } catch (err) {
       return { action: 'error', error: err && err.message };
@@ -451,12 +455,27 @@ class UnifiedOrchestrator extends EventEmitter {
       const repairRes = await this.withLock('repair', () => this.safeRun('autoRepair', () => this.autoRepair()));
       const commRes = await this.withLock('commercial', () => this.safeRun('commercialMonitor', () => this.commercialMonitor()));
       this.state.cycles += 1;
+      if (!this.state.shadowMode) {
+        if (ordersRes && typeof ordersRes.processed === 'number') {
+          this.state.ordersProcessed = (this.state.ordersProcessed || 0) + ordersRes.processed;
+        }
+        if (repairRes && Array.isArray(repairRes.restarted)) {
+          this.state.modulesRepaired = (this.state.modulesRepaired || 0) + repairRes.restarted.length;
+        }
+        if (this.state.cycles === 1 && !this.state.backupsDone) {
+          await this.withLock('backup', () => this.safeRun('backupDatabase', () => this.backupDatabase(), 300000));
+        }
+      }
       this.writeStatus();
-      console.log(JSON.stringify({
+      const entry = JSON.stringify({
         cycle: this.state.cycles,
         shadowMode: this.state.shadowMode,
+        ordersProcessed: this.state.ordersProcessed || 0,
+        modulesRepaired: this.state.modulesRepaired || 0,
+        backupsDone: this.state.backupsDone || 0,
         mem: process.memoryUsage().heapUsed,
         locks: [...this.locks.keys()],
+        timestamp: new Date().toISOString(),
         results: {
           healthCheck: healthRes,
           syncPrices: pricesRes,
@@ -464,7 +483,14 @@ class UnifiedOrchestrator extends EventEmitter {
           autoRepair: repairRes,
           commercialMonitor: commRes,
         },
-      }));
+      });
+      console.log(entry);
+      if (!this.state.shadowMode) {
+        try {
+          const liveLog = process.env.ORCHESTRATOR_LIVE_LOG || '/var/log/orchestrator-live.log';
+          fs.appendFileSync(liveLog, entry + '\n');
+        } catch (_) { /* best-effort in read-only test env */ }
+      }
     };
     this._timer = setInterval(tick, Number(process.env.ORCHESTRATOR_TICK_MS || 30000));
     this._backupTimer = setInterval(() => {
