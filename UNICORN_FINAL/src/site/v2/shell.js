@@ -947,11 +947,12 @@ function navBar(route) {
 </button>
 <div class="nav-links" id="nav-links">
 ${L('/', 'Home')}${L('/products', 'Products')}${L('/services', 'Marketplace')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/trust', 'Trust &amp; Security')}${L('/docs', 'Developers')}${L('/account', 'Account')}
-<a href="/buy" data-link hidden aria-hidden="true" tabindex="-1">Buy</a>
+<a href="/buy" data-link hidden aria-hidden="true" tabindex="-1">Buy AI Service</a>
 <div class="nav-more" data-nav-more hidden aria-hidden="true">
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn hidden tabindex="-1">More</button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden aria-hidden="true">
     ${L('/social-network', 'ZeusAI Social ⚡')}
+    ${L('/innovations', 'Innovation map')}
     ${L('/solutions/model-routing', 'Model Routing')}
     ${L('/solutions/self-healing', 'Self-Healing')}
     ${L('/solutions/autonomous-agents', 'Autonomous Agents')}
