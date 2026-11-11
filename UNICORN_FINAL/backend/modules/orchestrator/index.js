@@ -369,7 +369,17 @@ class UnifiedOrchestrator extends EventEmitter {
 
     let scoreRepair = null;
     try {
-      scoreRepair = require('../../../modules/score').repair();
+      let scoreMod;
+      try {
+        scoreMod = require('../../../modules/score');
+      } catch (_) {
+        try {
+          scoreMod = require('../score');
+        } catch (__) {
+          scoreMod = require('/var/www/unicorn/current/modules/score');
+        }
+      }
+      scoreRepair = scoreMod.repair();
     } catch (err) {
       scoreRepair = { ok: false, error: err && err.message };
     }
