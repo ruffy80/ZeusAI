@@ -3773,6 +3773,7 @@ function pageOperator() {
           ['Failovers', fmtNum(counts.rail_failover)],
           ['Partial NOW', fmtNum(counts.partial_paid_seen)],
           ['Settle Q', fmtNum((d.settleQueue && d.settleQueue.pending) || 0)],
+          ['Settle retry', fmtNum((d.settleQueue && d.settleQueue.deadLettered) || 0)],
           ['Telemetry', fmtNum(d.telemetryEvents)]
         ];
         if (grid) grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+esc(c[0])+'</span><h3 style="font-size:16px">'+esc(c[1])+'</h3></div>').join('');

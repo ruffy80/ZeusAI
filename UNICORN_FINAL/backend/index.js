@@ -9000,6 +9000,30 @@ app.get('/api/admin/analytics/funnel', adminCrudRateLimit, adminTokenMiddleware,
   return res.json({ ok: true, totalBuffered: funnelEvents.length, returned: recent.length, summary, events: recent });
 });
 
+app.get('/api/admin/payments/settle-queue', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!providerSettleQueue || typeof providerSettleQueue.getDeadLetters !== 'function') {
+    return res.status(503).json({ ok: false, error: 'provider_settle_queue_unavailable' });
+  }
+  const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 50));
+  return res.json({
+    ok: true,
+    status: providerSettleQueue.getStatus(),
+    deadLetters: providerSettleQueue.getDeadLetters(limit),
+  });
+});
+
+app.post('/api/admin/payments/settle-queue/:id/retry', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!providerSettleQueue || typeof providerSettleQueue.retryDeadLetter !== 'function') {
+    return res.status(503).json({ ok: false, error: 'provider_settle_queue_unavailable' });
+  }
+  const result = providerSettleQueue.retryDeadLetter(req.params.id);
+  if (!result.ok) {
+    const status = result.reason === 'not_found' ? 404 : result.reason === 'already_pending' ? 409 : 400;
+    return res.status(status).json(result);
+  }
+  return res.status(202).json(result);
+});
+
 // Single-pane operational summary for business + engineering signals.
 // Panou unic de operare: business + inginerie.
 app.get('/api/admin/ops/summary', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {

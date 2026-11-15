@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { Readable } = require('node:stream');
+const { spawnSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'payment-rails-perfection-'));
@@ -265,10 +266,10 @@ function jsonRes() {
     assert.ok(commerceSrc.includes('resolveProviderSettleSecret'));
   });
 
-  await check('settle queue alerts Telegram on discard; email includes BTC address; explorer fallback', () => {
+  await check('settle queue alerts Telegram on dead-letter; email includes BTC address; explorer fallback', () => {
     const queueSrc = read('src/commerce/provider-settle-queue.js');
     assert.ok(queueSrc.includes('sendTelegram'));
-    assert.ok(queueSrc.includes('Provider settle queue discarded'));
+    assert.ok(queueSrc.includes('Provider settle queue dead-lettered'));
     const commerceSrc = read('src/site/sovereign-commerce.js');
     assert.ok(commerceSrc.includes('btcAddress: out.order.receive_address'));
     assert.ok(commerceSrc.includes('httpJsonExplorer'));
@@ -278,6 +279,16 @@ function jsonRes() {
     assert.ok(monitorSrc.includes('blockstream.info/api'));
     const backendSrc = read('backend/index.js');
     assert.ok(backendSrc.includes('missing_or_invalid_txid'));
+  });
+
+  await check('dead-letter recovery regression test', () => {
+    const result = spawnSync(process.execPath, [path.join(__dirname, 'provider-settle-queue.test.js')], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      timeout: 15_000,
+      env: { ...process.env, DISABLE_SELF_MUTATION: '1' },
+    });
+    assert.equal(result.status, 0, (result.stdout || '') + (result.stderr || ''));
   });
 
   if (failed) {

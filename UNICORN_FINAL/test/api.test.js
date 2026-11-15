@@ -148,6 +148,13 @@ async function runTests() {
     assert.equal(r.status, 401);
   });
 
+  await test('settlement recovery queue endpoints require admin token', async () => {
+    const list = await apiRequest('GET', '/api/admin/payments/settle-queue');
+    assert.equal(list.status, 401);
+    const retry = await apiRequest('POST', '/api/admin/payments/settle-queue/psq_test_12345678/retry');
+    assert.equal(retry.status, 401);
+  });
+
   await test('GET /api/health has security headers', async () => {
     const r = await apiRequest('GET', '/api/health');
     assert.equal(r.status, 200);

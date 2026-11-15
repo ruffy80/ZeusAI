@@ -324,6 +324,9 @@ function getTelemetrySnapshot() {
     counts: Object.assign({}, _counts),
     settleQueue: {
       pending: Number(queue.pending || 0),
+      deadLettered: Number(queue.deadLettered || 0),
+      oldestPendingAgeMs: Number(queue.oldestPendingAgeMs || 0),
+      oldestDeadLetterAgeMs: Number(queue.oldestDeadLetterAgeMs || 0),
       started: !!queue.started,
       lastError: queue.lastError || null,
     },
