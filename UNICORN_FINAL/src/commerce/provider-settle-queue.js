@@ -10,6 +10,7 @@ const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 5 * 60 * 1000;
 
 const pending = new Map();
+const deadLetters = new Map();
 let started = false;
 let timer = null;
 let processing = false;
@@ -41,6 +42,8 @@ function normalize(input) {
     invoiceId: input.invoiceId ? String(input.invoiceId).slice(0, 128) : undefined,
     meta: input.meta && typeof input.meta === 'object' ? input.meta : {},
     attempts: 0,
+    totalAttempts: 0,
+    retryCount: 0,
     nextAttemptAt: Date.now(),
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -54,8 +57,25 @@ function load() {
     try {
       const rec = JSON.parse(line);
       if (!rec || !rec.id) continue;
-      if (rec.event === 'settled' || rec.event === 'discarded') pending.delete(rec.id);
-      else pending.set(rec.id, rec);
+      if (rec.event === 'settled') {
+        pending.delete(rec.id);
+        deadLetters.delete(rec.id);
+      } else if (rec.event === 'dead_lettered' || rec.event === 'discarded') {
+        pending.delete(rec.id);
+        deadLetters.set(rec.id, Object.assign({}, rec, {
+          totalAttempts: Number(rec.totalAttempts || rec.attempts || 0),
+        }));
+      } else if (rec.event === 'retry_requeued') {
+        deadLetters.delete(rec.id);
+        pending.set(rec.id, Object.assign({}, rec, {
+          totalAttempts: Number(rec.totalAttempts || rec.attempts || 0),
+        }));
+      } else {
+        deadLetters.delete(rec.id);
+        pending.set(rec.id, Object.assign({}, rec, {
+          totalAttempts: Number(rec.totalAttempts || rec.attempts || 0),
+        }));
+      }
     } catch (_) {}
   }
 }
@@ -117,26 +137,35 @@ async function processQueue() {
     for (const record of due) {
       try {
         record.attempts += 1;
+        record.totalAttempts = Number(record.totalAttempts || 0) + 1;
         record.updatedAt = nowIso();
         append(Object.assign({}, record, { event: 'attempt' }));
         const result = await settle(record);
         pending.delete(record.id);
+        deadLetters.delete(record.id);
         append(Object.assign({}, record, { event: 'settled', settledAt: nowIso(), result }));
       } catch (e) {
         lastError = e && e.message ? e.message : String(e);
         const permanent = e && (e.status === 401 || e.status === 402 || e.status === 409);
         if (permanent || record.attempts >= MAX_ATTEMPTS) {
           pending.delete(record.id);
-          append(Object.assign({}, record, { event: 'discarded', discardedAt: nowIso(), error: lastError }));
+          const deadLetter = Object.assign({}, record, {
+            event: 'dead_lettered',
+            deadLetteredAt: nowIso(),
+            lastError,
+            updatedAt: nowIso(),
+          });
+          deadLetters.set(record.id, deadLetter);
+          append(deadLetter);
           try {
             const zac = require('../../backend/modules/zacAlertChannel');
             if (zac && typeof zac.sendTelegram === 'function') {
               Promise.resolve(zac.sendTelegram([
-                '🚨 *Provider settle queue discarded*',
+                '🚨 *Provider settle queue dead-lettered*',
                 `Order: \`${record.orderId}\``,
                 `Provider: \`${record.provider}\``,
                 record.providerRef ? `Ref: \`${record.providerRef}\`` : null,
-                `Attempts: ${record.attempts}/${MAX_ATTEMPTS}`,
+                `Attempts: ${record.attempts}/${MAX_ATTEMPTS} (total ${record.totalAttempts})`,
                 `Error: \`${String(lastError).slice(0, 180)}\``,
               ].filter(Boolean).join('\n'))).catch(() => {});
             }
@@ -166,6 +195,52 @@ function enqueue(input) {
   return { ok: true, id: record.id, orderId: record.orderId, provider: record.provider };
 }
 
+function getDeadLetters(limit) {
+  const max = Math.max(1, Math.min(200, Number.parseInt(limit, 10) || 50));
+  return Array.from(deadLetters.values())
+    .sort((a, b) => Date.parse(a.deadLetteredAt || a.discardedAt || a.createdAt || 0) - Date.parse(b.deadLetteredAt || b.discardedAt || b.createdAt || 0))
+    .slice(0, max)
+    .map((record) => ({
+      id: record.id,
+      orderId: record.orderId,
+      provider: record.provider,
+      providerRef: record.providerRef || null,
+      amountUsd: record.amountUsd == null ? null : record.amountUsd,
+      currency: record.currency || null,
+      attempts: Number(record.attempts || 0),
+      totalAttempts: Number(record.totalAttempts || record.attempts || 0),
+      retryCount: Number(record.retryCount || 0),
+      createdAt: record.createdAt || null,
+      deadLetteredAt: record.deadLetteredAt || record.discardedAt || null,
+      lastError: record.lastError || record.error || null,
+    }));
+}
+
+function retryDeadLetter(id) {
+  const key = String(id || '').trim();
+  if (!/^psq_[a-z0-9_]{8,80}$/i.test(key)) return { ok: false, reason: 'invalid_id' };
+  const record = deadLetters.get(key);
+  if (!record) return { ok: false, reason: pending.has(key) ? 'already_pending' : 'not_found' };
+
+  const retried = Object.assign({}, record, {
+    attempts: 0,
+    totalAttempts: Number(record.totalAttempts || record.attempts || 0),
+    retryCount: Number(record.retryCount || 0) + 1,
+    nextAttemptAt: Date.now(),
+    updatedAt: nowIso(),
+    retryRequestedAt: nowIso(),
+  });
+  delete retried.event;
+  delete retried.deadLetteredAt;
+  delete retried.discardedAt;
+  delete retried.error;
+  deadLetters.delete(key);
+  pending.set(key, retried);
+  append(Object.assign({}, retried, { event: 'retry_requeued' }));
+  schedule(0);
+  return { ok: true, id: key, orderId: retried.orderId, provider: retried.provider, retryCount: retried.retryCount };
+}
+
 function start() {
   if (started) return getStatus();
   started = true;
@@ -175,14 +250,20 @@ function start() {
 }
 
 function getStatus() {
+  const oldestAge = (records) => records.length
+    ? Math.max(0, Date.now() - Math.min(...records.map((record) => Date.parse(record.createdAt || '') || Date.now())))
+    : 0;
   return {
     ok: true,
     started,
     pending: pending.size,
+    deadLettered: deadLetters.size,
+    oldestPendingAgeMs: oldestAge(Array.from(pending.values())),
+    oldestDeadLetterAgeMs: oldestAge(Array.from(deadLetters.values())),
     maxAttempts: MAX_ATTEMPTS,
     queueFile: QUEUE_FILE,
     lastError,
   };
 }
 
-module.exports = { enqueue, start, getStatus };
+module.exports = { enqueue, start, getStatus, getDeadLetters, retryDeadLetter, processQueue };

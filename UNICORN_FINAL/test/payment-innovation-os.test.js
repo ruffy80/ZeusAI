@@ -152,6 +152,8 @@ check('telemetry snapshot is honest', () => {
   assert.equal(snap.ok, true);
   assert.equal(snap.protocol, 'PIOS/1.0');
   assert.ok(snap.counts);
+  assert.ok(Number.isInteger(snap.settleQueue.deadLettered));
+  assert.ok(Number.isFinite(snap.settleQueue.oldestDeadLetterAgeMs));
   assert.ok(/never invents GMV/i.test(snap.honesty));
 });
 
