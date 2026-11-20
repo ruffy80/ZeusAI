@@ -119,7 +119,7 @@ const shell = require('../src/site/v2/shell');
   assert.equal(btcHits[1], btcHits[2]);
   assert.equal(btcHits[0], audit.btc + ' BTC');
   assert.match(home, new RegExp('See all ' + shelfCount + ' services'));
-  assert.match(home, /Simulated route/);
+  assert.doesNotMatch(home, /Test the Router Live/);
   assert.match(home, /Buy the website audit/);
   assert.match(home, /Buy the website audit · \$[0-9,]+\.[0-9]{2} · /);
   assert.match(home, /PayPal, card, and NOWPayments pay this list\. Bitcoin pays 10% under it\./);
