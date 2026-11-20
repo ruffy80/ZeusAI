@@ -672,6 +672,7 @@ if (_abTesting) {
 // Applied at the `createServer` dispatcher level — see comment on
 // applySiteTopologyHeaders above for why we cannot use `app.use(...)`.
 const __siteWriteGuardSeen = new Map();
+const __SITE_OWNED_API_PREFIXES = ['/api/checkout/', '/api/concierge', '/api/funnel/', '/api/leads', '/api/referral', '/api/rum'];
 function applySiteWriteGuard(req, res, pathname, method) {
   try {
     const mode = String(process.env.SITE_API_WRITE_GUARD || 'warn').toLowerCase();
@@ -682,9 +683,13 @@ function applySiteWriteGuard(req, res, pathname, method) {
     const key = method + ' ' + pathname;
     const now = Date.now();
     const lastLogged = __siteWriteGuardSeen.get(key) || 0;
-    if (now - lastLogged > 60000) {
+    const isIntentionalSiteOwned = __SITE_OWNED_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+    const logCooldownMs = isIntentionalSiteOwned ? 3600000 : 60000;
+    if (now - lastLogged > logCooldownMs) {
       __siteWriteGuardSeen.set(key, now);
-      console.warn('[site-write-guard] mutation reached SITE (3001):', key, '— expect this on backend (3000) when nginx is healthy. BACKEND_API_URL=' + (process.env.BACKEND_API_URL || '<unset>'));
+      if (!isIntentionalSiteOwned) {
+        console.warn('[site-write-guard] mutation reached SITE (3001):', key, '— expect this on backend (3000) when nginx is healthy. BACKEND_API_URL=' + (process.env.BACKEND_API_URL || '<unset>'));
+      }
     }
     if (mode === 'enforce' && process.env.BACKEND_API_URL) {
       if (!res.headersSent) {
@@ -3809,8 +3814,11 @@ function buildSnapshot() {
     recommendations.push('Highlight active launchpad verticals directly from Unicorn runtime');
   }
   recommendations.push('Keep the site synced from backend marketplace and pricing feeds');
+  const nowIso = new Date().toISOString();
   return {
-    generatedAt: new Date().toISOString(),
+    ok: true,
+    ts: nowIso,
+    generatedAt: nowIso,
     health: backendSnapshot.health || { ok: true, service: 'unicorn-final', brand: 'ZeusAI' },
     profile: null,
     modules: liveHonestyOs && typeof liveHonestyOs.filterPublicModules === 'function'

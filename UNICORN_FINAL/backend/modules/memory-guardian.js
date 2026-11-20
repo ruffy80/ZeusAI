@@ -27,6 +27,7 @@
 'use strict';
 
 const os = require('os');
+const v8 = require('v8');
 
 const NAME = 'memory-guardian';
 const SAMPLE_INTERVAL_MS = Math.max(15000, Number(process.env.MEMORY_GUARDIAN_INTERVAL_MS || 60000));
@@ -69,6 +70,8 @@ function registerTrimmer(name, fn) {
 
 function _sample() {
   const mu = process.memoryUsage();
+  const v8Stats = typeof v8.getHeapStatistics === 'function' ? v8.getHeapStatistics() : null;
+  const heapLimit = (v8Stats && v8Stats.heap_size_limit > 0) ? v8Stats.heap_size_limit : Math.max(mu.heapTotal, _pm2LimitBytes());
   const total = os.totalmem();
   const free = os.freemem();
   return {
@@ -76,6 +79,7 @@ function _sample() {
     rss: mu.rss,
     heapUsed: mu.heapUsed,
     heapTotal: mu.heapTotal,
+    heapLimit,
     external: mu.external,
     systemUsedPct: total > 0 ? Math.round(((total - free) / total) * 10000) / 10000 : 0,
   };
@@ -85,7 +89,12 @@ function _evaluate(s) {
   const limit = _pm2LimitBytes();
   const reasons = [];
   if (s.rss > limit * RSS_PCT_OF_LIMIT) reasons.push('rss ' + Math.round(s.rss / 1048576) + 'MB > ' + Math.round(RSS_PCT_OF_LIMIT * 100) + '% of PM2 limit ' + Math.round(limit / 1048576) + 'MB');
-  if (s.heapTotal > 0 && s.heapUsed / s.heapTotal > HEAP_PCT) reasons.push('heap ' + Math.round((s.heapUsed / s.heapTotal) * 100) + '% > ' + Math.round(HEAP_PCT * 100) + '%');
+  // Measure heap pressure against V8's real heap_size_limit, NOT transient heapTotal
+  // (V8 routinely keeps heapUsed/heapTotal at 90-95% before expanding heapTotal, causing false-positive trim storms).
+  const effectiveHeapCeiling = Math.max(s.heapLimit || 0, s.heapTotal || 0);
+  if (effectiveHeapCeiling > 0 && s.heapUsed / effectiveHeapCeiling > HEAP_PCT) {
+    reasons.push('heap ' + Math.round((s.heapUsed / effectiveHeapCeiling) * 100) + '% > ' + Math.round(HEAP_PCT * 100) + '% of limit ' + Math.round(effectiveHeapCeiling / 1048576) + 'MB');
+  }
   if (s.systemUsedPct > SYSTEM_PCT) reasons.push('system ' + Math.round(s.systemUsedPct * 100) + '% > ' + Math.round(SYSTEM_PCT * 100) + '%');
   return reasons;
 }
@@ -154,7 +163,9 @@ function getStatus() {
       rssMB: Math.round(last.rss / 1048576),
       rssPctOfLimit: Math.round((last.rss / limit) * 10000) / 10000,
       heapUsedMB: Math.round(last.heapUsed / 1048576),
-      heapPct: last.heapTotal > 0 ? Math.round((last.heapUsed / last.heapTotal) * 10000) / 10000 : 0,
+      heapLimitMB: Math.round((last.heapLimit || last.heapTotal) / 1048576),
+      heapPct: (last.heapLimit || last.heapTotal) > 0 ? Math.round((last.heapUsed / (last.heapLimit || last.heapTotal)) * 10000) / 10000 : 0,
+      heapAllocatedPct: last.heapTotal > 0 ? Math.round((last.heapUsed / last.heapTotal) * 10000) / 10000 : 0,
       systemUsedPct: last.systemUsedPct,
       at: new Date(last.ts).toISOString(),
     } : null,

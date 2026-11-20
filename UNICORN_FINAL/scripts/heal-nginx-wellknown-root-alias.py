@@ -146,12 +146,25 @@ def main() -> int:
             src = src3
             notes.append("rewrote single-line /ads.txt alias")
 
-    src, ok = ensure_block(src, "location = /.well-known/security.txt", EXACT_SECURITY)
-    if ok:
-        notes.append("added exact /.well-known/security.txt proxy")
-    src, ok = ensure_block(src, "location = /.well-known/zeusai.json", EXACT_ZEUSAI)
-    if ok:
-        notes.append("added exact /.well-known/zeusai.json proxy")
+    # Also inspect included nginx snippets so we never inject duplicate exact
+    # locations that already live inside /etc/nginx/snippets/zeus-public-discovery.conf.
+    included_text = ""
+    for inc in re.findall(r"include\s+([^;\s]+);", src):
+        inc_path = pathlib.Path(inc)
+        if inc_path.is_file():
+            try:
+                included_text += "\n" + inc_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
+
+    if "location = /.well-known/security.txt" not in included_text:
+        src, ok = ensure_block(src, "location = /.well-known/security.txt", EXACT_SECURITY)
+        if ok:
+            notes.append("added exact /.well-known/security.txt proxy")
+    if "location = /.well-known/zeusai.json" not in included_text:
+        src, ok = ensure_block(src, "location = /.well-known/zeusai.json", EXACT_ZEUSAI)
+        if ok:
+            notes.append("added exact /.well-known/zeusai.json proxy")
 
     # Catch-all must never remain a /root alias even if rewrite above missed.
     if re.search(r"location\s+\^~\s+/\.well-known/[\s\S]{0,200}alias\s+/root/", src):

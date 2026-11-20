@@ -676,27 +676,62 @@ _REQUIRED_LOCATIONS = [
 ]
 
 
-def _ensure_required_locations(target_path, already=""):
-    """Append REQUIRED locations that are missing from the snippet.
+def _strip_location_block(text, match_prefix):
+    """Remove a location block starting with match_prefix (balanced braces)."""
+    idx = text.find(match_prefix)
+    if idx < 0:
+        return text, False
+    # Include optional preceding comment line if it starts with '#'
+    start = idx
+    prev_nl = text.rfind("\n", 0, idx)
+    if prev_nl >= 0:
+        prev_prev_nl = text.rfind("\n", 0, prev_nl)
+        prev_line = text[prev_prev_nl + 1 : prev_nl].strip()
+        if prev_line.startswith("#"):
+            start = prev_prev_nl + 1
+    brace_open = text.find("{", idx)
+    if brace_open < 0:
+        return text, False
+    depth = 0
+    end = brace_open
+    for i in range(brace_open, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end < len(text) and text[end] == "\n":
+        end += 1
+    return text[:start] + text[end:], True
 
-    `already` is the live vhost text. A location that already exists there
-    must not be copied into the included snippet: nginx rejects the duplicate
-    and the failed `nginx -t` restores the snippet, which used to drop the
-    Google HTML route on every deploy.
+
+def _ensure_required_locations(target_path, already=""):
+    """Append REQUIRED locations that are missing from the snippet AND deduplicate
+    any location that already exists in `already` (live vhost) to prevent
+    nginx [emerg] duplicate location errors on reload.
     """
     try:
         current = _read(target_path)
     except FileNotFoundError:
         return 0
-    appended = 0
+    changed = 0
     for entry in _REQUIRED_LOCATIONS:
-        if entry["match"] in current or entry["match"] in (already or ""):
+        in_snippet = entry["match"] in current
+        in_vhost = entry["match"] in (already or "")
+        if in_snippet and in_vhost:
+            current, removed = _strip_location_block(current, entry["match"])
+            if removed:
+                changed += 1
+            continue
+        if in_snippet or in_vhost:
             continue
         current += entry["block"]
-        appended += 1
-    if appended:
+        changed += 1
+    if changed:
         _write(target_path, current)
-    return appended
+    return changed
 
 
 def _snippet_looks_colliding(text):

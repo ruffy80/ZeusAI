@@ -21,26 +21,71 @@ const https = require('https');
 const ledger = require('./btcInvoiceLedger');
 
 const MEMPOOL_API   = process.env.BTC_MEMPOOL_API || 'https://mempool.space/api';
+const FALLBACK_APIS = (process.env.BTC_MEMPOOL_FALLBACKS || 'https://blockstream.info/api,https://mempool.emzy.de/api')
+  .split(',')
+  .map((s) => s.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+const PROVIDER_URLS = Array.from(new Set([MEMPOOL_API.replace(/\/+$/, ''), ...FALLBACK_APIS]));
 const POLL_INTERVAL = parseInt(process.env.BTC_POLL_INTERVAL || '30000', 10); // 30s
 const MIN_CONF      = parseInt(process.env.BTC_MIN_CONFIRMATIONS || '1', 10);
 const ACCEPT_UNCONF = process.env.BTC_ACCEPT_UNCONFIRMED === '1';
 
-function fetchJSON(url, timeoutMs = 8000) {
+function fetchJSON(url, timeoutMs = 8000, { silent = false } = {}) {
   return new Promise((resolve) => {
-    const req = https.get(url, { timeout: timeoutMs }, (res) => {
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      resolve(val);
+    };
+    const req = https.get(url, {
+      timeout: timeoutMs,
+      agent: false, // Dedicated fresh socket prevents stale keep-alive 'socket hang up'
+      headers: {
+        'User-Agent': 'ZeusAI-BTC-Verifier/2.0 (+https://zeusai.pro)',
+        'Accept': 'application/json',
+        'Connection': 'close',
+      },
+    }, (res) => {
+      if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+        res.resume();
+        return finish(null);
+      }
       let buf = ''; res.setEncoding('utf8');
       res.on('data', (c) => { buf += c; });
-      res.on('end', () => { try { resolve(JSON.parse(buf)); } catch { resolve(null); } });
+      res.on('end', () => { try { finish(JSON.parse(buf)); } catch { finish(null); } });
+      res.on('error', () => finish(null));
     });
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-    req.on('error', (e) => { console.warn('[btcPaymentVerifier] fetchJSON network error:', e.message); resolve(null); });
+    req.on('timeout', () => {
+      req.destroy();
+      finish(null);
+    });
+    req.on('error', (e) => {
+      if (!settled && !silent) {
+        console.warn('[btcPaymentVerifier] fetchJSON network error:', e.message);
+      }
+      finish(null);
+    });
   });
 }
 
-async function fetchAddressTxs(address) {
-  // Confirmed + mempool combined endpoint:
-  const confirmed = await fetchJSON(`${MEMPOOL_API}/address/${address}/txs`);
-  return Array.isArray(confirmed) ? confirmed : [];
+async function fetchAddressTxs(address, stats) {
+  let lastFail = null;
+  for (let i = 0; i < PROVIDER_URLS.length; i++) {
+    const base = PROVIDER_URLS[i];
+    const isLast = i === PROVIDER_URLS.length - 1;
+    const confirmed = await fetchJSON(`${base}/address/${address}/txs`, 8000, { silent: !isLast });
+    if (Array.isArray(confirmed)) {
+      if (stats) {
+        stats.activeProvider = base;
+        if (i > 0) stats.providerFailovers = (stats.providerFailovers || 0) + 1;
+      }
+      return confirmed;
+    }
+    lastFail = base;
+  }
+  if (stats) stats.lastFailedProvider = lastFail;
+  return [];
 }
 
 function txOutputsToAddress(tx, address) {
@@ -55,7 +100,7 @@ function createPaymentVerifier({
   intervalMs = POLL_INTERVAL,
 } = {}) {
   let timer = null;
-  const stats = { polls: 0, matches: 0, errors: 0, lastPoll: null, lastMatch: null };
+  const stats = { polls: 0, matches: 0, errors: 0, providerFailovers: 0, activeProvider: PROVIDER_URLS[0], lastPoll: null, lastMatch: null };
 
   async function tick() {
     stats.polls += 1;
@@ -63,7 +108,7 @@ function createPaymentVerifier({
     const pending = ledger.listPending();
     if (pending.length === 0) return;
 
-    const txs = await fetchAddressTxs(address);
+    const txs = await fetchAddressTxs(address, stats);
     if (!txs.length) return;
 
     // Build sats -> [tx] map for fast lookup

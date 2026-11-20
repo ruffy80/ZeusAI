@@ -33,7 +33,8 @@ let _git = null;
 function getGit() {
   if (_git) return _git;
   try {
-    const simpleGit = require('simple-git');
+    const _sg = require('simple-git');
+    const simpleGit = typeof _sg === 'function' ? _sg : _sg.simpleGit;
     const rootPath  = path.join(__dirname, '..', '..'); // UNICORN_FINAL root
     _git = simpleGit(rootPath, { binary: 'git' });
     return _git;
