@@ -100,7 +100,8 @@ class UniversalCapabilityDispatcher {
         'summary', 'status', 'discoverModels', 'enforceContinuum', 'distributeViralPulse',
         'computeGlobalScore', 'generateSnapshot', 'evolveContinuum', 'auditTriLayerMatrix',
         'syncSearchAndAnswerEngines', 'auditSupplyChain', 'stabilizeRuntime', 'getImmunityCertificate',
-        'getCatalogCapabilities', 'runScheduledCycles',
+        'getCatalogCapabilities', 'runScheduledCycles', 'discoverActiveModels', 'getSwarmManifest',
+        'runAcquisitionPulse', 'getDiscoveryManifest',
       ]);
 
       if (safeDirectCallIds.has(fnName) && typeof mod[fnName] === 'function') {

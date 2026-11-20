@@ -1,0 +1,70 @@
+{
+  "name": "autonomous-client-magnet",
+  "version": "1.0.0",
+  "description": "ACME/1.0 — Autonomous Proof-Before-Pay Client Acquisition Magnet, Live URL Diagnostic Teaser, Cryptographic 10%/10% Viral Referral Bounty Flywheel, and Post-Purchase Compounding Upgrade Engine",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "runAcquisitionPulse",
+      "type": "write",
+      "schedule": "0 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 2500,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getDiscoveryManifest",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "seo-aeo-geo-singularity",
+    "autonomous-service-provisioning",
+    "neural-swarm-llm-cascade"
+  ],
+  "provides": [
+    "proof_before_pay_diagnostic_magnet",
+    "viral_referral_bounty_flywheel",
+    "autonomous_acquisition_pulse",
+    "post_purchase_compounding_upgrades"
+  ],
+  "failureModes": [
+    {
+      "symptom": "external prospect url unreachable during teaser scan",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 45,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

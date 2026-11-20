@@ -6466,6 +6466,63 @@ app.post('/api/autonomous-service/:orderId/run', express.json({ limit: '16kb' })
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// ZEUSAI NEURAL SWARM LLM CASCADE (NSC/1.0) & AUTONOMOUS CLIENT MAGNET (ACME/1.0)
+// ============================================================================
+app.get(['/.well-known/llm-swarm.json', '/api/llm-swarm/status'], (req, res) => {
+  try {
+    const nsc = require('./modules/neural-swarm-llm-cascade');
+    res.set('Cache-Control', 'no-store');
+    res.json(nsc.getSwarmManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/llm-swarm/discover', async (req, res) => {
+  try {
+    const nsc = require('./modules/neural-swarm-llm-cascade');
+    const out = await nsc.discoverActiveModels();
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/client-magnet.json', '/api/magnet/status'], (req, res) => {
+  try {
+    const acme = require('./modules/autonomous-client-magnet');
+    res.set('Cache-Control', 'no-store');
+    res.json(acme.getDiscoveryManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/magnet/instant-audit-teaser', express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const acme = require('./modules/autonomous-client-magnet');
+    const url = req.body && req.body.url;
+    const out = await acme.runProofBeforePayTeaser(url);
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/magnet/referral', express.json({ limit: '4kb' }), (req, res) => {
+  try {
+    const acme = require('./modules/autonomous-client-magnet');
+    const rec = acme.createReferralLink(req.body && (req.body.owner || req.body.email || req.body.domain));
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, referral: rec });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);
