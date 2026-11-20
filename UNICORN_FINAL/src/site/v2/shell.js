@@ -1328,8 +1328,8 @@ ${route === '/' ? '' : `<script${N} src="${assetPath('/assets/app.js')}" defer><
 
 function concierge() {
   return `<div class="concierge" id="zeusDock">
-  <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Omniscient AI">⚡</button>
-  <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus Omniscient AI Architect">
+  <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Concierge">⚡</button>
+  <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus Omniscient AI<span class="meta" id="conciergeMeta">OMNISCIENT-1.0</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
       <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
@@ -1341,7 +1341,7 @@ function concierge() {
       <button class="chip" data-q="Generează o mostră live 30% Reverse-SaaS Escrow pentru domeniul meu mycompany.io">⚡ Mostră Live 30%</button>
     </div>
     <div class="concierge-foot">
-      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau scrie domeniul tău… (Enter)" autocomplete="off" aria-label="Ask Zeus Omniscient AI anything"></textarea>
+      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau scrie domeniul tău… (Enter)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
       <button id="conciergeSend" aria-label="Send">→</button>
     </div>
   </div>
