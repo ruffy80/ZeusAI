@@ -158,7 +158,8 @@ async function main() {
     });
     const home = require('../src/site/v2/shell').getHtml('/');
     assert.ok(home.indexOf('id="dtHeroH1"') < home.indexOf('id="homeGuideLine"'));
-    assert.ok(home.indexOf('id="costDemoSection"') < home.indexOf('id="homeDoors"'));
+    assert.ok(home.indexOf('id="heroExecutiveCard"') < home.indexOf('id="homeDoors"'));
+    assert.ok(home.includes('id="costDemoSection"'));
     assert.ok(home.indexOf('id="homeDoors"') < home.indexOf('id="unicornEcosystem"'));
     assert.ok(home.includes('href="/services/instant-website-audit"'));
     assert.ok(home.includes('href="/services/instant-resume-makeover"'));
