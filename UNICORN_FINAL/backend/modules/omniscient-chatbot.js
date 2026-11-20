@@ -538,7 +538,8 @@ class ZeusOmniscientBrain {
       };
     }
 
-    const isAskingModules = /\b(modul|module|modulele|modules|orchestrator|zacc|witness|adi-core|cryptobridge|cryptoauth|notificationmesh|uaic|singularity|state\s*machine|blue\s*green|consensus|roic|cate module|câte module|arhitectura|arhitectură)\b/i.test(message);
+    const isAskingRouterTest = /\b(test\s*(the\s*)?router|testeaz[ăa]\s*router(?:ul)?|optimize\s*prompt|optimizeaz[ăa]\s*prompt(?:ul)?|calculate\s*savings|economii\s*(llm|api|ai)|cost\s*router|route\s*prompt|\/route\b|simuleaz[ăa]\s*router(?:ul)?)\b/i.test(message);
+    const isAskingModules = /\b(modul|module|modulele|modules|orchestrator|zacc|witness|adi-core|cryptobridge|cryptoauth|notificationmesh|uaic|singularity|state\s*machine|blue\s*green|consensus|roic|cate module|câte module|arhitectura|arhitectură|asri|immunity|supply\s*chain)\b/i.test(message);
     const isAskingEnterprise = /\b(enterprise|4\s*mil|4,000,000|4000000|1,200,000|500,000|350,000|250,000|150,000|50,000|scump|licenta|licență|whitelabel|white-label|private\s*cloud|achizitie|achiziție)\b/i.test(message);
     const isAskingAllServices = /\b(toate serviciile|all services|ce servicii|what services|catalog|lista|listă|preturi|prețuri|pricing|ce vinzi|ce oferi|ce vinde)\b/i.test(message);
     const domainMatch = message.match(/\b([a-z0-9-]+\.(?:ro|com|io|ai|pro|net|org|eu|co|dev|app|tech|shop|store))\b/i);
@@ -546,6 +547,47 @@ class ZeusOmniscientBrain {
     const latentProfile = this.diagnoseLatentNeeds(message);
     const sections = [];
     const recItems = [];
+
+    // -----------------------------------------------------------------------
+    // 0. Live AI Model Router Cost Optimizer right inside the Chatbot!
+    // -----------------------------------------------------------------------
+    let routerSimulation = null;
+    if (isAskingRouterTest) {
+      try {
+        const demoRouter = require('../../src/site/demo-router');
+        const cleanedPrompt = message
+          .replace(/^(?:\/route|test\s*(?:the\s*)?router(?:\s+ai)?(?:\s+live)?(?:\s+on\s+prompt)?|testeaz[ăa]\s*routerul?(?:\s+ai)?(?:\s+live)?(?:\s+pe\s+promptul)?|optimize\s*prompt|simuleaz[ăa]\s*routerul?)\s*[:\-]?\s*/i, '')
+          .trim() || demoRouter.EXAMPLE_PROMPT;
+        const sim = demoRouter.optimizePrompt(cleanedPrompt);
+        if (sim && sim.ok) {
+          routerSimulation = sim;
+          if (lang === 'ro') {
+            sections.push(
+              `⚡ **Test Live Router AI ZeusAI (Cost Optimizer & Arbitrage):**\n`
+              + `• **Prompt analizat:** \`${cleanedPrompt.slice(0, 120)}${cleanedPrompt.length > 120 ? '…' : ''}\`\n`
+              + `• **Model selectat optim:** **${sim.routedTo}**\n`
+              + `• **Latență estimată:** \`${sim.latencyMs} ms\`\n`
+              + `• **Cost prin ZeusAI Router:** \`$${Number(sim.costUsd).toFixed(4)}\` vs. **GPT-4 direct:** \`$${Number(sim.gpt4CostUsd).toFixed(4)}\`\n`
+              + `• **Economie netă instant:** **🔥 ${sim.savingsPct}% mai ieftin!**\n`
+              + `*Notă transparentă: rutare simulată local — promptul NU este stocat. Poți testa orice alt prompt direct în tab-ul **⚡ Router Tester** de sus sau tastând \`/route <promptul tău>\`.*`
+            );
+          } else {
+            sections.push(
+              `⚡ **ZeusAI Live Model Router Test (Cost Optimizer & Arbitrage):**\n`
+              + `• **Prompt analyzed:** \`${cleanedPrompt.slice(0, 120)}${cleanedPrompt.length > 120 ? '…' : ''}\`\n`
+              + `• **Optimal model selected:** **${sim.routedTo}**\n`
+              + `• **Estimated latency:** \`${sim.latencyMs} ms\`\n`
+              + `• **ZeusAI Routed Cost:** \`$${Number(sim.costUsd).toFixed(4)}\` vs. **GPT-4 Baseline:** \`$${Number(sim.gpt4CostUsd).toFixed(4)}\`\n`
+              + `• **Instant Net Savings:** **🔥 ${sim.savingsPct}% saved!**\n`
+              + `*Transparent note: simulated route — your prompt is never stored. Switch to the **⚡ Router Tester** tab above or type \`/route <your prompt>\` to benchmark any prompt.*`
+            );
+          }
+          if (byServiceId.has('instant-website-audit')) {
+            recItems.push({ svc: byServiceId.get('instant-website-audit'), badge: lang === 'ro' ? 'ECONOMIE ' + sim.savingsPct + '%' : 'SAVE ' + sim.savingsPct + '%' });
+          }
+        }
+      } catch (_) {}
+    }
 
     // -----------------------------------------------------------------------
     // A. Domain detected -> Auto-generate 30% Reverse-SaaS Escrow Preview!
@@ -706,11 +748,12 @@ class ZeusOmniscientBrain {
     return {
       ok: true,
       lang,
-      intent: isAskingModules ? 'modules' : (isAskingEnterprise ? 'enterprise' : 'advisor'),
+      intent: isAskingRouterTest ? 'router-test' : (isAskingModules ? 'modules' : (isAskingEnterprise ? 'enterprise' : 'advisor')),
       provider: 'zeus-omniscient-v1',
       model: 'OMNISCIENT-ARCHITECT/1.0',
       reply: replyText,
       escrowPreview,
+      routerSimulation,
       recommendations: finalRecs.map(({ svc, badge }) => ({
         id: svc.id,
         title: `${badge ? `[${badge}] ` : ''}${svc.title}`,
@@ -753,6 +796,7 @@ class ZeusOmniscientBrain {
   _defaultQuickReplies(lang) {
     if (lang === 'ro') {
       return [
+        { label: '⚡ Test Router Live (-97%)', q: 'Testează routerul AI live pe promptul: Write a Python script to scrape a website' },
         { label: '📦 Toate serviciile ($39 – $4M)', q: 'Arată-mi toate serviciile din site și prețurile lor inclusiv Enterprise până la 4 milioane $' },
         { label: '⚙️ Ce face fiecare modul?', q: 'Explică-mi ce face și pentru ce e făcut fiecare modul din Unicorn (orchestrator, zacc, witness, adi-core, cryptoBridge)' },
         { label: '🔮 Ce servicii îmi lipsesc?', q: 'Am o afacere online și vreau să îmi crești vânzările și automatizarea. Ce servicii îmi recomanzi la care nu m-am gândit?' },
@@ -761,6 +805,7 @@ class ZeusOmniscientBrain {
       ];
     }
     return [
+      { label: '⚡ Test Router Live (-97%)', q: 'Test the router live on prompt: Write a Python script to scrape a website' },
       { label: '📦 All services ($39 – $4M)', q: 'Show me all services on the site and their prices including Enterprise up to $4,000,000' },
       { label: '⚙️ What does each module do?', q: 'Explain what each Unicorn module does and why it was built (orchestrator, zacc, witness, adi-core, cryptoBridge)' },
       { label: '🔮 Unthought business needs', q: 'I run an online business and want to scale revenue and automation. Recommend services I need but have not thought of yet' },

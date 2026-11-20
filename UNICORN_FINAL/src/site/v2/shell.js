@@ -888,14 +888,23 @@ footer{padding:48px 7vw 28px}
 .foot-grid li{margin:6px 0}
 .foot-bot{max-width:1480px;margin:24px auto 0;padding-top:16px;border-top:1px solid var(--stroke);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--ink-dim);font-size:12px}
 .concierge{position:fixed;right:18px;bottom:18px;z-index:80}
-.concierge-btn{width:56px;height:56px;border-radius:50%;border:0;background:#8a5cff;color:#fff;font-size:24px;cursor:pointer}
+.concierge-btn{width:58px;height:58px;border-radius:50%;border:1px solid rgba(167,139,250,.55);background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 10px 30px rgba(138,92,255,.45);transition:transform .2s ease,box-shadow .2s ease}
+.concierge-btn:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 14px 36px rgba(138,92,255,.6)}
 .concierge-panel{display:none}
-.concierge-panel.open{display:flex;position:absolute;right:0;bottom:72px;width:min(400px,calc(100vw - 32px));max-height:70vh;flex-direction:column;gap:8px;padding:12px;border-radius:18px;border:1px solid rgba(138,92,255,.6);background:#0a0818;color:var(--ink);overflow:auto}
+.concierge-panel.open{display:flex;position:absolute;right:0;bottom:74px;width:min(430px,calc(100vw - 28px));max-height:76vh;flex-direction:column;gap:8px;padding:14px;border-radius:20px;border:1px solid rgba(138,92,255,.55);background:rgba(10,8,24,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 64px rgba(0,0,0,.65);color:var(--ink);overflow:auto}
+.concierge-tabs{display:flex;gap:6px;padding:4px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.concierge-tab{flex:1;padding:7px 10px;border-radius:9px;border:0;background:transparent;color:var(--ink-dim);font-size:12px;font-weight:600;cursor:pointer;transition:background .18s ease,color .18s ease}
+.concierge-tab.active{background:linear-gradient(135deg,rgba(138,92,255,.38),rgba(62,160,255,.28));color:#fff;box-shadow:inset 0 0 0 1px rgba(138,92,255,.5)}
+.concierge-router-wrap{padding:0!important;margin:0!important}
+.concierge-router-wrap .cost-demo{margin:0;padding:14px;border-radius:14px;background:rgba(18,14,40,.65);border:1px solid rgba(138,92,255,.32)}
+.concierge-router-wrap .cost-demo h2{font-size:16px;margin:0 0 8px}
+.concierge-router-wrap .cost-demo textarea{min-height:84px;font-size:13.5px;padding:10px 12px}
+.concierge-router-wrap .cost-demo .btn{width:100%;justify-content:center;padding:10px 14px;font-size:13.5px}
 .concierge-foot{display:flex;gap:8px;align-items:flex-end}
 .concierge-foot textarea{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:8px;font:inherit}
 .chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
 .lang-mark{display:inline-flex;align-items:center;border:1px solid var(--stroke);color:var(--ink-dim);border-radius:12px;padding:8px 10px;font-size:12px;letter-spacing:.06em}
-.home-locale{margin:12px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
+.home-locale{margin:10px 0 0;color:var(--ink-dim);font-size:12px;max-width:68ch;opacity:.75}
 .nav-more{position:relative}
 .nav-more-btn{background:transparent;border:0;color:var(--ink);font:inherit;padding:8px 10px;cursor:pointer}
 .nav-more-menu{position:absolute;top:100%;right:0;min-width:200px;background:#0b0a12;border:1px solid var(--stroke);border-radius:14px;padding:8px;z-index:60}
@@ -917,12 +926,31 @@ footer{padding:48px 7vw 28px}
 </style>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
 <style${nonceAttr}>
-html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
-html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
+html[data-route="/"] .hero{min-height:0;padding:124px clamp(20px,5vw,64px) 56px}
+html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:clamp(28px,4vw,56px);max-width:1320px}
+html[data-route="/"] main#app > section:not(.hero){max-width:1320px;margin-left:auto!important;margin-right:auto!important;padding:clamp(44px,5vw,68px) clamp(20px,4vw,32px) 0}
+html[data-route="/"] .card{background:linear-gradient(180deg,rgba(18,15,38,.74),rgba(10,8,22,.82));border:1px solid rgba(138,92,255,.22);border-radius:20px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+html[data-route="/"] .card:hover{border-color:rgba(138,92,255,.48);box-shadow:0 18px 42px -18px rgba(138,92,255,.32);transform:translateY(-2px)}
+.hero-exec-card{position:relative;padding:28px;border-radius:24px;background:linear-gradient(155deg,rgba(20,16,44,.86),rgba(9,7,20,.92));border:1px solid rgba(138,92,255,.38);box-shadow:0 28px 70px -24px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.10);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.hero-exec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.hero-exec-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#00ffa3;font-weight:700}
+.hero-exec-dot{width:8px;height:8px;border-radius:50%;background:#00ffa3;box-shadow:0 0 12px #00ffa3}
+.hero-exec-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.hero-exec-kpi{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
+.hero-exec-kpi strong{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.15;color:#fff}
+.hero-exec-kpi span{display:block;margin-top:4px;font-size:12px;color:var(--ink-dim)}
+.hero-exec-flow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-radius:14px;background:rgba(138,92,255,.09);border:1px solid rgba(138,92,255,.24);font-family:var(--mono);font-size:11.5px;color:#dbe7ff;margin-bottom:18px;flex-wrap:wrap}
+.hero-exec-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 18px;border-radius:14px;border:1px solid rgba(0,255,163,.42);background:linear-gradient(135deg,rgba(138,92,255,.28),rgba(0,212,255,.20));color:#fff;font-weight:700;font-size:14px;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.hero-exec-cta:hover{transform:translateY(-1px);border-color:#00ffa3;box-shadow:0 10px 28px -10px rgba(0,255,163,.45)}
+.hero-meta-bar{margin-top:20px;padding:14px 16px;border-radius:16px;background:rgba(8,6,20,.58);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(10px)}
+.hero-meta-bar .cost-trust{margin:0 0 10px;gap:6px}
+.hero-meta-bar .cost-trust li,.hero-meta-bar .cost-trust a{font-size:12px;padding:4px 10px;border-color:rgba(0,232,160,.32);background:rgba(0,232,160,.06)}
+.hero-meta-lines{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-dim);line-height:1.5}
+.hero-meta-lines .cost-trust-note{margin:0;font-size:12px}
 html[data-route="/"] #costDemoSection{padding:0;margin:0}
 html[data-route="/"] .cost-demo{margin:0}
-@media(max-width:980px){html[data-route="/"] .hero{padding:112px 18px 20px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
-@media(max-width:768px){html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}html[data-route="/"] #costDemoSection{margin-top:72px}}
+@media(max-width:980px){html[data-route="/"] .hero{padding:116px 18px 36px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
+@media(max-width:768px){html[data-route="/"] .hero{padding:108px 16px 28px;min-height:0}.hero-exec-card{padding:20px}}
 </style>
 </head>
 <body>
@@ -1331,17 +1359,38 @@ function concierge() {
   <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Concierge">⚡</button>
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus Omniscient AI<span class="meta" id="conciergeMeta">OMNISCIENT-1.0</span></div>
+    <div class="concierge-tabs" role="tablist" aria-label="Zeus AI Modes">
+      <button type="button" class="concierge-tab active" data-chat-tab="chat" role="tab" aria-selected="true">💬 AI Architect</button>
+      <button type="button" class="concierge-tab" data-chat-tab="router" role="tab" aria-selected="false">⚡ Router Tester</button>
+    </div>
+    <section id="costDemoSection" class="concierge-router-wrap" aria-labelledby="costDemoLabel" hidden>
+      <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
+        <h2 id="costDemoLabel">Test the Router Live</h2>
+        <div class="playground-presets" id="playgroundPresets" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">
+          <button type="button" class="preset-pill active" data-preset="1" data-prompt="Analyze enterprise customer churn and refund eligibility from EU Stripe logs while masking all PII data vectors." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.45);background:rgba(138,92,255,.20);color:#fff;cursor:pointer">⚡ Cost &amp; PII</button>
+          <button type="button" class="preset-pill" data-preset="2" data-prompt="Synthesize a real-time multi-source arbitrage matrix between OpenAI GPT-4o, Claude 3.5 Sonnet, and DeepSeek V3." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.22);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">📊 Arbitrage</button>
+          <button type="button" class="preset-pill" data-preset="3" data-prompt="Dispatch autonomous self-healing recovery routine across multi-cloud failover nodes with cryptographic Merkle proof." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.22);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">🛡️ Self-Healing</button>
+        </div>
+        <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
+        <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
+        <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
+        <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'Live demo — real model, real response. The prompt is not stored.' : 'Simulated route. No model provider is called. The prompt is not stored.'}</p>
+        <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
+        <div id="costDemoCta" style="display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35)"></div>
+      </form>
+    </section>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
+      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Apasă tab-ul <strong>⚡ Router Tester</strong> de sus (sau scrie <code>/route &lt;prompt&gt;</code>) ca să testezi live economiile routerului AI.<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>!</div></div>
     </div>
     <div class="chips" id="conciergeChips">
       <button class="chip" data-q="Arată-mi toate serviciile din site și prețurile lor inclusiv pachetele Enterprise">📦 Toate serviciile &amp; prețurile</button>
       <button class="chip" data-q="Explică-mi ce face și pentru ce e făcut fiecare modul din Unicorn (orchestrator, zacc, witness, adi-core, cryptoBridge)">⚙️ Ce face fiecare modul?</button>
+      <button class="chip" data-q="Testează routerul AI live pe promptul: Write a Python script to scrape a website">⚡ Test Router Live</button>
       <button class="chip" data-q="Am o afacere online și vreau să îmi crești vânzările și automatizarea. Ce servicii îmi recomanzi la care nu m-am gândit?">🔮 Nevoi Ascunse (Proactiv)</button>
       <button class="chip" data-q="Generează o mostră live 30% Reverse-SaaS Escrow pentru domeniul meu mycompany.io">⚡ Mostră Live 30%</button>
     </div>
-    <div class="concierge-foot">
-      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau scrie domeniul tău… (Enter)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
+    <div class="concierge-foot" id="conciergeFoot">
+      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau tastează /route <prompt>… (Enter)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
       <button id="conciergeSend" aria-label="Send">→</button>
     </div>
   </div>
@@ -1546,9 +1595,54 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Omniscient AI Chatbot controller on homepage (and fallback to request clock).
+  // Omniscient AI Chatbot controller + integrated Live Router Tester tab.
   try {
+    var setChatTab = function(mode){
+      var isRouter = mode === 'router';
+      var rSec = document.getElementById('costDemoSection');
+      var cBody = document.getElementById('conciergeBody');
+      var cChips = document.getElementById('conciergeChips');
+      var cFoot = document.getElementById('conciergeFoot');
+      if (rSec) rSec.hidden = !isRouter;
+      if (cBody) cBody.style.display = isRouter ? 'none' : '';
+      if (cChips) cChips.style.display = isRouter ? 'none' : '';
+      if (cFoot) cFoot.style.display = isRouter ? 'none' : '';
+      document.querySelectorAll('[data-chat-tab]').forEach(function(tb){
+        var act = tb.getAttribute('data-chat-tab') === mode;
+        tb.classList.toggle('active', act);
+        tb.setAttribute('aria-selected', act ? 'true' : 'false');
+      });
+    };
     document.addEventListener('click', function(ev){
+      var tabBtn = ev.target && ev.target.closest ? ev.target.closest('[data-chat-tab]') : null;
+      if (tabBtn) {
+        setChatTab(tabBtn.getAttribute('data-chat-tab') || 'chat');
+        return;
+      }
+      var presetBtn = ev.target && ev.target.closest ? ev.target.closest('#playgroundPresets .preset-pill') : null;
+      if (presetBtn) {
+        var promptEl = document.getElementById('costDemoPrompt');
+        var pVal = presetBtn.getAttribute('data-prompt') || '';
+        if (promptEl && pVal) {
+          promptEl.value = pVal;
+          document.querySelectorAll('#playgroundPresets .preset-pill').forEach(function(b){ b.classList.toggle('active', b === presetBtn); });
+          var cf = document.getElementById('costDemo');
+          if (cf) cf.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+        return;
+      }
+      var openRouter = ev.target && ev.target.closest ? ev.target.closest('[data-open-router-chat]') : null;
+      if (openRouter) {
+        var rp = document.getElementById('conciergePanel');
+        var ri = document.getElementById('costDemoPrompt');
+        if (rp) {
+          ev.preventDefault();
+          rp.classList.add('open');
+          setChatTab('router');
+          if (ri) setTimeout(function(){ ri.focus(); }, 80);
+        }
+        return;
+      }
       var trg = ev.target && ev.target.closest ? ev.target.closest('a[href="#concierge"],a[href="/#concierge"]') : null;
       if (!trg) return;
       var pnl = document.getElementById('conciergePanel');
@@ -1556,6 +1650,7 @@ function globalChrome(N) {
       if (pnl) {
         ev.preventDefault();
         pnl.classList.add('open');
+        setChatTab('chat');
         if (inp) setTimeout(function(){ inp.focus(); }, 80);
       }
     });
@@ -2413,48 +2508,45 @@ ${_zaccBanner}
       <div class="hero-cta">
         <a class="btn btn-primary dt-cta-glow" id="dtHeroCta" href="/services/instant-website-audit" data-link>Buy the website audit${_auditOfferText() ? (' · ' + _auditOfferText()) : ''}</a>
         <a class="btn" href="/products" data-link>Explore all ${(() => { try { return require('../../commerce/public-shelf').publicShelf().length; } catch (_) { return 0; } })()} services →</a>
-        <a class="btn" href="/contact" data-link>Get Enterprise Access</a>
-        <a class="btn btn-ghost" href="/client-dashboard" data-link style="background:rgba(138,92,255,.15);border-color:rgba(138,92,255,.5);font-weight:600">Launch Console →</a>
+        <a class="btn btn-ghost" href="/contact" data-link>Get Enterprise Access</a>
       </div>
-      <div class="hero-micro-telemetry" style="display:flex;gap:14px;align-items:center;margin:16px 0 10px;padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);font-family:var(--mono);font-size:12px;color:var(--ink-dim);flex-wrap:wrap">
-        <span><b style="color:#00ffa3">728</b> Neurons Online</span>
-        <span>•</span>
-        <span><b style="color:#3ea0ff">8</b> Corridors</span>
-        <span>•</span>
-        <span><b style="color:#ffd36a">&lt; 3.1ms</b> Latency</span>
-        <span>•</span>
-        <span>Health: <b style="color:#00ffa3">100%</b></span>
-        <span>•</span>
-        <span><b style="color:#f7931a">₿ 10% Off BTC</b></span>
-      </div>
-      <ul class="cost-trust" aria-label="Trust badges">
-        <li>Secure</li>
-        <li>Demo prompt not stored</li>
-        <li><a href="/privacy" data-link>GDPR Compliant</a></li>
-      </ul>
-      <p class="cost-trust-note" id="auditLiveBtc">${_esc(_auditOfferText())}</p>
-      <p class="cost-trust-note" id="auditLiveBtcLock">Price locked for 15 minutes · ${_esc(_auditBtcText())}</p>
-      <p class="cost-trust-note">PayPal, card, and NOWPayments pay this list. Bitcoin pays 10% under it.</p>
-      <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'This demo does not store the prompt. A configured demo key calls the named model.' : 'This demo does not store the prompt and does not call a model provider.'} Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
-      <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
-      ${authorityDesk.homeGuideLine()}
-    </div>
-    <section id="costDemoSection" aria-labelledby="costDemoLabel">
-      <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
-        <h2 id="costDemoLabel">Test the Router Live</h2>
-        <div class="playground-presets" id="playgroundPresets" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">
-          <button type="button" class="preset-pill active" data-preset="1" data-prompt="Analyze enterprise customer churn and refund eligibility from EU Stripe logs while masking all PII data vectors." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.4);background:rgba(138,92,255,.18);color:#fff;cursor:pointer">⚡ Cost &amp; PII</button>
-          <button type="button" class="preset-pill" data-preset="2" data-prompt="Synthesize a real-time multi-source arbitrage matrix between OpenAI GPT-4o, Claude 3.5 Sonnet, and DeepSeek V3." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.2);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">📊 Arbitrage</button>
-          <button type="button" class="preset-pill" data-preset="3" data-prompt="Dispatch autonomous self-healing recovery routine across multi-cloud failover nodes with cryptographic Merkle proof." style="font-size:11.5px;padding:4px 10px;border-radius:16px;border:1px solid rgba(138,92,255,.2);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">🛡️ Self-Healing</button>
+      <div class="hero-meta-bar">
+        <ul class="cost-trust" aria-label="Trust badges">
+          <li>Secure</li>
+          <li>Demo prompt not stored</li>
+          <li><a href="/privacy" data-link>GDPR Compliant</a></li>
+          <li>₿ 10% Off BTC</li>
+        </ul>
+        <div class="hero-meta-lines">
+          <p class="cost-trust-note" id="auditLiveBtc">${_esc(_auditOfferText())}</p>
+          <p class="cost-trust-note" id="auditLiveBtcLock">Price locked for 15 minutes · ${_esc(_auditBtcText())}</p>
+          <p class="cost-trust-note">PayPal, card, and NOWPayments pay this list. Bitcoin pays 10% under it.</p>
+          <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'This demo does not store the prompt. A configured demo key calls the named model.' : 'This demo does not store the prompt and does not call a model provider.'} Customer records follow the <a href="/privacy" data-link>privacy policy</a>.</p>
         </div>
-        <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
-        <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
-        <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
-        <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'Live demo — real model, real response. The prompt is not stored.' : 'Simulated route. No model provider is called. The prompt is not stored.'}</p>
-        <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
-        <div id="costDemoCta" style="display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35)"></div>
-      </form>
-    </section>
+        <p class="home-locale" id="homeLocale">English. The same page in every country. This address is not redirected.</p>
+        ${authorityDesk.homeGuideLine()}
+      </div>
+    </div>
+    <aside class="hero-exec-card" id="heroExecutiveCard" aria-label="ZeusAI Sovereign Architecture Overview">
+      <div class="hero-exec-head">
+        <span class="hero-exec-badge"><span class="hero-exec-dot"></span> SOVEREIGN AI OS · LIVE</span>
+        <a href="/client-dashboard" data-link style="font-size:12px;color:#9fd0ff;font-weight:600">Launch Console →</a>
+      </div>
+      <div class="hero-exec-kpis">
+        <div class="hero-exec-kpi"><strong style="color:#00ffa3">70–94%</strong><span>Automated LLM Cost Savings</span></div>
+        <div class="hero-exec-kpi"><strong style="color:#9fd0ff">760+</strong><span>Autonomous Unicorn Modules</span></div>
+        <div class="hero-exec-kpi"><strong style="color:#ffd36a">&lt; 3.1ms</strong><span>8-Corridor Synaptic Mesh</span></div>
+        <div class="hero-exec-kpi"><strong style="color:#c4b5fd">Ed25519</strong><span>Signed Proofs · 0 npm CVEs</span></div>
+      </div>
+      <div class="hero-exec-flow" aria-label="Autonomous routing flow">
+        <span>Prompt</span><span>→</span><span style="color:#00ffa3;font-weight:700">Zeus Router</span><span>→</span><span>Groq · DeepSeek · Claude</span>
+      </div>
+      <button type="button" class="hero-exec-cta" data-open-router-chat="1">⚡ Test the Router Live in Zeus AI Chat →</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--ink-dim)">
+        <span>Or ask Zeus AI about all 86+ services</span>
+        <a href="#concierge" style="color:#00ffa3;font-weight:600">Open AI Chat →</a>
+      </div>
+    </aside>
   </div>
 </section>
 ${authorityDesk.homeDoorsHtml()}
