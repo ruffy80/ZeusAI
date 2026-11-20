@@ -13081,7 +13081,9 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         });
         try {
           const omniBrain = require('../backend/modules/omniscient-chatbot');
-          const omniOut = await omniBrain.answer({ message, lang, history });
+          const omniOut = typeof omniBrain.answerAsync === 'function'
+            ? await omniBrain.answerAsync({ message, lang, history })
+            : await omniBrain.answer({ message, lang, history });
           if (omniOut && omniOut.reply) {
             reply = omniOut.reply;
             if (Array.isArray(omniOut.recommendations) && omniOut.recommendations.length) {

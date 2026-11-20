@@ -281,6 +281,9 @@ class AutonomousClientMagnetEngine {
         `${DOMAIN}/.well-known/runtime-immunity.json`,
         `${DOMAIN}/.well-known/llm-swarm.json`,
         `${DOMAIN}/.well-known/client-magnet.json`,
+        `${DOMAIN}/.well-known/evolution-ledger.json`,
+        `${DOMAIN}/.well-known/agent.json`,
+        `${DOMAIN}/.well-known/openapi.json`,
       ],
     };
     this.pulses.unshift(pulse);

@@ -621,6 +621,10 @@ async function handle(req, res, ctx) {
       `- Autonomous Post-Payment Service Provisioning Capabilities (ASPE/1.0): ${OWNER.domain}/.well-known/autonomous-services.json`,
       `- Self-Healing Multi-LLM Frontier Swarm & Ollama Cascade (NSC/1.0): ${OWNER.domain}/.well-known/llm-swarm.json`,
       `- Autonomous Proof-Before-Pay Client Magnet & 10% Referral Bounty (ACME/1.0): ${OWNER.domain}/.well-known/client-magnet.json`,
+      `- Cognitive Evolution Genome & Ed25519 Hash-Chained Self-Innovation Ledger (CEGE/1.0): ${OWNER.domain}/.well-known/evolution-ledger.json`,
+      `- Live MCP 2025-03-26 JSON-RPC 2.0 Streamable HTTP Server (UMAP/1.0): POST ${OWNER.domain}/api/mcp (discovery: ${OWNER.domain}/.well-known/mcp.json)`,
+      `- Google A2A Agent Card (UMAP/1.0): ${OWNER.domain}/.well-known/agent.json`,
+      `- Unified OpenAPI 3.1.0 Sovereign Specification: ${OWNER.domain}/.well-known/openapi.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -775,6 +779,151 @@ async function handle(req, res, ctx) {
     return true;
   }
 
+  if (urlPath === '/api/magnet/referral' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 8192) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const acme = require('../../backend/modules/autonomous-client-magnet');
+        const rec = acme.createReferralLink(parsed.referrerId || parsed.owner || parsed.email || parsed.domain || 'visitor');
+        const body = JSON.stringify({ ok: true, referral: rec }, null, 2);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, 200, body.length);
+      } catch (e) {
+        const body = JSON.stringify({ ok: false, error: String(e && e.message || e) });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+      }
+    });
+    return true;
+  }
+
+  // ── CEGE/1.0 — Cognitive Evolution Genome & Ed25519 Ledger ───────────────
+  if (urlPath === '/.well-known/evolution-ledger.json' || urlPath === '/api/evolution/ledger') {
+    const cege = require('../../backend/modules/cognitive-evolution-genome');
+    const body = JSON.stringify(cege.getEvolutionLedger(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/evolution/status') {
+    const cege = require('../../backend/modules/cognitive-evolution-genome');
+    const body = JSON.stringify(cege.getStatus(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/evolution/verify') {
+    const cege = require('../../backend/modules/cognitive-evolution-genome');
+    const body = JSON.stringify(cege.verifyLedgerChain(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/evolution/evolve' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', async () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const cege = require('../../backend/modules/cognitive-evolution-genome');
+        const out = await cege.evolveGeneration({
+          domain: parsed.domain || null,
+          allowLiveLlm: Boolean(parsed.allowLiveLlm),
+        });
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, 200, body.length);
+      } catch (e) {
+        const body = JSON.stringify({ ok: false, error: String(e && e.message || e) });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+      }
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/evolution/recall' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const cege = require('../../backend/modules/cognitive-evolution-genome');
+        const results = cege.recallKnowledge(parsed.query || '', parsed.topK || 5);
+        const body = JSON.stringify({ ok: true, protocol: 'CEGE/1.0', query: String(parsed.query || ''), count: results.length, results }, null, 2);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, 200, body.length);
+      } catch (e) {
+        const body = JSON.stringify({ ok: false, error: String(e && e.message || e) });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+      }
+    });
+    return true;
+  }
+
+  // ── UMAP/1.0 — Live MCP JSON-RPC 2.0 + Google A2A Agent Card ─────────────
+  if ((urlPath === '/api/mcp' || urlPath === '/mcp') && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 65536) raw += chunk; });
+    req.on('end', async () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+        const out = await umap.handleJsonRpc(parsed);
+        const headers = {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'MCP-Protocol-Version': umap.mcpVersion || '2025-03-26',
+        };
+        if (out.body === null) {
+          res.writeHead(out.statusCode || 202, headers);
+          res.end();
+          recordMetric(urlPath, out.statusCode || 202, 0);
+          return;
+        }
+        const body = JSON.stringify(out.body, null, 2);
+        res.writeHead(out.statusCode || 200, headers);
+        res.end(body);
+        recordMetric(urlPath, out.statusCode || 200, body.length);
+      } catch (e) {
+        const body = JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: ' + String(e && e.message || e) } });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+      }
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/mcp/status' || urlPath === '/api/umap/status') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    const body = JSON.stringify(umap.getStatus(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/agent.json' || urlPath === '/.well-known/agent-card.json') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    const body = JSON.stringify(umap.getAgentCard(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
   if (urlPath === '/api/immunity/supply-chain') {
     const asri = require('../../backend/modules/autonomous-runtime-immunity');
     const body = JSON.stringify(asri.auditSupplyChain(), null, 2);
@@ -889,58 +1038,16 @@ async function handle(req, res, ctx) {
     }), true);
   }
 
-  // ── /.well-known/mcp.json — Model Context Protocol discovery ─────────────
+  // ── /.well-known/mcp.json — Model Context Protocol discovery (UMAP/1.0) ──
   if (urlPath === '/.well-known/mcp.json' || urlPath === '/mcp.json') {
-    return (sendJson(res, 200, {
-      mcpVersion: '2025-03-26',
-      server: { name: 'zeusai', version: '1.0.0', vendor: OWNER.name },
-      capabilities: { tools: true, resources: true, prompts: false },
-      tools: [
-        { name: 'origin_gravity', description: 'Public paid-human ledger. paidHumans is never invented. When 0, Origin #1 is open.', endpoint: `${OWNER.domain}/.well-known/origin-gravity.json`, method: 'GET' },
-        { name: 'first_dollar', description: 'Honest first-dollar SKU + why paidHumans is 0. Never invents GMV.', endpoint: `${OWNER.domain}/.well-known/first-dollar.json`, method: 'GET' },
-        { name: 'world_index', description: 'Honest visibility protocol. inventsVisitors is always false. IndexNow is not traffic.', endpoint: `${OWNER.domain}/.well-known/world-index.json`, method: 'GET' },
-        { name: 'catalog_list',   description: 'List available Unicorn services with current prices', endpoint: `${OWNER.domain}/api/agent/catalog`, method: 'GET' },
-        { name: 'service_quote',  description: 'Get signed quote for a specific service', endpoint: `${OWNER.domain}/api/agent/quote`, method: 'POST' },
-        { name: 'service_order',  description: 'Place an order; returns W3C Verifiable Credential receipt', endpoint: `${OWNER.domain}/api/agent/order`, method: 'POST' },
-        { name: 'payment_route',  description: 'Recommend cheapest/fastest payment rail', endpoint: `${OWNER.domain}/api/pay/route`, method: 'POST' },
-      ],
-      resources: [
-        { uri: `${OWNER.domain}/catalog.json`, name: 'Signed service catalog', mimeType: 'application/json' },
-        { uri: `${OWNER.domain}/feed.json`, name: 'Service update feed (JSON Feed 1.1)', mimeType: 'application/feed+json' },
-      ],
-    }), true);
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    return (sendJson(res, 200, umap.getMcpDiscoveryManifest()), true);
   }
 
-  // ── /openapi.json — public OpenAPI 3.1 spec ──────────────────────────────
-  if (urlPath === '/openapi.json' || urlPath === '/api/openapi.json') {
-    return (sendJson(res, 200, {
-      openapi: '3.1.0',
-      info: { title: 'ZeusAI Sovereign API', version: '1.0.0', description: 'Autonomous commerce for Unicorn services.', contact: { name: OWNER.name, email: OWNER.email } },
-      servers: [{ url: OWNER.domain }],
-      paths: {
-        '/api/origin-gravity': { get: { operationId: 'originGravity', summary: 'Origin Gravity ledger (paidHumans never invented)', responses: { '200': { description: 'OGP/1.0 discovery' } } } },
-        '/api/agent/catalog': { get: { operationId: 'listCatalog', summary: 'List all sellable services', responses: { '200': { description: 'Catalog', content: { 'application/json': {} } } } } },
-        '/api/agent/quote':   { post: { operationId: 'quoteService', summary: 'Get signed quote', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { serviceId: { type: 'string' }, currency: { type: 'string' }, qty: { type: 'number' } }, required: ['serviceId'] } } } }, responses: { '200': { description: 'Signed quote' } } } },
-        '/api/agent/order':   { post: { operationId: 'orderService', summary: 'Place order, receive VC receipt', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { quoteId: { type: 'string' }, buyer: { type: 'object' } }, required: ['quoteId'] } } } }, responses: { '201': { description: 'Receipt minted' } } } },
-        '/api/pay/route':     { post: { operationId: 'routePayment', summary: 'Pick best payment rail', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { amount: { type: 'number' }, currency: { type: 'string' } } } } } }, responses: { '200': { description: 'Recommendation' } } } },
-        '/api/i18n/detect':   { get: { operationId: 'detectLang', summary: 'Detect language from Accept-Language', responses: { '200': { description: 'Lang' } } } },
-        '/api/sovereign/status': { get: { operationId: 'status', summary: 'Signed sovereign status', responses: { '200': { description: 'Status' } } } },
-        '/api/receipt/{id}':  { get: { operationId: 'getReceipt', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'VC' }, '404': { description: 'Not found' } } } },
-        '/catalog.json':      { get: { operationId: 'signedCatalog', summary: 'Ed25519-signed full catalog', responses: { '200': { description: 'Signed catalog' } } } },
-        '/feed.json':         { get: { operationId: 'feed', summary: 'JSON Feed 1.1', responses: { '200': { description: 'Feed' } } } },
-        // ── Cryptoauth: Ed25519 passwordless identity ──────────────────────
-        '/api/cryptoauth/manifest': { get: { operationId: 'cryptoauthManifest', tags: ['cryptoauth'], summary: 'Public cryptoauth capability manifest', responses: { '200': { description: 'Algorithm, TTLs, endpoint map' } } } },
-        '/api/cryptoauth/register': { post: { operationId: 'cryptoauthRegister', tags: ['cryptoauth'], summary: 'Register a new Ed25519 identity', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','publicKey'], properties: { email: { type: 'string', format: 'email' }, publicKey: { type: 'string', description: 'Ed25519 public key, base64url' }, displayName: { type: 'string' }, recoveryHash: { type: 'string', description: 'Optional Argon2/SHA-256 of recovery secret' } } } } } }, responses: { '201': { description: 'User created' }, '409': { description: 'Already exists' } } } },
-        '/api/cryptoauth/challenge': { post: { operationId: 'cryptoauthChallenge', tags: ['cryptoauth'], summary: 'Get a one-shot challenge to sign', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email'], properties: { email: { type: 'string', format: 'email' } } } } } }, responses: { '200': { description: 'Challenge issued (TTL 60s, single-use)' }, '404': { description: 'Unknown identity' } } } },
-        '/api/cryptoauth/login': { post: { operationId: 'cryptoauthLogin', tags: ['cryptoauth'], summary: 'Verify signature, mint session', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','challenge','signature'], properties: { email: { type: 'string' }, challenge: { type: 'string' }, signature: { type: 'string', description: 'base64url Ed25519 signature' } } } } } }, responses: { '200': { description: 'Session cookie set' }, '401': { description: 'Bad signature' } } } },
-        '/api/cryptoauth/me': { get: { operationId: 'cryptoauthMe', tags: ['cryptoauth'], summary: 'Current identity (from session cookie)', responses: { '200': { description: 'User profile' }, '401': { description: 'Not signed in' } } } },
-        '/api/cryptoauth/recover': { post: { operationId: 'cryptoauthRecover', tags: ['cryptoauth'], summary: 'Rotate keypair using recovery secret', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','recoverySecret','newPublicKey'], properties: { email: { type: 'string' }, recoverySecret: { type: 'string' }, newPublicKey: { type: 'string' } } } } } }, responses: { '200': { description: 'Key rotated' }, '401': { description: 'Recovery failed' } } } },
-        '/api/cryptoauth/logout': { post: { operationId: 'cryptoauthLogout', tags: ['cryptoauth'], summary: 'Invalidate session', responses: { '200': { description: 'Session cleared' } } } },
-      },
-      tags: [
-        { name: 'cryptoauth', description: 'Ed25519 passwordless identity (W3C-style challenge/response).' }
-      ],
-    }), true);
+  // ── /.well-known/openapi.json, /openapi.json, /api/openapi.json ──────────
+  if (urlPath === '/.well-known/openapi.json' || urlPath === '/openapi.json' || urlPath === '/api/openapi.json') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    return (sendJson(res, 200, umap.getUnifiedOpenApi31()), true);
   }
 
   // ── /feed.json — JSON Feed 1.1 of recent services/updates ────────────────

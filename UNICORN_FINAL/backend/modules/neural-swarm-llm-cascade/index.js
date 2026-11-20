@@ -342,11 +342,28 @@ class NeuralSwarmLLMCascade {
       return !m || m.circuitOpenUntil <= now;
     });
 
+    // Consult CEGE/1.0 Cognitive Evolution Genome (UCB1 bandit + vector RAG memory) when available
+    let selectedGenome = null;
+    let effectiveSystem = system;
+    try {
+      const cege = require('../cognitive-evolution-genome');
+      if (cege && typeof cege.selectGenome === 'function') {
+        selectedGenome = cege.selectGenome('llm_architecture_synthesis');
+        const lessons = typeof cege.recallKnowledge === 'function' ? cege.recallKnowledge(cleanPrompt, 2) : [];
+        if (selectedGenome && selectedGenome.directive) {
+          effectiveSystem = `${system}\n[CEGE Strategy ${selectedGenome.genomeId}]: ${selectedGenome.directive}`;
+        }
+        if (lessons && lessons.length > 0) {
+          effectiveSystem += '\n[Verified Prior Lessons]: ' + lessons.map((l) => l.text).join(' | ');
+        }
+      }
+    } catch (_) {}
+
     let primary = null;
     const attempts = [];
     for (let i = 0; i < rails.length; i++) {
       const res = await this._callRail(rails[i], [
-        { role: 'system', content: system },
+        { role: 'system', content: effectiveSystem },
         { role: 'user', content: cleanPrompt },
       ], { maxTokens, timeoutMs });
       attempts.push({ provider: rails[i].id, ok: res.ok, model: res.model || rails[i].model, latencyMs: res.latencyMs || 0, error: res.error || null });
@@ -397,6 +414,24 @@ class NeuralSwarmLLMCascade {
     };
     this.recentCalls.unshift(receipt);
     if (this.recentCalls.length > 25) this.recentCalls.length = 25;
+
+    // Close the learning loop: feed verified quality & latency back into CEGE/1.0
+    try {
+      const cege = require('../cognitive-evolution-genome');
+      if (cege && typeof cege.recordOutcome === 'function') {
+        cege.recordOutcome({
+          domain: 'llm_architecture_synthesis',
+          genomeId: selectedGenome && selectedGenome.genomeId,
+          qualityScore: quality.score,
+          latencyMs: primary.latencyMs,
+          success: true,
+          lesson: quality.score >= 82
+            ? `${primary.provider}:${primary.model} achieved ${quality.score}/100 (${quality.grade}) in ${primary.latencyMs}ms${refinedBy ? ` with cross-family refinement via ${refinedBy.provider}:${refinedBy.model}` : ''}.`
+            : '',
+          source: 'nsc_swarm',
+        });
+      }
+    } catch (_) {}
 
     return {
       ok: true,

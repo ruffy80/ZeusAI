@@ -1,0 +1,82 @@
+{
+  "name": "universal-mcp-a2a-mesh",
+  "version": "1.0.0",
+  "description": "UMAP/1.0 — Universal Live MCP (2025-03-26 JSON-RPC 2.0 Streamable HTTP) Server, Google A2A Agent Card (/.well-known/agent.json), and Dynamic Unified OpenAPI 3.1.0 Discovery Mesh.",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getAgentCard",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getMcpDiscoveryManifest",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getUnifiedOpenApi31",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "autonomous-runtime-immunity",
+    "autonomous-service-provisioning",
+    "neural-swarm-llm-cascade",
+    "autonomous-client-magnet",
+    "cognitive-evolution-genome",
+    "seo-aeo-geo-singularity"
+  ],
+  "provides": [
+    "mcp_jsonrpc_2_0_server",
+    "google_a2a_agent_card",
+    "unified_openapi_3_1"
+  ],
+  "failureModes": [
+    {
+      "symptom": "invalid json-rpc request or downstream tool timeout",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 300,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

@@ -6210,7 +6210,9 @@ app.get(['/api/concierge/knowledge', '/api/omniscient/knowledge'], (req, res) =>
 app.post('/api/concierge', express.json({ limit: '32kb' }), async (req, res) => {
   try {
     const brain = require('./modules/omniscient-chatbot');
-    const out = await brain.answer(req.body || {});
+    const out = typeof brain.answerAsync === 'function'
+      ? await brain.answerAsync(req.body || {})
+      : await brain.answer(req.body || {});
     res.set('Cache-Control', 'no-store');
     res.json({
       messageId: 'omni_' + Date.now(),
@@ -6224,7 +6226,9 @@ app.post('/api/concierge', express.json({ limit: '32kb' }), async (req, res) => 
 app.post('/api/concierge/stream', express.json({ limit: '32kb' }), async (req, res) => {
   try {
     const brain = require('./modules/omniscient-chatbot');
-    const out = await brain.answer(req.body || {});
+    const out = typeof brain.answerAsync === 'function'
+      ? await brain.answerAsync(req.body || {})
+      : await brain.answer(req.body || {});
     const messageId = 'omni_' + Date.now();
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -6278,8 +6282,22 @@ app.post('/api/concierge/personalize', express.json({ limit: '32kb' }), async (r
 });
 
 app.post('/api/concierge/feedback', express.json({ limit: '16kb' }), (req, res) => {
+  let cegeResult = null;
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    const body = req.body || {};
+    const positive = body.rating === 'up' || body.helpful === true || Number(body.score || 0) >= 4;
+    cegeResult = cege.recordOutcome({
+      domain: 'conversion_proof_magnet',
+      qualityScore: positive ? 94 : 45,
+      latencyMs: 50,
+      success: positive,
+      lesson: positive && body.note ? String(body.note).slice(0, 200) : '',
+      source: 'user_concierge_feedback',
+    });
+  } catch (_) {}
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, recorded: true, at: new Date().toISOString() });
+  res.json({ ok: true, recorded: true, cognitiveEvolution: cegeResult, at: new Date().toISOString() });
 });
 
 // ============================================================================
@@ -6516,9 +6534,129 @@ app.post('/api/magnet/instant-audit-teaser', express.json({ limit: '8kb' }), asy
 app.post('/api/magnet/referral', express.json({ limit: '4kb' }), (req, res) => {
   try {
     const acme = require('./modules/autonomous-client-magnet');
-    const rec = acme.createReferralLink(req.body && (req.body.owner || req.body.email || req.body.domain));
+    const rec = acme.createReferralLink(req.body && (req.body.referrerId || req.body.owner || req.body.email || req.body.domain));
     res.set('Cache-Control', 'no-store');
     res.json({ ok: true, referral: rec });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+// ============================================================================
+// CEGE/1.0 — COGNITIVE EVOLUTION GENOME & ED25519 SELF-INNOVATION LEDGER
+// ============================================================================
+app.get(['/.well-known/evolution-ledger.json', '/api/evolution/ledger'], (req, res) => {
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    res.set('Cache-Control', 'no-store');
+    res.json(cege.getEvolutionLedger());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/evolution/status', (req, res) => {
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    res.set('Cache-Control', 'no-store');
+    res.json(cege.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/evolution/verify', (req, res) => {
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    res.set('Cache-Control', 'no-store');
+    res.json(cege.verifyLedgerChain());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/evolution/evolve', express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    const body = req.body || {};
+    const out = await cege.evolveGeneration({
+      domain: body.domain || null,
+      allowLiveLlm: Boolean(body.allowLiveLlm),
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/evolution/recall', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const cege = require('./modules/cognitive-evolution-genome');
+    const body = req.body || {};
+    const results = cege.recallKnowledge(body.query || '', body.topK || 5);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, protocol: 'CEGE/1.0', query: String(body.query || ''), count: results.length, results });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+// ============================================================================
+// UMAP/1.0 — LIVE MCP (JSON-RPC 2.0), GOOGLE A2A AGENT CARD & OPENAPI 3.1
+// ============================================================================
+app.post(['/api/mcp', '/mcp'], express.json({ limit: '64kb' }), async (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    const out = await umap.handleJsonRpc(req.body);
+    res.set('Cache-Control', 'no-store');
+    res.set('MCP-Protocol-Version', umap.mcpVersion || '2025-03-26');
+    if (out.body === null) return res.status(out.statusCode || 202).end();
+    return res.status(out.statusCode || 200).json(out.body);
+  } catch (e) {
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32603, message: String(e && e.message || e) },
+    });
+  }
+});
+
+app.get(['/api/mcp/status', '/api/umap/status'], (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'no-store');
+    res.json(umap.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/agent.json', '/.well-known/agent-card.json'], (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getAgentCard());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/mcp.json', '/mcp.json'], (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getMcpDiscoveryManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/openapi.json', '/api/openapi.json'], (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getUnifiedOpenApi31());
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
