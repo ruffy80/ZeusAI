@@ -618,6 +618,7 @@ async function handle(req, res, ctx) {
       `- Pre-Chunked Semantic RAG Vectors (~256 tokens): ${OWNER.domain}/api/geo/rag-chunks`,
       `- A2A Sovereign Clearinghouse: ${OWNER.domain}/.well-known/agent-commerce.json`,
       `- Ed25519 Supply-Chain & Runtime Immunity Attestation (ASRI/1.0): ${OWNER.domain}/.well-known/runtime-immunity.json`,
+      `- Autonomous Post-Payment Service Provisioning Capabilities (ASPE/1.0): ${OWNER.domain}/.well-known/autonomous-services.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -687,6 +688,48 @@ async function handle(req, res, ctx) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/autonomous-services.json' || urlPath === '/api/autonomous-service/catalog-capabilities') {
+    const aspe = require('../../backend/modules/autonomous-service-provisioning');
+    const body = JSON.stringify(aspe.getCatalogCapabilities(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/autonomous-service/status') {
+    const aspe = require('../../backend/modules/autonomous-service-provisioning');
+    const body = JSON.stringify(aspe.getStatus(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  const aspeStatusMatch = urlPath.match(/^\/api\/autonomous-service\/([^/]+)\/status$/);
+  if (aspeStatusMatch && req.method === 'GET') {
+    const aspe = require('../../backend/modules/autonomous-service-provisioning');
+    const inst = aspe.getInstance(decodeURIComponent(aspeStatusMatch[1]));
+    const code = inst ? 200 : 404;
+    const body = JSON.stringify(inst ? { ok: true, instance: inst } : { ok: false, error: 'service_instance_not_found' }, null, 2);
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, code, body.length);
+    return true;
+  }
+
+  const aspeRunMatch = urlPath.match(/^\/api\/autonomous-service\/([^/]+)\/run$/);
+  if (aspeRunMatch && req.method === 'POST') {
+    const aspe = require('../../backend/modules/autonomous-service-provisioning');
+    const out = aspe.runAutonomousCycle(decodeURIComponent(aspeRunMatch[1]), { trigger: 'customer_on_demand' });
+    const code = out.ok ? 200 : 404;
+    const body = JSON.stringify(out, null, 2);
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, code, body.length);
     return true;
   }
 

@@ -1790,7 +1790,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
     </div>
   </div>
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
-  <p class="note">Email is optional. When this page says paid, reload it. The file link is on this page and does not need an inbox.</p>
+  <p class="note">Email is optional. When this page says paid, reload it — your autonomous Unicorn service activates automatically on this page with no inbox required.</p>
 </div>
 
 <div class="card" id="paypalFailBanner" style="display:none;border-color:#5c4316;background:#2a210b">
@@ -1823,20 +1823,28 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   </div>
 
   <div class="grant${o.status === 'paid' ? ' on' : ''}" id="grant">
-  <h2 style="margin:0 0 6px">✅ Payment received — service activated</h2>
-  <p style="margin:0 0 12px">Your access token is ready. Keep it safe — it is the cryptographic proof of purchase.</p>
+  <h2 style="margin:0 0 6px">✅ Payment received — autonomous Unicorn service activated</h2>
+  <p style="margin:0 0 12px">Your dedicated Unicorn modules, live workspace, and cryptographic access token are now active automatically.</p>
   <div class="row"><span class="k">Access token</span><span class="v mono" id="tok"></span></div>
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <div class="row"><span class="k">Fulfillment</span><span class="v" id="packStatus">processing</span></div>
+  <div id="aspeLiveBox" style="margin:12px 0;padding:14px;border-radius:12px;background:rgba(138,92,255,.12);border:1px solid rgba(138,92,255,.42)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <strong style="color:#00ffa3">⚡ Autonomous Unicorn Service Runtime (ASPE/1.0)</strong>
+      <button type="button" class="cta" id="aspeRunBtn" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#fff;padding:6px 12px;font-size:12px">⚡ Run Live Autonomous Cycle</button>
+    </div>
+    <div id="aspeStatusLine" class="note" style="margin:0;color:#dbe7ff">Activating dedicated Unicorn modules &amp; workspace…</div>
+    <pre id="aspeLiveOut" hidden style="margin:8px 0 0;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;line-height:1.45;max-height:220px;overflow:auto;background:#070a12;border:1px solid #243044;border-radius:8px;padding:10px;color:#00ffa3"></pre>
+  </div>
   <pre id="packBody" hidden style="margin:12px 0 0;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.5;max-height:480px;overflow:auto;background:#0b0f17;border:1px solid #243044;border-radius:10px;padding:12px;color:#eaf0ff"></pre>
-  <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
+  <p class="note">A W3C Verifiable Credential receipt and Ed25519 autonomous activation proof have been issued.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button>
   <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a></p>
   <p class="note" id="referralLine" style="margin-top:8px">A referral link appears here after payment is confirmed.</p>
-  <p class="note" style="margin-top:8px">The file is this link. No email is required. Reload this page after Bitcoin confirms if the block above is still hidden.</p>
+  <p class="note" style="margin-top:8px">Your live autonomous service and signed package are immediately unlocked here. No email is required.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
     <p class="note" style="margin:0 0 8px">Mint a signed redemption code — recipient gets ZeusAI on you. Public endpoint, no login.</p>
@@ -1972,6 +1980,33 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
           pack.textContent=j.deliveryReady?'Pack ready':(j.packGenerating?'Generating pack…':(j.fulfillmentStatus||'paid'));
         }
         if(j.deliveryReady){
+          var aspeLine=document.getElementById('aspeStatusLine');
+          if(aspeLine && !aspeLine.dataset.loaded){
+            aspeLine.dataset.loaded='1';
+            fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/status',{cache:'no-store'})
+              .then(function(r){return r.ok?r.json():null;})
+              .then(function(d){
+                if(d&&d.ok&&d.instance){
+                  var inst=d.instance;
+                  aspeLine.textContent='LIVE Workspace '+inst.workspaceId+' · Modules active: '+(inst.modulesActivated||[]).join(', ')+' · Cycles run: '+inst.cyclesExecuted+' · Schedule: '+(inst.schedule||'always-on');
+                }
+              }).catch(function(){});
+          }
+          var aspeBtn=document.getElementById('aspeRunBtn');
+          if(aspeBtn && !aspeBtn.dataset.bound){
+            aspeBtn.dataset.bound='1';
+            aspeBtn.addEventListener('click',function(){
+              aspeBtn.disabled=true;
+              fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+                .then(function(r){return r.json();})
+                .then(function(d){
+                  aspeBtn.disabled=false;
+                  var out=document.getElementById('aspeLiveOut');
+                  if(out){out.hidden=false;out.textContent=JSON.stringify(d.cycle||d,null,2);}
+                  if(aspeLine&&d&&d.instance){aspeLine.textContent='LIVE Workspace '+d.instance.workspaceId+' · Modules active: '+(d.instance.modulesActivated||[]).join(', ')+' · Cycles run: '+d.instance.cyclesExecuted;}
+                }).catch(function(){aspeBtn.disabled=false;});
+            });
+          }
           var body=document.getElementById('packBody');
           if(body && !body.dataset.loaded){
             body.dataset.loaded='1';

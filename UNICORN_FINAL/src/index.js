@@ -3074,6 +3074,25 @@ function runDeliveryForReceipt(receipt, opts) {
         console.warn('[fulfillment] blocked for ' + receipt.id + ':', syncResult && syncResult.error);
       }
       const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
+      // ASPE/1.0 — Activate real live autonomous Unicorn service workspace & modules immediately on payment
+      try {
+        const aspe = require('../backend/modules/autonomous-service-provisioning');
+        const act = aspe.activatePaidService({
+          orderId: receipt.orderId || receipt.id,
+          serviceId: receipt.serviceId || receipt.plan || (Array.isArray(receipt.items) && receipt.items[0] && receipt.items[0].serviceId) || 'instant-website-audit',
+          email: receipt.customerEmail || receipt.email || null,
+          amountUsd: receipt.amountUsd || receipt.priceUsd || 0,
+          inputs: receipt.inputs || {},
+        });
+        if (act && act.ok && act.instance) {
+          if (latestDelivery) latestDelivery.autonomousService = act.instance;
+          if (delivery) delivery.autonomousService = act.instance;
+          receipt.autonomousService = act.instance;
+          console.log('[aspe] activated autonomous service order=' + act.instance.orderId + ' service=' + act.instance.serviceId + ' workspace=' + act.instance.workspaceId + ' modules=' + act.instance.modulesActivated.length);
+        }
+      } catch (aspeErr) {
+        console.warn('[aspe] activation warning for ' + receipt.id + ':', aspeErr && aspeErr.message);
+      }
       recordProofOfDelivery(latestDelivery || delivery);
       _emitWsiDelivered(latestDelivery || delivery);
       _firePayFulfillNotify(receipt, latestDelivery || delivery);

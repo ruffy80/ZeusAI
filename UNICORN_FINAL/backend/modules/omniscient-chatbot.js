@@ -30,6 +30,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Unicorn Autonomous Supply-Chain & Runtime Immunity Engine (ASRI/1.0): computes real-time SHA-256 SBOM Merkle integrity fingerprints (0 npm CVEs), monitors nanosecond V8 Event-Loop lag & heap growth velocity for pre-emptive zero-restart stabilization (Golden Rule #6), tracks multi-rail payment failover, and publishes Ed25519-signed immunity certificates (`/.well-known/runtime-immunity.json`).',
     relatedServices: ['security-os', 'instant-security-program', 'ent-sovereign-deployment'],
   },
+  'autonomous-service-provisioning': {
+    title: 'ASPE/1.0 — Autonomous Service Provisioning & Live Execution Engine',
+    tier: 'commerce',
+    purposeRo: 'Motorul care transformă fiecare plată confirmată într-un serviciu autonom LIVE în Unicorn (nu doar un fișier static!): activează automat modulele Unicorn dedicate serviciului cumpărat (din toate cele 55+ servicii), creează workspace izolat + cheie API + endpoint de execuție live (`/api/autonomous-service/:orderId/run`) + programare autonomă recurentă și semnează dovada criptografică Ed25519.',
+    purposeEn: 'Turns every confirmed payment into a LIVE autonomous Unicorn service (not just a static file!): automatically activates the dedicated Unicorn backend modules for all 55+ services, provisions an isolated workspace, scoped API key, on-demand execution endpoint (`/api/autonomous-service/:orderId/run`), recurring autonomous schedule, and Ed25519 activation proof.',
+    relatedServices: ['instant-website-audit', 'professional-ai-agent', 'ent-engagement-kickoff'],
+  },
   'zacc': {
     title: 'ZACC — Zeus Autonomic Commerce Core',
     tier: 'commerce',

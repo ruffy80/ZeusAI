@@ -748,16 +748,24 @@ function offerCard(id) {
   const item = shelfOffer(id);
   const title = (item && item.title) || OFFER_TITLES[id] || id;
   const href = '/services/' + encodeURIComponent(id);
-  const why = OFFER_WHY[id] || 'This is a named file on the shelf.';
+  const why = OFFER_WHY[id] || 'Automatically activates live Unicorn modules, workspace, and signed deliverables upon payment.';
   const price = item ? Number(item.priceUsd) : 0;
   const priceHtml = price > 0
     ? receiptHtml(price)
-    : '<p>The live price is on the file page. This guide does not invent one.</p>';
+    : '<p>The live price is on the service page. This guide does not invent one.</p>';
+  let modsHtml = '';
+  try {
+    const bp = require('../../../backend/modules/autonomous-service-provisioning').getServiceBlueprint(id);
+    if (bp && Array.isArray(bp.modules) && bp.modules.length) {
+      modsHtml = '<p style="font-size:12px;color:#00ffa3;font-family:var(--mono);margin:6px 0 10px">⚡ Autonomous Unicorn: ' + esc(bp.modules.slice(0, 4).join(' · ')) + '</p>';
+    }
+  } catch (_) {}
   return '<article class="guide-offer" data-offer-id="' + esc(id) + '">'
     + '<h3><a href="' + esc(href) + '" data-link>' + esc(title) + '</a></h3>'
     + '<p>' + esc(why) + '</p>'
+    + modsHtml
     + priceHtml
-    + '<p><a class="btn btn-primary" href="' + esc(href) + '" data-link>Open this file</a></p>'
+    + '<p><a class="btn btn-primary" href="' + esc(href) + '" data-link>Activate service →</a></p>'
     + '</article>';
 }
 
@@ -773,14 +781,14 @@ function offerBlock(route) {
 }
 
 function homeGuideLine() {
-  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. ZeusAI does not do that work. Facts an answer engine can cite are at <a href="/what-is-zeus-ai" data-link>/what-is-zeus-ai</a>. The three files you can buy are under this demo.</p>';
+  return '<p class="cost-trust-note" id="homeGuideLine">The guides at <a href="/learn" data-link>/learn</a> explain code review and coding assistants. Facts an answer engine can cite are at <a href="/what-is-zeus-ai" data-link>/what-is-zeus-ai</a>. Live autonomous Unicorn services you can activate immediately are below.</p>';
 }
 
 function homeDoorsHtml() {
   const ids = ['instant-website-audit', 'instant-resume-makeover', 'ent-engagement-kickoff'];
-  return '<section id="homeDoors" aria-label="Files you can buy">'
-    + '<div class="section-title"><div><h2>Three files you can buy</h2></div></div>'
-    + '<p class="cost-trust-note">Each card is a file. The list price is the price on the shelf. A guide is not a code review.</p>'
+  return '<section id="homeDoors" aria-label="Autonomous Unicorn services you can activate">'
+    + '<div class="section-title"><div><h2>Three autonomous Unicorn services you can activate now</h2></div></div>'
+    + '<p class="cost-trust-note">Upon payment, Unicorn automatically provisions your live workspace, activates the dedicated backend modules, runs the autonomous pipeline, and issues Ed25519-signed deliverables.</p>'
     + '<div class="home-doors">' + ids.map(offerCard).join('') + '</div>'
     + '</section>';
 }
