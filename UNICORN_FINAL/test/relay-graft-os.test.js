@@ -109,7 +109,8 @@ check('homepage strip is a pass, and the hero headline stays pinned', () => {
   const shell = read('src/site/v2/shell.js');
   assert.ok(shell.includes('id="dtHeroH1"'));
   assert.ok(shell.includes('Cut Your AI API Costs by 70% Automatically'));
-  assert.ok(shell.includes('Test the Router Live'));
+  assert.ok(!shell.includes('Test the Router Live'));
+  assert.ok(!shell.includes('id="tgJoinPopup"'));
   assert.ok(shell.includes("if (route === '/') return HOME_TITLE;"));
   assert.ok(shell.includes('homeRelayGraft') || shell.includes('relay-graft-os'));
   assert.ok(!shell.includes('Ship AI products at machine speed'));

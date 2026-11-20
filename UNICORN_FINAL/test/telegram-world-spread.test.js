@@ -50,14 +50,15 @@ check('an empty shelf does not invent a price', () => {
   assert.ok(!/\$\d/.test(cards[0].input_message_content.message_text));
 });
 
-check('the public shell carries Telegram on the header, footer, and banner', () => {
+check('the public shell keeps Telegram links in header/footer and removes promotional popup/banner', () => {
   const shell = require('fs').readFileSync(require('path').join(__dirname, '../src/site/v2/shell.js'), 'utf8');
   assert.ok(shell.includes('data-telegram="header"'));
   assert.ok(shell.includes('data-telegram="footer"'));
-  assert.ok(shell.includes('data-telegram="banner"'));
-  assert.ok(shell.includes('data-telegram="popup"'));
+  assert.ok(!shell.includes('id="tgJoinPopup"'), 'Telegram promotional popup must be removed');
+  assert.ok(!shell.includes('data-telegram="popup"'), 'Telegram popup trigger must be removed');
+  assert.ok(!shell.includes('data-telegram="banner"'), 'Telegram promotional banner must be removed');
+  assert.ok(!shell.includes('data-tg-dismiss'), 'Telegram popup dismiss button must be removed');
   assert.ok(shell.includes('telegram_click'));
-  assert.ok(shell.includes('30000'));
 });
 
 check('a quiet channel still gets an invite post', () => {

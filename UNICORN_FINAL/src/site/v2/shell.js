@@ -836,19 +836,11 @@ section.hero[data-reveal],section.hero,main#app>section:first-of-type,main#app>s
 body { top:0 !important; position:static !important; }
 font[style*="vertical-align"] { background:none !important; box-shadow:none !important; }
 #google_translate_element { position:absolute !important; left:-9999px !important; top:-9999px !important; width:1px; height:1px; overflow:hidden; }
-.cost-demo{margin:8px auto 0;max-width:760px;padding:18px;border:1px solid rgba(138,92,255,.45);border-radius:18px;background:rgba(8,6,20,.72)}
-.cost-demo h2{margin:0 0 8px}
-.cost-demo label{display:block;margin:0 0 8px;color:var(--ink-dim);font-size:14px}
-.cost-demo textarea{width:100%;min-height:120px;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font:16px/1.45 inherit}
-.cost-demo .btn{margin-top:12px}
-.cost-results{margin-top:14px;white-space:pre-line;font-family:var(--mono);font-size:14px;line-height:1.6}
 .cost-trust{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
 .cost-trust li,.cost-trust a{border:1px solid rgba(0,232,160,.45);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);text-decoration:none}
 .cost-trust-note{margin:10px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
 .cost-modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media(max-width:640px){
-  .cost-demo{padding:14px}
-  .cost-demo .btn{width:100%}
   .cost-modules{grid-template-columns:1fr}
   .cost-trust{flex-direction:column;align-items:flex-start}
 }
@@ -872,16 +864,11 @@ html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block;position:fi
 .nav-links{display:flex;gap:4px;align-items:center}
 .nav-links a{color:var(--ink);padding:8px 10px;font-size:14px}
 .nav-cta{display:flex;gap:8px;align-items:center}
-.tg-community{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:0 7vw;padding:10px 14px;border:1px solid rgba(0,136,204,.45);border-radius:14px;background:rgba(0,136,204,.12);color:var(--ink)}
-.tg-community p{margin:0;font-size:14px}
-.tg-join-popup{position:fixed;right:18px;bottom:88px;z-index:70;width:min(360px,calc(100vw - 32px));padding:16px;border-radius:16px;border:1px solid rgba(0,136,204,.5);background:#0b0a12;color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.35)}
-.tg-join-popup p{margin:0 0 10px;font-size:14px;line-height:1.45}
-.tg-join-popup .row{display:flex;gap:8px;flex-wrap:wrap}
 .nav-toggle{display:none;width:44px;height:44px;background:transparent;border:1px solid var(--stroke);border-radius:12px;flex-direction:column;gap:4px;align-items:center;justify-content:center}
 .nav-toggle-bar{display:block;width:18px;height:2px;background:#fff}
 main#app,footer{position:relative;z-index:2}
 .card{background:rgba(18,14,40,.55);border:1px solid var(--stroke);border-radius:18px;padding:18px}
-#costDemoSection,#unicornEcosystem{padding:28px 7vw 8px}
+#unicornEcosystem{padding:28px 7vw 8px}
 footer{padding:48px 7vw 28px}
 .foot-grid{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:22px}
 .foot-grid ul{list-style:none;padding:0;margin:0}
@@ -892,14 +879,6 @@ footer{padding:48px 7vw 28px}
 .concierge-btn:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 14px 36px rgba(138,92,255,.6)}
 .concierge-panel{display:none}
 .concierge-panel.open{display:flex;position:absolute;right:0;bottom:74px;width:min(430px,calc(100vw - 28px));max-height:76vh;flex-direction:column;gap:8px;padding:14px;border-radius:20px;border:1px solid rgba(138,92,255,.55);background:rgba(10,8,24,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 64px rgba(0,0,0,.65);color:var(--ink);overflow:auto}
-.concierge-tabs{display:flex;gap:6px;padding:4px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
-.concierge-tab{flex:1;padding:7px 10px;border-radius:9px;border:0;background:transparent;color:var(--ink-dim);font-size:12px;font-weight:600;cursor:pointer;transition:background .18s ease,color .18s ease}
-.concierge-tab.active{background:linear-gradient(135deg,rgba(138,92,255,.38),rgba(62,160,255,.28));color:#fff;box-shadow:inset 0 0 0 1px rgba(138,92,255,.5)}
-.concierge-router-wrap{padding:0!important;margin:0!important}
-.concierge-router-wrap .cost-demo{margin:0;padding:14px;border-radius:14px;background:rgba(18,14,40,.65);border:1px solid rgba(138,92,255,.32)}
-.concierge-router-wrap .cost-demo h2{font-size:16px;margin:0 0 8px}
-.concierge-router-wrap .cost-demo textarea{min-height:84px;font-size:13.5px;padding:10px 12px}
-.concierge-router-wrap .cost-demo .btn{width:100%;justify-content:center;padding:10px 14px;font-size:13.5px}
 .concierge-foot{display:flex;gap:8px;align-items:flex-end}
 .concierge-foot textarea{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--stroke);background:#05040a;color:var(--ink);padding:8px;font:inherit}
 .chip{margin:4px 4px 0 0;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--ink);padding:6px 10px;cursor:pointer}
@@ -947,8 +926,6 @@ html[data-route="/"] .card:hover{border-color:rgba(138,92,255,.48);box-shadow:0 
 .hero-meta-bar .cost-trust li,.hero-meta-bar .cost-trust a{font-size:12px;padding:4px 10px;border-color:rgba(0,232,160,.32);background:rgba(0,232,160,.06)}
 .hero-meta-lines{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-dim);line-height:1.5}
 .hero-meta-lines .cost-trust-note{margin:0;font-size:12px}
-html[data-route="/"] #costDemoSection{padding:0;margin:0}
-html[data-route="/"] .cost-demo{margin:0}
 @media(max-width:980px){html[data-route="/"] .hero{padding:116px 18px 36px}html[data-route="/"] .hero-grid{grid-template-columns:1fr}}
 @media(max-width:768px){html[data-route="/"] .hero{padding:108px 16px 28px;min-height:0}.hero-exec-card{padding:20px}}
 </style>
@@ -960,7 +937,6 @@ html[data-route="/"] .cost-demo{margin:0}
 ${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
-${route === '/checkout' || String(route || '').indexOf('/checkout/') === 0 ? '' : `<aside class="tg-community" role="region" aria-label="Telegram community"><p>Join the Telegram community. New articles and the live shelf are posted there.</p><a class="btn" href="/telegram" data-link data-telegram="banner">Join</a></aside>`}
 <div id="zeusHonestyBanner" class="lhos-fallback-banner" role="status">Serving a cached API response while Unicorn reconnects. Live numbers continue automatically.</div>
 <main id="app">`;
 }
@@ -1086,11 +1062,6 @@ function footer(route, opts) {
     <span>Powered by Zeus Core · Merkle-chained receipts · Ed25519 signatures</span>
   </div>
 </footer>
-<div id="tgJoinPopup" class="tg-join-popup" hidden>
-  <p><strong>Join the Telegram community</strong></p>
-  <p>New articles and the live shelf are posted in the channel this site runs. No messages to people who did not ask.</p>
-  <div class="row"><a class="btn btn-primary" href="/telegram" data-link data-telegram="popup">Open Telegram</a><button type="button" class="btn" data-tg-dismiss>Not now</button></div>
-</div>
 ${concierge()}
 ${globalChrome(N)}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
@@ -1109,21 +1080,6 @@ ${globalChrome(N)}
     if (!node) return;
     send(node.getAttribute('data-telegram'));
   });
-  var popup = document.getElementById('tgJoinPopup');
-  var path = location.pathname || '/';
-  if (!popup || path === '/checkout' || path.indexOf('/checkout/') === 0 || path === '/telegram') return;
-  try { if (sessionStorage.getItem('zeus.tg.popup') === '1') return; } catch (e) { return; }
-  var timer = setTimeout(function(){
-    popup.hidden = false;
-  }, 30000);
-  function close(){
-    popup.hidden = true;
-    clearTimeout(timer);
-    try { sessionStorage.setItem('zeus.tg.popup', '1'); } catch (e) {}
-  }
-  var dismiss = popup.querySelector('[data-tg-dismiss]');
-  if (dismiss) dismiss.addEventListener('click', close);
-  popup.querySelectorAll('[data-telegram]').forEach(function(link){ link.addEventListener('click', close); });
 })();
 </script>
 <script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
@@ -1359,38 +1315,17 @@ function concierge() {
   <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Concierge">⚡</button>
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus Omniscient AI<span class="meta" id="conciergeMeta">OMNISCIENT-1.0</span></div>
-    <div class="concierge-tabs" role="tablist" aria-label="Zeus AI Modes">
-      <button type="button" class="concierge-tab active" data-chat-tab="chat" role="tab" aria-selected="true">💬 AI Architect</button>
-      <button type="button" class="concierge-tab" data-chat-tab="router" role="tab" aria-selected="false">⚡ Router Tester</button>
-    </div>
-    <section id="costDemoSection" class="concierge-router-wrap" aria-labelledby="costDemoLabel" hidden>
-      <form id="costDemo" class="cost-demo" action="/api/demo/optimize" method="post">
-        <h2 id="costDemoLabel">Test the Router Live</h2>
-        <div class="playground-presets" id="playgroundPresets" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px">
-          <button type="button" class="preset-pill active" data-preset="1" data-prompt="Analyze enterprise customer churn and refund eligibility from EU Stripe logs while masking all PII data vectors." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.45);background:rgba(138,92,255,.20);color:#fff;cursor:pointer">⚡ Cost &amp; PII</button>
-          <button type="button" class="preset-pill" data-preset="2" data-prompt="Synthesize a real-time multi-source arbitrage matrix between OpenAI GPT-4o, Claude 3.5 Sonnet, and DeepSeek V3." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.22);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">📊 Arbitrage</button>
-          <button type="button" class="preset-pill" data-preset="3" data-prompt="Dispatch autonomous self-healing recovery routine across multi-cloud failover nodes with cryptographic Merkle proof." style="font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid rgba(138,92,255,.22);background:rgba(255,255,255,.05);color:var(--ink-dim);cursor:pointer">🛡️ Self-Healing</button>
-        </div>
-        <label for="costDemoPrompt">Enter a prompt (e.g., 'Write a Python script to scrape a website')</label>
-        <textarea id="costDemoPrompt" name="prompt" maxlength="4000" placeholder="Enter a prompt (e.g., 'Write a Python script to scrape a website')"></textarea>
-        <button class="btn btn-primary" id="costDemoBtn" type="submit">Calculate Savings</button>
-        <p class="cost-trust-note">${_commercial() && _commercial().demoLive() ? 'Live demo — real model, real response. The prompt is not stored.' : 'Simulated route. No model provider is called. The prompt is not stored.'}</p>
-        <div id="costDemoOut" class="cost-results" aria-live="polite"></div>
-        <div id="costDemoCta" style="display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35)"></div>
-      </form>
-    </section>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Apasă tab-ul <strong>⚡ Router Tester</strong> de sus (sau scrie <code>/route &lt;prompt&gt;</code>) ca să testezi live economiile routerului AI.<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>!</div></div>
+      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
     </div>
     <div class="chips" id="conciergeChips">
       <button class="chip" data-q="Arată-mi toate serviciile din site și prețurile lor inclusiv pachetele Enterprise">📦 Toate serviciile &amp; prețurile</button>
       <button class="chip" data-q="Explică-mi ce face și pentru ce e făcut fiecare modul din Unicorn (orchestrator, zacc, witness, adi-core, cryptoBridge)">⚙️ Ce face fiecare modul?</button>
-      <button class="chip" data-q="Testează routerul AI live pe promptul: Write a Python script to scrape a website">⚡ Test Router Live</button>
       <button class="chip" data-q="Am o afacere online și vreau să îmi crești vânzările și automatizarea. Ce servicii îmi recomanzi la care nu m-am gândit?">🔮 Nevoi Ascunse (Proactiv)</button>
       <button class="chip" data-q="Generează o mostră live 30% Reverse-SaaS Escrow pentru domeniul meu mycompany.io">⚡ Mostră Live 30%</button>
     </div>
     <div class="concierge-foot" id="conciergeFoot">
-      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau tastează /route <prompt>… (Enter)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
+      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau scrie domeniul tău… (Enter)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
       <button id="conciergeSend" aria-label="Send">→</button>
     </div>
   </div>
@@ -1551,41 +1486,6 @@ function globalChrome(N) {
       });
     }
   } catch(_){}
-  try {
-    var costForm = document.getElementById('costDemo');
-    if (costForm && costForm.dataset.bound !== '1') {
-      costForm.dataset.bound = '1';
-      costForm.addEventListener('submit', function(ev){
-        ev.preventDefault();
-        var promptEl = document.getElementById('costDemoPrompt');
-        var out = document.getElementById('costDemoOut');
-        var btn = document.getElementById('costDemoBtn');
-        var prompt = promptEl ? String(promptEl.value || '').trim() : '';
-        if (btn) btn.disabled = true;
-        fetch('/api/demo/optimize', { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify({ prompt: prompt }) })
-          .then(function(r){ return r.json().then(function(body){ return { ok: r.ok, body: body || {} }; }).catch(function(){ return { ok:false, body:{} }; }); })
-          .then(function(res){
-            if (btn) btn.disabled = false;
-            if (!out) return;
-            var j = res.body || {};
-            if (!res.ok || !j.ok) { out.textContent = j.error === 'prompt_required' ? 'Enter a prompt to calculate savings.' : 'The demo could not route that prompt.'; return; }
-            var cost = Number(j.costUsd), gpt4 = Number(j.gpt4CostUsd);
-            out.textContent = [j.analyzed || 'Prompt analyzed.', 'Routed to: ' + String(j.routedTo || ''), 'Latency: ' + String(j.latencyMs) + 'ms', 'Cost: $' + (isFinite(cost) ? cost.toFixed(4) : '0.0000'), 'Cost if using GPT-4: $' + (isFinite(gpt4) ? gpt4.toFixed(4) : '0.0000'), 'You just saved ' + String(j.savingsPct) + '%!'].join('\\n');
-            var ctaBox = document.getElementById('costDemoCta');
-            if (ctaBox) {
-              ctaBox.style.display = 'flex';
-              ctaBox.innerHTML = '<span style="font-size:12.5px;color:#00ffa3;font-weight:700">⚡ Lock in ' + String(j.savingsPct) + '% savings:</span>'
-                + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="padding:6px 12px;font-size:12px;background:#0070ba;border-color:#0070ba;width:auto">PayPal ($49)</a>'
-                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="padding:6px 12px;font-size:12px;background:#1f8f4e;border-color:#1f8f4e;width:auto">Card ($49)</a>'
-                + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="padding:6px 12px;font-size:12px;background:#f7931a;border-color:#f7931a;color:#05040a;font-weight:700;width:auto">⚡ BTC (-10%)</a>'
-                + '</div>';
-            }
-          })
-          .catch(function(){ if (btn) btn.disabled = false; if (out) out.textContent = 'The demo could not route that prompt.'; });
-      });
-    }
-  } catch(_){}
   // Sticky buy bar permanently removed (2026-06-09)
   // Exit-intent popup permanently removed — was blocking /account access for
   // logged-in users. Newsletter signup lives in the footer (non-blocking).
@@ -1595,54 +1495,9 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Omniscient AI Chatbot controller + integrated Live Router Tester tab.
+  // Omniscient AI Chatbot controller.
   try {
-    var setChatTab = function(mode){
-      var isRouter = mode === 'router';
-      var rSec = document.getElementById('costDemoSection');
-      var cBody = document.getElementById('conciergeBody');
-      var cChips = document.getElementById('conciergeChips');
-      var cFoot = document.getElementById('conciergeFoot');
-      if (rSec) rSec.hidden = !isRouter;
-      if (cBody) cBody.style.display = isRouter ? 'none' : '';
-      if (cChips) cChips.style.display = isRouter ? 'none' : '';
-      if (cFoot) cFoot.style.display = isRouter ? 'none' : '';
-      document.querySelectorAll('[data-chat-tab]').forEach(function(tb){
-        var act = tb.getAttribute('data-chat-tab') === mode;
-        tb.classList.toggle('active', act);
-        tb.setAttribute('aria-selected', act ? 'true' : 'false');
-      });
-    };
     document.addEventListener('click', function(ev){
-      var tabBtn = ev.target && ev.target.closest ? ev.target.closest('[data-chat-tab]') : null;
-      if (tabBtn) {
-        setChatTab(tabBtn.getAttribute('data-chat-tab') || 'chat');
-        return;
-      }
-      var presetBtn = ev.target && ev.target.closest ? ev.target.closest('#playgroundPresets .preset-pill') : null;
-      if (presetBtn) {
-        var promptEl = document.getElementById('costDemoPrompt');
-        var pVal = presetBtn.getAttribute('data-prompt') || '';
-        if (promptEl && pVal) {
-          promptEl.value = pVal;
-          document.querySelectorAll('#playgroundPresets .preset-pill').forEach(function(b){ b.classList.toggle('active', b === presetBtn); });
-          var cf = document.getElementById('costDemo');
-          if (cf) cf.dispatchEvent(new Event('submit', { cancelable: true }));
-        }
-        return;
-      }
-      var openRouter = ev.target && ev.target.closest ? ev.target.closest('[data-open-router-chat]') : null;
-      if (openRouter) {
-        var rp = document.getElementById('conciergePanel');
-        var ri = document.getElementById('costDemoPrompt');
-        if (rp) {
-          ev.preventDefault();
-          rp.classList.add('open');
-          setChatTab('router');
-          if (ri) setTimeout(function(){ ri.focus(); }, 80);
-        }
-        return;
-      }
       var trg = ev.target && ev.target.closest ? ev.target.closest('a[href="#concierge"],a[href="/#concierge"]') : null;
       if (!trg) return;
       var pnl = document.getElementById('conciergePanel');
@@ -1650,7 +1505,6 @@ function globalChrome(N) {
       if (pnl) {
         ev.preventDefault();
         pnl.classList.add('open');
-        setChatTab('chat');
         if (inp) setTimeout(function(){ inp.focus(); }, 80);
       }
     });
@@ -2541,10 +2395,10 @@ ${_zaccBanner}
       <div class="hero-exec-flow" aria-label="Autonomous routing flow">
         <span>Prompt</span><span>→</span><span style="color:#00ffa3;font-weight:700">Zeus Router</span><span>→</span><span>Groq · DeepSeek · Claude</span>
       </div>
-      <button type="button" class="hero-exec-cta" data-open-router-chat="1">⚡ Test the Router Live in Zeus AI Chat →</button>
+      <a href="#concierge" class="hero-exec-cta" style="text-decoration:none">💬 Ask Zeus Omniscient AI →</a>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--ink-dim)">
-        <span>Or ask Zeus AI about all 86+ services</span>
-        <a href="#concierge" style="color:#00ffa3;font-weight:600">Open AI Chat →</a>
+        <span>Explore all 86+ services &amp; 760+ Unicorn modules</span>
+        <a href="/services" data-link style="color:#00ffa3;font-weight:600">Browse catalog →</a>
       </div>
     </aside>
   </div>
