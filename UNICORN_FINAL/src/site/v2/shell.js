@@ -1332,10 +1332,10 @@ function concierge() {
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus Omniscient AI Architect">
     <div class="concierge-head"><span class="dot"></span> Zeus Omniscient AI<span class="meta" id="conciergeMeta">OMNISCIENT-1.0</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale ($29 – $4,000,000)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
+      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale (Instant, Professional &amp; Enterprise)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
     </div>
     <div class="chips" id="conciergeChips">
-      <button class="chip" data-q="Arată-mi toate serviciile din site și prețurile lor inclusiv Enterprise până la 4 milioane $">📦 Toate serviciile ($39–$4M)</button>
+      <button class="chip" data-q="Arată-mi toate serviciile din site și prețurile lor inclusiv pachetele Enterprise">📦 Toate serviciile &amp; prețurile</button>
       <button class="chip" data-q="Explică-mi ce face și pentru ce e făcut fiecare modul din Unicorn (orchestrator, zacc, witness, adi-core, cryptoBridge)">⚙️ Ce face fiecare modul?</button>
       <button class="chip" data-q="Am o afacere online și vreau să îmi crești vânzările și automatizarea. Ce servicii îmi recomanzi la care nu m-am gândit?">🔮 Nevoi Ascunse (Proactiv)</button>
       <button class="chip" data-q="Generează o mostră live 30% Reverse-SaaS Escrow pentru domeniul meu mycompany.io">⚡ Mostră Live 30%</button>
