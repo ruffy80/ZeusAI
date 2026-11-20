@@ -129,7 +129,7 @@ const shell = require('../src/site/v2/shell');
   const cards = services.match(/service-card/g) || [];
   assert.equal(cards.length, shelfCount);
   assert.match(services, /id="serviceSearch"/);
-  assert.match(services, /Each file is its own checkout/);
+  assert.match(services, /Each autonomous service activates independently/);
   assert.doesNotMatch(services, /Save 15-25% with bundles/);
 
   const pricing = shell.getHtml('/pricing');

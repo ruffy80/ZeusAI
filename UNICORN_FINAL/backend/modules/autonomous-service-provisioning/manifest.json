@@ -1,0 +1,72 @@
+{
+  "name": "autonomous-service-provisioning",
+  "version": "1.0.0",
+  "description": "ASPE/1.0 — Autonomous Post-Payment Service Provisioning & Live Execution Engine: activates real Unicorn modules, isolated customer workspaces, scoped API keys, scheduled autonomous runs, and Ed25519 activation proofs for all 55+ services immediately after payment",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getCatalogCapabilities",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "runScheduledCycles",
+      "type": "write",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 4000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "score",
+    "cryptoBridge",
+    "seo-aeo-geo-singularity",
+    "autonomous-runtime-immunity"
+  ],
+  "provides": [
+    "autonomous_service_provisioning",
+    "post_payment_live_execution",
+    "tenant_workspace_activation",
+    "scheduled_service_cycles",
+    "ed25519_activation_proofs"
+  ],
+  "failureModes": [
+    {
+      "symptom": "paid order activation missing live workspace instance",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 45,
+    "maxErrorRate": 0.002
+  },
+  "healthCheck": "health"
+}

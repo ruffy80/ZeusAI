@@ -1797,6 +1797,36 @@ function _trustBadgeHtml() {
   } catch (_) { /* empty ledger stays honest */ }
   return `<p class="trust-badge"><a href="/witness.json">Signed delivery • Verifiable</a> <span>${_esc(label)}</span></p>`;
 }
+function _aspeBlueprint(serviceId) {
+  try {
+    return require('../../../backend/modules/autonomous-service-provisioning').getServiceBlueprint(serviceId);
+  } catch (_) {
+    return null;
+  }
+}
+function _aspeAutonomousPill(serviceId) {
+  const bp = _aspeBlueprint(serviceId);
+  if (!bp || !Array.isArray(bp.modules) || !bp.modules.length) return '';
+  return `<div class="aspe-auto-pill" data-aspe-service="${_esc(serviceId)}" style="margin:8px 0 10px;padding:8px 11px;border-radius:10px;background:rgba(0,255,163,.07);border:1px solid rgba(0,255,163,.26);font-size:11.5px;line-height:1.45">
+    <div style="color:#00ffa3;font-weight:700;letter-spacing:.03em">⚡ Autonomous Unicorn Service (ASPE/1.0)</div>
+    <div style="color:var(--ink-dim);font-family:var(--mono);font-size:11px;margin-top:2px">Modules: ${_esc(bp.modules.slice(0, 4).join(' · '))}</div>
+  </div>`;
+}
+function _aspeDetailBox(serviceId) {
+  const bp = _aspeBlueprint(serviceId);
+  if (!bp) return '';
+  return `<div id="aspeExecutionCard" class="card" style="margin:18px 0;padding:18px;background:linear-gradient(135deg,rgba(0,255,163,.08),rgba(138,92,255,.10));border:1px solid rgba(0,255,163,.35);border-radius:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <span class="kicker" style="color:#00ffa3">⚡ Automated Post-Payment Unicorn Execution · ASPE/1.0</span>
+      <span style="font-family:var(--mono);font-size:11px;color:#dbe7ff">${_esc(bp.schedule || 'always-on')}</span>
+    </div>
+    <h3 style="margin:0 0 8px;font-size:17px;color:#fff">${_esc(bp.executionMode || 'Live Autonomous Unicorn Service')}</h3>
+    <p style="margin:0 0 10px;color:var(--ink-dim);font-size:13.5px;line-height:1.55">${_esc(bp.deliverableSummary || 'Automatically activates live Unicorn backend modules, workspace, API access, and Ed25519-signed deliverables upon payment.')}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${(bp.modules || []).map(m => `<span style="font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(138,92,255,.18);border:1px solid rgba(138,92,255,.4);color:#e2d4ff">${_esc(m)}</span>`).join('')}
+    </div>
+  </div>`;
+}
 function _serviceCardHtml(item) {
   const id = String((item && item.id) || '');
   const quote = _quoteFor(id);
@@ -1809,6 +1839,7 @@ function _serviceCardHtml(item) {
     <span class="tag">${category}</span>
     <h3>${_esc(item.title || id)}</h3>
     <p>${desc}</p>
+    ${_aspeAutonomousPill(id)}
     <p class="price-line">${price > 0 ? ('$' + price.toFixed(2)) : 'Contact'} ${btc ? ('· ' + _esc(btc) + ' BTC') : ''}</p>
     ${_trustBadgeHtml()}
     <p><a class="btn" href="/services/${encodeURIComponent(id)}" data-link>Details</a> ${buy}</p>
@@ -1872,6 +1903,7 @@ function _atlasCard(p) {
         <div class="atlas-price" style="font-family:var(--mono);font-size:21px;font-weight:800;color:var(--gold);text-align:right">${offerBlock}${share}<span class="btc-line" data-price-btc-value="${_esc(id)}">${btcTxt}</span>${btcDiscountNote}</div>
       </div>
       <p style="margin:0 0 14px;color:var(--ink-dim);font-size:13.5px;line-height:1.55;flex:1"${schema.merchant ? ' itemprop="description"' : ''}>${desc}</p>
+      ${_aspeAutonomousPill(id)}
       ${_trustBadgeHtml()}
       ${_atlasFile(p)}
     </div>
@@ -1891,31 +1923,31 @@ function _homeAtlasHtml() {
   return `<section id="homeAtlas">
   <div id="catalogGrid">
   <div class="section-title">
-    <div><span class="kicker">The delivery clock</span><h2>Every deliverable ZeusAI can sell, <span class="grad">priced by when you receive it.</span></h2></div>
-    <p>${total} named offers on one shelf. A minute-clock file arrives after payment. A day count is the kickoff file, not a finished build. The enterprise price is the kickoff file.</p>
+    <div><span class="kicker">Autonomous Unicorn Execution · ASPE/1.0</span><h2>Every autonomous service ZeusAI executes, <span class="grad">activated automatically after payment.</span></h2></div>
+    <p>${total} live Unicorn services in one catalog. Payment automatically activates dedicated backend modules, isolated workspaces, scoped API access, scheduled autonomous runs, and Ed25519-signed deliverables.</p>
   </div>
   <nav class="atlas-clocks" aria-label="Delivery clocks">
-    <a class="atlas-clock" href="#atlasMinutes"><b>Minutes</b><span>${instant.length} files · ${_esc(_atlasRange(instant))}</span></a>
-    <a class="atlas-clock" href="#atlasDays"><b>Days</b><span>${professional.length} engagements · ${_esc(_atlasRange(professional))}</span></a>
-    <a class="atlas-clock" href="#atlasContract"><b>Contract</b><span>${enterprise.length} ${enterprise.length === 1 ? 'file' : 'files'} · ${_esc(_atlasRange(enterprise))} listed</span></a>
+    <a class="atlas-clock" href="#atlasMinutes"><b>Instant Autonomous</b><span>${instant.length} live services · ${_esc(_atlasRange(instant))}</span></a>
+    <a class="atlas-clock" href="#atlasDays"><b>Autonomous Workspaces</b><span>${professional.length} live services · ${_esc(_atlasRange(professional))}</span></a>
+    <a class="atlas-clock" href="#atlasContract"><b>Enterprise Sovereign</b><span>${enterprise.length} ${enterprise.length === 1 ? 'sandbox' : 'sandboxes'} · ${_esc(_atlasRange(enterprise))} listed</span></a>
   </nav>
   <div id="atlasMinutes" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Minutes</span><h2>Pay, then download the file.</h2></div>
-    <p>Each card names the file and the listed window. The number on the card is the list price. Bitcoin pays 10% less. Card and PayPal pay the list price when they are configured. Delivery of the file is $0.</p></div>
+    <div class="section-title"><div><span class="kicker">Instant Autonomous</span><h2>Pay, then Unicorn activates your live service automatically.</h2></div>
+    <p>Each service automatically triggers its dedicated Unicorn backend modules, live workspace, and Ed25519-signed deliverables upon payment. The number on the card is the list price. Bitcoin pays 10% less. Card and PayPal pay the list price when configured. Activation &amp; delivery is $0.</p></div>
     <div class="grid atlas-grid" data-card-grid="minutes">${cards(instant)}</div>
   </div>
   <div id="atlasDays" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Days</span><h2>The file is the delivery.</h2></div>
-    <p>Payment unlocks the file named on the card. The finished build is not in that file. It is not an instant download of a finished system.</p></div>
+    <div class="section-title"><div><span class="kicker">Autonomous Workspaces</span><h2>Live Unicorn runtime activated on payment.</h2></div>
+    <p>Payment immediately provisions your autonomous Unicorn workspace, scoped API access, dedicated backend modules, and kickoff architecture pack. Full bespoke custom code transfer follows milestone execution (not an instant download of a custom human build).</p></div>
     <div class="grid atlas-grid" data-card-grid="days">${cards(professional)}</div>
   </div>
   <div id="atlasContract" class="atlas-band">
-    <div class="section-title"><div><span class="kicker">Contract</span><h2>The enterprise price is the kickoff file.</h2></div>
-    <p>Enterprise Engagement Kickoff is ${kickPrice}. It delivers a discovery brief, a commercial proposal, and a draft statement of work, credited toward a signed engagement. It does not deliver the license, the source, or a private cloud. A license, the source, a private cloud, and the company are not prices on this page.</p></div>
+    <div class="section-title"><div><span class="kicker">Enterprise Sovereign</span><h2>Enterprise Autonomous Sandbox &amp; Engagement Suite.</h2></div>
+    <p>Enterprise Engagement Kickoff is ${kickPrice}. Payment immediately activates your live Sovereign Sandbox with 23-module orchestrator telemetry, discovery brief, commercial proposal, and draft statement of work credited toward a signed engagement. It does not deliver the license, the source, or a private cloud until SOW sign-off.</p></div>
     <div class="grid atlas-grid" data-card-grid="contract">${cards(enterprise)}</div>
   </div>
   </div>
-  <p class="atlas-footnote">This is the public shelf. The listing desk, the frontier tool packs, and the industry architecture packs are files on this page. A parcel ships only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
+  <p class="atlas-footnote">Every service on this catalog is backed by real autonomous Unicorn modules (ASPE/1.0) plus Ed25519-signed deliverables. Physical dropship parcels ship only when a supplier key is armed. Orbital compute, a neural implant, and a quantum channel are not products.</p>
 </section>`;
 }
 
@@ -1952,7 +1984,7 @@ function _homeFeaturedServices() {
     return _serviceCardHtml(item);
   }).join('');
   return `<section id="homeFeaturedServices">
-  <div class="section-title"><div><h2>Six files you can buy now</h2></div></div>
+  <div class="section-title"><div><h2>Six autonomous Unicorn services you can activate now</h2></div></div>
   <div class="grid" id="homeFeaturedGrid">${cards}</div>
   <p><a class="btn btn-primary" href="/services" data-link>See all ${total} services →</a></p>
 </section>`;
@@ -2956,11 +2988,11 @@ function pageServices() {
     </div>
   </section>
   <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
-    <span class="kicker">What you receive</span>
-    <h3 style="margin:6px 0 12px;font-size:20px">The whole shelf. The file on the card is the file payment unlocks.</h3>
-    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">Website Audit, Logo Kit, and SEO Pack sit on the minute clock with the listing desk, the frontier tool packs, the industry architecture packs, and the kickoff files. The enterprise card is the kickoff file. Each card names the file you get today. The headings are the template, not a past customer.</p>
+    <span class="kicker">What you receive · Autonomous Activation (ASPE/1.0)</span>
+    <h3 style="margin:6px 0 12px;font-size:20px">Full Autonomous Unicorn Catalog — Live Execution Activated After Payment.</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6">From Website Audit, Logo Kit, and SEO Pack to autonomous workspaces, frontier tool APIs, and enterprise sandboxes, every service automatically activates its dedicated Unicorn backend modules, provisions an isolated live workspace and scoped API access, executes the autonomous pipeline, and issues Ed25519-signed deliverables immediately upon payment settlement.</p>
   </section>
-  <section id="serviceBundles"><h2>Each file is its own checkout</h2><p>A combined discount is not a payment. Buy the website audit, the logo kit, and the other files on their own cards.</p></section>
+  <section id="serviceBundles"><h2>Each autonomous service activates independently</h2><p>Select any service card below for instant autonomous activation with Bitcoin (-10%), PayPal, Card, or NOWPayments.</p></section>
   <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin:22px 0 14px">
     <div style="flex:1;min-width:280px">
       <label for="serviceSearch" style="display:block;margin-bottom:6px;font-size:13px;color:var(--ink-dim)">Search marketplace deliverables</label>
@@ -3076,16 +3108,17 @@ function pageService(id) { const params = arguments[1];
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${_esc(desc)}</p>
       ${safeId === 'instant-website-audit' ? '<p data-company-audit-door="1" style="color:var(--ink-dim);font-size:15px;line-height:1.65">Any company pays this list price for a scan of one public website. The scan runs after payment. The file scores six checks on that URL only. Open <a href="/checkout/?plan=instant-website-audit&amp;url=https://company.example">/checkout/?plan=instant-website-audit&amp;url=https://company.example</a>. A company is not listed as a customer until that company has paid.</p>' : ''}
       ${_guideBack(safeId)}
+      ${_aspeDetailBox(safeId)}
       ${_atlasFile(s)}
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Mempool confirm</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Signed delivery</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">The file named in the description is the download. A signed receipt is stored with the order.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC or Card/PayPal</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR, copy the BIP-21 URI (-10% BTC), or pay via PayPal/Card.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Mempool confirm &amp; Auto-Activate</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Payment settles on-chain (~30s) and ASPE/1.0 automatically activates your dedicated Unicorn modules, workspace &amp; API key.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Live Service + Signed delivery</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Run autonomous cycles live from checkout or /account, plus download Ed25519-signed deliverables.</p></div>
       </div>
       <div class="panels" style="margin-top:20px">
-        <div class="panel"><div class="ic">✓</div><p class="card-title">The file</p><p>The description on this page is the delivery. Headings in that file are the work.</p></div>
-        <div class="panel"><div class="ic">₿</div><p class="card-title">Bitcoin</p><p>Bitcoin is the live rail. Card and PayPal appear on checkout when they are configured.</p></div>
-        <div class="panel"><div class="ic">↩</div><p class="card-title">Refund</p><p>The refund closes once this file is issued. No social account is required to pay. <a href="/account" data-link>/account</a> keeps the download.</p></div>
+        <div class="panel"><div class="ic">⚡</div><p class="card-title">Autonomous Execution</p><p>Unicorn activates the dedicated backend modules, live workspace, and API access automatically upon payment — plus signed deliverables.</p></div>
+        <div class="panel"><div class="ic">₿</div><p class="card-title">Multi-Rail Settlement</p><p>Bitcoin (-10%) is primary on-chain. Card, PayPal, and NOWPayments are ready on the same checkout.</p></div>
+        <div class="panel"><div class="ic">↩</div><p class="card-title">Refund &amp; Portal</p><p>The refund closes once the autonomous service &amp; file are issued. No social account is required to pay. <a href="/account" data-link>/account</a> keeps your workspace &amp; deliverables.</p></div>
       </div>
     </div>
     <aside class="co-box">
@@ -3144,8 +3177,8 @@ function pageService(id) { const params = arguments[1];
 function _subscriptionPlansHtml() {
   return `<section id="subscriptionPlans">
   <h2>Monthly quotas are not a product</h2>
-  <p>A starter or pro payment does not issue audits, logos, or a landing page. Each of those files has its own price on the shelf.</p>
-  <p><a class="btn btn-primary" href="/services" data-link>Buy a file on the shelf</a></p>
+  <p>A starter or pro payment does not lock you into quotas. Every autonomous Unicorn service activates directly on its own card with live execution and Ed25519 receipts.</p>
+  <p><a class="btn btn-primary" href="/services" data-link>Explore all autonomous services →</a></p>
 </section>`;
 }
 function pageReport() {

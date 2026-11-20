@@ -6417,6 +6417,55 @@ app.post('/api/immunity/self-heal', express.json({ limit: '8kb' }), (req, res) =
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// ZEUSAI AUTONOMOUS SERVICE PROVISIONING & LIVE EXECUTION ENGINE (ASPE/1.0)
+// ============================================================================
+app.get(['/.well-known/autonomous-services.json', '/api/autonomous-service/catalog-capabilities'], (req, res) => {
+  try {
+    const aspe = require('./modules/autonomous-service-provisioning');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(aspe.getCatalogCapabilities());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/autonomous-service/status', (req, res) => {
+  try {
+    const aspe = require('./modules/autonomous-service-provisioning');
+    res.set('Cache-Control', 'no-store');
+    res.json(aspe.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/autonomous-service/:orderId/status', (req, res) => {
+  try {
+    const aspe = require('./modules/autonomous-service-provisioning');
+    const inst = aspe.getInstance(req.params.orderId);
+    res.set('Cache-Control', 'no-store');
+    if (!inst) return res.status(404).json({ ok: false, error: 'service_instance_not_found' });
+    res.json({ ok: true, instance: inst });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/autonomous-service/:orderId/run', express.json({ limit: '16kb' }), (req, res) => {
+  try {
+    const aspe = require('./modules/autonomous-service-provisioning');
+    const out = aspe.runAutonomousCycle(req.params.orderId, {
+      trigger: 'customer_on_demand',
+      inputs: (req.body && req.body.inputs) || {},
+    });
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);
@@ -10505,6 +10554,20 @@ function _onPaidInvoice(invoice) {
       }
     }
   } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
+  // ASPE/1.0 — Autonomous Unicorn Service Provisioning & Live Module Execution
+  try {
+    const aspe = require('./modules/autonomous-service-provisioning');
+    const paidEmailForAspe = invoice && (invoice.customerEmail || (invoice.metadata && invoice.metadata.email) || null);
+    const aspeRes = aspe.activatePaidService({
+      orderId: invoice && (invoice.orderId || invoice.id),
+      serviceId: invoice && (invoice.serviceId || invoice.service || 'instant-website-audit'),
+      email: paidEmailForAspe,
+      priceUsd: invoice && invoice.priceUsd,
+    });
+    if (aspeRes && aspeRes.ok && !aspeRes.idempotent) {
+      console.log('[BTC/Paid][ASPE/1.0] → live workspace', aspeRes.instance.workspaceId, 'modules=' + aspeRes.instance.modulesActivated.join(','));
+    }
+  } catch (e) { console.warn('[BTC/Paid][ASPE/1.0] activation warning:', e && e.message); }
   // Delivery file + email. SMTP missing → email.js persists the outbox.
   // A simulated txid still writes a file marked mock. It is not revenue
   // unless btcInvoiceLedger.markPaid already ran for a real payment.
