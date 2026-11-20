@@ -135,6 +135,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Platform guardrails, input validation, checkout error prevention, and continuous stability enhancements.',
     relatedServices: ['frontier-refund-shield', 'instant-operations-watch', 'instant-incident-clock'],
   },
+  'seo-aeo-geo-singularity': {
+    title: 'Autonomous Self-Evolving SEO + AEO + GEO Singularity Engine',
+    tier: 'autonomy',
+    purposeRo: 'Motorul tri-strat de descoperire și auto-inovare: sincronizează continuu SEO (Google/Bing/Merchant JSON-LD), AEO (Answer Capsules semnate Ed25519 pentru Perplexity, ChatGPT Search, Google AI Overviews) și GEO (/llms-full.txt, vectori RAG semantici de ~256 tokeni și matrice în 8 limbi), învățând automat din întrebările clienților.',
+    purposeEn: 'Tri-layer self-evolving discovery continuum: synchronizes SEO (sitemaps & Merchant JSON-LD), AEO (Ed25519-signed Atomic Answer Capsules for Perplexity, ChatGPT Search, Google AI Overviews), and GEO (/llms-full.txt, ~256-token semantic RAG chunks, and 8-locale citation matrix), auto-learning from live customer queries.',
+    relatedServices: ['instant-seo-content-pack', 'instant-website-audit', 'professional-ai-marketing'],
+  },
 };
 
 // Proactive Latent Needs Matrix ("Servicii de care clientul are nevoie, dar nu s-a gândit la ele")
@@ -681,13 +688,21 @@ class ZeusOmniscientBrain {
       if (finalRecs.length >= 5) break;
     }
 
+    const replyText = sections.join('\n\n');
+    try {
+      const sags = require('./seo-aeo-geo-singularity');
+      if (sags && typeof sags.learnFromQuery === 'function') {
+        sags.learnFromQuery(message, replyText, finalRecs[0] && finalRecs[0].svc);
+      }
+    } catch (_) {}
+
     return {
       ok: true,
       lang,
       intent: isAskingModules ? 'modules' : (isAskingEnterprise ? 'enterprise' : 'advisor'),
       provider: 'zeus-omniscient-v1',
       model: 'OMNISCIENT-ARCHITECT/1.0',
-      reply: sections.join('\n\n'),
+      reply: replyText,
       escrowPreview,
       recommendations: finalRecs.map(({ svc, badge }) => ({
         id: svc.id,

@@ -6280,6 +6280,98 @@ app.post('/api/concierge/feedback', express.json({ limit: '16kb' }), (req, res) 
   res.set('Cache-Control', 'no-store');
   res.json({ ok: true, recorded: true, at: new Date().toISOString() });
 });
+
+// ============================================================================
+// ZEUSAI SEO + AEO + GEO SINGULARITY CONTINUUM ENDPOINTS (SAGS/1.0 & CCPP/1.0)
+// ============================================================================
+app.get(['/llms-full.txt', '/api/seo-aeo-geo/llms-full.txt'], (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(sags.buildLlmsFullTxt());
+  } catch (e) {
+    res.status(500).send('# Error building llms-full.txt');
+  }
+});
+
+app.get(['/.well-known/aeo-answer-graph.json', '/api/aeo/answers', '/api/seo-aeo-geo/aeo-answers'], (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Cache-Control', 'no-store');
+    res.json(sags.getAeoAnswerGraph(req.query || {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/geo-citation-matrix.json', '/api/geo/citations', '/api/seo-aeo-geo/geo-matrix'], (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Cache-Control', 'no-store');
+    res.json(sags.getGeoCitationMatrix());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/api/geo/rag-chunks', '/api/seo-aeo-geo/rag-chunks'], (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Cache-Control', 'no-store');
+    res.json(sags.getRagSemanticChunks());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/seo-aeo-geo/multilingual-matrix', (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Cache-Control', 'no-store');
+    res.json(sags.getMultilingualMatrix());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/seo-aeo-geo/status', (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ...sags.getStatus(),
+      audit: sags.auditTriLayerMatrix(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/seo-aeo-geo/evolve', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    if (req.body && req.body.learnQuestion && req.body.learnAnswer) {
+      sags.learnFromQuery(req.body.learnQuestion, req.body.learnAnswer, req.body.service);
+    }
+    const out = await sags.evolveContinuum();
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/seo-aeo-geo/verify-capsule/:id', (req, res) => {
+  try {
+    const sags = require('./modules/seo-aeo-geo-singularity');
+    const out = sags.verifyCapsule(req.params.id);
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

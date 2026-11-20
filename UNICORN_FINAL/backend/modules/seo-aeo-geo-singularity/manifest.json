@@ -1,0 +1,75 @@
+{
+  "name": "seo-aeo-geo-singularity",
+  "version": "1.0.0",
+  "description": "Autonomous Self-Evolving SEO, AEO (Answer Engine Optimization), and GEO (Generative Engine Optimization) Singularity Continuum with Ed25519 Cryptographic Citation Proofs",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1500,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "evolveContinuum",
+      "type": "write",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 4000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "auditTriLayerMatrix",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 2500,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "syncSearchAndAnswerEngines",
+      "type": "write",
+      "schedule": "0 * * * *",
+      "timeout_ms": 20000,
+      "resourceBudget": {
+        "maxCpuMs": 4000,
+        "maxMemoryMb": 256
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "score",
+    "cryptoBridge"
+  ],
+  "provides": [
+    "autonomous_seo",
+    "answer_engine_optimization",
+    "generative_engine_optimization",
+    "cryptographic_citation_proofs",
+    "rag_semantic_chunks",
+    "llms_full_manifest"
+  ],
+  "failureModes": [
+    {
+      "symptom": "catalog price drift detected in AEO/GEO capsules",
+      "recovery": "restart"
+    },
+    {
+      "symptom": "answer capsule signature mismatch",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 45,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

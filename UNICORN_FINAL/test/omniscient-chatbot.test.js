@@ -9,7 +9,7 @@ const brain = require('../backend/modules/omniscient-chatbot');
   assert.strictEqual(map.ok, true);
   assert.ok(map.servicesCount >= 80, `Expected >= 80 services indexed, got ${map.servicesCount}`);
   assert.ok(map.modulesCount >= 700, `Expected >= 700 modules indexed, got ${map.modulesCount}`);
-  assert.strictEqual(map.manifestModulesCount, 20);
+  assert.ok(map.manifestModulesCount >= 20, `Expected >= 20 manifest modules, got ${map.manifestModulesCount}`);
   assert.strictEqual(map.priceRangeUsd.max, 4000000);
   console.log(`✓ Knowledge Map: ${map.servicesCount} services ($${map.priceRangeUsd.min}–$${map.priceRangeUsd.max.toLocaleString()}) & ${map.modulesCount} modules indexed`);
 

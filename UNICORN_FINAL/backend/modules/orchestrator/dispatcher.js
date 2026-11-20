@@ -98,7 +98,8 @@ class UniversalCapabilityDispatcher {
         'getStatus', 'listProviders', 'health', 'getBtcUsdRate', 'revenueSummary',
         'listServices', 'getOverview', 'getStats', 'getAllStatuses', 'getLatestSnapshot',
         'summary', 'status', 'discoverModels', 'enforceContinuum', 'distributeViralPulse',
-        'computeGlobalScore', 'generateSnapshot',
+        'computeGlobalScore', 'generateSnapshot', 'evolveContinuum', 'auditTriLayerMatrix',
+        'syncSearchAndAnswerEngines',
       ]);
 
       if (safeDirectCallIds.has(fnName) && typeof mod[fnName] === 'function') {
