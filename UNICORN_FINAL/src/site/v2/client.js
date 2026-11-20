@@ -2058,7 +2058,7 @@ async function hydratePage(route){
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  try { if (route === '/') { initDiscoverTrust(); bindConcierge(); bindCostOptimizer(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/') { initDiscoverTrust(); bindConcierge(); if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
   try { if (route === '/outreach-desk') bindDiscoverDesk(); } catch (e) { console.warn('hydratePage:desk', e && e.message); }
   try { if (route === '/services' || route === '/marketplace') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
@@ -6182,86 +6182,6 @@ function initNavOffer(){
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
-}
-function bindCostOptimizer(){
-  const form = document.getElementById('costDemo');
-  if (!form || form.dataset.bound === '1') return;
-  form.dataset.bound = '1';
-  const out = document.getElementById('costDemoOut');
-  const btn = document.getElementById('costDemoBtn');
-
-  // Interactive preset selector pills
-  const presetBtns = document.querySelectorAll('#playgroundPresets .preset-pill');
-  presetBtns.forEach(function(pb){
-    pb.addEventListener('click', function(){
-      presetBtns.forEach(function(p){
-        p.classList.remove('active');
-        p.style.background = 'rgba(255,255,255,.05)';
-        p.style.color = 'var(--ink-dim)';
-        p.style.borderColor = 'rgba(138,92,255,.2)';
-      });
-      pb.classList.add('active');
-      pb.style.background = 'rgba(138,92,255,.18)';
-      pb.style.color = '#fff';
-      pb.style.borderColor = 'rgba(138,92,255,.4)';
-
-      const pr = pb.getAttribute('data-prompt');
-      const promptEl = document.getElementById('costDemoPrompt');
-      if (promptEl && pr) {
-        promptEl.value = pr;
-        form.dispatchEvent(new Event('submit', { cancelable: true }));
-      }
-    });
-  });
-
-  form.addEventListener('submit', function(ev){
-    ev.preventDefault();
-    const promptEl = document.getElementById('costDemoPrompt');
-    const prompt = promptEl ? String(promptEl.value || '').trim() : '';
-    if (btn) btn.disabled = true;
-    fetch('/api/demo/optimize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
-    }).then(function(r){
-      return r.json().then(function(body){ return { ok: r.ok, body: body || {} }; }).catch(function(){ return { ok: false, body: {} }; });
-    }).then(function(res){
-      if (btn) btn.disabled = false;
-      if (!out) return;
-      const j = res.body || {};
-      if (!res.ok || !j.ok) {
-        out.textContent = j.error === 'prompt_required'
-          ? 'Enter a prompt to calculate savings.'
-          : 'The demo could not route that prompt.';
-        return;
-      }
-      const cost = Number(j.costUsd);
-      const gpt4 = Number(j.gpt4CostUsd);
-      const lines = [
-        j.analyzed || 'Prompt analyzed.',
-        'Routed to: ' + String(j.routedTo || ''),
-        'Latency: ' + String(j.latencyMs) + 'ms',
-        'Cost: $' + (Number.isFinite(cost) ? cost.toFixed(4) : '0.0000'),
-        'Cost if using GPT-4: $' + (Number.isFinite(gpt4) ? gpt4.toFixed(4) : '0.0000'),
-        'You just saved ' + String(j.savingsPct) + '!'
-      ];
-      out.replaceChildren();
-      out.textContent = lines.join('\n');
-      const ctaBox = document.getElementById('costDemoCta');
-      if (ctaBox) {
-        ctaBox.style.display = 'flex';
-        ctaBox.innerHTML = '<span style="font-size:12.5px;color:#00ffa3;font-weight:700">⚡ Lock in ' + escapeHtml(String(j.savingsPct)) + '% savings:</span>'
-          + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=paypal" data-link style="padding:6px 12px;font-size:12px;background:#0070ba;border-color:#0070ba;width:auto">PayPal ($49)</a>'
-          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=card" data-link style="padding:6px 12px;font-size:12px;background:#1f8f4e;border-color:#1f8f4e;width:auto">Card ($49)</a>'
-          + '<a class="btn btn-primary" href="/checkout/?plan=instant-website-audit&rail=btc" data-link style="padding:6px 12px;font-size:12px;background:#f7931a;border-color:#f7931a;color:#05040a;font-weight:700;width:auto">⚡ BTC (-10%)</a>'
-          + '</div>';
-      }
-    }).catch(function(){
-      if (btn) btn.disabled = false;
-      if (out) out.textContent = 'The demo could not route that prompt.';
-    });
-  });
 }
 
 function bindSynapticVisualizer(){

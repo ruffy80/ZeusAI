@@ -64,7 +64,8 @@ check('shell: hero secondary link points at the enterprise modules', () => {
 });
 check('shell: homepage does not print a fake module count', () => {
   assert.ok(!/id="statModules">\d+/.test(shell));
-  assert.ok(shell.includes('id="costDemo"'));
+  assert.ok(shell.includes('id="heroExecutiveCard"'));
+  assert.ok(!shell.includes('id="costDemo"'));
 });
 check('shell: featured strip includes ONLY instant+professional (no enterprise picks)', () => {
   const featured = shell.match(/const _featured = \[\][\s\S]*?;\s*const _featuredHtml/);

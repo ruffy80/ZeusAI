@@ -1198,7 +1198,7 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
       animation we declare, not just the wordmark family. */
 .zeus-hero-image,.zeus-halo-b,.zeus-stars,.fx-orb,.fx-scan,.hero-eyebrow .dot{will-change:transform,opacity}
 section,.section{content-visibility:auto;contain-intrinsic-size:1px 640px}
-footer,.foot-grid,.foot-lead,#costDemoSection,#unicornEcosystem{content-visibility:visible}
+footer,.foot-grid,.foot-lead,#unicornEcosystem{content-visibility:visible}
 /* Hero must always render — it's the LCP target. */
 .hero,.hero *{content-visibility:visible}
 @media (prefers-reduced-motion: reduce){
@@ -1215,12 +1215,6 @@ footer,.foot-grid,.foot-lead,#costDemoSection,#unicornEcosystem{content-visibili
 html[data-zeus-api-fallback="1"] .lhos-fallback-banner{display:block}
 html[data-zeus-api-fallback="1"] .nav{top:34px}
 
-.cost-demo{margin:8px auto 0;max-width:760px;padding:18px;border:1px solid rgba(138,92,255,.45);border-radius:18px;background:rgba(8,6,20,.72)}
-.cost-demo h2{margin:0 0 8px}
-.cost-demo label{display:block;margin:0 0 8px;color:var(--ink-dim);font-size:14px}
-.cost-demo textarea{width:100%;min-height:120px;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font:16px/1.45 inherit}
-.cost-demo .btn{margin-top:12px}
-.cost-results{margin-top:14px;white-space:pre-line;font-family:var(--mono);font-size:14px;line-height:1.6}
 .cost-trust{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:16px 0 0;list-style:none}
 .cost-trust li,.cost-trust a{border:1px solid rgba(0,232,160,.45);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--ink);text-decoration:none}
 .cost-trust-note{margin:10px 0 0;color:var(--ink-dim);font-size:13px;max-width:68ch}
@@ -1235,25 +1229,19 @@ html[data-zeus-api-fallback="1"] .nav{top:34px}
 }
 .cost-modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media(max-width:640px){
-  .cost-demo{padding:14px}
-  .cost-demo .btn{width:100%}
   .cost-modules{grid-template-columns:1fr}
   .cost-trust{flex-direction:column;align-items:flex-start}
 }
 
-/* Public path: the promise and the live router sit on one row. Inner pages
-   keep the full-viewport poster. */
+/* Public path: compact hero grid. Inner pages keep the full-viewport poster. */
 html[data-route="/"] .hero{min-height:0;padding:108px 32px 28px}
 html[data-route="/"] .hero-grid{min-height:0;grid-template-columns:minmax(0,1.05fr) minmax(300px,.9fr);align-items:center;gap:28px}
-html[data-route="/"] #costDemoSection{padding:0;margin:0}
-html[data-route="/"] .cost-demo{margin:0}
 @media(max-width:980px){
   html[data-route="/"] .hero{padding:112px 18px 20px}
   html[data-route="/"] .hero-grid{grid-template-columns:1fr}
 }
 @media(max-width:768px){
   html[data-route="/"] .hero{padding:104px 16px 16px;min-height:0}
-  html[data-route="/"] #costDemoSection{margin-top:72px}
 }
 .nav-more-label{margin:10px 10px 2px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim)}
 .nav-more-menu{max-height:min(70vh,520px);overflow:auto}

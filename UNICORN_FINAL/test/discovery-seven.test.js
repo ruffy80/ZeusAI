@@ -201,7 +201,8 @@ check('guides in the sitemap are shelf offers, and aliases do not share a title'
 check('the homepage and account lead with the offer, and social stays secondary', () => {
   const { getHtml } = require('../src/site/v2/shell');
   const home = getHtml('/');
-  assert.ok(home.includes('id="costDemo"'));
+  assert.ok(home.includes('id="heroExecutiveCard"'));
+  assert.ok(!home.includes('id="costDemo"'));
   assert.ok(home.includes('Get Enterprise Access'));
   assert.ok(home.includes('href="/services"'));
   assert.ok(!/sign in with (google|x|twitter|facebook)/i.test(home));

@@ -149,8 +149,9 @@ check('pages render trust, articles, faq, and a noindex desk', () => {
   assert.ok(home.includes('Cut Your AI API Costs by 70% Automatically'));
   assert.ok(home.includes('id="dtHeroCta"'));
   assert.ok(home.includes('Get Enterprise Access'));
-  assert.ok(home.includes('id="costDemo"'));
-  assert.ok(home.includes('Test the Router Live'));
+  assert.ok(!home.includes('id="costDemo"'));
+  assert.ok(!home.includes('Test the Router Live'));
+  assert.ok(!home.includes('id="tgJoinPopup"'));
   assert.ok(!home.includes('Get My $39 Resume Makeover'));
   assert.ok(!home.includes('Show me the offer'));
   assert.ok(!home.includes('id="resumeSample"'));
