@@ -619,6 +619,8 @@ async function handle(req, res, ctx) {
       `- A2A Sovereign Clearinghouse: ${OWNER.domain}/.well-known/agent-commerce.json`,
       `- Ed25519 Supply-Chain & Runtime Immunity Attestation (ASRI/1.0): ${OWNER.domain}/.well-known/runtime-immunity.json`,
       `- Autonomous Post-Payment Service Provisioning Capabilities (ASPE/1.0): ${OWNER.domain}/.well-known/autonomous-services.json`,
+      `- Self-Healing Multi-LLM Frontier Swarm & Ollama Cascade (NSC/1.0): ${OWNER.domain}/.well-known/llm-swarm.json`,
+      `- Autonomous Proof-Before-Pay Client Magnet & 10% Referral Bounty (ACME/1.0): ${OWNER.domain}/.well-known/client-magnet.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -730,6 +732,46 @@ async function handle(req, res, ctx) {
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, code, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/llm-swarm.json' || urlPath === '/api/llm-swarm/status') {
+    const nsc = require('../../backend/modules/neural-swarm-llm-cascade');
+    const body = JSON.stringify(nsc.getSwarmManifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/client-magnet.json' || urlPath === '/api/magnet/status') {
+    const acme = require('../../backend/modules/autonomous-client-magnet');
+    const body = JSON.stringify(acme.getDiscoveryManifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/magnet/instant-audit-teaser' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', async () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const acme = require('../../backend/modules/autonomous-client-magnet');
+        const out = await acme.runProofBeforePayTeaser(parsed.url || '');
+        const code = out.ok ? 200 : 400;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      } catch (e) {
+        const body = JSON.stringify({ ok: false, error: String(e && e.message || e) });
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+      }
+    });
     return true;
   }
 

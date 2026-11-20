@@ -1,0 +1,69 @@
+{
+  "name": "neural-swarm-llm-cascade",
+  "version": "1.0.0",
+  "description": "NSC/1.0 — Self-Discovering Multi-LLM Frontier Swarm (Groq 120B + OpenRouter 550B Free + Local Sovereign Ollama), Automatic Deprecated-Model Self-Healer, and Adversarial Cross-Family Quality Critic",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "discoverActiveModels",
+      "type": "write",
+      "schedule": "0 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getSwarmManifest",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "autonomous-runtime-immunity"
+  ],
+  "provides": [
+    "multi_llm_neural_swarm",
+    "auto_model_deprecation_healer",
+    "adversarial_quality_critic",
+    "sovereign_ollama_failover",
+    "zero_cost_frontier_cascade"
+  ],
+  "failureModes": [
+    {
+      "symptom": "cloud llm model id deprecated or rate-limited",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 150,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

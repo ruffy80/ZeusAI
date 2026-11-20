@@ -605,6 +605,15 @@ class AutonomousServiceProvisioningEngine {
         runCycle: `/api/autonomous-service/${encodeURIComponent(orderId)}/run`,
         portal: '/account',
       },
+      llmSwarmHealth: (() => {
+        try { return require('../neural-swarm-llm-cascade').health(); } catch (_) { return null; }
+      })(),
+      compoundingUpgrades: (() => {
+        try { return require('../autonomous-client-magnet').getCompoundingPath(serviceId); } catch (_) { return []; }
+      })(),
+      referralBounty: (() => {
+        try { return require('../autonomous-client-magnet').createReferralLink(receipt.email || orderId); } catch (_) { return null; }
+      })(),
       cyclesExecuted: 1,
       lastCycleAt: nowIso,
       nextScheduledRunAt: new Date(Date.now() + 3600 * 1000).toISOString(),

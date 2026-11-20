@@ -37,6 +37,20 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Turns every confirmed payment into a LIVE autonomous Unicorn service (not just a static file!): automatically activates the dedicated Unicorn backend modules for all 55+ services, provisions an isolated workspace, scoped API key, on-demand execution endpoint (`/api/autonomous-service/:orderId/run`), recurring autonomous schedule, and Ed25519 activation proof.',
     relatedServices: ['instant-website-audit', 'professional-ai-agent', 'ent-engagement-kickoff'],
   },
+  'neural-swarm-llm-cascade': {
+    title: 'NSC/1.0 — Self-Healing Multi-LLM Frontier Swarm & Sovereign Ollama Cascade',
+    tier: 'autonomy',
+    purposeRo: 'Roiul neuronal multi-LLM auto-vindecător (NSC/1.0): descoperă automat modelele active de top (`Groq openai/gpt-oss-120b` în ~120ms, `OpenRouter nvidia/nemotron-3-ultra-550b-a55b:free` gratuit + `Ollama` local suveran la 34ms), înlocuiește automat modelele expirate, evaluează calitatea fiecărui livrabil (0–100) și aplică rafinare adversarială cross-model.',
+    purposeEn: 'Self-healing multi-LLM frontier swarm (NSC/1.0): auto-discovers live top models (`Groq openai/gpt-oss-120b` ~120ms, `OpenRouter nvidia/nemotron-3-ultra-550b-a55b:free` zero-cost + local sovereign `Ollama` ~34ms), heals deprecated model IDs automatically, scores every deliverable (0–100), and runs adversarial cross-family refinement.',
+    relatedServices: ['professional-ai-agent', 'professional-ai-chatbot', 'ent-engagement-kickoff'],
+  },
+  'autonomous-client-magnet': {
+    title: 'ACME/1.0 — Autonomous Proof-Before-Pay Client Magnet & Viral Referral Engine',
+    tier: 'commerce',
+    purposeRo: 'Motorul autonom de atragere și conversie a clienților (ACME/1.0): oferă diagnostic live Proof-Before-Pay în 3 secunde pe URL-ul real al clientului (`POST /api/magnet/instant-audit-teaser`), generează linkuri de referral criptografice 10%/10% și propune automat trasee naturale de upgrade post-achiziție.',
+    purposeEn: 'Autonomous client acquisition & conversion engine (ACME/1.0): runs real 3-second Proof-Before-Pay live URL diagnostics (`POST /api/magnet/instant-audit-teaser`), issues cryptographic 10%/10% viral referral bounty links, and orchestrates post-purchase compounding upgrades.',
+    relatedServices: ['instant-website-audit', 'instant-seo-content-pack', 'professional-ai-marketing'],
+  },
   'zacc': {
     title: 'ZACC — Zeus Autonomic Commerce Core',
     tier: 'commerce',
