@@ -1,0 +1,82 @@
+{
+  "name": "cognitive-evolution-genome",
+  "version": "1.0.0",
+  "description": "CEGE/1.0 — Autonomous Cognitive Evolution Genome, UCB1/Bayesian Strategy Bandit, Shadow-Verified Self-Innovation RFC Synthesizer, Semantic Memory Distiller, and Ed25519 Hash-Chained Evolution Ledger.",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getEvolutionLedger",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "evolveGeneration",
+      "type": "write",
+      "schedule": "*/15 * * * *",
+      "timeout_ms": 20000,
+      "resourceBudget": {
+        "maxCpuMs": 3000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "verifyLedgerChain",
+      "type": "read",
+      "schedule": "*/5 * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "autonomous-runtime-immunity",
+    "neural-swarm-llm-cascade",
+    "seo-aeo-geo-singularity",
+    "autonomous-service-provisioning",
+    "autonomous-client-magnet"
+  ],
+  "provides": [
+    "cognitive_evolution_genome",
+    "shadow_verified_self_innovation",
+    "semantic_knowledge_distillation",
+    "ed25519_evolution_ledger"
+  ],
+  "failureModes": [
+    {
+      "symptom": "shadow benchmark candidate rejected or live quality regression detected",
+      "recovery": "quarantine"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 500,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

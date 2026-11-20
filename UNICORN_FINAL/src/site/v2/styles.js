@@ -1394,4 +1394,125 @@ body:has(#zeus-cookie:not([hidden])) .concierge{bottom:108px}
 }
 @keyframes zaModalFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zaModalPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ============ PROOF-BEFORE-PAY MAGNET & SOVEREIGN AUTONOMY STUDIO ============ */
+#proofMagnetStudio { margin: 48px 0 0; }
+.magnet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+.magnet-card {
+  background: linear-gradient(155deg, rgba(20, 16, 46, .74), rgba(8, 7, 20, .88));
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 20px 50px -24px rgba(80, 40, 200, .42);
+}
+.magnet-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.magnet-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(59, 255, 176, .12);
+  border: 1px solid rgba(59, 255, 176, .38);
+  color: var(--ok);
+}
+.magnet-badge-violet {
+  background: rgba(138, 92, 255, .16);
+  border-color: rgba(138, 92, 255, .45);
+  color: var(--violet2);
+}
+.magnet-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.magnet-input {
+  flex: 1 1 210px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--stroke);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+  outline: none;
+}
+.magnet-input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(138, 92, 255, .2);
+}
+.magnet-result {
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.magnet-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+  gap: 8px;
+}
+.magnet-check {
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .03);
+  color: var(--ink);
+}
+.magnet-check.pass { border-color: rgba(59, 255, 176, .35); color: var(--ok); }
+.magnet-check.fail { border-color: rgba(255, 61, 110, .4); color: #ff8aa6; }
+.magnet-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 10px;
+}
+.magnet-kpi {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid rgba(163, 138, 255, .18);
+}
+.magnet-kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+.magnet-kpi-val {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  word-break: break-word;
+}
+.magnet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .magnet-card { padding: 18px; }
+  .magnet-input { font-size: 16px; }
+}
 `;

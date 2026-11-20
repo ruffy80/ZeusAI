@@ -101,7 +101,8 @@ class UniversalCapabilityDispatcher {
         'computeGlobalScore', 'generateSnapshot', 'evolveContinuum', 'auditTriLayerMatrix',
         'syncSearchAndAnswerEngines', 'auditSupplyChain', 'stabilizeRuntime', 'getImmunityCertificate',
         'getCatalogCapabilities', 'runScheduledCycles', 'discoverActiveModels', 'getSwarmManifest',
-        'runAcquisitionPulse', 'getDiscoveryManifest',
+        'runAcquisitionPulse', 'getDiscoveryManifest', 'getEvolutionLedger', 'evolveGeneration',
+        'verifyLedgerChain', 'getAgentCard', 'getMcpDiscoveryManifest', 'getUnifiedOpenApi31',
       ]);
 
       if (safeDirectCallIds.has(fnName) && typeof mod[fnName] === 'function') {

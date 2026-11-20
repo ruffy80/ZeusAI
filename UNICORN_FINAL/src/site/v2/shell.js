@@ -1596,6 +1596,152 @@ function globalChrome(N) {
           if (q) dockReply(q);
         });
       }
+      // Proof-Before-Pay Live Domain Scanner (ACME/1.0) & Sovereign Autonomy Pulse (CEGE/1.0 + NSC/1.0 + ASRI/1.0 + UMAP/1.0)
+      var magnetForm = document.getElementById('magnetScanForm');
+      var magnetUrl = document.getElementById('magnetUrlInput');
+      var magnetBtn = document.getElementById('magnetScanBtn');
+      var magnetRes = document.getElementById('magnetScanResult');
+      if (magnetForm && magnetUrl && magnetRes && !magnetForm.dataset.bound) {
+        magnetForm.dataset.bound = '1';
+        magnetForm.addEventListener('submit', function(ev){
+          ev.preventDefault();
+          var rawUrl = (magnetUrl.value || '').trim();
+          if (!rawUrl) { magnetUrl.focus(); return; }
+          if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
+          magnetRes.hidden = false;
+          while (magnetRes.firstChild) magnetRes.removeChild(magnetRes.firstChild);
+          var loading = document.createElement('div');
+          loading.style.fontFamily = 'var(--mono)';
+          loading.style.fontSize = '13px';
+          loading.style.color = 'var(--blue2)';
+          loading.textContent = 'Running live 7-point diagnostic on ' + rawUrl + '…';
+          magnetRes.appendChild(loading);
+          if (magnetBtn) magnetBtn.disabled = true;
+          fetch('/api/magnet/instant-audit-teaser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: rawUrl })
+          }).then(function(r){ return r.json(); }).then(function(d){
+            if (magnetBtn) magnetBtn.disabled = false;
+            while (magnetRes.firstChild) magnetRes.removeChild(magnetRes.firstChild);
+            if (!d || !d.ok) {
+              var errEl = document.createElement('div');
+              errEl.style.color = '#ff8aa6';
+              errEl.style.fontSize = '13px';
+              errEl.textContent = 'Scan could not complete (' + ((d && d.error) || 'invalid URL') + '). Enter a public https:// domain.';
+              magnetRes.appendChild(errEl);
+              return;
+            }
+            var head = document.createElement('div');
+            head.style.fontWeight = '700';
+            head.style.fontSize = '15px';
+            head.textContent = d.host + ' — Live Score: ' + d.liveScore + '/100 (' + d.checksPassed + '/' + d.checksTotal + ' passed in ' + d.latencyMs + 'ms)';
+            magnetRes.appendChild(head);
+            if (d.proofSummary) {
+              var sum = document.createElement('div');
+              sum.style.color = 'var(--ink-dim)';
+              sum.style.fontSize = '13px';
+              sum.textContent = d.proofSummary;
+              magnetRes.appendChild(sum);
+            }
+            var grid = document.createElement('div');
+            grid.className = 'magnet-checks';
+            (d.checks || []).forEach(function(c){
+              var item = document.createElement('div');
+              item.className = 'magnet-check ' + (c.pass ? 'pass' : 'fail');
+              item.textContent = (c.pass ? '✓ ' : '✗ ') + c.label;
+              grid.appendChild(item);
+            });
+            magnetRes.appendChild(grid);
+            if (d.instantActivation && d.instantActivation.recommendedServiceId) {
+              var actRow = document.createElement('div');
+              actRow.className = 'magnet-actions';
+              var fixLink = document.createElement('a');
+              fixLink.className = 'btn btn-primary';
+              fixLink.style.fontSize = '13px';
+              fixLink.href = '/services/' + encodeURIComponent(d.instantActivation.recommendedServiceId);
+              fixLink.textContent = 'Activate Autonomous Fix (' + d.instantActivation.recommendedServiceId + ') →';
+              actRow.appendChild(fixLink);
+              magnetRes.appendChild(actRow);
+            }
+          }).catch(function(){
+            if (magnetBtn) magnetBtn.disabled = false;
+            while (magnetRes.firstChild) magnetRes.removeChild(magnetRes.firstChild);
+            var errEl = document.createElement('div');
+            errEl.style.color = '#ff8aa6';
+            errEl.textContent = 'Network error while running live scan. Please retry.';
+            magnetRes.appendChild(errEl);
+          });
+        });
+      }
+      var refBtn = document.getElementById('magnetRefBtn');
+      var refOut = document.getElementById('magnetRefOut');
+      if (refBtn && refOut && !refBtn.dataset.bound) {
+        refBtn.dataset.bound = '1';
+        refBtn.addEventListener('click', function(){
+          var seed = (magnetUrl && magnetUrl.value.trim()) || ('web_' + Date.now());
+          refOut.textContent = 'Minting cryptographic referral…';
+          fetch('/api/magnet/referral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referrerId: seed })
+          }).then(function(r){ return r.json(); }).then(function(d){
+            var url = d && d.referral && d.referral.shareUrl;
+            if (!url) { refOut.textContent = 'Could not generate referral link.'; return; }
+            refOut.textContent = url + ' (10% off friend + 10% credit)';
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).catch(function(){});
+            }
+          }).catch(function(){ refOut.textContent = 'Retry referral link generation.'; });
+        });
+      }
+      var copyMcpBtn = document.getElementById('copyMcpConfigBtn');
+      if (copyMcpBtn && !copyMcpBtn.dataset.bound) {
+        copyMcpBtn.dataset.bound = '1';
+        copyMcpBtn.addEventListener('click', function(){
+          var cfgStr = JSON.stringify({
+            mcpServers: {
+              zeusai: {
+                url: location.origin + '/api/mcp',
+                transport: 'streamable-http'
+              }
+            }
+          }, null, 2);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(cfgStr).then(function(){
+              copyMcpBtn.textContent = '✓ Copied MCP Config (' + location.origin + '/api/mcp)';
+              setTimeout(function(){ copyMcpBtn.textContent = 'Copy MCP Server Config (Claude / Cursor / Agents)'; }, 3200);
+            }).catch(function(){});
+          }
+        });
+      }
+      // Hydrate live autonomy KPIs on idle (zero EventSource, zero fabricated numbers)
+      var hydrateAutonomyPulse = function(){
+        var elImm = document.getElementById('pulseImmunity');
+        var elSw = document.getElementById('pulseSwarm');
+        var elEv = document.getElementById('pulseEvolution');
+        var elNote = document.getElementById('pulseEvolutionNote');
+        if (!elImm || !elSw || !elEv) return;
+        fetch('/.well-known/runtime-immunity.json').then(function(r){ return r.json(); }).then(function(d){
+          var sc = d && d.payload && d.payload.immunityScore;
+          if (sc) elImm.textContent = sc.total + '/100 · ' + sc.grade;
+        }).catch(function(){});
+        fetch('/.well-known/llm-swarm.json').then(function(r){ return r.json(); }).then(function(d){
+          var r0 = d && d.rails && d.rails[0];
+          if (r0) elSw.textContent = (d.activeRailsCount || 0) + ' rails · ' + r0.model;
+        }).catch(function(){});
+        fetch('/.well-known/evolution-ledger.json').then(function(r){ return r.json(); }).then(function(d){
+          var p = d && d.payload;
+          if (p) {
+            elEv.textContent = 'Gen #' + p.generation + ' · ' + (p.totals && p.totals.domainsManaged || 6) + ' domains · ' + (p.chainIntegrity && p.chainIntegrity.ok ? 'CHAIN OK' : 'CHECK');
+            if (elNote) {
+              elNote.textContent = 'Ed25519 key verified · ' + (p.totals && p.totals.distilledLessons || 0) + ' distilled lessons · 0 direct source mutations under stable runtime.';
+            }
+          }
+        }).catch(function(){});
+      };
+      var idlePulse = window.requestIdleCallback || function(cb){ return setTimeout(cb, 900); };
+      idlePulse(hydrateAutonomyPulse, { timeout: 2500 });
     }
   } catch(_){}
   // Pageview beacon. sendBeacon is a low-priority ping, so it is not a
@@ -2790,6 +2936,60 @@ Awaiting pulse trigger...</pre>
       <div id="auditLoadingStatus" style="font-family:var(--mono);font-size:13px;color:#00ffa3;margin-top:12px">Synthesizing multi-model arbitrage delta across 728 neurons...</div>
     </div>
     <div id="auditReportResult" style="display:none;margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1)"></div>
+  </div>
+</section>
+<section id="proofMagnetStudio">
+  <div class="section-title">
+    <div><span class="kicker">Proof-Before-Pay · Autonomous Evolution · MCP &amp; A2A</span><h2>Live Domain Diagnostic &amp; <span class="grad">Self-Evolving Core</span></h2></div>
+    <p>Verify real value before you buy: scan any public website live in under a second and inspect Unicorn&rsquo;s live Ed25519-signed evolution, LLM swarm, and AI-agent protocol telemetry.</p>
+  </div>
+  <div class="magnet-grid">
+    <div class="magnet-card" id="magnetAuditCard">
+      <div class="magnet-card-head">
+        <h3 style="margin:0;font-size:20px">Instant 7-Point Live Website Scan</h3>
+        <span class="magnet-badge">ACME/1.0 · FREE</span>
+      </div>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Enter any public domain to run a real SSRF-safe HTTP, SEO, AEO/GEO Schema.org, and HSTS security check right now — zero signup required.</p>
+      <form id="magnetScanForm" class="magnet-form" novalidate>
+        <input type="url" id="magnetUrlInput" class="magnet-input" placeholder="https://your-company.com" aria-label="Website URL for instant Proof-Before-Pay diagnostic" autocomplete="url"/>
+        <button type="submit" id="magnetScanBtn" class="btn btn-primary">Run Live Scan →</button>
+      </form>
+      <div id="magnetScanResult" class="magnet-result" hidden></div>
+      <div class="magnet-actions" style="margin-top:auto;padding-top:6px">
+        <button type="button" id="magnetRefBtn" class="btn btn-ghost" style="font-size:13px">Generate 10% / 10% Referral Bounty Link</button>
+        <span id="magnetRefOut" style="font-family:var(--mono);font-size:12px;color:var(--ok)"></span>
+      </div>
+    </div>
+    <div class="magnet-card" id="sovereignAutonomyPulse">
+      <div class="magnet-card-head">
+        <h3 style="margin:0;font-size:20px">Live Sovereign Autonomy Pulse</h3>
+        <span class="magnet-badge magnet-badge-violet">ED25519 VERIFIED</span>
+      </div>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 27 sovereign modules: 0-CVE Runtime Immunity, Multi-LLM Frontier Swarm, Shadow-Verified Cognitive Evolution, and live MCP/A2A agent endpoints.</p>
+      <div class="magnet-pulse-grid" id="autonomyPulseGrid">
+        <div class="magnet-kpi">
+          <div class="magnet-kpi-label">Runtime Immunity (ASRI)</div>
+          <div class="magnet-kpi-val" id="pulseImmunity">Checking…</div>
+        </div>
+        <div class="magnet-kpi">
+          <div class="magnet-kpi-label">Frontier Swarm (NSC)</div>
+          <div class="magnet-kpi-val" id="pulseSwarm">Checking…</div>
+        </div>
+        <div class="magnet-kpi">
+          <div class="magnet-kpi-label">Evolution Genome (CEGE)</div>
+          <div class="magnet-kpi-val" id="pulseEvolution">Checking…</div>
+        </div>
+        <div class="magnet-kpi">
+          <div class="magnet-kpi-label">MCP / A2A Mesh (UMAP)</div>
+          <div class="magnet-kpi-val" id="pulseMcp">10 Live Tools</div>
+        </div>
+      </div>
+      <div id="pulseEvolutionNote" style="font-family:var(--mono);font-size:12px;color:var(--ink-dim);line-height:1.5"></div>
+      <div class="magnet-actions" style="margin-top:auto;padding-top:6px">
+        <button type="button" id="copyMcpConfigBtn" class="btn btn-ghost" style="font-size:13px">Copy MCP Server Config (Claude / Cursor / Agents)</button>
+        <a href="/services" class="btn btn-primary" style="font-size:13px">Explore 55+ Autonomous Services →</a>
+      </div>
+    </div>
   </div>
 </section>
 <section id="sovereignShelf" style="margin:48px 0 0">

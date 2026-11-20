@@ -122,6 +122,15 @@ async function tick(opts = {}) {
     out.honesty = { ok: false, error: e && e.message };
   }
 
+  try {
+    const cege = require('./cognitive-evolution-genome');
+    if (cege && typeof cege.evolveGeneration === 'function') {
+      out.cognitiveEvolution = await cege.evolveGeneration({ allowLiveLlm: false });
+    }
+  } catch (e) {
+    out.cognitiveEvolution = { ok: false, error: e && e.message };
+  }
+
   state.last = {
     at: out.at,
     innovatorCycles: out.innovator && out.innovator.cycles,
