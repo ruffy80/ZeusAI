@@ -23,6 +23,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'The central nervous system of Unicorn: coordinates all modules via dynamic manifest discovery, cycle-free topological dependency graph, PostgreSQL capability state machine, worker-thread resource budget isolation, graceful degradation tiers, emergency kill switch, 3-model AI consensus, and zero-downtime Blue/Green upgrades.',
     relatedServices: ['ent-sovereign-deployment', 'ent-private-cloud', 'professional-ai-agent'],
   },
+  'autonomous-runtime-immunity': {
+    title: 'ASRI/1.0 — Autonomous Supply-Chain & Runtime Immunity Engine',
+    tier: 'resilience',
+    purposeRo: 'Scutul autonom de imunitate al Unicornului (ASRI/1.0): calculează amprenta criptografică Merkle SHA-256 a lanțului npm/SBOM (0 vulnerabilități), monitorizează latența Event-Loop la nivel de nanosecunde și viteza heap-ului V8 pentru stabilizare preventivă fără restart (Regula de Aur #6), coordonează failover multi-rail BTC/Plăți și emite certificate publice semnate Ed25519 (`/.well-known/runtime-immunity.json`).',
+    purposeEn: 'Unicorn Autonomous Supply-Chain & Runtime Immunity Engine (ASRI/1.0): computes real-time SHA-256 SBOM Merkle integrity fingerprints (0 npm CVEs), monitors nanosecond V8 Event-Loop lag & heap growth velocity for pre-emptive zero-restart stabilization (Golden Rule #6), tracks multi-rail payment failover, and publishes Ed25519-signed immunity certificates (`/.well-known/runtime-immunity.json`).',
+    relatedServices: ['security-os', 'instant-security-program', 'ent-sovereign-deployment'],
+  },
   'zacc': {
     title: 'ZACC — Zeus Autonomic Commerce Core',
     tier: 'commerce',

@@ -350,7 +350,8 @@ const compression = require('compression');
 const path = require('path');
 const { version: APP_VERSION } = require('../package.json');
 // const cron = require('node-cron'); // Optional scheduling
-const simpleGit = require('simple-git');
+const _simpleGitMod = require('simple-git');
+const simpleGit = typeof _simpleGitMod === 'function' ? _simpleGitMod : _simpleGitMod.simpleGit;
 const axios = require('axios');
 const routeCache = require('./modules/route-cache');
 
@@ -6368,6 +6369,50 @@ app.get('/api/seo-aeo-geo/verify-capsule/:id', (req, res) => {
     const out = sags.verifyCapsule(req.params.id);
     res.set('Cache-Control', 'no-store');
     res.status(out.ok ? 200 : 404).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+// ============================================================================
+// ZEUSAI AUTONOMOUS RUNTIME & SUPPLY-CHAIN IMMUNITY ENGINE (ASRI/1.0)
+// ============================================================================
+app.get(['/.well-known/runtime-immunity.json', '/api/immunity/certificate'], (req, res) => {
+  try {
+    const asri = require('./modules/autonomous-runtime-immunity');
+    res.set('Cache-Control', 'no-store');
+    res.json(asri.getImmunityCertificate());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/immunity/status', (req, res) => {
+  try {
+    const asri = require('./modules/autonomous-runtime-immunity');
+    res.set('Cache-Control', 'no-store');
+    res.json(asri.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/immunity/supply-chain', (req, res) => {
+  try {
+    const asri = require('./modules/autonomous-runtime-immunity');
+    res.set('Cache-Control', 'no-store');
+    res.json(asri.auditSupplyChain());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/immunity/self-heal', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const asri = require('./modules/autonomous-runtime-immunity');
+    const out = asri.stabilizeRuntime({ force: !!(req.body && req.body.force) });
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }

@@ -617,6 +617,7 @@ async function handle(req, res, ctx) {
       `- GEO Citation & 8-Locale Matrix: ${OWNER.domain}/.well-known/geo-citation-matrix.json`,
       `- Pre-Chunked Semantic RAG Vectors (~256 tokens): ${OWNER.domain}/api/geo/rag-chunks`,
       `- A2A Sovereign Clearinghouse: ${OWNER.domain}/.well-known/agent-commerce.json`,
+      `- Ed25519 Supply-Chain & Runtime Immunity Attestation (ASRI/1.0): ${OWNER.domain}/.well-known/runtime-immunity.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -665,6 +666,33 @@ async function handle(req, res, ctx) {
   if (urlPath === '/api/seo-aeo-geo/multilingual-matrix') {
     const sags = require('../../backend/modules/seo-aeo-geo-singularity');
     const body = JSON.stringify(sags.getMultilingualMatrix(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/runtime-immunity.json' || urlPath === '/api/immunity/certificate') {
+    const asri = require('../../backend/modules/autonomous-runtime-immunity');
+    const body = JSON.stringify(asri.getImmunityCertificate(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/immunity/status') {
+    const asri = require('../../backend/modules/autonomous-runtime-immunity');
+    const body = JSON.stringify(asri.getStatus(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/immunity/supply-chain') {
+    const asri = require('../../backend/modules/autonomous-runtime-immunity');
+    const body = JSON.stringify(asri.auditSupplyChain(), null, 2);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);

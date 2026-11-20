@@ -1,0 +1,75 @@
+{
+  "name": "autonomous-runtime-immunity",
+  "version": "1.0.0",
+  "description": "ASRI/1.0 — Autonomous Supply-Chain SBOM Shield, Predictive V8 Heap & Event-Loop Pre-Emptive Stabilizer, Multi-Rail Failover Telemetry, and Ed25519 Verifiable Runtime Immunity Protocol",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "auditSupplyChain",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "stabilizeRuntime",
+      "type": "write",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 8000,
+      "resourceBudget": {
+        "maxCpuMs": 1500,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getImmunityCertificate",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "score",
+    "cryptoBridge"
+  ],
+  "provides": [
+    "supply_chain_sbom_shield",
+    "predictive_v8_heap_stabilizer",
+    "event_loop_lag_monitor",
+    "multi_rail_failover_immunity",
+    "revenue_friction_healer",
+    "ed25519_runtime_immunity_certificate"
+  ],
+  "failureModes": [
+    {
+      "symptom": "package lockfile tamper drift detected at runtime",
+      "recovery": "quarantine"
+    },
+    {
+      "symptom": "v8 heap velocity predicts exhaustion under 15 minutes",
+      "recovery": "restart"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 35,
+    "maxErrorRate": 0.001
+  },
+  "healthCheck": "health"
+}

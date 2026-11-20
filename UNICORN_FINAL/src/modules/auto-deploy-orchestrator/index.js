@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const simpleGit = require('simple-git');
+const _sg = require('simple-git');
+const simpleGit = typeof _sg === 'function' ? _sg : _sg.simpleGit;
 const dotenv = require('dotenv');
 
 class AutoDeployOrchestrator {

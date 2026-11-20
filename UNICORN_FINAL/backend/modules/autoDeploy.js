@@ -207,7 +207,8 @@
 // =====================================================================
 
 const fs = require('fs');
-const simpleGit = require('simple-git');
+const _sg = require('simple-git');
+const simpleGit = typeof _sg === 'function' ? _sg : _sg.simpleGit;
 const path = require('path');
 const chokidar = require('chokidar');
 const dotenv = require('dotenv');
