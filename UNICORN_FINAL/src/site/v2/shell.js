@@ -1328,20 +1328,20 @@ ${route === '/' ? '' : `<script${N} src="${assetPath('/assets/app.js')}" defer><
 
 function concierge() {
   return `<div class="concierge" id="zeusDock">
-  <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Concierge">⚡</button>
-  <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
-    <div class="concierge-head"><span class="dot"></span> Zeus<span class="meta" id="conciergeMeta">shelf</span></div>
+  <button class="concierge-btn" id="conciergeBtn" aria-label="Zeus Omniscient AI">⚡</button>
+  <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus Omniscient AI Architect">
+    <div class="concierge-head"><span class="dot"></span> Zeus Omniscient AI<span class="meta" id="conciergeMeta">OMNISCIENT-1.0</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">Enterprise AI Autonomy. Ask about model routing, self-healing infrastructure, or autonomous agents.<br><br>Get Enterprise Access from the homepage, or open Contact Sales.<br><br>Autonomie AI pentru enterprise. Întreabă despre rutarea modelelor, infrastructura care se repară singură, sau agenții autonomi.</div></div>
+      <div class="msg bot"><div class="msg-body">👋 <strong>ZeusAI Omniscient Architect</strong> — cunosc în detaliu toate cele <strong>86+ servicii comerciale ($29 – $4,000,000)</strong> și toate cele <strong>760+ module din Unicorn</strong>.<br><br>• Întreabă-mă despre <strong>orice serviciu sau modul</strong> (ce face, pentru ce e construit, ce livrează).<br>• Spune-mi ce afacere ai și îți dezvălui <strong>serviciile critice la care nu te-ai gândit încă</strong>.<br>• Scrie domeniul tău web pentru o <strong>Mostră Live 30% Gratis (Reverse-SaaS Escrow)</strong>!</div></div>
     </div>
     <div class="chips" id="conciergeChips">
-      <button class="chip" data-q="We need autonomous model routing across our API spend">Model routing</button>
-      <button class="chip" data-q="We need self-healing infrastructure for production agents">Self-healing</button>
-      <button class="chip" data-q="We need an autonomous agent mesh with a human sales path">Agents</button>
-      <button class="chip" data-q="Vrem o demonstrație enterprise pentru rutarea modelelor">Demo</button>
+      <button class="chip" data-q="Arată-mi toate serviciile din site și prețurile lor inclusiv Enterprise până la 4 milioane $">📦 Toate serviciile ($39–$4M)</button>
+      <button class="chip" data-q="Explică-mi ce face și pentru ce e făcut fiecare modul din Unicorn (orchestrator, zacc, witness, adi-core, cryptoBridge)">⚙️ Ce face fiecare modul?</button>
+      <button class="chip" data-q="Am o afacere online și vreau să îmi crești vânzările și automatizarea. Ce servicii îmi recomanzi la care nu m-am gândit?">🔮 Nevoi Ascunse (Proactiv)</button>
+      <button class="chip" data-q="Generează o mostră live 30% Reverse-SaaS Escrow pentru domeniul meu mycompany.io">⚡ Mostră Live 30%</button>
     </div>
     <div class="concierge-foot">
-      <textarea id="conciergeInput" rows="1" placeholder="Întreabă Zeus orice… / Ask Zeus anything…  (Enter · Shift+Enter newline)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
+      <textarea id="conciergeInput" rows="1" placeholder="Întreabă despre orice serviciu, modul sau scrie domeniul tău… (Enter)" autocomplete="off" aria-label="Ask Zeus Omniscient AI anything"></textarea>
       <button id="conciergeSend" aria-label="Send">→</button>
     </div>
   </div>
@@ -1546,9 +1546,19 @@ function globalChrome(N) {
     var staleExit = document.getElementById('zeus-exit');
     if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
-  // Homepage dock. app.js owns the concierge on every other route.
-  // This toggle posts the typed text to the request clock. It does not open a model stream.
+  // Omniscient AI Chatbot controller on homepage (and fallback to request clock).
   try {
+    document.addEventListener('click', function(ev){
+      var trg = ev.target && ev.target.closest ? ev.target.closest('a[href="#concierge"],a[href="/#concierge"]') : null;
+      if (!trg) return;
+      var pnl = document.getElementById('conciergePanel');
+      var inp = document.getElementById('conciergeInput');
+      if (pnl) {
+        ev.preventDefault();
+        pnl.classList.add('open');
+        if (inp) setTimeout(function(){ inp.focus(); }, 80);
+      }
+    });
     if (location.pathname === '/') {
       var dockBtn = document.getElementById('conciergeBtn');
       var dockPanel = document.getElementById('conciergePanel');
@@ -1562,56 +1572,79 @@ function globalChrome(N) {
         });
         var dockBody = document.getElementById('conciergeBody');
         var dockInput = document.getElementById('conciergeInput');
-        var dockReply = function(){
+        var escH = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+        var fmtMd = function(md){
+          return escH(md)
+            .replace(/\x60([^\x60]+)\x60/g, '<code style="background:rgba(138,92,255,.18);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12px">$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\\n/g, '<br/>');
+        };
+        var dockReply = function(forcedText){
           if (!dockBody || !dockInput) return;
-          var text = String(dockInput.value || '').replace(/^\s+|\s+$/g, '');
+          var text = String(forcedText != null ? forcedText : (dockInput.value || '')).replace(/^\\s+|\\s+$/g, '');
           if (!text) return;
+          dockInput.value = '';
           var mine = document.createElement('div');
           mine.className = 'msg user';
           mine.textContent = text;
           dockBody.appendChild(mine);
           var note = document.createElement('div');
           note.className = 'msg bot';
-          note.style.whiteSpace = 'pre-wrap';
-          note.textContent = 'Reading the shelf…';
+          note.innerHTML = '<div class="msg-body">⚡ Analizez toate cele 86+ servicii și 760+ module Unicorn…</div>';
           dockBody.appendChild(note);
           dockBody.scrollTop = dockBody.scrollHeight;
-          fetch('/api/request-solution', {
+          fetch('/api/concierge', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({ message: text })
+          }).catch(function(){
+            return fetch('/api/request-solution', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: text })
+            });
           }).then(function(r){ return r.json(); }).then(function(j){
             if (!j || !j.reply) {
-              note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+              note.textContent = 'Zeus Omniscient AI nu a putut răspunde momentan.';
               return;
             }
-            note.textContent = j.reply;
-            var href = j.client && j.client.checkout;
-            var label = j.client && j.client.title;
-            if (href && label) {
-              note.appendChild(document.createElement('br'));
-              var link = document.createElement('a');
-              link.href = href;
-              link.setAttribute('data-link', '');
-              link.textContent = label;
-              note.appendChild(link);
+            var html = '<div class="msg-body">' + fmtMd(j.reply) + '</div>';
+            if (Array.isArray(j.recommendations) && j.recommendations.length) {
+              html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">';
+              j.recommendations.forEach(function(r){
+                var priceStr = r.priceUsd != null ? ('$' + Number(r.priceUsd).toLocaleString()) : (r.price != null ? ('$' + Number(r.price).toLocaleString()) : '');
+                var btcStr = r.btcDiscountUsd ? (' · ₿ $' + Number(r.btcDiscountUsd).toLocaleString() + ' (-10%)') : '';
+                var url = r.url || ('/checkout/?plan=' + encodeURIComponent(r.id || ''));
+                html += '<div style="padding:10px 12px;border-radius:12px;background:rgba(138,92,255,.12);border:1px solid rgba(138,92,255,.35)">'
+                  + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><strong style="font-size:13px;color:#fff">' + escH(r.title || r.id) + '</strong><span style="font-family:var(--mono);font-size:12.5px;color:#ffd36a;font-weight:700">' + escH(priceStr + btcStr) + '</span></div>'
+                  + (r.description ? '<div style="font-size:12px;color:var(--ink-dim);margin:4px 0 8px">' + escH(String(r.description).slice(0, 140)) + '</div>' : '')
+                  + '<a href="' + escH(url) + '" class="btn btn-primary" style="display:inline-flex;padding:6px 12px;font-size:12px;margin-top:4px;text-decoration:none">Checkout / Cumpără acum →</a>'
+                  + '</div>';
+              });
+              html += '</div>';
             }
-            dockInput.value = '';
+            note.innerHTML = html;
+            if (dockChips && Array.isArray(j.quickReplies) && j.quickReplies.length) {
+              dockChips.innerHTML = j.quickReplies.map(function(qr){
+                return '<button class="chip" data-q="' + escH(qr.q || qr.label) + '">' + escH(qr.label) + '</button>';
+              }).join('');
+            }
             dockBody.scrollTop = dockBody.scrollHeight;
           }).catch(function(){
-            note.textContent = 'The shelf did not answer. The priced offers are on this page.';
+            note.textContent = 'Eroare de conexiune. Încearcă din nou.';
           });
         };
         var dockSend = document.getElementById('conciergeSend');
-        if (dockSend) dockSend.addEventListener('click', dockReply);
+        if (dockSend) dockSend.addEventListener('click', function(){ dockReply(); });
         if (dockInput) dockInput.addEventListener('keydown', function(e){
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); dockReply(); }
         });
         var dockChips = document.getElementById('conciergeChips');
         if (dockChips) dockChips.addEventListener('click', function(e){
           var chip = e.target && e.target.closest ? e.target.closest('.chip') : null;
-          if (!chip || !dockInput) return;
-          dockInput.value = chip.getAttribute('data-q') || '';
+          if (!chip) return;
+          var q = chip.getAttribute('data-q') || '';
+          if (q) dockReply(q);
         });
       }
     }
