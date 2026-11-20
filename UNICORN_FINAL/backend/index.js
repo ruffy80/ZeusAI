@@ -6192,6 +6192,94 @@ app.get('/api/singularity/outcome/:id/badge.svg', (req, res) => {
     res.status(500).send('<svg xmlns="http://www.w3.org/2000/svg"/>');
   }
 });
+
+// ============================================================================
+// ZEUSAI OMNISCIENT CHATBOT ROUTES (/api/concierge, /api/concierge/stream, /api/omniscient/knowledge)
+// ============================================================================
+app.get(['/api/concierge/knowledge', '/api/omniscient/knowledge'], (req, res) => {
+  try {
+    const brain = require('./modules/omniscient-chatbot');
+    res.set('Cache-Control', 'no-store');
+    res.json(brain.getKnowledgeMap());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/concierge', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const brain = require('./modules/omniscient-chatbot');
+    const out = await brain.answer(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      messageId: 'omni_' + Date.now(),
+      ...out,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/concierge/stream', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const brain = require('./modules/omniscient-chatbot');
+    const out = await brain.answer(req.body || {});
+    const messageId = 'omni_' + Date.now();
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    const sendEvt = (evt, data) => {
+      res.write(`event: ${evt}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+    sendEvt('meta', {
+      messageId,
+      model: out.model || 'OMNISCIENT-ARCHITECT/1.0',
+      provider: out.provider || 'zeus-omniscient-v1',
+      lang: out.lang,
+      intent: out.intent,
+    });
+    const chunks = String(out.reply || '').match(/.{1,36}(\s|$)|.+$/g) || [String(out.reply || '')];
+    for (const chunk of chunks) {
+      sendEvt('token', chunk);
+    }
+    if (Array.isArray(out.recommendations) && out.recommendations.length) {
+      sendEvt('recommendations', out.recommendations);
+    }
+    if (Array.isArray(out.actions) && out.actions.length) {
+      sendEvt('actions', out.actions);
+    }
+    if (Array.isArray(out.quickReplies) && out.quickReplies.length) {
+      sendEvt('quickReplies', out.quickReplies);
+    }
+    sendEvt('done', { ok: true, messageId });
+    res.end();
+  } catch (e) {
+    if (!res.headersSent) {
+      res.status(500).json({ ok: false, error: String(e && e.message || e) });
+    } else {
+      res.end();
+    }
+  }
+});
+
+app.post('/api/concierge/personalize', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const brain = require('./modules/omniscient-chatbot');
+    const out = await brain.answer(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/concierge/feedback', express.json({ limit: '16kb' }), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, recorded: true, at: new Date().toISOString() });
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

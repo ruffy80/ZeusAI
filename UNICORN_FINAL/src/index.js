@@ -13047,11 +13047,27 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           : [];
         const services = unifiedServices.length ? unifiedServices : (sources.services || []);
 
-        // ---- Intent + slot extraction
+        // ---- Intent + slot extraction + Omniscient Brain synthesis
         const intent = classifyIntent(message);
         let { reply, actions, recommendations, cards, quickReplies } = composeReply({
           message, intent, lang, services, customer, activeServices, pendingOrders, history
         });
+        try {
+          const omniBrain = require('../backend/modules/omniscient-chatbot');
+          const omniOut = await omniBrain.answer({ message, lang, history });
+          if (omniOut && omniOut.reply) {
+            reply = omniOut.reply;
+            if (Array.isArray(omniOut.recommendations) && omniOut.recommendations.length) {
+              recommendations = omniOut.recommendations;
+            }
+            if (Array.isArray(omniOut.actions) && omniOut.actions.length) {
+              actions = omniOut.actions;
+            }
+            if (Array.isArray(omniOut.quickReplies) && omniOut.quickReplies.length) {
+              quickReplies = omniOut.quickReplies;
+            }
+          }
+        } catch (_) {}
 
         // ---- 50-year-standard knowledge & recommendation extension (additive)
         // Enriches the reply with a personalized per-entity plan + masked-ad
@@ -13160,10 +13176,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   // GET  /api/concierge/knowledge   — capability map (humanity / company / person)
   // POST /api/concierge/personalize — { message, lang? } → personalized 50Y plan + masked-ad seed
   if (concierge50y && urlPath === '/api/concierge/knowledge' && req.method === 'GET') {
+    let omniscient = null;
+    try { omniscient = require('../backend/modules/omniscient-chatbot').getKnowledgeMap(); } catch (_) {}
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
     return res.end(JSON.stringify({
       summary: concierge50y.getKnowledgeSummary(),
-      capabilities: concierge50y.getCapabilities()
+      capabilities: concierge50y.getCapabilities(),
+      omniscient,
     }));
   }
   if (concierge50y && urlPath === '/api/concierge/personalize' && req.method === 'POST') {

@@ -4858,13 +4858,15 @@ async function hydrateOwnerRevenue(){
     const wrap = document.createElement('div');
     wrap.className = 'rec-list';
     wrap.innerHTML = recs.map(r => {
-      const price = r.price != null ? ('$' + Number(r.price).toLocaleString() + '/' + (r.billing || 'mo')) : '';
+      const pNum = Number(r.priceUsd != null ? r.priceUsd : r.price);
+      const btcNum = Number(r.btcDiscountUsd || (pNum > 0 ? (pNum * 0.9).toFixed(2) : 0));
+      const price = pNum > 0 ? ('$' + pNum.toLocaleString() + (btcNum > 0 ? ' · ₿ $' + btcNum.toLocaleString() : '')) : '';
       const desc = r.description ? String(r.description).slice(0, 160) : '';
-      const url = r.url || ('/checkout?service=' + encodeURIComponent(r.id || ''));
+      const url = r.url || ('/checkout/?plan=' + encodeURIComponent(r.id || ''));
       return `<div class="rec-card" data-url="${esc(url)}">
         <div class="rec-head"><span class="rec-title">${esc(r.title || r.id || 'Service')}</span><span class="rec-price">${esc(price)}</span></div>
         ${desc ? `<div class="rec-desc">${esc(desc)}</div>` : ''}
-        <button class="rec-buy" data-url="${esc(url)}">Buy now →</button>
+        <button class="rec-buy" data-url="${esc(url)}">Checkout / Cumpără acum →</button>
       </div>`;
     }).join('');
     bodyEl.appendChild(wrap);
@@ -5163,11 +5165,9 @@ async function hydrateOwnerRevenue(){
     if (chipsBox && !chipsBox.dataset.dynamic) chipsBox.style.display = 'none';
     addMsg(esc(q), 'user', {withTools:false});
     inp.value = ''; if (inp.style) inp.style.height = 'auto';
-    const solved = await askSolution(q);
-    const shelved = solved ? true : await askShelf(q);
-    if (!shelved) {
-      const ok = await askStream(q);
-      if (!ok) await askFallback(q);
+    const ok = await askStream(q);
+    if (!ok) {
+      await askFallback(q);
     }
     busy = false;
     sendBtn && (sendBtn.disabled = false);
