@@ -115,12 +115,27 @@ function refreshFromReality() {
   }
   const paidUsd = Number((snap.revenue && snap.revenue.paidUsd) || 0);
   const paidOrders = Number((snap.orders && snap.orders.paid) || 0);
-  _state.revenue = paidUsd;
-  // Expenses unknown without cost APIs — keep 0 (honest) rather than inventing burn.
-  _state.expenses = 0;
+  let realRevenue = paidUsd;
+  let realExpenses = 0;
+  let sourceLabel = 'reality-metrics.snapshot';
+  try {
+    const atro = require('./autonomous-treasury-reconciler');
+    const rec = atro.reconcileLedger();
+    if (rec && rec.ok && rec.totals) {
+      realRevenue = Math.max(realRevenue, Number(rec.totals.trailing30dGrossUsd || rec.totals.grossRevenueUsd || 0));
+      realExpenses = Number((
+        Number(rec.totals.paymentRailFeesUsd || 0)
+        + Number(rec.totals.affiliateLiabilityUsd || 0)
+        + Number(rec.totals.aiFulfillmentCostUsd || 0)
+      ).toFixed(2));
+      sourceLabel = 'atro+reality-metrics';
+    }
+  } catch (_) {}
+  _state.revenue = realRevenue;
+  _state.expenses = realExpenses;
   _state.dataMode = 'live';
-  _state.truthSource = 'reality-metrics.snapshot';
-  _state.health = paidOrders > 0 ? 'good' : 'idle';
+  _state.truthSource = sourceLabel;
+  _state.health = (paidOrders > 0 || realRevenue > 0) ? 'good' : 'idle';
   _recalcFinancials();
   _state.forecast = _generateForecast();
   return true;

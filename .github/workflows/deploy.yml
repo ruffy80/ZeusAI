@@ -633,6 +633,9 @@ jobs:
           export UNICORN_GUARDIAN=0
           systemctl reset-failed zac.service 2>/dev/null || true
           systemctl try-restart zac.service 2>/dev/null || true
+          systemctl reset-failed zeus-orchestrator.service zeus-chaos-drill.service 2>/dev/null || true
+          systemctl try-restart zeus-orchestrator.service 2>/dev/null || true
+          systemctl try-restart deepseek-loop.service 2>/dev/null || true
           systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true
           systemctl mask unicorn-rescue-backend.service 2>/dev/null || true
           systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true

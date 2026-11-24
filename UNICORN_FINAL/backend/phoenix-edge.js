@@ -45,11 +45,14 @@ function lkgPath(key) {
 
 function saveLkg(key, body, code) {
   try {
-    fs.writeFileSync(lkgPath(key), JSON.stringify({
+    const dest = lkgPath(key);
+    const tmp = `${dest}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({
       savedAt: new Date().toISOString(),
       code: code || 200,
       body: typeof body === 'string' ? body : JSON.stringify(body),
     }));
+    fs.renameSync(tmp, dest);
   } catch (_) { /* best-effort */ }
 }
 
@@ -174,32 +177,57 @@ async function handleCommerce(key, brainPath, res) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = String((req.url || '/').split('?')[0]);
+  try {
+    const url = String((req.url || '/').split('?')[0]);
 
-  if (url === '/phoenix/live' || url === '/health/live' || url === '/phoenix/status') {
-    const st = statusEnvelope();
-    // ALWAYS 200 — immortality contract. `frozen` tells the truth.
-    return json(res, 200, st);
+    if (url === '/phoenix/live' || url === '/health/live' || url === '/phoenix/status') {
+      const st = statusEnvelope();
+      // ALWAYS 200 — immortality contract. `frozen` tells the truth.
+      return json(res, 200, st);
+    }
+
+    if (url === '/api/health' || url === '/phoenix/api/health') {
+      return await handleCommerce('health', '/api/health', res);
+    }
+
+    if (url === '/api/catalog' || url === '/phoenix/api/catalog') {
+      return await handleCommerce('catalog', '/api/catalog', res);
+    }
+
+    if (url === '/' || url === '/phoenix') {
+      return json(res, 200, {
+        ok: true,
+        service: 'unicorn-phoenix',
+        protocol: PROTOCOL,
+        endpoints: ['/phoenix/live', '/phoenix/status', '/api/health', '/api/catalog'],
+      });
+    }
+
+    return json(res, 404, { ok: false, error: 'not_found', protocol: PROTOCOL });
+  } catch (err) {
+    if (!res.headersSent) {
+      return json(res, 500, { ok: false, error: String((err && err.message) || 'phoenix_error'), protocol: PROTOCOL });
+    }
+    try { res.end(); } catch (_) {}
+    return undefined;
   }
+});
 
-  if (url === '/api/health' || url === '/phoenix/api/health') {
-    return handleCommerce('health', '/api/health', res);
+server.on('error', (err) => {
+  // eslint-disable-next-line no-console
+  console.error(`[phoenix-edge] server error: ${err && err.message}`);
+  if (err && err.code === 'EADDRINUSE') {
+    setTimeout(() => process.exit(1), 2500).unref();
   }
+});
 
-  if (url === '/api/catalog' || url === '/phoenix/api/catalog') {
-    return handleCommerce('catalog', '/api/catalog', res);
-  }
-
-  if (url === '/' || url === '/phoenix') {
-    return json(res, 200, {
-      ok: true,
-      service: 'unicorn-phoenix',
-      protocol: PROTOCOL,
-      endpoints: ['/phoenix/live', '/phoenix/status', '/api/health', '/api/catalog'],
-    });
-  }
-
-  return json(res, 404, { ok: false, error: 'not_found', protocol: PROTOCOL });
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.warn('[phoenix-edge] unhandledRejection (contained):', reason && reason.message ? reason.message : reason);
+});
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.warn('[phoenix-edge] uncaughtException (contained):', err && err.message ? err.message : err);
 });
 
 server.keepAliveTimeout = 5000;

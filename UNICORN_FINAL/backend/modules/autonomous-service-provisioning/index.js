@@ -641,10 +641,29 @@ class AutonomousServiceProvisioningEngine {
     };
   }
 
+  _syncFromDiskIfUpdated() {
+    try {
+      const p = this._storePath();
+      if (!fs.existsSync(p)) return;
+      const st = fs.statSync(p);
+      if (this._lastDiskMtimeMs && st.mtimeMs <= this._lastDiskMtimeMs) return;
+      this._lastDiskMtimeMs = st.mtimeMs;
+      const lines = fs.readFileSync(p, 'utf8').split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          const rec = JSON.parse(line);
+          if (rec && rec.orderId) this.instances.set(rec.orderId, rec);
+        } catch (_) {}
+      }
+      this.totalActivations = this.instances.size;
+    } catch (_) {}
+  }
+
   /**
    * Execute an on-demand or scheduled autonomous cycle for an active paid service.
    */
   runAutonomousCycle(orderId, { trigger = 'customer_on_demand', inputs = {} } = {}) {
+    this._syncFromDiskIfUpdated();
     const inst = this.instances.get(String(orderId || ''));
     if (!inst) return { ok: false, error: 'service_instance_not_found' };
 
@@ -675,6 +694,7 @@ class AutonomousServiceProvisioningEngine {
   }
 
   runScheduledCycles() {
+    this._syncFromDiskIfUpdated();
     const now = Date.now();
     let executed = 0;
     for (const [orderId, inst] of this.instances.entries()) {
@@ -688,10 +708,12 @@ class AutonomousServiceProvisioningEngine {
   }
 
   getInstance(orderId) {
+    this._syncFromDiskIfUpdated();
     return this.instances.get(String(orderId || '')) || null;
   }
 
   getStatus() {
+    this._syncFromDiskIfUpdated();
     return {
       ok: true,
       module: 'autonomous-service-provisioning',

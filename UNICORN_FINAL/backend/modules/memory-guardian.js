@@ -72,8 +72,10 @@ function _sample() {
   const mu = process.memoryUsage();
   const v8Stats = typeof v8.getHeapStatistics === 'function' ? v8.getHeapStatistics() : null;
   const heapLimit = (v8Stats && v8Stats.heap_size_limit > 0) ? v8Stats.heap_size_limit : Math.max(mu.heapTotal, _pm2LimitBytes());
-  const total = os.totalmem();
-  const free = os.freemem();
+  let memInfo = null;
+  try { memInfo = require('../lib/linux-mem').getSystemMemoryInfo(); } catch (_) {}
+  const total = memInfo ? memInfo.totalBytes : os.totalmem();
+  const free = memInfo ? memInfo.availableBytes : os.freemem();
   return {
     ts: Date.now(),
     rss: mu.rss,
@@ -82,6 +84,7 @@ function _sample() {
     heapLimit,
     external: mu.external,
     systemUsedPct: total > 0 ? Math.round(((total - free) / total) * 10000) / 10000 : 0,
+    memSource: memInfo ? memInfo.source : 'os.freemem',
   };
 }
 

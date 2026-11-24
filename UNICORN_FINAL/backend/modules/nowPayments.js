@@ -157,7 +157,7 @@ function processWebhook(payload) {
   const id = (payment_id || '').toString();
   if (!id) return { status: 'rejected', reason: 'missing_payment_id' };
 
-  const entry = pendingPayments.get(id) || {};
+  const entry = pendingPayments.get(id) || (invoice_id ? pendingPayments.get(String(invoice_id)) : null) || {};
   const isConfirmed = ['finished', 'confirmed'].includes(payment_status);
   const confirmationKey = `${id}:${payment_status}`;
 
@@ -177,32 +177,37 @@ function processWebhook(payload) {
   };
   pendingPayments.set(id, updated);
 
-  if (isConfirmed) {
-    processedConfirmations.add(confirmationKey);
-    try {
-      const { EventEmitter } = require('events');
-      if (!(global._unicornEventBus instanceof EventEmitter)) {
-        global._unicornEventBus = new EventEmitter();
-        try { global._unicornEventBus.setMaxListeners(50); } catch (_) {}
-      }
-      global._unicornEventBus.emit('payment:confirmed', {
-        provider: 'nowpayments',
-        paymentId: id,
-        invoiceId: invoice_id,
-        orderId: order_id,
-        serviceId: entry.itemId,
-        clientId: entry.clientId,
-        amountUsd: price_amount,
-        priceAmount: price_amount,
-        actuallyPaid: actually_paid,
-        payCurrency: pay_currency,
-        price_amount,
-        actually_paid,
-        invoice_id,
-        order_id
-      });
-    } catch (_) {}
-  }
+  // Always emit payment:status for non-terminal/partial/failed/refunded states so
+  // sovereign checkout UX and autonomous monitoring see partial payments & failures live.
+  try {
+    const { EventEmitter } = require('events');
+    if (!(global._unicornEventBus instanceof EventEmitter)) {
+      global._unicornEventBus = new EventEmitter();
+      try { global._unicornEventBus.setMaxListeners(50); } catch (_) {}
+    }
+    const eventPayload = {
+      provider: 'nowpayments',
+      status: payment_status,
+      paymentId: id,
+      invoiceId: invoice_id,
+      orderId: order_id,
+      serviceId: entry.itemId,
+      clientId: entry.clientId,
+      amountUsd: price_amount,
+      priceAmount: price_amount,
+      actuallyPaid: actually_paid,
+      payCurrency: pay_currency,
+      price_amount,
+      actually_paid,
+      invoice_id,
+      order_id,
+    };
+    global._unicornEventBus.emit('payment:status', eventPayload);
+    if (isConfirmed) {
+      processedConfirmations.add(confirmationKey);
+      global._unicornEventBus.emit('payment:confirmed', eventPayload);
+    }
+  } catch (_) {}
 
   return updated;
 }

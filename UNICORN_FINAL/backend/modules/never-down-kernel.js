@@ -171,8 +171,12 @@ function _reevaluate() {
     if (health === 'good') health = 'degraded';
     reasons.push('disk_warn');
   }
-  const memFreePct = Math.round((os.freemem() / os.totalmem()) * 100);
-  if (memFreePct <= 5) {
+  let memFreePct = Math.round((os.freemem() / os.totalmem()) * 100);
+  try {
+    const memInfo = require('../lib/linux-mem').getSystemMemoryInfo();
+    if (memInfo && Number.isFinite(memInfo.freePct)) memFreePct = memInfo.freePct;
+  } catch (_) {}
+  if (memFreePct <= 4) {
     health = 'critical';
     reasons.push('ram_critical');
   } else if (memFreePct <= 10) {

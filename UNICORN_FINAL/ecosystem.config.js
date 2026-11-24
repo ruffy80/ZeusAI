@@ -100,8 +100,8 @@ module.exports = {
       exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
-        // NIX/1.0 — Node Immortality eXtension (seal undici 300s + fetch + engines).
-        NODE_OPTIONS: withNixNodeOptions('--no-deprecation'),
+        // NIX/1.0 — Node Immortality eXtension (seal undici 300s + fetch + engines) + --expose-gc for cooperative ASRI stabilization.
+        NODE_OPTIONS: withNixNodeOptions('--no-deprecation --expose-gc'),
         NIX_STRICT: process.env.NIX_STRICT || '1',
         // ── RUNTIME PROFILE ─────────────────────────────────────────────────
         // 'safe' / 'stable' (DEFAULT): business loops paused. Growth-engine
@@ -347,6 +347,8 @@ module.exports = {
         // The site also checks payment readiness and can accept provider env
         // directly; omitted keys remain loadable from its durable env files.
         ...envIfSet(PAYMENT_ENV_NAMES),
+        // Ensure sovereign BTC checkout on site always receives the owner BTC address
+        ...envIfSet(['BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PAYPAL_ENV', 'NOWPAYMENTS_SANDBOX']),
       },
       error_file: 'logs/site-error.log',
       out_file:   'logs/site-out.log',
@@ -365,7 +367,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      max_memory_restart: '128M',
+      max_memory_restart: '256M',
       max_restarts: 50,
       min_uptime: '5s',
       restart_delay: 1000,

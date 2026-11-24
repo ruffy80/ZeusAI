@@ -1006,6 +1006,10 @@ async function createOrder(ctx, input) {
     if (adj && adj.valid) {
       subtotalFiat = adj.discountedUsd;
       commercialRef = adj.code;
+    } else if (refCode && /^(zeus_[a-f0-9]{8,16}|ZEUS-[A-Z0-9]{4,16})$/i.test(String(refCode).trim())) {
+      // Unified 10% friend discount across ACME/1.0 (zeus_*) and referral-engine-real (ZEUS-*) codes
+      subtotalFiat = Number((subtotalFiat * 0.90).toFixed(2));
+      commercialRef = String(refCode).trim();
     }
   } catch (_) { /* checkout keeps the shelf amount when the commercial layer is absent */ }
 
@@ -1197,7 +1201,14 @@ function markOrderPaidFromProvider(orderId, proof) {
   const order = ORDERS.get(id);
   if (!order) return { ok: false, error: 'order_not_found' };
   if (order.status === 'paid') return { ok: true, duplicate: true, orderId: id, entitlement_id: order.entitlement_id || null };
-  if (order.status !== 'pending') return { ok: false, error: 'order_not_pending', status: order.status };
+  // Allow verified provider settlement on expired orders (e.g. slow crypto confirmation or
+  // delayed PayPal capture) so verified paid funds are NEVER confiscated without delivery.
+  if (order.status !== 'pending' && order.status !== 'expired') {
+    return { ok: false, error: 'order_not_pending', status: order.status };
+  }
+  if (order.status === 'expired') {
+    order.late_settled = true;
+  }
   const provider = String((proof && proof.provider) || 'alt-rail').toLowerCase().slice(0, 32);
   const providerRef = String((proof && (proof.providerRef || proof.txid || proof.paymentId || proof.paypalOrderId)) || '').slice(0, 128);
   order.status = 'paid';
@@ -1390,10 +1401,15 @@ async function scanIncoming() {
   // Expire before matching so stale invoices cannot be paid by a late tx unless
   // SOVEREIGN_ACCEPT_LATE_PAY=1 explicitly enables the bounded grace window.
   for (const [, o] of ORDERS) {
-    if (o.status === 'pending' && scanNow >= o.expires_at_ms) {
+    // Never expire an invoice whose BTC tx has already been seen in the mempool awaiting confirmation
+    if (o.status === 'pending' && !o.tx_seen && scanNow >= o.expires_at_ms) {
       o.status = 'expired';
       AMT_INDEX.delete(o.amount_sats);
       persistOrder(o);
+      try {
+        const bridge = require('../commerce/canonical-settle-bridge');
+        if (bridge && typeof bridge.bridgeExpired === 'function') bridge.bridgeExpired(o);
+      } catch (_) {}
     }
   }
   const hasScannableOrder = Array.from(ORDERS.values()).some((o) => {
@@ -1517,10 +1533,33 @@ async function scanIncoming() {
         matched++;
         _metricInc('orders_paid');
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
+        // Stamp invoice attribution + commercial-layer referral code on primary BTC settle path
+        try {
+          const attribution = require('../commerce/invoice-attribution');
+          attribution.stampPaid(order, { provider: 'btc', providerRef: tx.txid });
+        } catch (_) {}
+        try {
+          const buyerEmail = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
+          const issued = require('../../backend/modules/commercial-layer').onConfirmedPayment({
+            email: buyerEmail,
+            offerId: order.serviceId,
+            amountUsd: order.subtotal_fiat,
+            amountBtc: order.amount_btc,
+            orderId: order.orderId,
+            refCode: order.meta && order.meta.commercialRef,
+            mock: false,
+          });
+          if (issued && issued.referralCode) order.referralCode = issued.referralCode;
+          persistOrder(order);
+        } catch (_) {}
         // Affiliate redemption on settle (sovereign path — previously unwired).
         try {
           const affRef = (order.affiliate && order.affiliate.ref) || (order.meta && order.meta.affiliateRef);
           if (affRef) {
+            try {
+              const acme = require('../../backend/modules/autonomous-client-magnet');
+              if (acme && typeof acme.recordReferralHit === 'function') acme.recordReferralHit(affRef, { converted: true });
+            } catch (_) {}
             const refEng = require('../commerce/referral-engine-real');
             const buyerEmail = String((order.buyer && order.buyer.email) || '').trim().toLowerCase();
             const red = refEng.recordRedemption({
@@ -1705,7 +1744,7 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Email recovery</span><span class="v" id="arkEmail">checking…</span></div>
   <p class="note" id="arkNote" style="margin-top:8px">Optional rails appear only when runtime keys are present. BTC owner-wallet is always the primary settle path.</p>
 </div>
-<script>
+<script${nonceAttr}>
 (function(){
   function set(id,t){var el=document.getElementById(id);if(el)el.textContent=t;}
   fetch('/api/payment/methods',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
@@ -2485,6 +2524,10 @@ async function handle(req, res, ctx) {
     if (order.status === 'paid') {
       return sendJson(res, 200, { ok: true, duplicate: true, orderId: order.orderId, status: 'paid' }), true;
     }
+    // Validate order state BEFORE capturing irreversible PayPal funds
+    if (order.status !== 'pending' && order.status !== 'expired') {
+      return sendJson(res, 409, { ok: false, error: 'order_not_capturable', status: order.status }), true;
+    }
     try {
       const alt = require('../commerce/alt-rails-os');
       const paypalOrderId = String((body && body.paypalOrderId) || (order.meta && order.meta.paypalOrderId) || '').trim();
@@ -2611,6 +2654,10 @@ async function handle(req, res, ctx) {
     }
     if (order.status === 'paid') {
       return sendJson(res, 200, { ok: true, duplicate: true, orderId: order.orderId, status: 'paid' }), true;
+    }
+    // Validate order state BEFORE capturing irreversible PayPal funds
+    if (order.status !== 'pending' && order.status !== 'expired') {
+      return sendJson(res, 409, { ok: false, error: 'order_not_capturable', status: order.status }), true;
     }
     const providerName = String((body && body.provider) || '').toLowerCase().slice(0, 32);
     if (!providerName) {
@@ -2919,7 +2966,8 @@ ${proofBlock}
     let chain = null;
     let txs = [];
     try {
-      const stats = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}`, 6000).catch(() => null);
+      const statsRes = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}`, 6000).catch(() => null);
+      const stats = (statsRes && statsRes.ok && statsRes.data) ? statsRes.data : statsRes;
       if (stats && stats.chain_stats) {
         chain = {
           confirmed_received_sats: Number(stats.chain_stats.funded_txo_sum || 0),
@@ -2929,7 +2977,8 @@ ${proofBlock}
           mempool_received_sats:   Number((stats.mempool_stats || {}).funded_txo_sum || 0),
         };
       }
-      const list = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}/txs`, 8000).catch(() => null);
+      const listRes = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}/txs`, 8000).catch(() => null);
+      const list = (listRes && listRes.ok && Array.isArray(listRes.data)) ? listRes.data : (Array.isArray(listRes) ? listRes : null);
       if (Array.isArray(list)) {
         txs = list.slice(0, 50).map((tx) => {
           let inSats = 0;
@@ -2956,12 +3005,15 @@ ${proofBlock}
     } catch (_) { /* mempool.space outage — return what we have */ }
     // Local ledger summary (always available even if mempool.space is unreachable).
     const orders = Array.from(ORDERS.values());
+    const paidOrders = orders.filter((o) => o.status === 'paid');
+    const paidBtcOrders = paidOrders.filter((o) => !o.paid_via || o.paid_via === 'btc' || o.paid_via === 'bitcoin');
     const ledger = {
       total_orders:    orders.length,
-      paid_orders:     orders.filter((o) => o.status === 'paid').length,
+      paid_orders:     paidOrders.length,
       pending_orders:  orders.filter((o) => o.status === 'pending').length,
-      preorders_paid:  orders.filter((o) => o.status === 'paid' && o.preorder).length,
-      paid_sats:       orders.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.paid_sats_observed || o.amount_sats || 0), 0),
+      preorders_paid:  paidOrders.filter((o) => o.preorder).length,
+      paid_sats:       paidBtcOrders.reduce((s, o) => s + (o.paid_sats_observed || o.amount_sats || 0), 0),
+      paid_usd_total:  Number(paidOrders.reduce((s, o) => s + Number(o.subtotal_fiat || 0), 0).toFixed(2)),
     };
     return sendJson(res, 200, {
       receive_address: OWNER_BTC,

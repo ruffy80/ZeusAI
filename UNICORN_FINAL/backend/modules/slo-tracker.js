@@ -89,33 +89,50 @@ const P99_THRESHOLD_MS = parseInt(process.env.SLO_P99_MS || '500', 10);
 const ERROR_BUDGET = parseFloat(process.env.SLO_ERROR_BUDGET || '0.001');
 const WINDOW_MS = parseInt(process.env.SLO_WINDOW_SEC || '300', 10) * 1000;
 const MAX_SAMPLES_PER_ROUTE = 2000;
+const MAX_DISTINCT_ROUTES = 250;
 
 class SLOTracker {
   constructor() {
     this.cache = new Map();
     this.cacheTTL = 60000;
-    // Map<route, { samples: Array<{ts,durationMs,isError}> }>
+    // Map<route, { samples: Array<{ts,durationMs,isError}>, lastSeen: number }>
     this.routes = new Map();
     this.globalSamples = [];
   }
 
   /**
-   * Record a single request observation.
+   * Record a single request observation (bounded route cardinality to prevent 404-scan memory leaks).
    * @param {string} route  - e.g. 'GET /api/health'
    * @param {number} durationMs
    * @param {boolean} isError
    */
   record(route, durationMs, isError) {
-    if (!this.routes.has(route)) {
-      this.routes.set(route, { samples: [] });
+    const now = Date.now();
+    let key = String(route || 'UNKNOWN').slice(0, 140);
+    if (!this.routes.has(key)) {
+      if (this.routes.size >= MAX_DISTINCT_ROUTES) {
+        // Evict stale routes older than 2x window first; otherwise bucket under UNMATCHED_OTHER
+        const cutoff = now - WINDOW_MS * 2;
+        for (const [k, v] of this.routes.entries()) {
+          if ((v.lastSeen || 0) < cutoff) this.routes.delete(k);
+        }
+        if (this.routes.size >= MAX_DISTINCT_ROUTES) {
+          const method = key.split(' ')[0] || 'GET';
+          key = `${method} /__unmatched_other`;
+        }
+      }
+      if (!this.routes.has(key)) {
+        this.routes.set(key, { samples: [], lastSeen: now });
+      }
     }
-    const bucket = this.routes.get(route);
-    const entry = { ts: Date.now(), durationMs, isError: Boolean(isError) };
+    const bucket = this.routes.get(key);
+    bucket.lastSeen = now;
+    const entry = { ts: now, durationMs, isError: Boolean(isError) };
     bucket.samples.push(entry);
     if (bucket.samples.length > MAX_SAMPLES_PER_ROUTE) {
       bucket.samples.shift();
     }
-    this.globalSamples.push({ ...entry, route });
+    this.globalSamples.push({ ...entry, route: key });
     if (this.globalSamples.length > 10000) this.globalSamples.shift();
   }
 

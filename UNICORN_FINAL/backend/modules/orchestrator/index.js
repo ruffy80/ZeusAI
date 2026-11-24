@@ -362,6 +362,7 @@ class UnifiedOrchestrator extends EventEmitter {
 
     const startWall = Date.now();
     const cpuStart = process.cpuUsage();
+    const memStartMb = process.memoryUsage().heapUsed / (1024 * 1024);
     this.stateMachine.markStart(name, moduleName, startWall);
 
     try {
@@ -385,6 +386,7 @@ class UnifiedOrchestrator extends EventEmitter {
       const cpuDelta = process.cpuUsage(cpuStart);
       const cpuUsedMs = (cpuDelta.user + cpuDelta.system) / 1000;
       const memAfterMb = process.memoryUsage().heapUsed / (1024 * 1024);
+      const memDeltaMb = Math.max(0, memAfterMb - memStartMb);
 
       this.state.resourceUsage = {
         cpuMs: Math.max(1, Math.round(cpuUsedMs)),
@@ -392,7 +394,7 @@ class UnifiedOrchestrator extends EventEmitter {
       };
 
       if (this.singularity) {
-        this.singularity.recordExecution(name, moduleName, cpuUsedMs, memAfterMb, 0);
+        this.singularity.recordExecution(name, moduleName, cpuUsedMs, memDeltaMb, 0);
       }
 
       this.failures.set(name, { count: 0, blockedUntil: 0 });
@@ -401,10 +403,10 @@ class UnifiedOrchestrator extends EventEmitter {
 
       const maxCpuMs = Number(budget.maxCpuMs || 5000);
       const maxMemoryMb = Number(budget.maxMemoryMb || 256);
-      if (cpuUsedMs > maxCpuMs || memAfterMb > maxMemoryMb) {
-        const reason = `budget_exceeded (cpu=${Math.round(cpuUsedMs)}ms/${maxCpuMs}ms, mem=${Math.round(memAfterMb)}MB/${maxMemoryMb}MB)`;
+      if (cpuUsedMs > maxCpuMs || memDeltaMb > maxMemoryMb) {
+        const reason = `budget_exceeded (cpu=${Math.round(cpuUsedMs)}ms/${maxCpuMs}ms, memDelta=${Math.round(memDeltaMb)}MB/${maxMemoryMb}MB)`;
         this.stateMachine.markDegraded(name, reason);
-        this.emit('resource_budget_exceeded', { capability: name, cpuUsedMs, memAfterMb, budget });
+        this.emit('resource_budget_exceeded', { capability: name, cpuUsedMs, memAfterMb, memDeltaMb, budget });
       } else {
         this.stateMachine.markSuccess(name, moduleName);
       }

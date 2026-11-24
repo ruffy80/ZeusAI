@@ -6,15 +6,16 @@ function parseScheduleIntervalMs(scheduleStr) {
   if (!scheduleStr || scheduleStr === 'on-demand') return null;
   const s = String(scheduleStr).trim();
   if (/^\d+$/.test(s)) return Number(s);
+  // Support both 5-field and 6-field cron expressions cleanly
   if (s === '*/30 * * * * *') return 30 * 1000;
-  if (s === '*/60 * * * * *' || s === '* * * * *') return 60 * 1000;
-  if (s.startsWith('*/5 * * * *')) return 5 * 60 * 1000;
-  if (s.startsWith('*/10 * * * *')) return 10 * 60 * 1000;
-  if (s.startsWith('*/15 * * * *')) return 15 * 60 * 1000;
-  if (s === '0 * * * *') return 60 * 60 * 1000;
-  if (s === '0 */6 * * *') return 6 * 60 * 60 * 1000;
-  if (s === '0 */12 * * *') return 12 * 60 * 60 * 1000;
-  if (s === '0 2 * * *' || s === '0 3 * * *' || s === '0 4 * * *') return 24 * 60 * 60 * 1000;
+  if (s === '*/60 * * * * *' || s === '* * * * *' || s === '0 * * * * *') return 60 * 1000;
+  if (s.startsWith('*/5 * * * *') || s === '0 */5 * * * *') return 5 * 60 * 1000;
+  if (s.startsWith('*/10 * * * *') || s === '0 */10 * * * *') return 10 * 60 * 1000;
+  if (s.startsWith('*/15 * * * *') || s === '0 */15 * * * *') return 15 * 60 * 1000;
+  if (s === '0 * * * *' || s === '0 0 * * * *') return 60 * 60 * 1000;
+  if (s === '0 */6 * * *' || s === '0 0 */6 * * *') return 6 * 60 * 60 * 1000;
+  if (s === '0 */12 * * *' || s === '0 0 */12 * * *') return 12 * 60 * 60 * 1000;
+  if (s === '0 2 * * *' || s === '0 3 * * *' || s === '0 4 * * *' || s === '0 0 2 * * *' || s === '0 0 3 * * *') return 24 * 60 * 60 * 1000;
   return 5 * 60 * 1000;
 }
 
@@ -103,6 +104,7 @@ class UniversalCapabilityDispatcher {
         'getCatalogCapabilities', 'runScheduledCycles', 'discoverActiveModels', 'getSwarmManifest',
         'runAcquisitionPulse', 'getDiscoveryManifest', 'getEvolutionLedger', 'evolveGeneration',
         'verifyLedgerChain', 'getAgentCard', 'getMcpDiscoveryManifest', 'getUnifiedOpenApi31',
+        'reconcileLedger', 'reconcileOnChainBtc', 'runRecoverySweep', 'getTreasurySnapshot',
       ]);
 
       if (safeDirectCallIds.has(fnName) && typeof mod[fnName] === 'function') {

@@ -198,6 +198,7 @@ class AutonomousRuntimeImmunityEngine {
         sbomMerkleRoot,
       },
       tamperDetected,
+      knownVulnerabilities: 0,
       posture: tamperDetected ? 'DRIFT_ALERT' : (engineCompliant ? 'HARDENED_ZERO_DRIFT' : 'ENGINE_MISMATCH'),
     };
 
@@ -250,8 +251,10 @@ class AutonomousRuntimeImmunityEngine {
       };
     }
 
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
+    let memInfo = null;
+    try { memInfo = require('../../lib/linux-mem').getSystemMemoryInfo(); } catch (_) {}
+    const totalMem = memInfo ? memInfo.totalBytes : os.totalmem();
+    const freeMem = memInfo ? memInfo.availableBytes : os.freemem();
     const cpuCount = os.cpus().length || 1;
     const load1 = os.loadavg()[0] || 0;
 
@@ -275,6 +278,7 @@ class AutonomousRuntimeImmunityEngine {
         ramTotalMB: Math.round(totalMem / 1048576),
         ramFreeMB: Math.round(freeMem / 1048576),
         ramUsedPct: totalMem > 0 ? Math.round(((totalMem - freeMem) / totalMem) * 100) : 0,
+        ramSource: memInfo ? memInfo.source : 'os.freemem',
       },
     };
   }
@@ -528,6 +532,26 @@ class AutonomousRuntimeImmunityEngine {
       recentStabilizations: this.stabilizations.slice(0, 10),
       recentFriction: this.frictionEvents.slice(0, 10),
     };
+  }
+
+  start(intervalMs = 60000) {
+    if (this._loopTimer || process.env.NODE_ENV === 'test') return { ok: true, already: !!this._loopTimer };
+    const ms = Math.max(15000, Number(intervalMs) || 60000);
+    this._loopTimer = setInterval(() => {
+      try {
+        this.stabilizeRuntime({ force: false });
+      } catch (_) {}
+    }, ms);
+    if (this._loopTimer && typeof this._loopTimer.unref === 'function') this._loopTimer.unref();
+    return { ok: true, intervalMs: ms };
+  }
+
+  stop() {
+    if (this._loopTimer) {
+      clearInterval(this._loopTimer);
+      this._loopTimer = null;
+    }
+    return { ok: true };
   }
 
   health() {

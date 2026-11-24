@@ -103,11 +103,12 @@ async function createPaypalOrderForSovereign(order) {
   // Bias toward buyer/guest checkout — never prefill merchant payer email.
   // Prefer BILLING (guest card path). Avoid brand_name inside payment_source
   // experience_context — live PayPal returns 422 INCOMPATIBLE_PARAMETER_VALUE.
+  const orderCurrency = (String(order.currency || 'USD').toUpperCase() === 'EUR') ? 'EUR' : 'USD';
   const purchaseUnits = [{
     reference_id: order.orderId,
     custom_id: order.orderId,
     description: String(order.serviceName || order.serviceId || 'ZeusAI').slice(0, 120),
-    amount: { currency_code: 'USD', value: amount.toFixed(2) },
+    amount: { currency_code: orderCurrency, value: amount.toFixed(2) },
   }];
   const applicationContext = {
     brand_name: 'ZeusAI',

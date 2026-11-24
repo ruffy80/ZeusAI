@@ -70,8 +70,11 @@ function runOnce() {
  */
 function status() {
   try {
-    const result = profitAutopilot.status && typeof profitAutopilot.status === 'function'
-      ? profitAutopilot.status()
+    const statusFn = (profitAutopilot && typeof profitAutopilot.getStatus === 'function')
+      ? profitAutopilot.getStatus
+      : (profitAutopilot && typeof profitAutopilot.status === 'function' ? profitAutopilot.status : null);
+    const result = statusFn
+      ? statusFn()
       : { ok: false, error: 'profit-autopilot not initialized' };
     return {
       ...result,

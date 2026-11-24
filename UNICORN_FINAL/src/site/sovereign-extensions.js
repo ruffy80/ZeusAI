@@ -625,6 +625,7 @@ async function handle(req, res, ctx) {
       `- Live MCP 2025-03-26 JSON-RPC 2.0 Streamable HTTP Server (UMAP/1.0): POST ${OWNER.domain}/api/mcp (discovery: ${OWNER.domain}/.well-known/mcp.json)`,
       `- Google A2A Agent Card (UMAP/1.0): ${OWNER.domain}/.well-known/agent.json`,
       `- Unified OpenAPI 3.1.0 Sovereign Specification: ${OWNER.domain}/.well-known/openapi.json`,
+      `- Ed25519 Autonomous Treasury, Net-Profit & Recovery Attestation (ATRO/1.0): ${OWNER.domain}/.well-known/treasury-autonomy.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -919,6 +920,34 @@ async function handle(req, res, ctx) {
     const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
     const body = JSON.stringify(umap.getAgentCard(), null, 2);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── ATRO/1.0 — Autonomous Treasury, Net-Profit & Recovery Plane ──────────
+  if (urlPath === '/.well-known/treasury-autonomy.json' || urlPath === '/api/treasury/autonomy') {
+    const atro = require('../../backend/modules/autonomous-treasury-reconciler');
+    const body = JSON.stringify(atro.getTreasurySnapshot(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/treasury/reconcile') {
+    const atro = require('../../backend/modules/autonomous-treasury-reconciler');
+    const body = JSON.stringify(atro.reconcileLedger(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/treasury/recovery-sweep' && req.method === 'POST') {
+    const atro = require('../../backend/modules/autonomous-treasury-reconciler');
+    const body = JSON.stringify(atro.runRecoverySweep(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);
     return true;

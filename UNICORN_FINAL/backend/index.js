@@ -6661,6 +6661,58 @@ app.get(['/.well-known/openapi.json', '/api/openapi.json'], (req, res) => {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// ATRO/1.0 — AUTONOMOUS TREASURY, NET-PROFIT RECONCILER & RECOVERY PLANE
+// ============================================================================
+app.get(['/.well-known/treasury-autonomy.json', '/api/treasury/autonomy'], (req, res) => {
+  try {
+    const atro = require('./modules/autonomous-treasury-reconciler');
+    res.set('Cache-Control', 'no-store');
+    res.json(atro.getTreasurySnapshot());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/treasury/reconcile', (req, res) => {
+  try {
+    const atro = require('./modules/autonomous-treasury-reconciler');
+    res.set('Cache-Control', 'no-store');
+    res.json(atro.reconcileLedger());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/treasury/onchain-audit', async (req, res) => {
+  try {
+    const atro = require('./modules/autonomous-treasury-reconciler');
+    const out = await atro.reconcileOnChainBtc();
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/treasury/recovery-sweep', (req, res) => {
+  try {
+    const atro = require('./modules/autonomous-treasury-reconciler');
+    res.set('Cache-Control', 'no-store');
+    res.json(atro.runRecoverySweep());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+// Start ASRI/1.0 live 60s background telemetry & pre-emptive stabilization loop (unref'd, zero-restart)
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    const asriLoop = require('./modules/autonomous-runtime-immunity');
+    if (asriLoop && typeof asriLoop.start === 'function') asriLoop.start(60000);
+  } catch (_) {}
+}
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);
@@ -9948,7 +10000,10 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   // Verify PayPal webhook signature when PAYPAL_WEBHOOK_ID is configured
   if (webhookId) {
     try {
-      const paypalBase = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase() === 'live'
+      const paypalEnvResolved = String(
+        process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || (process.env.NODE_ENV === 'production' ? 'live' : 'sandbox')
+      ).toLowerCase();
+      const paypalBase = paypalEnvResolved === 'live'
         ? 'https://api-m.paypal.com'
         : 'https://api-m.sandbox.paypal.com';
 
@@ -9991,10 +10046,19 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   const resource = event.resource || {};
   console.log('[PayPal Webhook]', eventType, event.id || '');
 
-  // Extract possible txId/order ID hint from various PayPal resource fields
-  const txIdHint = resource.supplementary_data?.related_ids?.order_id
+  // Extract sovereign ord_* ID first (PayPal places our ord_* in custom_id/reference_id,
+  // while supplementary_data.related_ids.order_id holds PayPal's own order ID).
+  const sovereignOrderHint = [
+    resource.custom_id,
+    resource.purchase_units?.[0]?.custom_id,
+    resource.purchase_units?.[0]?.reference_id,
+    resource.supplementary_data?.related_ids?.order_id,
+  ].map((v) => String(v || '').trim()).find((v) => /^ord_[a-zA-Z0-9_-]{6,64}$/.test(v)) || null;
+
+  const txIdHint = sovereignOrderHint
     || resource.custom_id
     || resource.purchase_units?.[0]?.reference_id
+    || resource.supplementary_data?.related_ids?.order_id
     || null;
 
   // Shared helper: find a pending payment by PayPal order ID or txId hint and update it

@@ -105,6 +105,11 @@ const MCP_TOOLS = [
       required: ['message'],
     },
   },
+  {
+    name: 'zeus_treasury_autonomy',
+    description: 'Fetch the live Ed25519-signed ATRO/1.0 Autonomous Treasury, Deduplicated Net-Profit Reconciliation & Multi-Rail Settlement Attestation.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 const MCP_RESOURCES = [
@@ -143,6 +148,12 @@ const MCP_RESOURCES = [
     name: 'ACME/1.0 Proof-Before-Pay & Referral Manifest',
     mimeType: 'application/json',
     description: 'Zero-friction live diagnostic & 10%/10% cryptographic referral bounty manifest.',
+  },
+  {
+    uri: 'zeus://treasury/autonomy',
+    name: 'ATRO/1.0 Ed25519 Autonomous Treasury & Net-Profit Attestation',
+    mimeType: 'application/json',
+    description: 'Zero-PII, deduplicated multi-rail revenue, net profit, and on-chain Bitcoin reconciliation proof.',
   },
 ];
 
@@ -294,6 +305,10 @@ class UniversalMcpA2aMesh {
       const ans = brain ? await brain.answer({ message: msg }) : { ok: false, error: 'advisor_unavailable' };
       const recalled = cege ? cege.recallKnowledge(msg, 3) : [];
       result = Object.assign({}, ans, { cognitiveMemoryRecall: recalled });
+    } else if (name === 'zeus_treasury_autonomy') {
+      const atro = safeReq('../autonomous-treasury-reconciler');
+      if (!atro) throw new Error('atro_module_unavailable');
+      result = atro.getTreasurySnapshot();
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -341,6 +356,9 @@ class UniversalMcpA2aMesh {
     } else if (uri === 'zeus://client-magnet/manifest') {
       const acme = safeReq('../autonomous-client-magnet');
       data = acme ? acme.getDiscoveryManifest() : { ok: false };
+    } else if (uri === 'zeus://treasury/autonomy') {
+      const atro = safeReq('../autonomous-treasury-reconciler');
+      data = atro ? atro.getTreasurySnapshot() : { ok: false };
     } else {
       return null;
     }
@@ -584,6 +602,7 @@ class UniversalMcpA2aMesh {
         llmSwarm: `${DOMAIN}/.well-known/llm-swarm.json`,
         evolutionLedger: `${DOMAIN}/.well-known/evolution-ledger.json`,
         aeoAnswerGraph: `${DOMAIN}/.well-known/aeo-answer-graph.json`,
+        treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
       },
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
     };

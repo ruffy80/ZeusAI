@@ -2965,7 +2965,7 @@ Awaiting pulse trigger...</pre>
         <h3 style="margin:0;font-size:20px">Live Sovereign Autonomy Pulse</h3>
         <span class="magnet-badge magnet-badge-violet">ED25519 VERIFIED</span>
       </div>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 27 sovereign modules: 0-CVE Runtime Immunity, Multi-LLM Frontier Swarm, Shadow-Verified Cognitive Evolution, and live MCP/A2A agent endpoints.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 28 sovereign modules: 0-CVE Runtime Immunity, Multi-LLM Frontier Swarm, Shadow-Verified Cognitive Evolution, Autonomous Treasury, and live MCP/A2A agent endpoints.</p>
       <div class="magnet-pulse-grid" id="autonomyPulseGrid">
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">Runtime Immunity (ASRI)</div>
@@ -2981,7 +2981,7 @@ Awaiting pulse trigger...</pre>
         </div>
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">MCP / A2A Mesh (UMAP)</div>
-          <div class="magnet-kpi-val" id="pulseMcp">10 Live Tools</div>
+          <div class="magnet-kpi-val" id="pulseMcp">11 Live Tools</div>
         </div>
       </div>
       <div id="pulseEvolutionNote" style="font-family:var(--mono);font-size:12px;color:var(--ink-dim);line-height:1.5"></div>
