@@ -6842,6 +6842,88 @@ app.post('/api/bundles/quote', express.json({ limit: '8kb' }), (req, res) => {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// SMCE/1.0 — SOVEREIGN M2M COMMERCE, HTTP 402 AGENT PAYWALL & COUNCIL OF MINDS
+// ============================================================================
+app.get(['/.well-known/x402.json', '/api/x402/manifest'], (req, res) => {
+  try {
+    const smce = require('./modules/autonomous-m2m-commerce-engine');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(smce.getX402Manifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/x402/execute', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const smce = require('./modules/autonomous-m2m-commerce-engine');
+    const body = (req.body && typeof req.body === 'object') ? Object.assign({}, req.body) : {};
+    if (!body.accessToken) {
+      const hdrTok = req.headers['x-aspe-token'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      if (hdrTok) body.accessToken = hdrTok;
+    }
+    const out = await smce.executeX402OrChallenge(body);
+    if (out.headers) {
+      for (const [k, v] of Object.entries(out.headers)) res.set(k, v);
+    }
+    res.set('Cache-Control', 'no-store');
+    res.status(out.httpStatus || 402).json(out.body);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/smce/negotiate', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const smce = require('./modules/autonomous-m2m-commerce-engine');
+    const out = smce.negotiateAutonomousDeal(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/smce/checkout', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const smce = require('./modules/autonomous-m2m-commerce-engine');
+    const out = await smce.createLiveAgentCheckout(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 201 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/smce/verify-signature', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const smce = require('./modules/autonomous-m2m-commerce-engine');
+    const out = smce.verifySignedArtifact(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/llm/council', express.json({ limit: '16kb' }), async (req, res) => {
+  try {
+    const nsc = require('./modules/neural-swarm-llm-cascade');
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const out = await nsc.runCouncilSynthesis(String(body.prompt || ''), {
+      system: body.system,
+      domain: body.domain,
+      maxTokens: Math.min(1200, Math.max(120, Number(body.maxTokens || 700))),
+      timeoutMs: Math.min(20000, Math.max(3000, Number(body.timeoutMs || 14000))),
+    });
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 503).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

@@ -629,6 +629,7 @@ async function handle(req, res, ctx) {
       `- Unified OpenAPI 3.1.0 Sovereign Specification: ${OWNER.domain}/.well-known/openapi.json`,
       `- Ed25519 Autonomous Treasury, Net-Profit & Recovery Attestation (ATRO/1.0): ${OWNER.domain}/.well-known/treasury-autonomy.json`,
       `- Ed25519 6-Agent Autonomous Living Organism Manifest (AOSO/1.0): ${OWNER.domain}/.well-known/living-organism.json`,
+      `- HTTP 402 Sovereign M2M Commerce & Autonomous Negotiation (SMCE/1.0): ${OWNER.domain}/.well-known/x402.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -1114,6 +1115,131 @@ async function handle(req, res, ctx) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
       }
+    });
+    return true;
+  }
+
+  // ── SMCE/1.0 — Sovereign M2M Commerce, HTTP 402 Paywall & Council of Minds ─
+  if (urlPath === '/.well-known/x402.json' || urlPath === '/api/x402/manifest') {
+    const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
+    const body = JSON.stringify(smce.getX402Manifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/x402/execute' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', () => {
+      let parsed = {};
+      try { parsed = raw ? JSON.parse(raw) : {}; } catch (_) { parsed = {}; }
+      if (!parsed.accessToken) {
+        const hdrTok = (req.headers && (req.headers['x-aspe-token'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim())) || '';
+        if (hdrTok) parsed.accessToken = hdrTok;
+      }
+      const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
+      Promise.resolve(smce.executeX402OrChallenge(parsed)).then((out) => {
+        const code = out.httpStatus || 402;
+        const headers = Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, out.headers || {});
+        const body = JSON.stringify(out.body, null, 2);
+        res.writeHead(code, headers);
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      }).catch((e) => {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      });
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/smce/negotiate' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 8192) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
+        const out = smce.negotiateAutonomousDeal(parsed);
+        const code = out.ok ? 200 : 400;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      }
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/smce/checkout' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', () => {
+      let parsed = {};
+      try { parsed = raw ? JSON.parse(raw) : {}; } catch (_) { parsed = {}; }
+      const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
+      Promise.resolve(smce.createLiveAgentCheckout(parsed)).then((out) => {
+        const code = out.ok ? 201 : 400;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      }).catch((e) => {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      });
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/smce/verify-signature' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 32768) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
+        const out = smce.verifySignedArtifact(parsed);
+        const code = out.ok ? 200 : 400;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      }
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/llm/council' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', () => {
+      let parsed = {};
+      try { parsed = raw ? JSON.parse(raw) : {}; } catch (_) { parsed = {}; }
+      const nsc = require('../../backend/modules/neural-swarm-llm-cascade');
+      Promise.resolve(nsc.runCouncilSynthesis(String(parsed.prompt || ''), {
+        system: parsed.system,
+        domain: parsed.domain,
+        maxTokens: Math.min(1200, Math.max(120, Number(parsed.maxTokens || 700))),
+        timeoutMs: Math.min(20000, Math.max(3000, Number(parsed.timeoutMs || 14000))),
+      })).then((out) => {
+        const code = out.ok ? 200 : 503;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      }).catch((e) => {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      });
     });
     return true;
   }

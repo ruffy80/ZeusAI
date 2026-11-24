@@ -126,6 +126,50 @@ const MCP_TOOLS = [
       required: ['serviceIds'],
     },
   },
+  {
+    name: 'zeus_negotiate_deal',
+    description: 'Negotiate a floor-margin-protected, Ed25519-signed binding deal (SMCE/1.0) for single or multi-service bundles with optimal rail recommendation and 1-click checkout URLs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serviceIds: { type: 'array', items: { type: 'string' }, description: '1–6 ZeusAI service IDs' },
+        budgetUsd: { type: 'number', description: 'Optional buyer target budget in USD' },
+        rail: { type: 'string', description: 'Preferred settlement rail: btc (default, -10%), paypal, or nowpayments' },
+        referralCode: { type: 'string', description: 'Optional referral code (zeus_...)' },
+        domain: { type: 'string', description: 'Optional buyer domain for tailored remediation scope' },
+      },
+    },
+  },
+  {
+    name: 'zeus_create_live_checkout',
+    description: 'Mint a REAL live multi-rail ZeusAI payment invoice (BTC direct -10% unique satoshis, PayPal, NOWPayments) for a single service or discounted multi-item bundle.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serviceId: { type: 'string', description: 'Primary ZeusAI service ID (e.g. instant-website-audit)' },
+        bundleIds: { type: 'array', items: { type: 'string' }, description: 'Optional 2–6 service IDs for automatic 15%–20% server-verified bundle discount' },
+        rail: { type: 'string', description: 'Settlement rail: btc (default, -10%), paypal, or nowpayments' },
+        currency: { type: 'string', description: 'USD (default) or EUR' },
+        email: { type: 'string', description: 'Optional buyer email for delivery receipt' },
+        ref: { type: 'string', description: 'Optional referral code' },
+      },
+      required: ['serviceId'],
+    },
+  },
+  {
+    name: 'zeus_execute_paid_service',
+    description: 'HTTP 402 M2M paywall execution (SMCE/1.0): with valid paid orderId + accessToken/API key, executes live Unicorn autonomous modules with Ed25519 proof; without payment, returns a signed HTTP 402 payment challenge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serviceId: { type: 'string', description: 'Target ZeusAI service ID' },
+        bundleIds: { type: 'array', items: { type: 'string' }, description: 'Optional bundled service IDs' },
+        orderId: { type: 'string', description: 'Paid ZeusAI orderId (ord_...)' },
+        accessToken: { type: 'string', description: 'Order access_token or scoped zai_auto_* API key' },
+        inputs: { type: 'object', description: 'Optional execution parameters (e.g. target domain or brief)' },
+      },
+    },
+  },
 ];
 
 const MCP_RESOURCES = [
@@ -175,7 +219,13 @@ const MCP_RESOURCES = [
     uri: 'zeus://organism/manifest',
     name: 'AOSO/1.0 Ed25519 6-Agent Living Organism Manifest',
     mimeType: 'application/json',
-    description: 'Live homeostasis index across all 6 specialist autonomous agents and 4 predictive reflex arcs.',
+    description: 'Live homeostasis index across all 6 specialist autonomous agents and 5 predictive reflex arcs.',
+  },
+  {
+    uri: 'zeus://commerce/x402-manifest',
+    name: 'SMCE/1.0 HTTP 402 M2M Commerce & Autonomous Negotiation Manifest',
+    mimeType: 'application/json',
+    description: 'Ed25519-signed machine-to-machine payment paywall, bundle discount rules, and direct agent checkout endpoints.',
   },
 ];
 
@@ -339,6 +389,19 @@ class UniversalMcpA2aMesh {
       const aoso = safeReq('../autonomous-organism-orchestrator');
       if (!aoso) throw new Error('aoso_module_unavailable');
       result = aoso.quoteMultiItemBundle(safeArgs.serviceIds || []);
+    } else if (name === 'zeus_negotiate_deal') {
+      const smce = safeReq('../autonomous-m2m-commerce-engine');
+      if (!smce) throw new Error('smce_module_unavailable');
+      result = smce.negotiateAutonomousDeal(safeArgs);
+    } else if (name === 'zeus_create_live_checkout') {
+      const smce = safeReq('../autonomous-m2m-commerce-engine');
+      if (!smce) throw new Error('smce_module_unavailable');
+      result = await smce.createLiveAgentCheckout(safeArgs);
+    } else if (name === 'zeus_execute_paid_service') {
+      const smce = safeReq('../autonomous-m2m-commerce-engine');
+      if (!smce) throw new Error('smce_module_unavailable');
+      const x402 = await smce.executeX402OrChallenge(safeArgs);
+      result = x402.body;
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -392,6 +455,9 @@ class UniversalMcpA2aMesh {
     } else if (uri === 'zeus://organism/manifest') {
       const aoso = safeReq('../autonomous-organism-orchestrator');
       data = aoso ? aoso.getOrganismManifest() : { ok: false };
+    } else if (uri === 'zeus://commerce/x402-manifest') {
+      const smce = safeReq('../autonomous-m2m-commerce-engine');
+      data = smce ? smce.getX402Manifest() : { ok: false };
     } else {
       return null;
     }
@@ -639,6 +705,7 @@ class UniversalMcpA2aMesh {
         aeoAnswerGraph: `${DOMAIN}/.well-known/aeo-answer-graph.json`,
         treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
         livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
+        x402Paywall: `${DOMAIN}/.well-known/x402.json`,
       },
       officialMcpRegistryName: 'io.github.ruffy80/zeusai-unicorn-mcp',
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
@@ -654,7 +721,7 @@ class UniversalMcpA2aMesh {
       name: 'io.github.ruffy80/zeusai-unicorn-mcp',
       title: 'ZeusAI Autonomous Unicorn MCP',
       description: 'Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm',
-      version: '1.2.2',
+      version: '1.3.0',
       protocolVersion: MCP_VERSION,
       websiteUrl: DOMAIN,
       repository: {
@@ -828,6 +895,11 @@ class UniversalMcpA2aMesh {
         '/.well-known/ai-plugin.json': { get: { operationId: 'aiPluginManifest', tags: ['mcp-a2a'], summary: 'OpenAI / Perplexity Plugin Compatibility Manifest', responses: { '200': { description: 'AI Plugin manifest' } } } },
         '/api/magnet/badge': { get: { operationId: 'auditSvgBadge', tags: ['client-magnet'], summary: 'Embeddable live SVG Proof-Before-Pay audit badge for any scanned domain', parameters: [{ name: 'domain', in: 'query', required: false, schema: { type: 'string' } }], responses: { '200': { description: 'image/svg+xml badge' } } } },
         '/api/organism/distribute-now': { post: { operationId: 'organismDistributeNow', tags: ['organism'], summary: 'Trigger live Official MCP Registry sync, multi-engine IndexNow & WebSub distribution', responses: { '200': { description: 'Distribution telemetry' } } } },
+        '/.well-known/x402.json': { get: { operationId: 'x402Manifest', tags: ['commerce'], summary: 'Ed25519-signed SMCE/1.0 HTTP 402 M2M Commerce & Autonomous Negotiation Manifest', responses: { '200': { description: 'SMCE/1.0 manifest' } } } },
+        '/api/x402/execute': { post: { operationId: 'x402Execute', tags: ['commerce'], summary: 'HTTP 402 Payment Required agent paywall: returns signed challenge (402) or executes paid Unicorn modules (200)', responses: { '200': { description: 'Ed25519 execution proof' }, '402': { description: 'Signed payment challenge' } } } },
+        '/api/smce/negotiate': { post: { operationId: 'smceNegotiate', tags: ['commerce'], summary: 'Negotiate a floor-margin-protected, Ed25519-signed binding bundle deal', responses: { '200': { description: 'Signed deal quote' } } } },
+        '/api/smce/checkout': { post: { operationId: 'smceLiveCheckout', tags: ['commerce'], summary: 'Mint a live multi-rail BTC/PayPal/NOWPayments invoice for single or multi-item bundles', responses: { '200': { description: 'Live checkout invoice' } } } },
+        '/api/llm/council': { post: { operationId: 'llmCouncilSynthesis', tags: ['llm-swarm'], summary: 'Parallel dual-family Council of Minds synthesis with CEGE RAG grounding & 5-pillar arbitration', responses: { '200': { description: 'Council decision & scoreboard' } } } },
         '/.well-known/evolution-ledger.json': { get: { operationId: 'evolutionLedger', tags: ['evolution'], summary: 'Ed25519-signed SHA-256 hash-chained Cognitive Evolution Ledger (CEGE/1.0)', responses: { '200': { description: 'Signed evolution ledger' } } } },
         '/api/evolution/status': { get: { operationId: 'evolutionStatus', tags: ['evolution'], summary: 'Live multi-domain strategy genomes & bandit metrics', responses: { '200': { description: 'CEGE/1.0 status' } } } },
         '/api/evolution/verify': { get: { operationId: 'evolutionVerify', tags: ['evolution'], summary: 'Cryptographically verify Ed25519 hash-chain integrity', responses: { '200': { description: 'Verification report' } } } },

@@ -198,6 +198,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Tri-layer self-evolving discovery continuum: synchronizes SEO (sitemaps & Merchant JSON-LD), AEO (Ed25519-signed Atomic Answer Capsules for Perplexity, ChatGPT Search, Google AI Overviews), and GEO (/llms-full.txt, ~256-token semantic RAG chunks, and 8-locale citation matrix), auto-learning from live customer queries.',
     relatedServices: ['instant-seo-content-pack', 'instant-website-audit', 'professional-ai-marketing'],
   },
+  'autonomous-m2m-commerce-engine': {
+    title: 'SMCE/1.0 Sovereign M2M Commerce & HTTP 402 Agent Paywall',
+    tier: 'commerce',
+    purposeRo: 'Motorul de comerț mașină-la-mașină (HTTP 402 Payment Required) și negociator autonom cu marjă protejată: emite oferte bundle semnate Ed25519 (-15%/-20% + -10% BTC), generează facturi reale direct din agenții MCP/AI și semnează certificate verificabile de execuție.',
+    purposeEn: 'Machine-to-machine commerce engine (HTTP 402 Payment Required) and floor-margin-protected deal negotiator: issues Ed25519-signed bundle quotes (-15%/-20% + -10% BTC), mints live invoices directly from MCP/AI agents, and signs verifiable execution outcome certificates.',
+    relatedServices: ['instant-website-audit', 'instant-seo-content-pack', 'professional-ai-agent'],
+  },
 };
 
 // Proactive Latent Needs Matrix ("Servicii de care clientul are nevoie, dar nu s-a gândit la ele")
@@ -786,6 +793,39 @@ class ZeusOmniscientBrain {
       if (finalRecs.length >= 5) break;
     }
 
+    // Section F (additive): SMCE/1.0 Autonomous Margin-Protected Deal & Multi-Item Bundle Negotiation
+    let smceNegotiation = null;
+    const isAskingDealOrPricing = /\b(pric|cost|quote|bundle|package|discount|deal|negotiat|offer|budget|combo|pret|preț|ofert[ăa]|reducere|pachet|negoci|buget|deviz|cota[țt]ie)\b/i.test(message);
+    if ((isAskingDealOrPricing || Boolean(domainMatch)) && finalRecs.length >= 1) {
+      try {
+        const smce = require('./autonomous-m2m-commerce-engine');
+        if (smce && typeof smce.negotiateAutonomousDeal === 'function') {
+          const bundleCandidates = finalRecs
+            .filter((r) => r && r.svc && r.svc.priceUsd > 0 && r.svc.priceUsd <= 3000)
+            .slice(0, 2)
+            .map((r) => r.svc.id);
+          if (bundleCandidates.length < 2) {
+            if (!bundleCandidates.includes('instant-website-audit')) bundleCandidates.push('instant-website-audit');
+            if (bundleCandidates.length < 2 && !bundleCandidates.includes('instant-seo-content-pack')) bundleCandidates.push('instant-seo-content-pack');
+          }
+          const deal = smce.negotiateAutonomousDeal({
+            serviceIds: bundleCandidates,
+            rail: 'btc',
+            domain: domainMatch ? domainMatch[1] : undefined,
+          });
+          if (deal && deal.ok && deal.payload) {
+            smceNegotiation = deal;
+            const p = deal.payload.pricing;
+            sections.push(
+              lang === 'ro'
+                ? `🤝 **Ofertă Bundle Autonomă Semnată Ed25519 (\`${deal.payload.quoteId}\`):** Pachet **${deal.payload.itemCount} servicii** (\`${deal.payload.serviceIds.join(' + ')}\`) — preț listă **$${p.listTotalUsd}** → bundle **-${p.bundleDiscountPct}%** = **$${p.bundleTotalUsd}** → plată **BTC direct (-10%)** = **$${p.btcTotalUsd}** (economisești **$${p.totalSavingsUsd}**).`
+                : `🤝 **Ed25519-Signed Autonomous Bundle Offer (\`${deal.payload.quoteId}\`):** **${deal.payload.itemCount}-service bundle** (\`${deal.payload.serviceIds.join(' + ')}\`) — list **$${p.listTotalUsd}** → bundle **-${p.bundleDiscountPct}%** = **$${p.bundleTotalUsd}** → **BTC direct (-10%)** = **$${p.btcTotalUsd}** (save **$${p.totalSavingsUsd}**).`
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
     const replyText = sections.join('\n\n');
     try {
       const sags = require('./seo-aeo-geo-singularity');
@@ -821,6 +861,7 @@ class ZeusOmniscientBrain {
       reply: replyText,
       escrowPreview,
       routerSimulation,
+      smceNegotiation,
       cognitiveMemoryRecall: recalledKnowledge,
       recommendations: finalRecs.map(({ svc, badge }) => ({
         id: svc.id,

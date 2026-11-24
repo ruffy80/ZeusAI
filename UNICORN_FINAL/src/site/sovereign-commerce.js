@@ -149,6 +149,10 @@ function _fireDelivery(order) {
       plan: order.serviceId,
       amount: order.subtotal_fiat,
     };
+    if (Array.isArray(order.bundleIds) && order.bundleIds.length > 1) {
+      receiptLike.services = order.bundleIds.slice();
+      receiptLike.bundleIds = order.bundleIds.slice();
+    }
     let payFulfill = null;
     try { payFulfill = require('../commerce/pay-fulfill'); } catch (_) { payFulfill = null; }
     // Delivery must run synchronously so settle never races the buyer poll /
@@ -971,8 +975,55 @@ async function createOrder(ctx, input) {
   }
   const brief = String((input && input.brief) || buyerInputs.brief || '').trim().slice(0, 4000);
 
-  let unitFull = svc.price != null ? Number(svc.price) : 0;
-  if (amountUsdOverride != null) unitFull = amountUsdOverride;
+  // Optional server-verified multi-item bundle (2..6 services: -15% on 2, -20% on 3+)
+  const rawBundleList = Array.isArray(input && input.bundleIds) ? input.bundleIds : [];
+  const normalizedBundleIds = Array.from(new Set(
+    [serviceId].concat(
+      rawBundleList.map((b) => String(b || '').trim().replace(/[^\w.:-]/g, '').slice(0, 128)).filter(Boolean)
+    )
+  )).slice(0, 6);
+  const isBundle = normalizedBundleIds.length >= 2;
+  let bundleItems = null;
+  let bundleDiscountPct = 0;
+  let bundleListTotalUsd = 0;
+  let bundleDiscountedUsd = 0;
+  let bundleRequiresHuman = buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true;
+  if (isBundle) {
+    if (amountUsdOverride != null) {
+      return { error: 'bundle_virtual_sku_unsupported', serviceId, status: 400 };
+    }
+    const primaryPrice = svc.price != null ? Number(svc.price) : 0;
+    if (!(primaryPrice > 0)) return { error: 'service_not_priced', serviceId, status: 409 };
+    bundleItems = [{ id: serviceId, name: svc.name || svc.title || serviceId, listPriceUsd: primaryPrice }];
+    for (let bi = 1; bi < normalizedBundleIds.length; bi++) {
+      const bid = normalizedBundleIds[bi];
+      const bsvc = await resolveService(ctx, bid);
+      if (!bsvc) return { error: 'service_not_found', serviceId: bid, status: 404 };
+      let bBuy = { mode: 'buy', buyable: true };
+      try {
+        const cb = require('../commerce/commerce-buyability');
+        bBuy = cb.assessBuyability(bsvc);
+      } catch (_) {}
+      if (!bBuy || !bBuy.buyable) {
+        return { error: bBuy && bBuy.mode === 'contact' ? 'contact_required' : 'service_not_buyable', serviceId: bid, status: 409 };
+      }
+      try {
+        const si = require('../commerce/service-integrity');
+        const bp = si.proofFor(bid);
+        if (bp && bp.ok === false) return { error: 'service_integrity_refused', serviceId: bid, status: 409 };
+      } catch (_) {}
+      const bPrice = bsvc.price != null ? Number(bsvc.price) : 0;
+      if (!(bPrice > 0)) return { error: 'service_not_priced', serviceId: bid, status: 409 };
+      if (bBuy.mode === 'reserve' || bsvc.requiresHumanFulfillment === true) bundleRequiresHuman = true;
+      bundleItems.push({ id: bid, name: bsvc.name || bsvc.title || bid, listPriceUsd: bPrice });
+    }
+    bundleListTotalUsd = Number(bundleItems.reduce((acc, it) => acc + it.listPriceUsd, 0).toFixed(2));
+    bundleDiscountPct = bundleItems.length >= 3 ? 20 : 15;
+    bundleDiscountedUsd = Number((bundleListTotalUsd * (1 - bundleDiscountPct / 100)).toFixed(2));
+  }
+
+  let unitFull = isBundle ? bundleDiscountedUsd : (svc.price != null ? Number(svc.price) : 0);
+  if (!isBundle && amountUsdOverride != null) unitFull = amountUsdOverride;
   // Pre-orders pay only PREORDER_PCT of full price; BTC rail gets BTC_DISCOUNT_PCT.
   // PayPal / NOW / dropship quoted totals skip the BTC discount (exact amount).
   const isPreorder = !!preorder;
@@ -995,7 +1046,7 @@ async function createOrder(ctx, input) {
   try {
     const commercial = require('../../backend/modules/commercial-layer');
     const locked = commercial.validLock(input && input.clientIp, serviceId);
-    if (locked && locked.locked_price_usd > 0 && amountUsdOverride == null) {
+    if (!isBundle && locked && locked.locked_price_usd > 0 && amountUsdOverride == null) {
       unitFull = Number(locked.locked_price_usd);
       skipBtcDiscount = true;
       unit = Number((unitFull * preorderFactor).toFixed(2));
@@ -1054,7 +1105,9 @@ async function createOrder(ctx, input) {
   const order = {
     orderId,
     serviceId,
-    serviceName: svc.name || svc.title || serviceId,
+    serviceName: isBundle
+      ? ('Bundle (' + bundleItems.length + '): ' + bundleItems.map((it) => it.name).join(' + ')).slice(0, 160)
+      : (svc.name || svc.title || serviceId),
     qty: q,
     currency: orderCurrency,
     unit_price_fiat: unit,
@@ -1101,7 +1154,16 @@ async function createOrder(ctx, input) {
       })(),
       rail: (input && input.rail) || undefined,
       buyMode: buyability.mode,
-      requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
+      requiresHumanFulfillment: bundleRequiresHuman,
+      bundleIds: isBundle ? normalizedBundleIds : undefined,
+      bundle: isBundle ? {
+        itemCount: bundleItems.length,
+        discountPct: bundleDiscountPct,
+        listTotalUsd: bundleListTotalUsd,
+        discountedUsd: bundleDiscountedUsd,
+        savingsUsd: Number((bundleListTotalUsd - bundleDiscountedUsd).toFixed(2)),
+        items: bundleItems,
+      } : undefined,
       affiliateRef: affiliateRef || undefined,
       commercialRef: commercialRef || undefined,
       dial: (function () {
@@ -1130,6 +1192,10 @@ async function createOrder(ctx, input) {
     orderId: order.orderId, serviceId: order.serviceId, amount_sats: order.amount_sats,
     receive_address: order.receive_address, created_at: order.created_at, expires_at: order.expires_at,
   });
+  if (isBundle) {
+    order.bundleIds = normalizedBundleIds;
+    order.bundle = order.meta.bundle;
+  }
 
   ORDERS.set(orderId, order);
   AMT_INDEX.set(order.amount_sats, orderId);

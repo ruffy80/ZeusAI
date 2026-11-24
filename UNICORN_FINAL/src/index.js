@@ -3082,19 +3082,51 @@ function runDeliveryForReceipt(receipt, opts) {
       // ASPE/1.0 — Activate real live autonomous Unicorn service workspace & modules immediately on payment
       try {
         const aspe = require('../backend/modules/autonomous-service-provisioning');
+        const baseOrderId = receipt.orderId || receipt.id;
+        const primaryServiceId = receipt.serviceId || receipt.plan || (Array.isArray(receipt.items) && receipt.items[0] && receipt.items[0].serviceId) || 'instant-website-audit';
+        const extraIds = Array.isArray(receipt.bundleIds) ? receipt.bundleIds
+          : (receipt.meta && Array.isArray(receipt.meta.bundleIds) ? receipt.meta.bundleIds
+          : (Array.isArray(receipt.services) ? receipt.services : []));
+        const allServiceIds = Array.from(new Set([primaryServiceId].concat(extraIds).map((s) => String(s || '').trim()).filter(Boolean)));
+        const commonEmail = receipt.customerEmail || receipt.email || null;
+        const commonToken = receipt.access_token || receipt.accessToken || null;
+        const commonAmount = receipt.amountUsd || receipt.priceUsd || receipt.subtotal_fiat || receipt.amount || 0;
+        const commonInputs = receipt.inputs || (receipt.meta && receipt.meta.inputs) || (receipt.buyer && receipt.buyer.inputs) || {};
         const act = aspe.activatePaidService({
-          orderId: receipt.orderId || receipt.id,
-          serviceId: receipt.serviceId || receipt.plan || (Array.isArray(receipt.items) && receipt.items[0] && receipt.items[0].serviceId) || 'instant-website-audit',
-          email: receipt.customerEmail || receipt.email || null,
-          accessToken: receipt.access_token || receipt.accessToken || null,
-          amountUsd: receipt.amountUsd || receipt.priceUsd || 0,
-          inputs: receipt.inputs || {},
+          orderId: baseOrderId,
+          serviceId: primaryServiceId,
+          bundleIds: allServiceIds.length > 1 ? allServiceIds : undefined,
+          email: commonEmail,
+          accessToken: commonToken,
+          amountUsd: commonAmount,
+          inputs: commonInputs,
         });
         if (act && act.ok && act.instance) {
-          if (latestDelivery) latestDelivery.autonomousService = act.instance;
-          if (delivery) delivery.autonomousService = act.instance;
+          const allInstances = [act.instance];
+          for (let si = 1; si < allServiceIds.length; si++) {
+            const extraSid = allServiceIds[si];
+            const subAct = aspe.activatePaidService({
+              orderId: `${baseOrderId}__${extraSid}`,
+              parentOrderId: baseOrderId,
+              serviceId: extraSid,
+              email: commonEmail,
+              accessToken: commonToken,
+              amountUsd: 0,
+              inputs: commonInputs,
+            });
+            if (subAct && subAct.ok && subAct.instance) allInstances.push(subAct.instance);
+          }
+          if (latestDelivery) {
+            latestDelivery.autonomousService = act.instance;
+            if (allInstances.length > 1) latestDelivery.autonomousServices = allInstances;
+          }
+          if (delivery) {
+            delivery.autonomousService = act.instance;
+            if (allInstances.length > 1) delivery.autonomousServices = allInstances;
+          }
           receipt.autonomousService = act.instance;
-          console.log('[aspe] activated autonomous service order=' + act.instance.orderId + ' service=' + act.instance.serviceId + ' workspace=' + act.instance.workspaceId + ' modules=' + act.instance.modulesActivated.length);
+          if (allInstances.length > 1) receipt.autonomousServices = allInstances;
+          console.log('[aspe] activated autonomous service order=' + act.instance.orderId + ' services=' + allServiceIds.join('+') + ' workspace=' + act.instance.workspaceId + ' modules=' + act.instance.modulesActivated.length);
         }
       } catch (aspeErr) {
         console.warn('[aspe] activation warning for ' + receipt.id + ':', aspeErr && aspeErr.message);

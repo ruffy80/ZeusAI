@@ -1,0 +1,68 @@
+{
+  "name": "autonomous-m2m-commerce-engine",
+  "version": "1.0.0",
+  "description": "SMCE/1.0 — Sovereign Machine-to-Machine Commerce Engine: HTTP 402 Payment Required agent paywall, Ed25519-signed autonomous deal & margin negotiation, direct MCP live multi-rail checkout minting, and verifiable execution outcome certificates.",
+  "entry": "./index.js",
+  "healthCheck": "health",
+  "dependencies": [
+    "autonomous-service-provisioning",
+    "autonomous-client-magnet",
+    "autonomous-treasury-reconciler",
+    "cognitive-evolution-genome",
+    "neural-swarm-llm-cascade",
+    "universal-mcp-a2a-mesh",
+    "autonomous-organism-orchestrator",
+    "witness"
+  ],
+  "capabilities": [
+    {
+      "id": "negotiateAutonomousDeal",
+      "type": "write",
+      "description": "Negotiate a floor-margin-protected, Ed25519-signed multi-item bundle deal with optimal rail recommendation and 1-click checkout URLs."
+    },
+    {
+      "id": "executeX402OrChallenge",
+      "type": "write",
+      "description": "Standard HTTP 402 Payment Required agent paywall: returns signed payment challenge when unpaid, or executes paid Unicorn modules with Ed25519 execution proof when authenticated."
+    },
+    {
+      "id": "createLiveAgentCheckout",
+      "type": "write",
+      "description": "Mint a real live multi-rail sovereign-commerce invoice (BTC -10%, PayPal, NOWPayments) for single or multi-item bundles directly from MCP/M2M agents."
+    },
+    {
+      "id": "getX402Manifest",
+      "type": "read",
+      "description": "Return the Ed25519-signed SMCE/1.0 HTTP 402 M2M commerce protocol manifest (/.well-known/x402.json)."
+    },
+    {
+      "id": "verifySignedArtifact",
+      "type": "read",
+      "description": "Cryptographically verify an Ed25519-signed SMCE quote, execution proof, or organism attestation."
+    },
+    {
+      "id": "health",
+      "type": "read",
+      "description": "Return SMCE/1.0 M2M commerce engine health and quote/execution telemetry."
+    }
+  ],
+  "failureModes": [
+    {
+      "condition": "invalid_or_unpriced_service_requested",
+      "recovery": "skip"
+    },
+    {
+      "condition": "unauthorized_x402_execution_attempt",
+      "recovery": "quarantine"
+    },
+    {
+      "condition": "commerce_price_oracle_unavailable",
+      "recovery": "escalate"
+    }
+  ],
+  "limits": {
+    "maxQuoteTtlSec": 1800,
+    "minFloorMarginPct": 65,
+    "maxBundleItems": 6
+  }
+}

@@ -606,7 +606,25 @@ class AutonomousServiceProvisioningEngine {
     }
 
     const serviceId = String(receipt.serviceId || receipt.plan || 'instant-website-audit');
-    const blueprint = this.getServiceBlueprint(serviceId);
+    const rawBundle = Array.isArray(receipt.bundleIds) ? receipt.bundleIds : [];
+    const bundledServiceIds = Array.from(new Set(
+      [serviceId].concat(rawBundle.map((s) => String(s || '').trim()).filter(Boolean))
+    ));
+    const baseBlueprint = this.getServiceBlueprint(serviceId);
+    let blueprint = baseBlueprint;
+    if (bundledServiceIds.length > 1) {
+      const mergedModules = Array.from(new Set(
+        bundledServiceIds.reduce((acc, sid) => acc.concat(this.getServiceBlueprint(sid).modules || []), [])
+      ));
+      const mergedCaps = Array.from(new Set(
+        bundledServiceIds.reduce((acc, sid) => acc.concat(this.getServiceBlueprint(sid).capabilities || []), [])
+      ));
+      blueprint = Object.assign({}, baseBlueprint, {
+        executionMode: `Multi-Service Autonomous Bundle (${bundledServiceIds.length} services)`,
+        modules: mergedModules,
+        capabilities: mergedCaps,
+      });
+    }
     const workspaceId = 'ws_' + crypto.createHash('sha256').update(orderId + '|' + serviceId).digest('hex').slice(0, 14);
     const apiKeyToken = 'zai_auto_' + crypto.createHash('sha256').update(orderId + '|' + workspaceId + '|zeus-aspe').digest('hex').slice(0, 28);
     const nowIso = new Date().toISOString();
@@ -630,6 +648,12 @@ class AutonomousServiceProvisioningEngine {
       capabilitiesEnabled: blueprint.capabilities,
       schedule: blueprint.schedule,
     };
+    if (bundledServiceIds.length > 1) {
+      proofPayload.bundledServiceIds = bundledServiceIds;
+    }
+    if (receipt.parentOrderId) {
+      proofPayload.parentOrderId = String(receipt.parentOrderId);
+    }
     const activationProof = this._signActivation(proofPayload);
 
     const instance = {
@@ -708,7 +732,13 @@ class AutonomousServiceProvisioningEngine {
     const inst = this.instances.get(String(orderId || ''));
     if (!inst) return { ok: false, error: 'service_instance_not_found' };
 
-    const blueprint = this.getServiceBlueprint(inst.serviceId);
+    let blueprint = this.getServiceBlueprint(inst.serviceId);
+    if (Array.isArray(inst.bundledServiceIds) && inst.bundledServiceIds.length > 1) {
+      const mergedModules = Array.from(new Set(
+        inst.bundledServiceIds.reduce((acc, sid) => acc.concat(this.getServiceBlueprint(sid).modules || []), [])
+      ));
+      blueprint = Object.assign({}, blueprint, { modules: mergedModules });
+    }
     const nowIso = new Date().toISOString();
     const results = this._executeLiveModules(blueprint, {
       orderId: inst.orderId,
