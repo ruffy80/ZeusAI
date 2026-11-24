@@ -631,6 +631,7 @@ async function handle(req, res, ctx) {
       `- Ed25519 6-Agent Autonomous Living Organism Manifest (AOSO/1.0): ${OWNER.domain}/.well-known/living-organism.json`,
       `- HTTP 402 Sovereign M2M Commerce & Autonomous Negotiation (SMCE/1.0): ${OWNER.domain}/.well-known/x402.json`,
       `- Universal Full-Fleet Module Atlas (UMAS/1.0, 900+ modules): ${OWNER.domain}/.well-known/universal-module-atlas.json`,
+      `- Autonomous Recurring Revenue, Drift Watch & 18-Industry Finder (ARRE/1.0): ${OWNER.domain}/.well-known/recurring-autonomy.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -1250,6 +1251,51 @@ async function handle(req, res, ctx) {
         timeoutMs: Math.min(20000, Math.max(3000, Number(parsed.timeoutMs || 14000))),
       })).then((out) => {
         const code = out.ok ? 200 : 503;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      }).catch((e) => {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      });
+    });
+    return true;
+  }
+
+  // ── ARRE/1.0 — Recurring Revenue, Drift Watch, A2A Affiliate & Global Finder
+  if (urlPath === '/.well-known/recurring-autonomy.json' || urlPath === '/api/arre/manifest') {
+    const arre = require('../../backend/modules/autonomous-recurring-revenue-engine');
+    const body = JSON.stringify(arre.getArreManifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=120' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/arre/bandit') {
+    const arre = require('../../backend/modules/autonomous-recurring-revenue-engine');
+    const body = JSON.stringify(arre.selectConversionVariant(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if ((urlPath === '/api/arre/recommend' || urlPath === '/api/arre/affiliate/enroll' || urlPath === '/api/arre/drift-watch/register' || urlPath === '/api/arre/drift-watch/run') && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 8192) raw += chunk; });
+    req.on('end', () => {
+      let parsed = {};
+      try { parsed = raw ? JSON.parse(raw) : {}; } catch (_) { parsed = {}; }
+      const arre = require('../../backend/modules/autonomous-recurring-revenue-engine');
+      let p;
+      if (urlPath === '/api/arre/recommend') p = Promise.resolve(arre.recommendUniversalSolution(parsed));
+      else if (urlPath === '/api/arre/affiliate/enroll') p = Promise.resolve(arre.enrollAgentAffiliate(parsed));
+      else if (urlPath === '/api/arre/drift-watch/register') p = Promise.resolve(arre.registerDriftWatch(parsed));
+      else p = Promise.resolve(arre.runDriftWatchCycle(parsed.watchId));
+      p.then((out) => {
+        const code = out && out.ok ? 200 : 400;
         const body = JSON.stringify(out, null, 2);
         res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(body);

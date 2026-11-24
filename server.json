@@ -3,7 +3,7 @@
   "name": "io.github.ruffy80/zeusai-unicorn-mcp",
   "title": "ZeusAI Autonomous Unicorn MCP",
   "description": "Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "websiteUrl": "https://zeusai.pro",
   "repository": {
     "url": "https://github.com/ruffy80/ZeusAI",

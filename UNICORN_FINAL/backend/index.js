@@ -6941,6 +6941,74 @@ app.post('/api/llm/council', express.json({ limit: '16kb' }), async (req, res) =
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+// ============================================================================
+// ARRE/1.0 — RECURRING REVENUE, DRIFT WATCH, A2A AFFILIATE & UNIVERSAL FINDER
+// ============================================================================
+app.get(['/.well-known/recurring-autonomy.json', '/api/arre/manifest'], (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json(arre.getArreManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/arre/recommend', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    const out = arre.recommendUniversalSolution(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/arre/affiliate/enroll', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    const out = arre.enrollAgentAffiliate(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/arre/drift-watch/register', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    const out = arre.registerDriftWatch(req.body || {});
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/arre/drift-watch/run', express.json({ limit: '8kb' }), async (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    const watchId = req.body && req.body.watchId;
+    const out = await arre.runDriftWatchCycle(watchId);
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/arre/bandit', (req, res) => {
+  try {
+    const arre = require('./modules/autonomous-recurring-revenue-engine');
+    res.set('Cache-Control', 'no-store');
+    res.json(arre.selectConversionVariant());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);
