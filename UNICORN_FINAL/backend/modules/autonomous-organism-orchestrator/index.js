@@ -105,6 +105,13 @@ class AutonomousOrganismOrchestrator {
     this.reflexEvents = [];
     this.evolutionBlueprints = [];
     this.adaptiveLoadShedding = false;
+    this.externalRegistryState = {
+      checkedAt: null,
+      officialMcpRegistryLive: false,
+      registryServerName: 'io.github.ruffy80/zeusai-unicorn-mcp',
+      registryVersion: null,
+      lastError: null,
+    };
     this._inFlight = false;
   }
 
@@ -144,6 +151,91 @@ class AutonomousOrganismOrchestrator {
   // =========================================================================
   // ORGAN 1: FIRST-DOLLAR GROWTH & AI-DIRECTORY DISTRIBUTION AGENT
   // =========================================================================
+  async verifyExternalRegistryPresence({ force = false } = {}) {
+    if (process.env.NODE_ENV === 'test' && !force) {
+      return this.externalRegistryState;
+    }
+    const lastTs = this.externalRegistryState.checkedAt ? Date.parse(this.externalRegistryState.checkedAt) : 0;
+    if (!force && lastTs && (Date.now() - lastTs) < 30 * 60 * 1000) {
+      return this.externalRegistryState;
+    }
+    const serverName = 'io.github.ruffy80/zeusai-unicorn-mcp';
+    const url = 'https://registry.modelcontextprotocol.io/v0.1/servers?search=' + encodeURIComponent(serverName);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'ZeusAI-AOSO/1.0 (+https://zeusai.pro)' },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        this.externalRegistryState = {
+          checkedAt: new Date().toISOString(),
+          officialMcpRegistryLive: false,
+          registryServerName: serverName,
+          registryVersion: null,
+          lastError: 'http_' + res.status,
+        };
+        return this.externalRegistryState;
+      }
+      const data = await res.json();
+      const servers = Array.isArray(data && data.servers) ? data.servers : [];
+      const match = servers.find((s) => s && s.server && s.server.name === serverName);
+      this.externalRegistryState = {
+        checkedAt: new Date().toISOString(),
+        officialMcpRegistryLive: Boolean(match),
+        registryServerName: serverName,
+        registryVersion: match && match.server ? match.server.version : null,
+        lastError: null,
+      };
+    } catch (err) {
+      this.externalRegistryState = Object.assign({}, this.externalRegistryState, {
+        checkedAt: new Date().toISOString(),
+        lastError: String((err && err.message) || err),
+      });
+    } finally {
+      clearTimeout(t);
+    }
+    return this.externalRegistryState;
+  }
+
+  async triggerAutonomousDistribution() {
+    const registry = await this.verifyExternalRegistryPresence({ force: true });
+    let indexNowResult = null;
+    try {
+      const te = safeReq('../traffic-engine');
+      if (te && typeof te.pingAll === 'function') {
+        indexNowResult = await te.pingAll({
+          force: true,
+          dryRun: process.env.NODE_ENV === 'test',
+          reason: 'aoso_autonomous_distribution',
+        });
+      }
+    } catch (e) {
+      indexNowResult = { ok: false, error: String((e && e.message) || e) };
+    }
+    const enginesOk = indexNowResult && Array.isArray(indexNowResult.engines)
+      ? indexNowResult.engines.filter((e) => e && e.ok === true).map((e) => e.engine)
+      : [];
+    this._recordReflex(
+      'REFLEX_DISTRIBUTION_SYNDICATION',
+      'autonomous_distribution_triggered',
+      'verified_official_mcp_registry_and_pinged_indexnow_websub',
+      {
+        officialMcpRegistryLive: registry.officialMcpRegistryLive,
+        enginesOk,
+      }
+    );
+    return {
+      ok: true,
+      protocol: PROTOCOL,
+      at: new Date().toISOString(),
+      officialMcpRegistry: registry,
+      indexNowAndWebSub: indexNowResult,
+      enginesAccepted: enginesOk,
+    };
+  }
+
   runGrowthAgent() {
     const sags = safeReq('../seo-aeo-geo-singularity');
     const acme = safeReq('../autonomous-client-magnet');
@@ -153,12 +245,22 @@ class AutonomousOrganismOrchestrator {
     const acmeHealth = acme && typeof acme.health === 'function' ? acme.health() : null;
     const umapHealth = umap && typeof umap.health === 'function' ? umap.health() : null;
 
-    const capsules = sagsAudit ? (sagsAudit.aeoCapsules + sagsAudit.geoCapsules) : 0;
+    const aeoCount = sagsAudit && sagsAudit.layers && sagsAudit.layers.AEO
+      ? Number(sagsAudit.layers.AEO.atomicAnswerCapsules || 0)
+      : Number((sagsAudit && sagsAudit.aeoCapsules) || 0);
+    const geoCount = sagsAudit && sagsAudit.layers && sagsAudit.layers.GEO
+      ? Number(sagsAudit.layers.GEO.geoArchitectureCapsules || 0)
+      : Number((sagsAudit && sagsAudit.geoCapsules) || 0);
+    const capsules = aeoCount + geoCount;
     const mcpTools = umapHealth ? (umapHealth.toolsCount || 0) : 0;
+    const hasServerCard = Boolean(umap && typeof umap.getServerCard === 'function');
+    const hasSvgBadge = Boolean(acme && typeof acme.renderAuditBadgeSvg === 'function');
+
     let score = 0;
-    if (capsules >= 80) score += 40;
-    if (mcpTools >= 10) score += 35;
-    if (acmeHealth && acmeHealth.ok) score += 25;
+    if (capsules >= 80) score += 35;
+    if (mcpTools >= 10) score += 30;
+    if (acmeHealth && acmeHealth.ok) score += 20;
+    if (hasServerCard && hasSvgBadge) score += 15;
 
     return {
       agent: 'FirstDollarGrowthAgent',
@@ -170,13 +272,21 @@ class AutonomousOrganismOrchestrator {
         proofBeforePayTeasersRun: acmeHealth ? acmeHealth.teasersRun : 0,
         activeReferralCodes: acmeHealth ? acmeHealth.activeReferralCodes : 0,
         liveMcpTools: mcpTools,
+        mcpServerCardArmed: hasServerCard,
+        viralAuditBadgeArmed: hasSvgBadge,
+        officialMcpRegistryLive: Boolean(this.externalRegistryState && this.externalRegistryState.officialMcpRegistryLive),
+        officialMcpRegistryVersion: (this.externalRegistryState && this.externalRegistryState.registryVersion) || null,
       },
       distributionChannelsReady: [
         `${DOMAIN}/api/mcp`,
+        `${DOMAIN}/.well-known/mcp/server-card.json`,
+        `${DOMAIN}/.well-known/ai-catalog.json`,
+        `${DOMAIN}/.well-known/ai-plugin.json`,
         `${DOMAIN}/.well-known/agent.json`,
         `${DOMAIN}/.well-known/mcp.json`,
         `${DOMAIN}/.well-known/openapi.json`,
         `${DOMAIN}/llms-full.txt`,
+        `${DOMAIN}/api/magnet/badge`,
       ],
     };
   }
@@ -190,8 +300,14 @@ class AutonomousOrganismOrchestrator {
       protocol: PROTOCOL,
       generatedAt: new Date().toISOString(),
       serverName: 'zeusai-unicorn-mcp',
+      officialMcpRegistryName: 'io.github.ruffy80/zeusai-unicorn-mcp',
+      officialMcpRegistryLive: Boolean(this.externalRegistryState && this.externalRegistryState.officialMcpRegistryLive),
+      autoPublishWorkflow: '.github/workflows/publish-mcp-registry.yml',
       homepage: DOMAIN,
       streamableHttpEndpoint: `${DOMAIN}/api/mcp`,
+      mcpServerCardUrl: `${DOMAIN}/.well-known/mcp/server-card.json`,
+      aiCatalogUrl: `${DOMAIN}/.well-known/ai-catalog.json`,
+      aiPluginUrl: `${DOMAIN}/.well-known/ai-plugin.json`,
       a2aAgentCardUrl: `${DOMAIN}/.well-known/agent.json`,
       mcpManifestUrl: `${DOMAIN}/.well-known/mcp.json`,
       openApiUrl: `${DOMAIN}/.well-known/openapi.json`,
@@ -199,16 +315,17 @@ class AutonomousOrganismOrchestrator {
       claudeCursorConfig: {
         mcpServers: {
           zeusai: {
+            type: 'streamable-http',
             url: `${DOMAIN}/api/mcp`,
-            transport: 'streamable-http',
           },
         },
       },
       directories: [
-        { name: 'Smithery / MCP Registry', submitUrl: 'https://smithery.ai', endpoint: `${DOMAIN}/api/mcp` },
-        { name: 'Glama MCP Directory', submitUrl: 'https://glama.ai/mcp/servers', endpoint: `${DOMAIN}/api/mcp` },
-        { name: 'PulseMCP', submitUrl: 'https://www.pulsemcp.com', endpoint: `${DOMAIN}/.well-known/mcp.json` },
-        { name: 'Google A2A Agent Discovery', submitUrl: `${DOMAIN}/.well-known/agent.json`, endpoint: `${DOMAIN}/.well-known/agent.json` },
+        { name: 'Official MCP Registry (OIDC Auto-Published)', submitUrl: 'https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.ruffy80/zeusai-unicorn-mcp', endpoint: `${DOMAIN}/api/mcp`, automated: true },
+        { name: 'Glama MCP Directory (glama.json Auto-Claimed)', submitUrl: 'https://glama.ai/mcp/servers', endpoint: `${DOMAIN}/api/mcp`, automated: true },
+        { name: 'Smithery / MCP Server Card (SEP-1649)', submitUrl: 'https://smithery.ai', endpoint: `${DOMAIN}/.well-known/mcp/server-card.json`, automated: true },
+        { name: 'PulseMCP (Official Registry Federated Sync)', submitUrl: 'https://www.pulsemcp.com', endpoint: `${DOMAIN}/.well-known/mcp.json`, automated: true },
+        { name: 'Google A2A Agent Discovery', submitUrl: `${DOMAIN}/.well-known/agent.json`, endpoint: `${DOMAIN}/.well-known/agent.json`, automated: true },
       ],
       agentSummary: card ? card.description : 'ZeusAI Sovereign Autonomous Unicorn Platform',
     };
@@ -586,6 +703,7 @@ class AutonomousOrganismOrchestrator {
     const t0 = Date.now();
     try {
       this.heartbeats += 1;
+      await this.verifyExternalRegistryPresence();
       const growth = this.runGrowthAgent();
       const cro = this.runCroFunnelAgent();
       const fulfillment = this.runFulfillmentAgent();

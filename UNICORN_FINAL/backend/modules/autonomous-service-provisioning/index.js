@@ -491,7 +491,10 @@ class AutonomousServiceProvisioningEngine {
         } else if (modName === 'seo-aeo-geo-singularity') {
           const sags = require('../seo-aeo-geo-singularity');
           const audit = sags.auditTriLayerMatrix();
-          results.push({ module: modName, ok: true, latencyMs: Date.now() - start, output: { aeoCapsules: audit.aeoCapsules, geoCapsules: audit.geoCapsules, ragChunks: audit.ragChunks }, at: ts });
+          const aeoCapsules = (audit && audit.layers && audit.layers.AEO && audit.layers.AEO.atomicAnswerCapsules) || audit.aeoCapsules || 0;
+          const geoCapsules = (audit && audit.layers && audit.layers.GEO && audit.layers.GEO.geoArchitectureCapsules) || audit.geoCapsules || 0;
+          const ragChunks = (audit && audit.layers && audit.layers.GEO && audit.layers.GEO.semanticRagChunks) || audit.ragChunks || 0;
+          results.push({ module: modName, ok: true, latencyMs: Date.now() - start, output: { aeoCapsules, geoCapsules, ragChunks }, at: ts });
         } else if (modName === 'omniscient-chatbot') {
           const bot = require('../omniscient-chatbot');
           const km = bot.getKnowledgeMap();

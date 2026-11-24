@@ -1,9 +1,34 @@
 # 🦄 Zeus AI — Unicorn Platform
 
-> **Autonomous AI-powered business platform** with ZeusAI commerce, BTC-first checkout, live service marketplace, self-healing APIs and Hetzner/PM2 production deployment.
+> **Autonomous 29-Module AI Business Platform & Live MCP/A2A Server** — Proof-Before-Pay website diagnostics, 55+ post-payment autonomous Unicorn services, self-healing multi-LLM swarm (Groq 120B + OpenRouter 550B + Ollama), Ed25519 cryptographic attestations, and multi-rail commerce (Bitcoin -10%, PayPal, NOWPayments).
 
 [![Hetzner Live](https://img.shields.io/badge/deploy-Hetzner-blue.svg)](./README-LIVE.md)
+[![MCP 2025-03-26](https://img.shields.io/badge/MCP-Streamable%20HTTP%20(13%20Tools)-8a5cff.svg)](https://zeusai.pro/.well-known/mcp/server-card.json)
+[![Google A2A](https://img.shields.io/badge/Google%20A2A-Agent%20Card-00d4ff.svg)](https://zeusai.pro/.well-known/agent.json)
 [![License](https://img.shields.io/badge/license-Proprietary-gold.svg)](./SECURITY.md)
+
+---
+
+## 🤖 Connect ZeusAI Live MCP Server (Claude · Cursor · VS Code · AI Agents)
+
+Zero local setup required — connect any MCP 2025-03-26 Streamable HTTP client directly to **`https://zeusai.pro/api/mcp`** (`io.github.ruffy80/zeusai-unicorn-mcp`):
+
+```json
+{
+  "mcpServers": {
+    "zeusai": {
+      "type": "streamable-http",
+      "url": "https://zeusai.pro/api/mcp"
+    }
+  }
+}
+```
+
+- **Server Card (SEP-1649):** `https://zeusai.pro/.well-known/mcp/server-card.json`
+- **Google A2A Agent Card:** `https://zeusai.pro/.well-known/agent.json`
+- **Living Organism Manifest (6 Agents, Ed25519):** `https://zeusai.pro/.well-known/living-organism.json`
+- **Unified OpenAPI 3.1 Spec:** `https://zeusai.pro/.well-known/openapi.json`
+- **Free Live Website Diagnostic (Proof-Before-Pay):** `https://zeusai.pro/?audit=your-domain.com`
 
 ---
 

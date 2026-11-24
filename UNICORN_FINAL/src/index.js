@@ -195,6 +195,8 @@ if (openapi && openapi.openapiHandler) {
   app.get('/openapi.yaml', openapi.openapiHandler);
 }
 
+const DISCOVERY_LINK_HEADER = '<https://zeusai.pro/.well-known/mcp/server-card.json>; rel="mcp-server-card", <https://zeusai.pro/.well-known/agent.json>; rel="a2a-agent-card", <https://zeusai.pro/llms.txt>; rel="llms-txt", <https://zeusai.pro/.well-known/openapi.json>; rel="service-desc"';
+
 function applySiteTopologyHeaders(req, res) {
   if (process.env.SITE_TOPOLOGY_HEADERS_DISABLED === '1') return;
   try {
@@ -203,6 +205,9 @@ function applySiteTopologyHeaders(req, res) {
       res.setHeader('X-Unicorn-Port', String(__SITE_TOPOLOGY.port));
       res.setHeader('X-Unicorn-Instance', String(__SITE_TOPOLOGY.instance));
       res.setHeader('X-Unicorn-Cluster-Role', __SITE_TOPOLOGY.clusterRole);
+      if (!res.getHeader('Link')) {
+        res.setHeader('Link', DISCOVERY_LINK_HEADER);
+      }
     }
   } catch (_) { /* never block the request */ }
 }

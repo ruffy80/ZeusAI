@@ -624,6 +624,8 @@ async function handle(req, res, ctx) {
       `- Cognitive Evolution Genome & Ed25519 Hash-Chained Self-Innovation Ledger (CEGE/1.0): ${OWNER.domain}/.well-known/evolution-ledger.json`,
       `- Live MCP 2025-03-26 JSON-RPC 2.0 Streamable HTTP Server (UMAP/1.0): POST ${OWNER.domain}/api/mcp (discovery: ${OWNER.domain}/.well-known/mcp.json)`,
       `- Google A2A Agent Card (UMAP/1.0): ${OWNER.domain}/.well-known/agent.json`,
+      `- Official MCP Server Card (SEP-1649 / io.github.ruffy80/zeusai-unicorn-mcp): ${OWNER.domain}/.well-known/mcp/server-card.json`,
+      `- AI Catalog & Plugin Discovery: ${OWNER.domain}/.well-known/ai-catalog.json`,
       `- Unified OpenAPI 3.1.0 Sovereign Specification: ${OWNER.domain}/.well-known/openapi.json`,
       `- Ed25519 Autonomous Treasury, Net-Profit & Recovery Attestation (ATRO/1.0): ${OWNER.domain}/.well-known/treasury-autonomy.json`,
       `- Ed25519 6-Agent Autonomous Living Organism Manifest (AOSO/1.0): ${OWNER.domain}/.well-known/living-organism.json`,
@@ -965,6 +967,43 @@ async function handle(req, res, ctx) {
     return true;
   }
 
+  if (urlPath === '/.well-known/mcp/server-card.json' || urlPath === '/api/mcp/server-card') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    const body = JSON.stringify(umap.getServerCard(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/ai-catalog.json') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    const body = JSON.stringify(umap.getAiCatalog(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/ai-plugin.json') {
+    const umap = require('../../backend/modules/universal-mcp-a2a-mesh');
+    const body = JSON.stringify(umap.getAiPluginManifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/magnet/badge') {
+    const acme = require('../../backend/modules/autonomous-client-magnet');
+    const parsedQ = new URL('http://localhost' + (req.url || '/'));
+    const svg = acme.renderAuditBadgeSvg(parsedQ.searchParams.get('domain') || '');
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(svg);
+    recordMetric(urlPath, 200, svg.length);
+    return true;
+  }
+
   // ── ATRO/1.0 — Autonomous Treasury, Net-Profit & Recovery Plane ──────────
   if (urlPath === '/.well-known/treasury-autonomy.json' || urlPath === '/api/treasury/autonomy') {
     const atro = require('../../backend/modules/autonomous-treasury-reconciler');
@@ -1041,6 +1080,20 @@ async function handle(req, res, ctx) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/organism/distribute-now' && req.method === 'POST') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    Promise.resolve(aoso.triggerAutonomousDistribution()).then((out) => {
+      const body = JSON.stringify(out, null, 2);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(body);
+      recordMetric(urlPath, 200, body.length);
+    }).catch((e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+    });
     return true;
   }
 
