@@ -97,7 +97,7 @@ if [ "$ENCRYPTED" -eq 1 ] && [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRA
   FILE_BYTES="$(stat -c%s "$FINAL_FILE" 2>/dev/null || stat -f%z "$FINAL_FILE" 2>/dev/null || echo 0)"
   if [ "$FILE_BYTES" -gt 0 ] && [ "$FILE_BYTES" -lt 47185920 ]; then
     CAPTION="ZeusAI Encrypted Backup (${TS}) | AES-256-PBKDF2 | ${FILE_BYTES} bytes | SSL: ${DAYS_LEFT}d"
-    TG_OK="$(curl -sS --max-time 30 -F "chat_id=${TELEGRAM_CHAT_ID}" -F "caption=${CAPTION}" -F "document=@${FINAL_FILE}" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" | grep -c '"ok":true' || true)"
+    TG_OK="$(curl -sS --max-time 30 --form-string "chat_id=${TELEGRAM_CHAT_ID}" --form-string "caption=${CAPTION}" -F "document=@${FINAL_FILE}" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" | grep -c '"ok":true' || true)"
     if [ "$TG_OK" -ge 1 ]; then
       echo "[perpetual-hygiene] Delivered AES-256 encrypted off-site vault copy via Telegram"
     else
