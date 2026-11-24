@@ -3111,7 +3111,7 @@ Awaiting pulse trigger...</pre>
         </div>
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">MCP / A2A Mesh (UMAP)</div>
-          <div class="magnet-kpi-val" id="pulseMcp">20 Live Tools</div>
+          <div class="magnet-kpi-val" id="pulseMcp">21 Live Tools</div>
         </div>
       </div>
       <div id="universalFinderBar" style="margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(138,92,255,.28);background:rgba(18,14,40,.45)">

@@ -632,6 +632,8 @@ async function handle(req, res, ctx) {
       `- HTTP 402 Sovereign M2M Commerce & Autonomous Negotiation (SMCE/1.0): ${OWNER.domain}/.well-known/x402.json`,
       `- Universal Full-Fleet Module Atlas (UMAS/1.0, 900+ modules): ${OWNER.domain}/.well-known/universal-module-atlas.json`,
       `- Autonomous Recurring Revenue, Drift Watch & 18-Industry Finder (ARRE/1.0): ${OWNER.domain}/.well-known/recurring-autonomy.json`,
+      `- Developer SDKs (@zeusai/sdk & Python) + 1-Line Viral Embed Widget: ${OWNER.domain}/api/sdk/manifest`,
+      `- Enterprise B2B Compliance Pack (GDPR DPA & SLA): ${OWNER.domain}/.well-known/enterprise-compliance.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -1305,6 +1307,74 @@ async function handle(req, res, ctx) {
         res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
       });
     });
+    return true;
+  }
+
+  // ── B2B Tax Invoices, GDPR DPA/SLA & 1-Line Viral Embed Widget ───────────
+  if (urlPath === '/embed/zeus-audit.js') {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const js = b2b.buildEmbedWidgetJs();
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=300',
+    });
+    res.end(js);
+    recordMetric(urlPath, 200, js.length);
+    return true;
+  }
+
+  if (urlPath === '/api/sdk/manifest') {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const parsedQ = new URL('http://localhost' + (req.url || '/'));
+    const body = JSON.stringify(b2b.getSdkAndEmbedManifest(parsedQ.searchParams.get('ref') || ''), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/.well-known/enterprise-compliance.json') {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const body = JSON.stringify(b2b.getEnterpriseCompliancePack(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/legal/dpa' || urlPath === '/legal/sla') {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const html = b2b.renderLegalPageHtml(urlPath === '/legal/dpa' ? 'dpa' : 'sla');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
+    res.end(html);
+    recordMetric(urlPath, 200, html.length);
+    return true;
+  }
+
+  if (/^\/invoice\/([a-zA-Z0-9_-]{6,64})$/.test(urlPath)) {
+    const oid = RegExp.$1;
+    const b2b = require('./enterprise-b2b-and-embed');
+    const parsedQ = new URL('http://localhost' + (req.url || '/'));
+    const tok = String(parsedQ.searchParams.get('access_token') || '').trim();
+    const commerce = require('./sovereign-commerce');
+    const order = commerce && typeof commerce.getOrder === 'function' ? commerce.getOrder(oid) : null;
+    if (!order) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Invoice not found');
+      return true;
+    }
+    if (!b2b.constantTimeEqual(tok, order.access_token)) {
+      res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Valid access_token required to view B2B invoice');
+      return true;
+    }
+    let aspeInst = null;
+    try { aspeInst = require('../../backend/modules/autonomous-service-provisioning').getInstance(oid); } catch (_) {}
+    const html = b2b.renderB2BInvoiceHtml(order, aspeInst);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(html);
+    recordMetric('/invoice/:orderId', 200, html.length);
     return true;
   }
 
