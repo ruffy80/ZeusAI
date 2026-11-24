@@ -219,6 +219,16 @@ const MCP_TOOLS = [
       },
     },
   },
+  {
+    name: 'zeus_embed_widget_generator',
+    description: 'Generate a personalized 1-line affiliate-attributed viral audit embed widget (<script>) for WordPress, Shopify, or any website plus @zeusai/sdk & Python SDK quick-start.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        refCode: { type: 'string', description: 'Optional partner affiliate code (zeus_...) to attribute 10% commissions automatically' },
+      },
+    },
+  },
 ];
 
 const MCP_RESOURCES = [
@@ -481,6 +491,10 @@ class UniversalMcpA2aMesh {
       const arre = safeReq('../autonomous-recurring-revenue-engine');
       if (!arre) throw new Error('arre_module_unavailable');
       result = safeArgs.domain ? arre.registerDriftWatch(safeArgs) : arre.getArreManifest();
+    } else if (name === 'zeus_embed_widget_generator') {
+      const b2b = safeReq('../../../src/site/enterprise-b2b-and-embed');
+      if (!b2b) throw new Error('embed_module_unavailable');
+      result = b2b.getSdkAndEmbedManifest(safeArgs.refCode || safeArgs.ref || '');
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -808,7 +822,7 @@ class UniversalMcpA2aMesh {
       name: 'io.github.ruffy80/zeusai-unicorn-mcp',
       title: 'ZeusAI Autonomous Unicorn MCP',
       description: 'Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm',
-      version: '1.4.0',
+      version: '1.5.0',
       protocolVersion: MCP_VERSION,
       websiteUrl: DOMAIN,
       repository: {

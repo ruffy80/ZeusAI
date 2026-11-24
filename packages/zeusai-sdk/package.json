@@ -1,0 +1,27 @@
+{
+  "name": "@zeusai/sdk",
+  "version": "1.0.0",
+  "description": "Official zero-dependency SDK for ZeusAI Unicorn — 21 Live MCP Tools, Proof-Before-Pay Website Audits, HTTP 402 M2M Commerce, Multi-LLM Council & 18-Industry Autonomous Services.",
+  "main": "index.js",
+  "keywords": [
+    "zeusai",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "http-402",
+    "x402",
+    "seo-audit",
+    "bitcoin-commerce",
+    "ed25519"
+  ],
+  "homepage": "https://zeusai.pro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruffy80/ZeusAI.git",
+    "directory": "packages/zeusai-sdk"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

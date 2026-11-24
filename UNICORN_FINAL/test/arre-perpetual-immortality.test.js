@@ -68,13 +68,13 @@ async function run() {
   assert.strictEqual(upd.arm.paidConversions, 1);
   console.log('PASS [4/6] A2A Affiliate Mesh & Real-Revenue UCB1 Bandit verified');
 
-  // 5. 20 Live MCP Tools + 11 Resources + v1.4.0 Server Card
+  // 5. 21 Live MCP Tools + 11 Resources + v1.5.0 Server Card + SDKs + Viral Embed Widget + B2B Invoice
   const umap = require('../backend/modules/universal-mcp-a2a-mesh');
   const tList = await umap.handleJsonRpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
-  assert.ok(tList.body.result.tools.length >= 20, 'Expected >= 20 MCP tools, got ' + tList.body.result.tools.length);
+  assert.ok(tList.body.result.tools.length >= 21, 'Expected >= 21 MCP tools, got ' + tList.body.result.tools.length);
   const rList = await umap.handleJsonRpc({ jsonrpc: '2.0', id: 2, method: 'resources/list' });
   assert.ok(rList.body.result.resources.length >= 11, 'Expected >= 11 MCP resources');
-  assert.strictEqual(umap.getServerCard().version, '1.4.0');
+  assert.strictEqual(umap.getServerCard().version, '1.5.0');
 
   const finderTool = await umap.handleJsonRpc({
     jsonrpc: '2.0',
@@ -84,7 +84,27 @@ async function run() {
   });
   assert.strictEqual(finderTool.body.result.isError, false);
   assert.strictEqual(finderTool.body.result.structuredContent.verticalOsId, 'health-os');
-  console.log('PASS [5/6] 20 Live MCP Tools, 11 Resources & v1.4.0 Server Card verified');
+
+  const embedTool = await umap.handleJsonRpc({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
+    params: { name: 'zeus_embed_widget_generator', arguments: { refCode: 'zeus_partner99' } },
+  });
+  assert.strictEqual(embedTool.body.result.isError, false);
+  assert.ok(embedTool.body.result.structuredContent.viralEmbedWidget.htmlSnippet.includes('data-ref="zeus_partner99"'));
+
+  const b2b = require('../src/site/enterprise-b2b-and-embed');
+  assert.ok(b2b.buildEmbedWidgetJs().includes('/api/magnet/instant-audit-teaser'));
+  assert.ok(b2b.renderB2BInvoiceHtml({ orderId: 'ord_demo123', serviceId: 'instant-website-audit', subtotal_fiat: 44.1, status: 'paid' }).includes('INV-ORD_DEMO123'));
+  assert.ok(b2b.renderLegalPageHtml('dpa').includes('GDPR'));
+  assert.ok(b2b.renderLegalPageHtml('sla').includes('99.9%'));
+
+  const { ZeusAI } = require('../../packages/zeusai-sdk');
+  const sdk = new ZeusAI({ baseUrl: 'https://zeusai.pro', ref: 'zeus_demo' });
+  assert.strictEqual(typeof sdk.auditWebsite, 'function');
+  assert.strictEqual(typeof sdk.mcpCall, 'function');
+  console.log('PASS [5/6] 21 Live MCP Tools, v1.5.0, @zeusai/sdk, Viral Embed Widget & B2B Tax Invoice verified');
 
   // 6. Perpetual Immortality Scripts (syntax + dry-run)
   const scriptsDir = path.resolve(__dirname, '..', 'scripts');

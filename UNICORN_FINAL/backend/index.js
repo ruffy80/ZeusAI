@@ -7009,6 +7009,49 @@ app.get('/api/arre/bandit', (req, res) => {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
+
+app.get('/embed/zeus-audit.js', (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    res.set('Content-Type', 'application/javascript; charset=utf-8');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(b2b.buildEmbedWidgetJs());
+  } catch (e) {
+    res.status(500).send('');
+  }
+});
+
+app.get('/api/sdk/manifest', (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(b2b.getSdkAndEmbedManifest(req.query && req.query.ref));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/.well-known/enterprise-compliance.json', (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(b2b.getEnterpriseCompliancePack());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/legal/dpa', '/legal/sla'], (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=600');
+    res.send(b2b.renderLegalPageHtml(req.path === '/legal/dpa' ? 'dpa' : 'sla'));
+  } catch (e) {
+    res.status(500).send('Unavailable');
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

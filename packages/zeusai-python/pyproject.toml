@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zeusai"
+version = "1.0.0"
+description = "Official zero-dependency Python SDK for ZeusAI Unicorn — 21 Live MCP Tools, HTTP 402 M2M Commerce, Proof-Before-Pay Audits & 18-Industry Autonomous Services."
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Vladoi Ionut", email = "vladoi_ionut@yahoo.com" }]
+keywords = ["zeusai", "mcp", "ai-agents", "x402", "http-402", "seo", "bitcoin", "ed25519"]
+
+[project.urls]
+Homepage = "https://zeusai.pro"
+Repository = "https://github.com/ruffy80/ZeusAI"

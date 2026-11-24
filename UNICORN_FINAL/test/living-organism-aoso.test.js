@@ -215,7 +215,7 @@ async function run() {
   const html = shell.getHtml('/');
   assert.ok(html.includes('31 core manifest modules'), 'Homepage must show 31 core manifest modules');
   assert.ok(html.includes('900+ Unicorn modules'), 'Homepage must show 900+ Unicorn modules');
-  assert.ok(html.includes('20 Live Tools'), 'Homepage must show 20 Live Tools');
+  assert.ok(html.includes('21 Live Tools'), 'Homepage must show 21 Live Tools');
   assert.ok(html.includes('proofMagnetStudio'), 'Homepage must keep Proof-Before-Pay studio');
   assert.ok(!html.includes('Test the Router Live'), 'Must never reintroduce Test the Router Live');
   assert.ok(!html.includes('tgJoinPopup'), 'Must never reintroduce Telegram popup');

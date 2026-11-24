@@ -163,7 +163,7 @@ async function run() {
   assert.ok(toolsList.body.result.tools.length >= 17, 'Expected >= 17 MCP tools, got ' + toolsList.body.result.tools.length);
   const resList = await umap.handleJsonRpc({ jsonrpc: '2.0', id: 11, method: 'resources/list' });
   assert.ok(resList.body.result.resources.length >= 10, 'Expected >= 10 MCP resources');
-  assert.strictEqual(umap.getServerCard().version, '1.4.0');
+  assert.strictEqual(umap.getServerCard().version, '1.5.0');
 
   const negTool = await umap.handleJsonRpc({
     jsonrpc: '2.0',

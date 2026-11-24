@@ -1952,7 +1952,8 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button>
-  <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a></p>
+  <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a>
+  <a class="cta" id="b2bInvoiceLink" href="/invoice/${orderId}?access_token=${accessToken}" target="_blank" rel="noopener noreferrer" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">🧾 B2B Tax Invoice (PDF)</a></p>
   <p class="note" id="referralLine" style="margin-top:8px">A referral link appears here after payment is confirmed.</p>
   <p class="note" style="margin-top:8px">Your live autonomous service and signed package are immediately unlocked here. No email is required.</p>
   <div id="postPayCompoundingCard" style="display:none;margin-top:14px;padding:14px;border-radius:12px;background:rgba(0,255,163,.06);border:1px solid rgba(0,255,163,.3)">
