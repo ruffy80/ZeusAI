@@ -160,6 +160,8 @@ function _mailer() {
 // Send the itemized order_receipt email (idempotent per orderId).
 // Fail-honest: returns { ok:false, reason:'email_unconfigured' } when no
 // transport is configured; the caller can log/surface without pretending.
+const _emailInFlight = new Set();
+
 async function sendOrderReceiptEmail(receipt) {
   const orderId = receiptOrderId(receipt);
   const to = receiptEmail(receipt);
@@ -167,9 +169,10 @@ async function sendOrderReceiptEmail(receipt) {
   if (!to) return { ok: false, error: 'missing_email' };
   const key = 'receipt:' + orderId;
   _loadLedger();
-  if (_seen.has(key)) return { ok: true, alreadyEmailed: true, orderId };
+  if (_seen.has(key) || _emailInFlight.has(key)) return { ok: true, alreadyEmailed: true, orderId };
   const mailer = _mailer();
   if (!mailer) return { ok: false, error: 'mailer_unavailable' };
+  _emailInFlight.add(key);
   let railPatch = {};
   try {
     const pcos = require('./perfection-continuum-os');
@@ -202,6 +205,8 @@ async function sendOrderReceiptEmail(receipt) {
   } catch (e) {
     console.warn('[pay-fulfill] order_receipt threw order=' + orderId + ':', e.message);
     return { ok: false, orderId, error: e.message };
+  } finally {
+    _emailInFlight.delete(key);
   }
 }
 

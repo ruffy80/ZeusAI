@@ -414,6 +414,7 @@ function start() {
 
 function stop() {
   if (_cycleTimer) { clearInterval(_cycleTimer); _cycleTimer = null; }
+  if (_idleTimer) { clearInterval(_idleTimer); _idleTimer = null; }
   state.active = false;
   return { ok: true, active: false };
 }

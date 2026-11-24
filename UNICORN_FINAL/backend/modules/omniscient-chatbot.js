@@ -61,9 +61,16 @@ const MODULE_PURPOSE_CATALOG = {
   'universal-mcp-a2a-mesh': {
     title: 'UMAP/1.0 — Universal Live MCP (JSON-RPC 2.0), Google A2A & OpenAPI 3.1 Mesh',
     tier: 'infra',
-    purposeRo: 'Puntea universală pentru economia agenților AI (UMAP/1.0): rulează un server live Model Context Protocol 2025-03-26 JSON-RPC 2.0 (`POST /api/mcp`) cu 10 unelte executabile, 6 resurse și 3 prompt-uri, publică standardul Google A2A Agent Card (`/.well-known/agent.json`) și specificația unificată OpenAPI 3.1 (`/.well-known/openapi.json`) astfel încât Claude, ChatGPT, Gemini, Cursor și agenți AI autonomi să poată audita și comanda servicii direct.',
-    purposeEn: 'Universal bridge for the AI Agent Economy (UMAP/1.0): runs a live Model Context Protocol 2025-03-26 JSON-RPC 2.0 server (`POST /api/mcp`) exposing 10 executable tools, 6 live resources, and 3 expert prompts alongside the standard Google A2A Agent Card (`/.well-known/agent.json`) and unified OpenAPI 3.1 spec (`/.well-known/openapi.json`).',
+    purposeRo: 'Puntea universală pentru economia agenților AI (UMAP/1.0): rulează un server live Model Context Protocol 2025-03-26 JSON-RPC 2.0 (`POST /api/mcp`) cu 11 unelte executabile, 7 resurse și 3 prompt-uri, publică standardul Google A2A Agent Card (`/.well-known/agent.json`) și specificația unificată OpenAPI 3.1 (`/.well-known/openapi.json`) astfel încât Claude, ChatGPT, Gemini, Cursor și agenți AI autonomi să poată audita și comanda servicii direct.',
+    purposeEn: 'Universal bridge for the AI Agent Economy (UMAP/1.0): runs a live Model Context Protocol 2025-03-26 JSON-RPC 2.0 server (`POST /api/mcp`) exposing 11 executable tools, 7 live resources, and 3 expert prompts alongside the standard Google A2A Agent Card (`/.well-known/agent.json`) and unified OpenAPI 3.1 spec (`/.well-known/openapi.json`).',
     relatedServices: ['professional-ai-agent', 'professional-ai-chatbot', 'ent-sovereign-deployment'],
+  },
+  'autonomous-treasury-reconciler': {
+    title: 'ATRO/1.0 — Autonomous Treasury, Net-Profit Reconciliation & Recovery Engine',
+    tier: 'commerce',
+    purposeRo: 'Trezoreria autonomă a Unicornului (ATRO/1.0): reconciliază fără dublări încasările reale multi-rail (Bitcoin direct -10% cu 0% comision, PayPal Live, NOWPayments Live), calculează profitul net real (venit brut minus comisioane, afiliați și costuri AI), auditează live balanța on-chain a portofelului BTC, recuperează coșurile abandonate cu linkuri noi (fără a retrimite facturi BTC expirate) și emite dovadă semnată Ed25519 (`/.well-known/treasury-autonomy.json`).',
+    purposeEn: 'Unicorn Autonomous Treasury & Net-Profit Reconciler (ATRO/1.0): reconciles real deduplicated multi-rail settlements (Bitcoin Direct -10% at 0% fee, PayPal Live, NOWPayments Live), computes true net profit after processor fees, affiliates, and AI fulfillment costs, performs live on-chain Bitcoin wallet audits, recovers abandoned checkouts with fresh links, and signs Ed25519 treasury proofs (`/.well-known/treasury-autonomy.json`).',
+    relatedServices: ['fintech-os', 'frontier-checkout-cascade', 'ent-revenue-share'],
   },
   'zacc': {
     title: 'ZACC — Zeus Autonomic Commerce Core',

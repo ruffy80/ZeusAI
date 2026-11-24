@@ -39,6 +39,7 @@ const state = {
 
 const _ledger = [];
 let _timer = null;
+let _inFlight = false;
 
 function enabled() {
   return String(process.env.SAFE_EVOLVE || '1') !== '0';
@@ -62,6 +63,18 @@ async function tick(opts = {}) {
   if (!enabled() && !(opts && opts.force)) {
     return { ok: false, reason: 'SAFE_EVOLVE=0', protocol: PROTOCOL };
   }
+  if (_inFlight) {
+    return { ok: true, skipped: 'tick_in_flight', protocol: PROTOCOL };
+  }
+  _inFlight = true;
+  try {
+    return await _runTickInner();
+  } finally {
+    _inFlight = false;
+  }
+}
+
+async function _runTickInner() {
   state.ticks += 1;
   state.lastTickAt = new Date().toISOString();
   const out = {

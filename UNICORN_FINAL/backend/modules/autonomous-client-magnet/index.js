@@ -284,6 +284,7 @@ class AutonomousClientMagnetEngine {
         `${DOMAIN}/.well-known/evolution-ledger.json`,
         `${DOMAIN}/.well-known/agent.json`,
         `${DOMAIN}/.well-known/openapi.json`,
+        `${DOMAIN}/.well-known/treasury-autonomy.json`,
       ],
     };
     this.pulses.unshift(pulse);

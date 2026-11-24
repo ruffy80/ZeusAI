@@ -105,12 +105,18 @@ async function tg(method, body) {
   const tok = token();
   if (!tok) return { ok: false, description: 'no_token' };
   const url = `https://api.telegram.org/bot${encodeURIComponent(tok)}/${method}`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body || {}),
-  });
-  return r.json().catch(() => ({ ok: false }));
+  try {
+    const timeoutMs = method === 'getUpdates' ? 45000 : 15000;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body || {}),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return await r.json().catch(() => ({ ok: false, status: r.status }));
+  } catch (e) {
+    return { ok: false, description: String((e && e.message) || e) };
+  }
 }
 
 async function reply(chatId, text, replyTo) {
@@ -120,10 +126,12 @@ async function reply(chatId, text, replyTo) {
 }
 
 function writeBindStatus(patch) {
-  fs.mkdirSync(path.dirname(STATUS_FILE), { recursive: true });
-  let cur = {};
-  try { cur = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8')); } catch (_) { /* ignore */ }
-  fs.writeFileSync(STATUS_FILE, `${JSON.stringify({ ...cur, ...patch, updatedAt: new Date().toISOString() }, null, 2)}\n`);
+  try {
+    fs.mkdirSync(path.dirname(STATUS_FILE), { recursive: true });
+    let cur = {};
+    try { cur = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8')); } catch (_) { /* ignore */ }
+    fs.writeFileSync(STATUS_FILE, `${JSON.stringify({ ...cur, ...patch, updatedAt: new Date().toISOString() }, null, 2)}\n`);
+  } catch (_) { /* non-fatal */ }
 }
 
 async function applyBind(chat) {
@@ -445,6 +453,12 @@ async function main() {
   else setInterval(() => {}, 60_000);
 }
 
+process.on('unhandledRejection', (reason) => {
+  log(`unhandledRejection (contained): ${reason && reason.message ? reason.message : reason}`);
+});
+process.on('uncaughtException', (err) => {
+  log(`uncaughtException (contained): ${err && err.message ? err.message : err}`);
+});
 process.on('SIGTERM', () => { cvr.stop(); groupOs.stop(); try { if (mobdial) mobdial.stop(); } catch (_) {} process.exit(0); });
 process.on('SIGINT', () => { cvr.stop(); groupOs.stop(); try { if (mobdial) mobdial.stop(); } catch (_) {} process.exit(0); });
 

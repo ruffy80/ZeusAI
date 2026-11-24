@@ -84,9 +84,9 @@ const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LO
 // providers recover (quota resets, key rotated). Default 15 minutes.
 const PROVIDERS_DOWN_BACKOFF_MS = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_PROVIDERS_DOWN_BACKOFF_MS || String(15 * 60 * 1000), 10));
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
+const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
-const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
@@ -743,6 +743,11 @@ async function tick() {
       const out = await executeViaGovernor(rec);
       log('info', 'governor_execution_result', { httpStatus: out.status, bodyPreview: out.body });
       if (out.status >= 200 && out.status < 300) consecutiveFailures = 0;
+      else if (out.status === 401 || out.status === 403) {
+        // Auth mismatch must trip backoff instead of spamming localhost every tick
+        consecutiveFailures += FAILURE_THRESHOLD;
+        log('warn', 'governor_auth_denied_backoff', { httpStatus: out.status });
+      }
       else if (out.status >= 500) consecutiveFailures++;
       // 4xx = governor business rejection (e.g. proposal validation); not a
       // system outage, so it must NOT trip the circuit breaker.

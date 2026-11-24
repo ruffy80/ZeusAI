@@ -1,0 +1,91 @@
+{
+  "name": "autonomous-treasury-reconciler",
+  "version": "1.0.0",
+  "description": "ATRO/1.0 — Autonomous Treasury, Deduplicated Multi-Rail Net-Profit Reconciliation, Live On-Chain Bitcoin Audit, Multi-Stage Abandoned-Checkout Recovery & Ed25519 Sovereign Profit Attestation.",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "reconcileLedger",
+      "type": "read",
+      "schedule": "*/5 * * * *",
+      "timeout_ms": 8000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "reconcileOnChainBtc",
+      "type": "read",
+      "schedule": "*/15 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "runRecoverySweep",
+      "type": "write",
+      "schedule": "*/15 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getTreasurySnapshot",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "autonomous-runtime-immunity",
+    "autonomous-service-provisioning",
+    "autonomous-client-magnet",
+    "cognitive-evolution-genome"
+  ],
+  "provides": [
+    "unified_net_profit_reconciler",
+    "onchain_btc_treasury_audit",
+    "abandoned_checkout_recovery_coordinator",
+    "ed25519_treasury_attestation"
+  ],
+  "failureModes": [
+    {
+      "symptom": "btc explorer unreachable or commerce store missing",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 500,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

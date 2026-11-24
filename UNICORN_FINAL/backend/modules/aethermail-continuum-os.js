@@ -471,19 +471,41 @@ class MiniImap {
 
   connect() {
     return new Promise((resolve, reject) => {
-      const onReady = () => {
-        this.socket.on('data', (d) => this._onData(d));
-        this.socket.on('error', (e) => reject(e));
-        // wait for server greeting
-        this._expect(/^\* OK/i, 15000).then(resolve).catch(reject);
+      let settled = false;
+      const fail = (err) => {
+        if (!settled) {
+          settled = true;
+          try { if (this.socket) this.socket.destroy(); } catch (_) {}
+          reject(err instanceof Error ? err : new Error(String(err || 'imap_socket_error')));
+        }
+        // Fail any pending command waiters cleanly
+        for (const w of this._waiters.splice(0)) {
+          clearTimeout(w.timer);
+          w.reject(err instanceof Error ? err : new Error(String(err || 'imap_closed')));
+        }
       };
-      if (this.cfg.tls) {
-        this.socket = tls.connect({ host: this.cfg.host, port: this.cfg.port, servername: this.cfg.host }, onReady);
-      } else {
-        this.socket = net.connect({ host: this.cfg.host, port: this.cfg.port }, onReady);
+      const onReady = () => {
+        // wait for server greeting
+        this._expect(/^\* OK/i, 15000)
+          .then((res) => { if (!settled) { settled = true; resolve(res); } })
+          .catch(fail);
+      };
+      try {
+        if (this.cfg.tls) {
+          this.socket = tls.connect({ host: this.cfg.host, port: this.cfg.port, servername: this.cfg.host }, onReady);
+        } else {
+          this.socket = net.connect({ host: this.cfg.host, port: this.cfg.port }, onReady);
+        }
+        // Attach error/timeout/close listeners IMMEDIATELY before TLS/TCP handshake completes
+        this.socket.on('error', fail);
+        this.socket.on('timeout', () => fail(new Error('imap_socket_timeout')));
+        this.socket.on('close', () => fail(new Error('imap_socket_closed')));
+        this.socket.on('data', (d) => this._onData(d));
+        this.socket.setEncoding('utf8');
+        this.socket.setTimeout(60_000);
+      } catch (e) {
+        fail(e);
       }
-      this.socket.setEncoding('utf8');
-      this.socket.setTimeout(60_000);
     });
   }
 

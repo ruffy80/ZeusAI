@@ -39,6 +39,28 @@ function _readSharedPressure() {
   return null;
 }
 
+let _writeProbeCache = { dir: '', ts: 0, ok: true };
+const WRITE_PROBE_TTL_MS = 10000;
+
+function _checkWritableCached(dataDir) {
+  const now = Date.now();
+  if (_writeProbeCache.dir === dataDir && (now - _writeProbeCache.ts) < WRITE_PROBE_TTL_MS) {
+    return _writeProbeCache.ok;
+  }
+  let ok = false;
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    const probe = path.join(dataDir, '.cpg-write-probe-' + process.pid);
+    fs.writeFileSync(probe, String(now));
+    try { fs.unlinkSync(probe); } catch (_) { /* ok */ }
+    ok = true;
+  } catch (_) {
+    ok = false;
+  }
+  _writeProbeCache = { dir: dataDir, ts: now, ok };
+  return ok;
+}
+
 function assess() {
   const diskAct = Math.max(85, Number(process.env.NDK_DISK_ACT_PCT || process.env.CPG_DISK_ACT_PCT || 92));
   const shared = _readSharedPressure();
@@ -49,15 +71,10 @@ function assess() {
   }
   if (diskUsedPct >= diskAct) reasons.push('disk_critical');
 
-  // Optional: refuse when SQLite/data dir is not writable
-  try {
-    const dataDir = process.env.COMMERCE_DATA_DIR
-      || path.join(process.env.UNICORN_DATA_DIR || path.resolve(__dirname, '..', '..', 'data'), 'commerce');
-    fs.mkdirSync(dataDir, { recursive: true });
-    const probe = path.join(dataDir, '.cpg-write-probe');
-    fs.writeFileSync(probe, String(Date.now()));
-    try { fs.unlinkSync(probe); } catch (_) { /* ok */ }
-  } catch (_) {
+  // Cached 10s TTL check so checkout does not perform sync file I/O on every request
+  const dataDir = process.env.COMMERCE_DATA_DIR
+    || path.join(process.env.UNICORN_DATA_DIR || path.resolve(__dirname, '..', '..', 'data'), 'commerce');
+  if (!_checkWritableCached(dataDir)) {
     reasons.push('commerce_data_not_writable');
   }
 

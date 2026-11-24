@@ -98,19 +98,46 @@ function _orderStats() {
   // RO: chitanțele de smoke-test nu se mai numără ca venit real.
   const ONCHAIN_TXID = /^[0-9a-f]{64}$/i;
   const TEST_EMAIL = /^(smoke@zeusai\.pro|test@test\.com)$/i;
+  const seenOrderIds = new Set();
   const receipts = _safeReadJsonl(RECEIPTS_PATH);
   for (const r of receipts) {
     if (!r || r.status !== 'paid') continue;
+    const oid = String(r.orderId || r.id || '');
+    if (oid) seenOrderIds.add(oid);
     const conf = r.confirmation || {};
     const isLoopback = String(conf.by || '') === 'loopback' || String(conf.txid || '') === 'smoke-test-loopback';
     const isTestEmail = TEST_EMAIL.test(String(r.email || ''));
     const hasOnchainTx = ONCHAIN_TXID.test(String(conf.txid || ''));
-    if (!isLoopback && !isTestEmail && hasOnchainTx) {
+    const hasVerifiedProvider = ['paypal', 'nowpayments', 'stripe'].includes(String(r.paid_via || r.provider || '').toLowerCase()) && Boolean(r.providerRef || (r.provider_settle && r.provider_settle.providerRef));
+    if (!isLoopback && !isTestEmail && (hasOnchainTx || hasVerifiedProvider)) {
       paid += 1;
       revenueUsd += Number(r.amount || 0);
     } else {
       testPaid += 1;
       testRevenueUsd += Number(r.amount || 0);
+    }
+  }
+  // Also include verified paid sovereign orders (orders.jsonl — BTC, PayPal, NOWPayments, Stripe)
+  const SOV_ORDERS_PATH = path.join(COMMERCE_DIR, 'orders.jsonl');
+  const latestByOrder = new Map();
+  for (const row of _safeReadJsonl(SOV_ORDERS_PATH)) {
+    if (row && row.orderId) latestByOrder.set(row.orderId, row);
+  }
+  for (const o of latestByOrder.values()) {
+    if (!o || o.status !== 'paid' || seenOrderIds.has(o.orderId)) continue;
+    seenOrderIds.add(o.orderId);
+    const buyerEmail = String((o.buyer && o.buyer.email) || '');
+    const isTest = TEST_EMAIL.test(buyerEmail) || Boolean(o.mock) || String(o.paid_via || '') === 'loopback';
+    const hasBtcTx = Array.isArray(o.txids) && o.txids.some((t) => ONCHAIN_TXID.test(String(t || '')));
+    const hasAltProof = ['paypal', 'nowpayments', 'stripe'].includes(String(o.paid_via || '').toLowerCase())
+      && Boolean((o.provider_settle && o.provider_settle.providerRef) || (Array.isArray(o.provider_refs) && o.provider_refs.length > 0));
+    const amt = Number(o.subtotal_fiat || 0);
+    if (!isTest && (hasBtcTx || hasAltProof) && amt > 0) {
+      paid += 1;
+      revenueUsd += amt;
+    } else {
+      testPaid += 1;
+      testRevenueUsd += amt;
     }
   }
   if (paid > total) total = paid; // receipts can outlive portal cache

@@ -252,7 +252,69 @@ class CognitiveEvolutionGenomeEngine {
     return path.join(resolveDataDir(), 'lessons.jsonl');
   }
 
+  _statePath() {
+    return path.join(resolveDataDir(), 'state.json');
+  }
+
+  _persistState() {
+    try {
+      const dest = this._statePath();
+      const tmp = `${dest}.${process.pid}.tmp`;
+      const snapshot = {
+        protocol: PROTOCOL,
+        savedAt: new Date().toISOString(),
+        generation: this.generation,
+        ledgerSeq: this.ledgerSeq || this.ledger.length,
+        totalObservations: this.totalObservations,
+        totalPromotions: this.totalPromotions,
+        totalRollbacks: this.totalRollbacks,
+        domains: Array.from(this.domains.values()),
+        innovationRfcs: this.innovationRfcs.slice(0, 25),
+      };
+      fs.writeFileSync(tmp, JSON.stringify(snapshot, null, 2), 'utf8');
+      fs.renameSync(tmp, dest);
+    } catch (_) {}
+  }
+
+  _rotateLedgerIfLarge() {
+    try {
+      const lp = this._ledgerPath();
+      if (!fs.existsSync(lp)) return;
+      const st = fs.statSync(lp);
+      if (st.size < 2 * 1024 * 1024) return; // keep under 2MB
+      const lines = fs.readFileSync(lp, 'utf8').split('\n').filter(Boolean).slice(-150);
+      const tmp = `${lp}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, lines.join('\n') + '\n', 'utf8');
+      fs.renameSync(tmp, lp);
+    } catch (_) {}
+  }
+
   _loadState() {
+    this.ledgerSeq = 0;
+    try {
+      const sp = this._statePath();
+      if (fs.existsSync(sp)) {
+        const snap = JSON.parse(fs.readFileSync(sp, 'utf8'));
+        if (snap && typeof snap === 'object') {
+          if (typeof snap.generation === 'number' && snap.generation > this.generation) this.generation = snap.generation;
+          if (typeof snap.ledgerSeq === 'number' && snap.ledgerSeq > this.ledgerSeq) this.ledgerSeq = snap.ledgerSeq;
+          if (typeof snap.totalObservations === 'number') this.totalObservations = snap.totalObservations;
+          if (typeof snap.totalPromotions === 'number') this.totalPromotions = snap.totalPromotions;
+          if (typeof snap.totalRollbacks === 'number') this.totalRollbacks = snap.totalRollbacks;
+          if (Array.isArray(snap.domains)) {
+            for (const d of snap.domains) {
+              if (d && d.id && Array.isArray(d.genomes) && d.genomes.length > 0 && this.domains.has(d.id)) {
+                this.domains.set(d.id, d);
+              }
+            }
+          }
+          if (Array.isArray(snap.innovationRfcs)) {
+            this.innovationRfcs = snap.innovationRfcs.slice(0, 25);
+          }
+        }
+      }
+    } catch (_) {}
+
     try {
       const lp = this._ledgerPath();
       if (fs.existsSync(lp)) {
@@ -264,6 +326,9 @@ class CognitiveEvolutionGenomeEngine {
               this.ledger.push(entry);
               if (typeof entry.generation === 'number' && entry.generation > this.generation) {
                 this.generation = entry.generation;
+              }
+              if (typeof entry.index === 'number' && entry.index > this.ledgerSeq) {
+                this.ledgerSeq = entry.index;
               }
             }
           } catch (_) {}
@@ -297,8 +362,9 @@ class CognitiveEvolutionGenomeEngine {
     const prevHash = this.ledger.length > 0
       ? this.ledger[this.ledger.length - 1].entryHash
       : '0'.repeat(64);
+    this.ledgerSeq = Math.max(this.ledgerSeq || 0, this.ledger.length) + 1;
     const body = {
-      index: this.ledger.length + 1,
+      index: this.ledgerSeq,
       protocol: PROTOCOL,
       generation: this.generation,
       eventType: String(eventType || 'EVOLUTION_EVENT'),
@@ -319,7 +385,9 @@ class CognitiveEvolutionGenomeEngine {
     if (this.ledger.length > 150) this.ledger.shift();
     try {
       fs.appendFileSync(this._ledgerPath(), JSON.stringify(signedEntry) + '\n', 'utf8');
+      this._rotateLedgerIfLarge();
     } catch (_) {}
+    this._persistState();
     return signedEntry;
   }
 
