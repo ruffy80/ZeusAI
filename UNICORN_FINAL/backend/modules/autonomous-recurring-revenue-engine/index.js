@@ -327,7 +327,35 @@ class AutonomousRecurringRevenueEngine {
     if (rec.history.length > 12) rec.history.length = 12;
     this._appendJsonl('drift-watches.jsonl', rec);
 
+    if (diffReport.driftDetected && scoreDelta < 0) {
+      this._dispatchSovereignAlert(
+        `ZeusAI Drift Watch Alert: ${rec.domain}`,
+        `Score dropped ${prevScore} → ${scan.liveScore} (${scoreDelta}), gaps: ${diffReport.detectedGapsCount}\nRemediation: ${diffReport.remediationBundleUrl}`
+      );
+    }
+
     return { ok: true, report: diffReport, attestation };
+  }
+
+  _dispatchSovereignAlert(title, message) {
+    if (process.env.NODE_ENV === 'test') return;
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!token || !chatId) return;
+    try {
+      const https = require('https');
+      const payload = JSON.stringify({ chat_id: chatId, text: `${title}\n${message}` });
+      const req = https.request({
+        hostname: 'api.telegram.org',
+        path: `/bot${token}/sendMessage`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+        timeout: 4000,
+      }, (res) => { res.resume(); });
+      req.on('error', () => {});
+      req.write(payload);
+      req.end();
+    } catch (_) {}
   }
 
   /**

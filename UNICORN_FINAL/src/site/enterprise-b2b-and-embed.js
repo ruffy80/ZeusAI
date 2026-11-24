@@ -99,14 +99,25 @@ function getSdkAndEmbedManifest(refCode) {
     sdks: {
       nodejs: {
         packageName: '@zeusai/sdk',
+        githubPackageName: '@ruffy80/zeusai-sdk',
+        version: '1.0.0',
         pathInRepo: 'packages/zeusai-sdk',
+        directInstallCommand: `npm install ${DOMAIN}/sdk/zeusai-sdk.tgz`,
+        githubPackageCommand: 'npm install @ruffy80/zeusai-sdk --registry=https://npm.pkg.github.com',
+        tarballUrl: `${DOMAIN}/sdk/zeusai-sdk.tgz`,
         installSnippet: 'const { ZeusAI } = require("@zeusai/sdk");',
       },
       python: {
         packageName: 'zeusai',
+        version: '1.0.0',
         pathInRepo: 'packages/zeusai-python',
+        directInstallCommand: `pip install --extra-index-url ${DOMAIN}/sdk/simple/ zeusai`,
+        wheelInstallCommand: `pip install ${DOMAIN}/sdk/zeusai-1.0.0-py3-none-any.whl`,
+        simpleIndexUrl: `${DOMAIN}/sdk/simple/`,
+        wheelUrl: `${DOMAIN}/sdk/zeusai-1.0.0-py3-none-any.whl`,
         installSnippet: 'from zeusai import ZeusAI',
       },
+      checksumsUrl: `${DOMAIN}/sdk/SHA256SUMS.txt`,
     },
     viralEmbedWidget: {
       scriptUrl: `${DOMAIN}/embed/zeus-audit.js`,
@@ -264,6 +275,32 @@ function constantTimeEqual(a, b) {
   try { return crypto.timingSafeEqual(Buffer.from(s1, 'utf8'), Buffer.from(s2, 'utf8')); } catch (_) { return false; }
 }
 
+const SDK_RELEASE_BASE = 'https://github.com/ruffy80/ZeusAI/releases/download/sdk-v1.0.0';
+const SDK_ASSET_MAP = {
+  'zeusai-sdk.tgz': `${SDK_RELEASE_BASE}/zeusai-sdk-1.0.0.tgz`,
+  'zeusai-sdk-1.0.0.tgz': `${SDK_RELEASE_BASE}/zeusai-sdk-1.0.0.tgz`,
+  'zeusai-1.0.0-py3-none-any.whl': `${SDK_RELEASE_BASE}/zeusai-1.0.0-py3-none-any.whl`,
+  'zeusai-1.0.0.tar.gz': `${SDK_RELEASE_BASE}/zeusai-1.0.0.tar.gz`,
+  'SHA256SUMS.txt': `${SDK_RELEASE_BASE}/SHA256SUMS.txt`,
+};
+
+function getSovereignSdkRedirectUrl(filename) {
+  const clean = String(filename || '').replace(/^\/+/, '');
+  return SDK_ASSET_MAP[clean] || null;
+}
+
+function renderPep503SimpleIndexHtml(pkgName) {
+  const norm = String(pkgName || '').trim().toLowerCase();
+  if (!norm) {
+    return '<!doctype html><html><head><title>ZeusAI Sovereign Python Index</title></head><body><h1>ZeusAI PEP 503 Simple Index</h1><a href="zeusai/">zeusai</a></body></html>';
+  }
+  if (norm !== 'zeusai') return null;
+  return `<!doctype html><html><head><title>Links for zeusai</title></head><body><h1>Links for zeusai</h1>`
+    + `<a href="${DOMAIN}/sdk/zeusai-1.0.0-py3-none-any.whl" data-requires-python="&gt;=3.9">zeusai-1.0.0-py3-none-any.whl</a><br/>`
+    + `<a href="${DOMAIN}/sdk/zeusai-1.0.0.tar.gz" data-requires-python="&gt;=3.9">zeusai-1.0.0.tar.gz</a><br/>`
+    + `</body></html>`;
+}
+
 module.exports = {
   buildEmbedWidgetJs,
   getSdkAndEmbedManifest,
@@ -271,4 +308,6 @@ module.exports = {
   renderB2BInvoiceHtml,
   renderLegalPageHtml,
   constantTimeEqual,
+  getSovereignSdkRedirectUrl,
+  renderPep503SimpleIndexHtml,
 };
