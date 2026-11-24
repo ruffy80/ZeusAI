@@ -4030,7 +4030,18 @@ function hydrateCheckout(){
   set('coPlanNP', plan);
   if (amount != null) syncAmounts(amount);
   // Critical: reveal PayPal / NOWPayments chips on this page.
-  hydratePaymentRails().catch(function () {});
+  hydratePaymentRails().then(function () {
+    try {
+      const rq = String(q.get('rail') || '').toLowerCase();
+      const alias = rq === 'now' ? 'nowpayments' : (rq === 'bitcoin' ? 'btc' : rq);
+      if (alias === 'paypal' || alias === 'nowpayments' || alias === 'btc' || alias === 'card') {
+        const chip = document.querySelector('.co-method .chip[data-method="' + alias + '"]');
+        if (chip && chip.offsetParent !== null && typeof selectCheckoutRail === 'function') {
+          selectCheckoutRail(alias);
+        }
+      }
+    } catch (_) {}
+  }).catch(function () {});
   try {
     const rememberedEmail = localStorage.getItem('u_email') || '';
     if (rememberedEmail && !q.get('email')) {
@@ -4362,19 +4373,46 @@ function hydrateCheckout(){
       const recs = (r && (r.recommendations || r.items || r.upsells)) || [];
       if (!Array.isArray(recs) || !recs.length) { host.style.display = 'none'; return; }
       host.style.display = '';
-      host.innerHTML = '<span class="kicker">Also useful with this plan</span><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">'
+      host.innerHTML = '<span class="kicker">Build a Multi-Service Bundle (Save 15%–20% + Extra 10% BTC)</span><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">'
         + recs.slice(0, 3).map(function(rec){
           const id = String(rec.id || rec.serviceId || '');
           const title = String(rec.title || rec.name || id);
           const price = Number(rec.priceUSD || rec.price_usd || rec.price || 0);
-          const label = price > 0 ? (title + ' · $' + price) : title;
+          const label = price > 0 ? ('+ Add ' + title + ' · $' + price) : ('+ Add ' + title);
           return '<button type="button" class="btn btn-ghost" data-co-upsell="' + escapeHtml(id) + '">' + escapeHtml(label) + '</button>';
         }).join('')
-        + '</div>';
+        + '</div><div id="coBundleSummary" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>';
+      const selectedBundleIds = [anchor];
       host.querySelectorAll('[data-co-upsell]').forEach(function(btn){
-        btn.addEventListener('click', function(){
+        btn.addEventListener('click', async function(){
           const sid = btn.getAttribute('data-co-upsell');
-          if (sid) goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid), btn);
+          if (!sid) return;
+          const idx = selectedBundleIds.indexOf(sid);
+          if (idx === -1) {
+            selectedBundleIds.push(sid);
+            btn.style.borderColor = 'var(--ok)';
+            btn.style.color = 'var(--ok)';
+          } else {
+            selectedBundleIds.splice(idx, 1);
+            btn.style.borderColor = '';
+            btn.style.color = '';
+          }
+          const sumEl = document.getElementById('coBundleSummary');
+          if (selectedBundleIds.length < 2) {
+            if (sumEl) sumEl.textContent = '';
+            return;
+          }
+          try {
+            const qRes = await api('/api/bundles/quote', {
+              method: 'POST',
+              body: JSON.stringify({ serviceIds: selectedBundleIds }),
+            });
+            if (qRes && qRes.ok && sumEl) {
+              sumEl.textContent = 'Bundle (' + qRes.itemCount + ' services · -' + qRes.bundleDiscountPct + '%): $' + qRes.bundlePriceUsd + ' (Save $' + qRes.bundleSavingsUsd + ' · BTC: $' + qRes.btcPriceUsd + ')';
+            }
+          } catch (_) {
+            goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid), btn);
+          }
         });
       });
     } catch (_) { host.style.display = 'none'; }

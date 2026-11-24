@@ -110,6 +110,22 @@ const MCP_TOOLS = [
     description: 'Fetch the live Ed25519-signed ATRO/1.0 Autonomous Treasury, Deduplicated Net-Profit Reconciliation & Multi-Rail Settlement Attestation.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'zeus_living_organism',
+    description: 'Inspect the live Ed25519-signed AOSO/1.0 6-Agent Sovereign Living Organism homeostasis score, predictive reflex arcs, and Red-Team security checks.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'zeus_bundle_quote',
+    description: 'Calculate a canonical multi-item bundle quote with automatic 15% (2 items) or 20% (3+ items) bundle discount plus 10% Bitcoin discount.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serviceIds: { type: 'array', items: { type: 'string' }, description: 'Array of 2–6 ZeusAI service IDs to bundle' },
+      },
+      required: ['serviceIds'],
+    },
+  },
 ];
 
 const MCP_RESOURCES = [
@@ -154,6 +170,12 @@ const MCP_RESOURCES = [
     name: 'ATRO/1.0 Ed25519 Autonomous Treasury & Net-Profit Attestation',
     mimeType: 'application/json',
     description: 'Zero-PII, deduplicated multi-rail revenue, net profit, and on-chain Bitcoin reconciliation proof.',
+  },
+  {
+    uri: 'zeus://organism/manifest',
+    name: 'AOSO/1.0 Ed25519 6-Agent Living Organism Manifest',
+    mimeType: 'application/json',
+    description: 'Live homeostasis index across all 6 specialist autonomous agents and 4 predictive reflex arcs.',
   },
 ];
 
@@ -309,6 +331,14 @@ class UniversalMcpA2aMesh {
       const atro = safeReq('../autonomous-treasury-reconciler');
       if (!atro) throw new Error('atro_module_unavailable');
       result = atro.getTreasurySnapshot();
+    } else if (name === 'zeus_living_organism') {
+      const aoso = safeReq('../autonomous-organism-orchestrator');
+      if (!aoso) throw new Error('aoso_module_unavailable');
+      result = aoso.getOrganismManifest();
+    } else if (name === 'zeus_bundle_quote') {
+      const aoso = safeReq('../autonomous-organism-orchestrator');
+      if (!aoso) throw new Error('aoso_module_unavailable');
+      result = aoso.quoteMultiItemBundle(safeArgs.serviceIds || []);
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -359,6 +389,9 @@ class UniversalMcpA2aMesh {
     } else if (uri === 'zeus://treasury/autonomy') {
       const atro = safeReq('../autonomous-treasury-reconciler');
       data = atro ? atro.getTreasurySnapshot() : { ok: false };
+    } else if (uri === 'zeus://organism/manifest') {
+      const aoso = safeReq('../autonomous-organism-orchestrator');
+      data = aoso ? aoso.getOrganismManifest() : { ok: false };
     } else {
       return null;
     }
@@ -603,6 +636,7 @@ class UniversalMcpA2aMesh {
         evolutionLedger: `${DOMAIN}/.well-known/evolution-ledger.json`,
         aeoAnswerGraph: `${DOMAIN}/.well-known/aeo-answer-graph.json`,
         treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
+        livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
       },
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
     };
@@ -727,6 +761,21 @@ class UniversalMcpA2aMesh {
         '/.well-known/autonomous-services.json': { get: { operationId: 'autonomousServices', tags: ['commerce'], summary: 'All 55+ post-payment autonomous service blueprints (ASPE/1.0)', responses: { '200': { description: 'ASPE/1.0 catalog capabilities' } } } },
         '/.well-known/runtime-immunity.json': { get: { operationId: 'runtimeImmunity', tags: ['security'], summary: 'Ed25519-signed 0-CVE Runtime Immunity Certificate (ASRI/1.0)', responses: { '200': { description: 'ASRI/1.0 certificate' } } } },
         '/.well-known/aeo-answer-graph.json': { get: { operationId: 'aeoAnswerGraph', tags: ['seo-aeo-geo'], summary: 'Tri-layer AEO/GEO answer & citation graph (SAGS/1.0)', responses: { '200': { description: 'SAGS/1.0 answer graph' } } } },
+        '/.well-known/treasury-autonomy.json': { get: { operationId: 'treasuryAutonomy', tags: ['commerce'], summary: 'Ed25519-signed Autonomous Treasury & Multi-Rail Net-Profit Proof (ATRO/1.0)', responses: { '200': { description: 'ATRO/1.0 treasury proof' } } } },
+        '/.well-known/living-organism.json': { get: { operationId: 'livingOrganismManifest', tags: ['organism'], summary: 'Ed25519-signed Living Organism 6-Agent Homeostasis Manifest (AOSO/1.0)', responses: { '200': { description: 'AOSO/1.0 manifest' } } } },
+        '/api/organism/status': { get: { operationId: 'organismStatus', tags: ['organism'], summary: 'Live AOSO/1.0 organism homeostasis, 6 specialist agents, and 4 cross-organ reflex arcs', responses: { '200': { description: 'AOSO/1.0 live status' } } } },
+        '/api/organism/heartbeat': { post: { operationId: 'organismHeartbeat', tags: ['organism'], summary: 'Execute a live 6-agent AOSO/1.0 homeostasis heartbeat across all Unicorn organs', responses: { '200': { description: 'Heartbeat report' } } } },
+        '/api/organism/redteam': { get: { operationId: 'organismRedteam', tags: ['security'], summary: 'Run live 7-invariant payment & commerce security audit (RedTeamPaymentSecurityAgent)', responses: { '200': { description: 'Red-team security report' } } } },
+        '/api/organism/mcp-directory-pack': { get: { operationId: 'organismMcpDirectoryPack', tags: ['mcp-a2a'], summary: 'Get copy-ready MCP/A2A directory submission pack (Glama, Smithery, PulseMCP, Official Registry)', responses: { '200': { description: 'Directory pack' } } } },
+        '/api/bundles/quote': {
+          post: {
+            operationId: 'quoteMultiItemBundle',
+            tags: ['commerce'],
+            summary: 'Quote multi-service autonomous bundle with automatic 15% (2 items) / 20% (3+ items) + 10% BTC discount',
+            requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['serviceIds'], properties: { serviceIds: { type: 'array', items: { type: 'string' } } } } } } },
+            responses: { '200': { description: 'Multi-item bundle quote' } },
+          },
+        },
         '/api/origin-gravity': { get: { operationId: 'originGravity', tags: ['commerce'], summary: 'Origin Gravity ledger (paidHumans never invented)', responses: { '200': { description: 'OGP/1.0 discovery' } } } },
         '/api/agent/catalog': { get: { operationId: 'listCatalog', tags: ['commerce'], summary: 'List all sellable services', responses: { '200': { description: 'Catalog', content: { 'application/json': {} } } } } },
         '/api/agent/quote': { post: { operationId: 'quoteService', tags: ['commerce'], summary: 'Get signed quote', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { serviceId: { type: 'string' }, currency: { type: 'string' }, qty: { type: 'number' } }, required: ['serviceId'] } } } }, responses: { '200': { description: 'Signed quote' } } } },
@@ -747,6 +796,7 @@ class UniversalMcpA2aMesh {
       },
       tags: [
         { name: 'mcp-a2a', description: 'Live Model Context Protocol JSON-RPC 2.0 & Google A2A Agent Discovery (UMAP/1.0).' },
+        { name: 'organism', description: 'Autonomous Living Organism 6-Agent Homeostasis & Cross-Organ Reflex Engine (AOSO/1.0).' },
         { name: 'evolution', description: 'Shadow-verified Cognitive Self-Evolution & Ed25519 Ledger (CEGE/1.0).' },
         { name: 'client-magnet', description: 'Proof-Before-Pay Live Diagnostics & Viral 10%/10% Referrals (ACME/1.0).' },
         { name: 'llm-swarm', description: 'Self-Healing Multi-LLM Frontier Swarm & Ollama Cascade (NSC/1.0).' },
