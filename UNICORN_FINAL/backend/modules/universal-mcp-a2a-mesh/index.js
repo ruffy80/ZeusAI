@@ -627,6 +627,8 @@ class UniversalMcpA2aMesh {
       endpoints: {
         mcpJsonRpc: `${DOMAIN}/api/mcp`,
         mcpManifest: `${DOMAIN}/.well-known/mcp.json`,
+        mcpServerCard: `${DOMAIN}/.well-known/mcp/server-card.json`,
+        aiCatalog: `${DOMAIN}/.well-known/ai-catalog.json`,
         openApi31: `${DOMAIN}/.well-known/openapi.json`,
         proofBeforePayAudit: `${DOMAIN}/api/magnet/instant-audit-teaser`,
         referralBounty: `${DOMAIN}/api/magnet/referral`,
@@ -638,7 +640,101 @@ class UniversalMcpA2aMesh {
         treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
         livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
       },
+      officialMcpRegistryName: 'io.github.ruffy80/zeusai-unicorn-mcp',
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
+    };
+  }
+
+  /**
+   * Standard MCP Server Card (SEP-1649 / SEP-2127: /.well-known/mcp/server-card.json & /api/mcp/server-card)
+   */
+  getServerCard() {
+    return {
+      $schema: 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json',
+      name: 'io.github.ruffy80/zeusai-unicorn-mcp',
+      title: 'ZeusAI Autonomous Unicorn MCP',
+      description: 'Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm',
+      version: '1.2.2',
+      protocolVersion: MCP_VERSION,
+      websiteUrl: DOMAIN,
+      repository: {
+        url: 'https://github.com/ruffy80/ZeusAI',
+        source: 'github',
+        id: '1198905362',
+      },
+      remotes: [
+        {
+          type: 'streamable-http',
+          url: `${DOMAIN}/api/mcp`,
+        },
+      ],
+      capabilities: {
+        tools: MCP_TOOLS.length,
+        resources: MCP_RESOURCES.length,
+        prompts: MCP_PROMPTS.length,
+      },
+      authentication: {
+        required: false,
+        note: 'All discovery, audit, quote, and Ed25519 verification tools are open without auth; paid ASPE workspaces authenticate via scoped zai_auto_* API key or order access token.',
+      },
+      agentCardUrl: `${DOMAIN}/.well-known/agent.json`,
+      openApiUrl: `${DOMAIN}/.well-known/openapi.json`,
+      livingOrganismUrl: `${DOMAIN}/.well-known/living-organism.json`,
+    };
+  }
+
+  /**
+   * Domain-wide AI Catalog (/.well-known/ai-catalog.json)
+   */
+  getAiCatalog() {
+    return {
+      catalogVersion: '1.0',
+      domain: DOMAIN,
+      organization: 'ZeusAI / Unicorn',
+      contactEmail: OWNER_EMAIL,
+      updatedAt: new Date().toISOString(),
+      mcpServers: [this.getServerCard()],
+      a2aAgents: [
+        {
+          name: 'ZeusAI Autonomous Unicorn Agent',
+          cardUrl: `${DOMAIN}/.well-known/agent.json`,
+          protocolVersion: '0.2.5',
+        },
+      ],
+      openApiSpecs: [
+        {
+          name: 'ZeusAI Sovereign Autonomous Platform API',
+          version: '3.1.0',
+          url: `${DOMAIN}/.well-known/openapi.json`,
+        },
+      ],
+      attestations: {
+        livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
+        treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
+        evolutionLedger: `${DOMAIN}/.well-known/evolution-ledger.json`,
+        runtimeImmunity: `${DOMAIN}/.well-known/runtime-immunity.json`,
+      },
+    };
+  }
+
+  /**
+   * OpenAI / Perplexity Plugin Compatibility Manifest (/.well-known/ai-plugin.json)
+   */
+  getAiPluginManifest() {
+    return {
+      schema_version: 'v1',
+      name_for_human: 'ZeusAI Autonomous Unicorn',
+      name_for_model: 'zeusai_unicorn',
+      description_for_human: 'Run free 7-point website SEO/AEO/Security diagnostics, compare 55+ autonomous AI services, and quote discounted multi-service bundles.',
+      description_for_model: 'Sovereign AI platform offering live Proof-Before-Pay website diagnostics (/api/magnet/instant-audit-teaser), 55+ autonomous services, multi-item bundle quoting (/api/bundles/quote), Ed25519 verifiable attestations, and live Streamable HTTP MCP JSON-RPC 2.0 (/api/mcp).',
+      auth: { type: 'none' },
+      api: {
+        type: 'openapi',
+        url: `${DOMAIN}/.well-known/openapi.json`,
+      },
+      logo_url: `${DOMAIN}/assets/icons/og-default.png`,
+      contact_email: OWNER_EMAIL,
+      legal_info_url: `${DOMAIN}/legal/terms`,
     };
   }
 
@@ -727,6 +823,11 @@ class UniversalMcpA2aMesh {
         },
         '/.well-known/agent.json': { get: { operationId: 'a2aAgentCard', tags: ['mcp-a2a'], summary: 'Standard Google A2A Agent Card', responses: { '200': { description: 'A2A Agent Card' } } } },
         '/.well-known/mcp.json': { get: { operationId: 'mcpManifest', tags: ['mcp-a2a'], summary: 'MCP 2025-03-26 discovery manifest', responses: { '200': { description: 'MCP discovery manifest' } } } },
+        '/.well-known/mcp/server-card.json': { get: { operationId: 'mcpServerCard', tags: ['mcp-a2a'], summary: 'SEP-1649 / SEP-2127 Remote MCP Server Card (io.github.ruffy80/zeusai-unicorn-mcp)', responses: { '200': { description: 'MCP Server Card' } } } },
+        '/.well-known/ai-catalog.json': { get: { operationId: 'aiCatalog', tags: ['mcp-a2a'], summary: 'Domain-wide AI Catalog aggregating MCP servers, A2A agents & OpenAPI specs', responses: { '200': { description: 'AI Catalog' } } } },
+        '/.well-known/ai-plugin.json': { get: { operationId: 'aiPluginManifest', tags: ['mcp-a2a'], summary: 'OpenAI / Perplexity Plugin Compatibility Manifest', responses: { '200': { description: 'AI Plugin manifest' } } } },
+        '/api/magnet/badge': { get: { operationId: 'auditSvgBadge', tags: ['client-magnet'], summary: 'Embeddable live SVG Proof-Before-Pay audit badge for any scanned domain', parameters: [{ name: 'domain', in: 'query', required: false, schema: { type: 'string' } }], responses: { '200': { description: 'image/svg+xml badge' } } } },
+        '/api/organism/distribute-now': { post: { operationId: 'organismDistributeNow', tags: ['organism'], summary: 'Trigger live Official MCP Registry sync, multi-engine IndexNow & WebSub distribution', responses: { '200': { description: 'Distribution telemetry' } } } },
         '/.well-known/evolution-ledger.json': { get: { operationId: 'evolutionLedger', tags: ['evolution'], summary: 'Ed25519-signed SHA-256 hash-chained Cognitive Evolution Ledger (CEGE/1.0)', responses: { '200': { description: 'Signed evolution ledger' } } } },
         '/api/evolution/status': { get: { operationId: 'evolutionStatus', tags: ['evolution'], summary: 'Live multi-domain strategy genomes & bandit metrics', responses: { '200': { description: 'CEGE/1.0 status' } } } },
         '/api/evolution/verify': { get: { operationId: 'evolutionVerify', tags: ['evolution'], summary: 'Cryptographically verify Ed25519 hash-chain integrity', responses: { '200': { description: 'Verification report' } } } },

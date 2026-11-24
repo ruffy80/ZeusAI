@@ -174,6 +174,41 @@ async function run() {
 
   const card = umap.getAgentCard();
   assert.ok(card.endpoints.livingOrganism.endsWith('/.well-known/living-organism.json'));
+  assert.ok(card.endpoints.mcpServerCard.endsWith('/.well-known/mcp/server-card.json'));
+
+  const serverCard = umap.getServerCard();
+  assert.strictEqual(serverCard.name, 'io.github.ruffy80/zeusai-unicorn-mcp');
+  assert.strictEqual(serverCard.remotes[0].type, 'streamable-http');
+  assert.ok(serverCard.description.length <= 100, 'MCP Registry schema caps description at 100 chars');
+
+  const aiCatalog = umap.getAiCatalog();
+  assert.ok(Array.isArray(aiCatalog.mcpServers) && aiCatalog.mcpServers.length >= 1);
+  const aiPlugin = umap.getAiPluginManifest();
+  assert.strictEqual(aiPlugin.schema_version, 'v1');
+
+  // Verify root Official MCP Registry server.json & glama.json
+  const repoRoot = path.resolve(__dirname, '..', '..');
+  const rootServerJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'server.json'), 'utf8'));
+  assert.strictEqual(rootServerJson.name, 'io.github.ruffy80/zeusai-unicorn-mcp');
+  assert.ok(rootServerJson.description.length <= 100);
+  assert.strictEqual(rootServerJson.remotes[0].type, 'streamable-http');
+  const rootGlamaJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'glama.json'), 'utf8'));
+  assert.ok(Array.isArray(rootGlamaJson.maintainers) && rootGlamaJson.maintainers.includes('ruffy80'));
+
+  // Verify live SVG Proof-Before-Pay badge (XSS-safe) & Growth Agent real SAGS capsule count
+  const acme = require('../backend/modules/autonomous-client-magnet');
+  const svg = acme.renderAuditBadgeSvg('example.com<script>alert(1)</script>');
+  assert.ok(svg.startsWith('<svg ') && svg.includes('ZeusAI Audit') && !svg.includes('<script>'), 'SVG badge must be valid and XSS-safe');
+
+  const growthAgent = aoso.runGrowthAgent();
+  assert.ok(growthAgent.metrics.seoAeoGeoCapsules >= 100, 'Growth agent must read real SAGS AEO+GEO capsules (>=100), got ' + growthAgent.metrics.seoAeoGeoCapsules);
+  assert.strictEqual(growthAgent.score, 100, 'Growth agent score should reach 100/100 with Server Card + SVG Badge + SAGS + MCP');
+
+  const distRes = await aoso.triggerAutonomousDistribution();
+  assert.strictEqual(distRes.ok, true);
+  assert.ok(distRes.indexNowAndWebSub && Array.isArray(distRes.indexNowAndWebSub.engines));
+  const engNames = distRes.indexNowAndWebSub.engines.map((e) => e.engine);
+  assert.ok(engNames.includes('seznam') && engNames.includes('naver') && engNames.includes('yep') && engNames.includes('websub'));
 
   // 5. Verify Homepage SSR renders 29 modules + 13 MCP tools with zero forbidden strings
   const shell = require('../src/site/v2/shell');

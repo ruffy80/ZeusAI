@@ -191,6 +191,9 @@ async function pingAll(opts) {
     ['indexnow.org', 'https://api.indexnow.org/indexnow'],
     ['bing', 'https://www.bing.com/indexnow'],
     ['yandex', 'https://yandex.com/indexnow'],
+    ['seznam', 'https://search.seznam.cz/indexnow'],
+    ['naver', 'https://searchadvisor.naver.com/indexnow'],
+    ['yep', 'https://indexnow.yep.com/indexnow'],
   ];
   for (const [engine, url] of endpoints) {
     if (dryRun) { submission.engines.push({ engine, status: 'dry-run', ok: null }); continue; }
@@ -206,6 +209,34 @@ async function pingAll(opts) {
       });
     } catch (e) {
       submission.engines.push({ engine, status: 'error', ok: false, error: e && e.message });
+    }
+  }
+  // WebSub (PubSubHubbub) real-time publish notification for feed.json & sitemap.xml
+  if (dryRun) {
+    submission.engines.push({ engine: 'websub', status: 'dry-run', ok: null });
+  } else {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const form = new URLSearchParams();
+        form.append('hub.mode', 'publish');
+        form.append('hub.url', `${APP_URL}/feed.json`);
+        form.append('hub.url', `${APP_URL}/sitemap.xml`);
+        const wr = await fetch('https://pubsubhubbub.appspot.com/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form.toString(),
+          signal: ctrl.signal,
+        });
+        submission.engines.push({
+          engine: 'websub',
+          status: wr.status,
+          ok: wr.status >= 200 && wr.status < 300,
+        });
+      } finally { clearTimeout(t); }
+    } catch (e) {
+      submission.engines.push({ engine: 'websub', status: 'error', ok: false, error: e && e.message });
     }
   }
   // Google: no ping API anymore — discovery happens via robots.txt sitemap.

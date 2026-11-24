@@ -1662,6 +1662,36 @@ function globalChrome(N) {
               fixLink.href = '/services/' + encodeURIComponent(d.instantActivation.recommendedServiceId);
               fixLink.textContent = 'Activate Autonomous Fix (' + d.instantActivation.recommendedServiceId + ') →';
               actRow.appendChild(fixLink);
+              if (d.shareableReportUrl) {
+                var shareBtn = document.createElement('button');
+                shareBtn.type = 'button';
+                shareBtn.className = 'btn btn-ghost';
+                shareBtn.style.fontSize = '12.5px';
+                shareBtn.textContent = 'Copy Shareable Report Link';
+                shareBtn.addEventListener('click', function(){
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(d.shareableReportUrl).then(function(){
+                      shareBtn.textContent = '✓ Report Link Copied';
+                    }).catch(function(){ shareBtn.textContent = d.shareableReportUrl; });
+                  }
+                });
+                actRow.appendChild(shareBtn);
+              }
+              if (d.badgeMarkdown) {
+                var badgeBtn = document.createElement('button');
+                badgeBtn.type = 'button';
+                badgeBtn.className = 'btn btn-ghost';
+                badgeBtn.style.fontSize = '12.5px';
+                badgeBtn.textContent = 'Copy Live SVG Badge';
+                badgeBtn.addEventListener('click', function(){
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(d.badgeMarkdown).then(function(){
+                      badgeBtn.textContent = '✓ Badge Markdown Copied';
+                    }).catch(function(){ badgeBtn.textContent = 'Badge Ready'; });
+                  }
+                });
+                actRow.appendChild(badgeBtn);
+              }
               magnetRes.appendChild(actRow);
             }
           }).catch(function(){
@@ -1673,6 +1703,15 @@ function globalChrome(N) {
             magnetRes.appendChild(errEl);
           });
         });
+        try {
+          var qAudit = new URLSearchParams(window.location.search).get('audit');
+          if (qAudit && qAudit.trim()) {
+            magnetUrl.value = /^https?:\/\//i.test(qAudit.trim()) ? qAudit.trim() : ('https://' + qAudit.trim());
+            setTimeout(function(){
+              try { magnetForm.dispatchEvent(new Event('submit', { cancelable: true })); } catch(_){}
+            }, 350);
+          }
+        } catch(_){}
       }
       var refBtn = document.getElementById('magnetRefBtn');
       var refOut = document.getElementById('magnetRefOut');

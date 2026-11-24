@@ -6778,6 +6778,59 @@ app.get('/api/organism/mcp-directory-pack', (req, res) => {
   }
 });
 
+app.post('/api/organism/distribute-now', async (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    const out = await aoso.triggerAutonomousDistribution();
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get(['/.well-known/mcp/server-card.json', '/api/mcp/server-card'], (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getServerCard());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/.well-known/ai-catalog.json', (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getAiCatalog());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/.well-known/ai-plugin.json', (req, res) => {
+  try {
+    const umap = require('./modules/universal-mcp-a2a-mesh');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(umap.getAiPluginManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/magnet/badge', (req, res) => {
+  try {
+    const acme = require('./modules/autonomous-client-magnet');
+    const svg = acme.renderAuditBadgeSvg(req.query && req.query.domain);
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(svg);
+  } catch (e) {
+    res.status(500).send('');
+  }
+});
+
 app.post('/api/bundles/quote', express.json({ limit: '8kb' }), (req, res) => {
   try {
     const aoso = require('./modules/autonomous-organism-orchestrator');

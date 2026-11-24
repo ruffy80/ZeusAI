@@ -72,6 +72,7 @@ class AutonomousClientMagnetEngine {
     this.startedAt = new Date().toISOString();
     this.teasersRun = 0;
     this.referrals = new Map(); // code -> { code, ownerRef, createdAt, clicks, conversions }
+    this.recentAudits = new Map(); // normalized host -> { host, score, passedCount, checksTotal, scannedAt }
     this.pulses = [];
     this._loadState();
   }
@@ -166,8 +167,22 @@ class AutonomousClientMagnetEngine {
     const ref = this.createReferralLink(parsed.host);
     const recommendedServiceId = detectedGaps.length >= 2 ? 'instant-website-audit' : 'instant-seo-content-pack';
     const checkoutBase = `${DOMAIN}/checkout/?plan=${encodeURIComponent(recommendedServiceId)}&url=${encodeURIComponent(parsed.url)}`;
+    const shareableReportUrl = `${DOMAIN}/?audit=${encodeURIComponent(parsed.host)}`;
+    const badgeUrl = `${DOMAIN}/api/magnet/badge?domain=${encodeURIComponent(parsed.host)}`;
+    const badgeMarkdown = `[![ZeusAI Live Audit ${score}/100](${badgeUrl})](${shareableReportUrl})`;
 
     this.teasersRun += 1;
+    this.recentAudits.set(parsed.host.toLowerCase(), {
+      host: parsed.host,
+      score,
+      passedCount,
+      checksTotal: checks.length,
+      scannedAt: new Date().toISOString(),
+    });
+    if (this.recentAudits.size > 200) {
+      const oldestKey = this.recentAudits.keys().next().value;
+      if (oldestKey) this.recentAudits.delete(oldestKey);
+    }
 
     return {
       ok: true,
@@ -182,6 +197,9 @@ class AutonomousClientMagnetEngine {
       checksTotal: checks.length,
       checks,
       detectedGaps,
+      shareableReportUrl,
+      badgeUrl,
+      badgeMarkdown,
       proofSummary: detectedGaps.length > 0
         ? `Live scan detected ${detectedGaps.length} verifiable SEO/AEO/Security gap(s) on ${parsed.host} (${passedCount}/${checks.length} checks passed in ${latencyMs}ms).`
         : `${parsed.host} passed all ${checks.length}/${checks.length} baseline checks in ${latencyMs}ms — ready for full Autonomous SEO/AEO/GEO Singularity amplification.`,
@@ -262,11 +280,18 @@ class AutonomousClientMagnetEngine {
     try { aspeStatus = require('../autonomous-service-provisioning').getStatus(); } catch (_) {}
     try { nscHealth = require('../neural-swarm-llm-cascade').health(); } catch (_) {}
 
+    const aeoCount = sagsAudit && sagsAudit.layers && sagsAudit.layers.AEO
+      ? Number(sagsAudit.layers.AEO.atomicAnswerCapsules || 0)
+      : Number((sagsAudit && sagsAudit.aeoCapsules) || 0);
+    const geoCount = sagsAudit && sagsAudit.layers && sagsAudit.layers.GEO
+      ? Number(sagsAudit.layers.GEO.geoArchitectureCapsules || 0)
+      : Number((sagsAudit && sagsAudit.geoCapsules) || 0);
+
     const pulse = {
       id: 'pulse_' + crypto.randomBytes(5).toString('hex'),
       at: ts,
       protocol: PROTOCOL,
-      seoAeoGeoCapsules: sagsAudit ? (sagsAudit.aeoCapsules + sagsAudit.geoCapsules) : 0,
+      seoAeoGeoCapsules: aeoCount + geoCount,
       autonomousServicesReady: aspeStatus ? aspeStatus.mappedServicesCount : 55,
       llmSwarmRails: nscHealth ? nscHealth.activeRailsCount : 0,
       llmPrimary: nscHealth ? nscHealth.primaryModel : 'unknown',
@@ -283,13 +308,53 @@ class AutonomousClientMagnetEngine {
         `${DOMAIN}/.well-known/client-magnet.json`,
         `${DOMAIN}/.well-known/evolution-ledger.json`,
         `${DOMAIN}/.well-known/agent.json`,
+        `${DOMAIN}/.well-known/mcp/server-card.json`,
+        `${DOMAIN}/.well-known/ai-catalog.json`,
         `${DOMAIN}/.well-known/openapi.json`,
         `${DOMAIN}/.well-known/treasury-autonomy.json`,
+        `${DOMAIN}/.well-known/living-organism.json`,
       ],
     };
     this.pulses.unshift(pulse);
     if (this.pulses.length > 20) this.pulses.length = 20;
     return { ok: true, pulse };
+  }
+
+  /**
+   * 5. Embeddable Live Proof-Before-Pay SVG Score Badge (XSS-safe, never fabricates scores)
+   */
+  renderAuditBadgeSvg(rawDomain) {
+    const cleanHost = String(rawDomain || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .replace(/[^a-z0-9.-]/g, '')
+      .slice(0, 64);
+    const rec = cleanHost ? this.recentAudits.get(cleanHost) : null;
+    const labelLeft = 'ZeusAI Audit';
+    const labelRight = rec
+      ? `${rec.host} · ${rec.score}/100`
+      : (cleanHost ? `${cleanHost} · Live Scan` : 'Free 7-Pt Scan');
+    const colorRight = rec
+      ? (rec.score >= 85 ? '#10b981' : (rec.score >= 60 ? '#f59e0b' : '#ef4444'))
+      : '#8a5cff';
+    const escSvg = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const leftW = 94;
+    const rightW = Math.max(110, Math.min(280, labelRight.length * 7 + 22));
+    const totalW = leftW + rightW;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="24" role="img" aria-label="${escSvg(labelLeft + ': ' + labelRight)}">`
+      + `<linearGradient id="g" x2="0" y2="100%"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-opacity=".12"/></linearGradient>`
+      + `<clipPath id="r"><rect width="${totalW}" height="24" rx="5" fill="#fff"/></clipPath>`
+      + `<g clip-path="url(#r)">`
+      + `<rect width="${leftW}" height="24" fill="#14132a"/>`
+      + `<rect x="${leftW}" width="${rightW}" height="24" fill="${colorRight}"/>`
+      + `<rect width="${totalW}" height="24" fill="url(#g)"/>`
+      + `</g>`
+      + `<g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11" font-weight="600">`
+      + `<text x="${Math.round(leftW / 2)}" y="16">${escSvg(labelLeft)}</text>`
+      + `<text x="${leftW + Math.round(rightW / 2)}" y="16">${escSvg(labelRight)}</text>`
+      + `</g></svg>`;
   }
 
   getDiscoveryManifest() {

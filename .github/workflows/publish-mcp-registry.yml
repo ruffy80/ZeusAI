@@ -1,0 +1,87 @@
+name: 🌐 Publish ZeusAI to Official MCP Registry
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'server.json'
+      - '.github/workflows/publish-mcp-registry.yml'
+    tags:
+      - 'v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: publish-mcp-registry
+  cancel-in-progress: false
+
+jobs:
+  publish-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.16
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v5
+
+      - name: 🔍 Verify live remote MCP endpoint responds to JSON-RPC initialize & tools/list
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -X POST https://zeusai.pro/api/mcp \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -q '"zeus_live_website_audit"'
+          echo "✅ Live Streamable HTTP MCP endpoint https://zeusai.pro/api/mcp verified"
+
+      - name: 🔐 Install Cosign (verify mcp-publisher binary)
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: 📦 Download & Cosign-verify mcp-publisher CLI
+        run: |
+          set -euo pipefail
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          archive="mcp-publisher_${os}_${arch}.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity-regexp "https://github.com/modelcontextprotocol/registry/.github/workflows/.+" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+
+          tar xz -f "$archive" mcp-publisher
+          chmod +x ./mcp-publisher
+          ./mcp-publisher --version || true
+
+      - name: 🪪 Authenticate with Official MCP Registry via GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: 🚀 Publish server.json to registry.modelcontextprotocol.io
+        run: |
+          set -euo pipefail
+          out="$(./mcp-publisher publish 2>&1)" && status=0 || status=$?
+          echo "$out"
+          if [ "$status" -ne 0 ]; then
+            if echo "$out" | grep -qiE "already exists|duplicate|version .* exists"; then
+              echo "ℹ️ Version already published in Official MCP Registry — verifying live listing."
+              exit 0
+            fi
+            exit "$status"
+          fi
+
+      - name: ✅ Verify live listing in Official MCP Registry
+        run: |
+          set -euo pipefail
+          sleep 3
+          resp="$(curl --fail --silent --show-error 'https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.ruffy80/zeusai-unicorn-mcp')"
+          echo "$resp" | head -c 1000
+          echo ""
+          echo "$resp" | grep -q 'io.github.ruffy80/zeusai-unicorn-mcp'
+          echo "🎉 Confirmed LIVE in Official MCP Registry: io.github.ruffy80/zeusai-unicorn-mcp"
