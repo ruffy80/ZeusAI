@@ -210,12 +210,12 @@ async function run() {
   const engNames = distRes.indexNowAndWebSub.engines.map((e) => e.engine);
   assert.ok(engNames.includes('seznam') && engNames.includes('naver') && engNames.includes('yep') && engNames.includes('websub'));
 
-  // 5. Verify Homepage SSR renders 30 core manifest + 900+ Unicorn modules + 17 MCP tools with zero forbidden strings
+  // 5. Verify Homepage SSR renders 31 core manifest + 900+ Unicorn modules + 20 MCP tools with zero forbidden strings
   const shell = require('../src/site/v2/shell');
   const html = shell.getHtml('/');
-  assert.ok(html.includes('30 core manifest modules'), 'Homepage must show 30 core manifest modules');
+  assert.ok(html.includes('31 core manifest modules'), 'Homepage must show 31 core manifest modules');
   assert.ok(html.includes('900+ Unicorn modules'), 'Homepage must show 900+ Unicorn modules');
-  assert.ok(html.includes('17 Live Tools'), 'Homepage must show 17 Live Tools');
+  assert.ok(html.includes('20 Live Tools'), 'Homepage must show 20 Live Tools');
   assert.ok(html.includes('proofMagnetStudio'), 'Homepage must keep Proof-Before-Pay studio');
   assert.ok(!html.includes('Test the Router Live'), 'Must never reintroduce Test the Router Live');
   assert.ok(!html.includes('tgJoinPopup'), 'Must never reintroduce Telegram popup');

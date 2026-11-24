@@ -1,0 +1,54 @@
+name: 🧬 Autonomous Git-Native PR Factory & Perpetual Audit
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 4 * * 1' # Every Monday 04:00 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomous-pr-factory
+  cancel-in-progress: false
+
+jobs:
+  perpetual-evolution-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v5
+
+      - name: 🟦 Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: UNICORN_FINAL
+        run: npm ci --no-audit --no-fund
+
+      - name: 🧬 Verify All Manifests, Lint, Compat-Truth & Forward-Only Preflight
+        working-directory: UNICORN_FINAL
+        run: |
+          set -euo pipefail
+          node backend/modules/validate_manifests.js
+          npm run lint
+          npm run compat-truth
+          node scripts/preflight-forward-only.js
+
+      - name: 🛡️ Supply-Chain CVE Gate (npm audit --omit=dev)
+        working-directory: UNICORN_FINAL
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: 💓 Probe Live Production Sovereign Organism & Universal Atlas
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://zeusai.pro/.well-known/living-organism.json | grep -q '"AOSO/1.0"'
+          curl --fail --silent --show-error https://zeusai.pro/.well-known/universal-module-atlas.json | grep -q '"UMAS/1.0"'
+          curl --fail --silent --show-error https://zeusai.pro/.well-known/x402.json | grep -q '"SMCE/1.0"'
+          curl --fail --silent --show-error https://zeusai.pro/api/organism/redteam | grep -q '"score": 100'
+          echo "✅ Perpetual Audit PASSED: Living Organism, Universal 900+ Module Atlas, HTTP 402 M2M & Red-Team 100/100 verified live"

@@ -1,0 +1,67 @@
+{
+  "name": "autonomous-recurring-revenue-engine",
+  "version": "1.0.0",
+  "description": "ARRE/1.0 — Autonomous Recurring Revenue, Weekly Client Drift Watch, Real-Revenue UCB1 Conversion Bandit, Global Agent-to-Agent Affiliate Mesh, and Universal 18-Industry & Everyday Human Solution Finder.",
+  "entry": "./index.js",
+  "healthCheck": "health",
+  "dependencies": [
+    "autonomous-service-provisioning",
+    "autonomous-client-magnet",
+    "autonomous-treasury-reconciler",
+    "autonomous-m2m-commerce-engine",
+    "autonomous-organism-orchestrator",
+    "cognitive-evolution-genome",
+    "witness"
+  ],
+  "capabilities": [
+    {
+      "id": "recommendUniversalSolution",
+      "type": "read",
+      "description": "Match any individual, creator, developer, business, or any of the 18 global industries to tailored autonomous Unicorn services and discounted multi-item bundles."
+    },
+    {
+      "id": "registerDriftWatch",
+      "type": "write",
+      "description": "Enroll a client domain in weekly autonomous SEO/AEO/GEO/Security Drift Watch with Ed25519 differential proofs."
+    },
+    {
+      "id": "runDriftWatchCycle",
+      "type": "write",
+      "description": "Execute a differential live Drift Watch scan and produce an Ed25519-signed regression & remediation report."
+    },
+    {
+      "id": "enrollAgentAffiliate",
+      "type": "write",
+      "description": "Enroll an external AI agent, developer, or creator into the 10%/10% Global A2A Affiliate Mesh."
+    },
+    {
+      "id": "selectConversionVariant",
+      "type": "read",
+      "description": "Select the optimal conversion variant via real-revenue UCB1 bandit (never fabricates conversions)."
+    },
+    {
+      "id": "health",
+      "type": "read",
+      "description": "Return ARRE/1.0 recurring revenue engine health, bandit telemetry, drift-watch count, and affiliate mesh stats."
+    }
+  ],
+  "failureModes": [
+    {
+      "condition": "drift_watch_target_unreachable",
+      "recovery": "skip"
+    },
+    {
+      "condition": "invalid_affiliate_identifier",
+      "recovery": "quarantine"
+    },
+    {
+      "condition": "bandit_state_corrupted",
+      "recovery": "restart"
+    }
+  ],
+  "limits": {
+    "maxDriftWatches": 500,
+    "maxAffiliates": 5000,
+    "banditExplorationC": 1.4
+  }
+}

@@ -205,6 +205,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Machine-to-machine commerce engine (HTTP 402 Payment Required) and floor-margin-protected deal negotiator: issues Ed25519-signed bundle quotes (-15%/-20% + -10% BTC), mints live invoices directly from MCP/AI agents, and signs verifiable execution outcome certificates.',
     relatedServices: ['instant-website-audit', 'instant-seo-content-pack', 'professional-ai-agent'],
   },
+  'autonomous-recurring-revenue-engine': {
+    title: 'ARRE/1.0 Autonomous Recurring Revenue, Drift Watch & Global Utility Engine',
+    tier: 'commerce',
+    purposeRo: 'Motorul de venituri recurente și utilitate globală: monitorizare săptămânală Drift Watch semnată Ed25519, bandit A/B UCB1 conectat strict la plăți reale, rețea de afiliere Agent-to-Agent (10%/10%) și selector universal pentru orice persoană și toate cele 18 industrii mondiale.',
+    purposeEn: 'Autonomous recurring revenue and global utility engine: weekly Ed25519-signed client Drift Watch, real-revenue UCB1 conversion bandit, 10%/10% Agent-to-Agent Affiliate Mesh, and universal solution finder across everyday personas and all 18 world industries.',
+    relatedServices: ['instant-resume-makeover', 'instant-website-audit', 'instant-security-program'],
+  },
 };
 
 // Proactive Latent Needs Matrix ("Servicii de care clientul are nevoie, dar nu s-a gândit la ele")

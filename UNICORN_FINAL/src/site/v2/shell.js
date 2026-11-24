@@ -1779,6 +1779,55 @@ function globalChrome(N) {
       var copyMcpBtn = document.getElementById('copyMcpConfigBtn');
       if (copyMcpBtn && !copyMcpBtn.dataset.bound) {
         copyMcpBtn.dataset.bound = '1';
+      }
+      var finderBar = document.getElementById('universalFinderBar');
+      var finderOut = document.getElementById('universalFinderOut');
+      if (finderBar && finderOut && !finderBar.dataset.bound) {
+        finderBar.dataset.bound = '1';
+        finderBar.addEventListener('click', function(ev){
+          var btn = ev.target && ev.target.closest ? ev.target.closest('[data-arre-persona]') : null;
+          if (!btn) return;
+          var persona = btn.getAttribute('data-arre-persona') || 'startup_smb';
+          finderOut.hidden = false;
+          finderOut.textContent = 'Matching tailored autonomous bundle…';
+          fetch('/api/arre/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ persona: persona })
+          }).then(function(r){ return r.json(); }).then(function(d){
+            while (finderOut.firstChild) finderOut.removeChild(finderOut.firstChild);
+            if (!d || !d.ok) { finderOut.textContent = 'Select a category to view your tailored solution.'; return; }
+            var title = document.createElement('div');
+            title.style.fontWeight = '700';
+            title.style.color = '#fff';
+            title.textContent = d.headline + (d.bundleOffer && d.bundleOffer.pricing ? (' · $' + d.bundleOffer.pricing.btcTotalUsd + ' BTC (-' + d.bundleOffer.pricing.totalDiscountPct + '%)') : '');
+            finderOut.appendChild(title);
+            var desc = document.createElement('div');
+            desc.style.margin = '4px 0 8px';
+            desc.textContent = d.why || '';
+            finderOut.appendChild(desc);
+            if (d.bundleOffer && d.bundleOffer.checkoutUrls) {
+              var row = document.createElement('div');
+              row.className = 'magnet-actions';
+              [
+                { lbl: 'Activate Bundle · ₿ BTC →', href: d.bundleOffer.checkoutUrls.btc, cls: 'btn btn-primary' },
+                { lbl: 'PayPal', href: d.bundleOffer.checkoutUrls.paypal, cls: 'btn btn-ghost' },
+                { lbl: 'Card / Crypto', href: d.bundleOffer.checkoutUrls.cardOrCrypto, cls: 'btn btn-ghost' }
+              ].forEach(function(item){
+                var a = document.createElement('a');
+                a.className = item.cls;
+                a.style.fontSize = '11.5px';
+                a.href = item.href;
+                a.textContent = item.lbl;
+                row.appendChild(a);
+              });
+              finderOut.appendChild(row);
+            }
+          }).catch(function(){ finderOut.textContent = 'Could not load recommendation — please retry.'; });
+        });
+      }
+      if (copyMcpBtn && !copyMcpBtn.dataset.mcpWired) {
+        copyMcpBtn.dataset.mcpWired = '1';
         copyMcpBtn.addEventListener('click', function(){
           var cfgStr = JSON.stringify({
             mcpServers: {
@@ -3046,7 +3095,7 @@ Awaiting pulse trigger...</pre>
         <h3 style="margin:0;font-size:20px">Live Sovereign Autonomy Pulse</h3>
         <span class="magnet-badge magnet-badge-violet">ED25519 VERIFIED</span>
       </div>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 30 core manifest modules &amp; 900+ Unicorn modules orchestrated by the 6-Agent Living Organism: 0-CVE Immunity, Multi-LLM Council Swarm, Cognitive Evolution, HTTP 402 M2M Commerce, and live MCP/A2A agent endpoints.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 31 core manifest modules &amp; 900+ Unicorn modules orchestrated by the 6-Agent Living Organism: 0-CVE Immunity, Multi-LLM Council Swarm, Cognitive Evolution, HTTP 402 M2M Commerce, and live MCP/A2A agent endpoints.</p>
       <div class="magnet-pulse-grid" id="autonomyPulseGrid">
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">Runtime Immunity (ASRI)</div>
@@ -3062,8 +3111,20 @@ Awaiting pulse trigger...</pre>
         </div>
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">MCP / A2A Mesh (UMAP)</div>
-          <div class="magnet-kpi-val" id="pulseMcp">17 Live Tools</div>
+          <div class="magnet-kpi-val" id="pulseMcp">20 Live Tools</div>
         </div>
+      </div>
+      <div id="universalFinderBar" style="margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid rgba(138,92,255,.28);background:rgba(18,14,40,.45)">
+        <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px">Universal Solution Finder · Every Person &amp; All 18 Industries</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button type="button" class="chip" data-arre-persona="individual_career" style="cursor:pointer;font-size:11.5px">Career &amp; Resume</button>
+          <button type="button" class="chip" data-arre-persona="creator_brand" style="cursor:pointer;font-size:11.5px">Creator &amp; Brand</button>
+          <button type="button" class="chip" data-arre-persona="startup_smb" style="cursor:pointer;font-size:11.5px">Startup &amp; SMB</button>
+          <button type="button" class="chip" data-arre-persona="agency_developer" style="cursor:pointer;font-size:11.5px">Dev &amp; Agency</button>
+          <button type="button" class="chip" data-arre-persona="ecommerce_retail" style="cursor:pointer;font-size:11.5px">E-Commerce</button>
+          <button type="button" class="chip" data-arre-persona="enterprise_industry" style="cursor:pointer;font-size:11.5px">18 Industries OS</button>
+        </div>
+        <div id="universalFinderOut" style="margin-top:8px;font-size:12.5px;color:var(--ink-dim)" hidden></div>
       </div>
       <div id="pulseEvolutionNote" style="font-family:var(--mono);font-size:12px;color:var(--ink-dim);line-height:1.5"></div>
       <div class="magnet-actions" style="margin-top:auto;padding-top:6px">

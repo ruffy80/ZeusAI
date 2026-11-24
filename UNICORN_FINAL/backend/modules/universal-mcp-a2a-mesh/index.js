@@ -172,13 +172,50 @@ const MCP_TOOLS = [
   },
   {
     name: 'zeus_unicorn_module_atlas',
-    description: 'Inspect or search the full-fleet Universal Module Atlas (UMAS/1.0) covering ALL 900+ Unicorn modules across backend/modules, src/commerce, src/site, 30 manifest modules, and live IAK health.',
+    description: 'Inspect or search the full-fleet Universal Module Atlas (UMAS/1.0) covering ALL 900+ Unicorn modules across backend/modules, src/commerce, src/site, 31 manifest modules, and live IAK health.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Optional keyword to search across all 900+ modules' },
         organ: { type: 'string', description: 'Optional organ filter (growth_acquisition, cro_conversion, fulfillment_quality, redteam_security, sre_performance, git_native_evolution, core_infrastructure)' },
         limit: { type: 'integer', description: 'Max search results (default 25)' },
+      },
+    },
+  },
+  {
+    name: 'zeus_universal_solution_finder',
+    description: 'Match ANY person (career, creator, startup, developer, e-commerce) or ANY of the 18 world industries (fintech, health, retail, logistics, etc.) to tailored autonomous Unicorn services and discounted bundles.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        persona: { type: 'string', description: 'Persona: individual_career, creator_brand, startup_smb, agency_developer, ecommerce_retail, or enterprise_industry' },
+        industry: { type: 'string', description: 'Optional industry vertical (fintech, health, retail, logistics, manufacturing, energy, agri, edu, govtech, legaltech, hospitality, media, gaming, realestate, mobility, biotech, security, climate)' },
+        goal: { type: 'string', description: 'Optional free-text goal' },
+        budgetUsd: { type: 'number', description: 'Optional target budget in USD' },
+      },
+    },
+  },
+  {
+    name: 'zeus_enroll_affiliate',
+    description: 'Enroll an external AI agent, developer, or creator into the ZeusAI Global A2A Affiliate Mesh (10% friend discount + 10% partner commission).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentOrPartnerId: { type: 'string', description: 'Unique agent name, handle, or email identifier' },
+        payoutBtcAddress: { type: 'string', description: 'Optional Bitcoin payout address (bc1...)' },
+        channel: { type: 'string', description: 'Distribution channel (e.g. mcp_agent, developer, creator)' },
+      },
+      required: ['agentOrPartnerId'],
+    },
+  },
+  {
+    name: 'zeus_drift_watch_status',
+    description: 'Enroll a domain in Weekly Autonomous SEO/AEO/GEO/Security Drift Watch (ARRE/1.0) or inspect recurring autonomy manifest.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string', description: 'Optional public domain to enroll in weekly Drift Watch' },
+        cadenceDays: { type: 'integer', description: 'Optional cadence in days (default 7)' },
       },
     },
   },
@@ -243,7 +280,13 @@ const MCP_RESOURCES = [
     uri: 'zeus://atlas/all-modules',
     name: 'UMAS/1.0 Universal Full-Fleet Unicorn Module Atlas (900+ modules)',
     mimeType: 'application/json',
-    description: 'Complete 100%-coverage census of every Unicorn module across backend/modules, src/commerce, src/site, 30 manifest modules, and all 6 living-organism organs.',
+    description: 'Complete 100%-coverage census of every Unicorn module across backend/modules, src/commerce, src/site, 31 manifest modules, and all 6 living-organism organs.',
+  },
+  {
+    uri: 'zeus://revenue/recurring-autonomy',
+    name: 'ARRE/1.0 Ed25519 Recurring Revenue, Drift Watch & Global Utility Manifest',
+    mimeType: 'application/json',
+    description: 'Weekly Client Drift Watch, Real-Revenue UCB1 Conversion Bandit, Global A2A Affiliate Mesh, and 18-Industry Universal Solution Finder.',
   },
 ];
 
@@ -426,6 +469,18 @@ class UniversalMcpA2aMesh {
       result = (safeArgs.query || safeArgs.organ)
         ? umas.searchModules(safeArgs.query || '', { organ: safeArgs.organ || '', limit: safeArgs.limit || 25 })
         : umas.getUniversalAtlas();
+    } else if (name === 'zeus_universal_solution_finder') {
+      const arre = safeReq('../autonomous-recurring-revenue-engine');
+      if (!arre) throw new Error('arre_module_unavailable');
+      result = arre.recommendUniversalSolution(safeArgs);
+    } else if (name === 'zeus_enroll_affiliate') {
+      const arre = safeReq('../autonomous-recurring-revenue-engine');
+      if (!arre) throw new Error('arre_module_unavailable');
+      result = arre.enrollAgentAffiliate(safeArgs);
+    } else if (name === 'zeus_drift_watch_status') {
+      const arre = safeReq('../autonomous-recurring-revenue-engine');
+      if (!arre) throw new Error('arre_module_unavailable');
+      result = safeArgs.domain ? arre.registerDriftWatch(safeArgs) : arre.getArreManifest();
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -485,6 +540,9 @@ class UniversalMcpA2aMesh {
     } else if (uri === 'zeus://atlas/all-modules') {
       const umas = safeReq('../iak/universal-module-atlas');
       data = umas ? umas.getUniversalAtlas() : { ok: false };
+    } else if (uri === 'zeus://revenue/recurring-autonomy') {
+      const arre = safeReq('../autonomous-recurring-revenue-engine');
+      data = arre ? arre.getArreManifest() : { ok: false };
     } else {
       return null;
     }
@@ -734,6 +792,7 @@ class UniversalMcpA2aMesh {
         livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
         x402Paywall: `${DOMAIN}/.well-known/x402.json`,
         universalModuleAtlas: `${DOMAIN}/.well-known/universal-module-atlas.json`,
+        recurringAutonomy: `${DOMAIN}/.well-known/recurring-autonomy.json`,
       },
       officialMcpRegistryName: 'io.github.ruffy80/zeusai-unicorn-mcp',
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
@@ -749,7 +808,7 @@ class UniversalMcpA2aMesh {
       name: 'io.github.ruffy80/zeusai-unicorn-mcp',
       title: 'ZeusAI Autonomous Unicorn MCP',
       description: 'Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm',
-      version: '1.3.1',
+      version: '1.4.0',
       protocolVersion: MCP_VERSION,
       websiteUrl: DOMAIN,
       repository: {
