@@ -1334,6 +1334,27 @@ async function handle(req, res, ctx) {
     return true;
   }
 
+  if (urlPath === '/sdk/simple' || urlPath === '/sdk/simple/' || urlPath === '/sdk/simple/zeusai' || urlPath === '/sdk/simple/zeusai/') {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const pkg = urlPath.includes('/zeusai') ? 'zeusai' : '';
+    const html = b2b.renderPep503SimpleIndexHtml(pkg);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(html);
+    recordMetric(urlPath, 200, html.length);
+    return true;
+  }
+
+  if (urlPath.startsWith('/sdk/')) {
+    const b2b = require('./enterprise-b2b-and-embed');
+    const target = b2b.getSovereignSdkRedirectUrl(urlPath.slice(5));
+    if (target) {
+      res.writeHead(302, { Location: target, 'Cache-Control': 'public, max-age=300' });
+      res.end();
+      recordMetric(urlPath, 302, 0);
+      return true;
+    }
+  }
+
   if (urlPath === '/.well-known/enterprise-compliance.json') {
     const b2b = require('./enterprise-b2b-and-embed');
     const body = JSON.stringify(b2b.getEnterpriseCompliancePack(), null, 2);

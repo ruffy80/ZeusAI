@@ -1,0 +1,103 @@
+name: 📦 Publish ZeusAI SDKs (GitHub Release + Packages + npm/PyPI)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/zeusai-sdk/**'
+      - 'packages/zeusai-python/**'
+      - '.github/workflows/publish-sdks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  build-and-publish-sdks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Node.js SDK tarball (@zeusai/sdk)
+        run: |
+          mkdir -p dist-sdks
+          cd packages/zeusai-sdk
+          node --check index.js
+          PACK_FILE="$(npm pack --silent)"
+          cp "$PACK_FILE" ../../dist-sdks/zeusai-sdk-1.0.0.tgz
+          echo "Built Node SDK: ../../dist-sdks/zeusai-sdk-1.0.0.tgz"
+
+      - name: Build Python SDK wheel & sdist (zeusai)
+        run: |
+          python3 -m pip install --upgrade pip build
+          cd packages/zeusai-python
+          python3 -m py_compile zeusai/__init__.py
+          python3 -m build --outdir ../../dist-sdks
+          ls -la ../../dist-sdks
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist-sdks
+          sha256sum zeusai-sdk-1.0.0.tgz zeusai-*.whl zeusai-*.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish @ruffy80/zeusai-sdk to GitHub Packages (Zero-Token Built-in)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/gh-pkg-sdk
+          cp -r packages/zeusai-sdk/* /tmp/gh-pkg-sdk/
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(fs.readFileSync("/tmp/gh-pkg-sdk/package.json", "utf8"));
+            p.name = "@ruffy80/zeusai-sdk";
+            p.publishConfig = { registry: "https://npm.pkg.github.com" };
+            fs.writeFileSync("/tmp/gh-pkg-sdk/package.json", JSON.stringify(p, null, 2) + "\n");
+          '
+          printf "//npm.pkg.github.com/:_authToken=%s\n@ruffy80:registry=https://npm.pkg.github.com\n" "$NODE_AUTH_TOKEN" > /tmp/gh-pkg-sdk/.npmrc
+          cd /tmp/gh-pkg-sdk
+          npm publish --ignore-scripts || echo "Version already published on GitHub Packages (non-fatal)"
+
+      - name: Publish GitHub Release sdk-v1.0.0 with Direct-Install Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="sdk-v1.0.0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist-sdks/* --clobber
+          else
+            gh release create "$TAG" dist-sdks/* \
+              --title "ZeusAI Official SDKs v1.0.0 (Node.js & Python)" \
+              --notes "Zero-dependency official ZeusAI SDKs.\n\n- Node.js: \`npm install https://zeusai.pro/sdk/zeusai-sdk.tgz\`\n- Python: \`pip install --extra-index-url https://zeusai.pro/sdk/simple/ zeusai\`\n- GitHub Packages: \`npm install @ruffy80/zeusai-sdk --registry=https://npm.pkg.github.com\`"
+          fi
+
+      - name: Publish @zeusai/sdk to public npmjs.org (when NPM_TOKEN is configured)
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          printf "//registry.npmjs.org/:_authToken=%s\n" "$NODE_AUTH_TOKEN" > packages/zeusai-sdk/.npmrc
+          cd packages/zeusai-sdk
+          npm publish --access public --ignore-scripts || echo "Version already published on npmjs.org (non-fatal)"
+
+      - name: Publish zeusai to public PyPI (when PYPI_API_TOKEN is configured)
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python3 -m pip install --upgrade twine
+          python3 -m twine upload --skip-existing dist-sdks/zeusai-*.whl dist-sdks/zeusai-*.tar.gz

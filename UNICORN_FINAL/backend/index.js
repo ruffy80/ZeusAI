@@ -7032,6 +7032,31 @@ app.get('/api/sdk/manifest', (req, res) => {
   }
 });
 
+app.get(['/sdk/simple', '/sdk/simple/', '/sdk/simple/:pkg', '/sdk/simple/:pkg/'], (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    const html = b2b.renderPep503SimpleIndexHtml(req.params && req.params.pkg || '');
+    if (!html) return res.status(404).send('Not Found');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.send(html);
+  } catch (e) {
+    return res.status(500).send('Internal Error');
+  }
+});
+
+app.get('/sdk/:file', (req, res) => {
+  try {
+    const b2b = require('../src/site/enterprise-b2b-and-embed');
+    const target = b2b.getSovereignSdkRedirectUrl(req.params && req.params.file);
+    if (!target) return res.status(404).send('Not Found');
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.redirect(302, target);
+  } catch (e) {
+    return res.status(500).send('Internal Error');
+  }
+});
+
 app.get('/.well-known/enterprise-compliance.json', (req, res) => {
   try {
     const b2b = require('../src/site/enterprise-b2b-and-embed');
