@@ -358,37 +358,90 @@ class CognitiveEvolutionGenomeEngine {
     return crypto.sign(null, raw, this.keys.privateKey).toString('base64');
   }
 
-  _appendSignedLedgerEntry(eventType, details) {
-    const prevHash = this.ledger.length > 0
-      ? this.ledger[this.ledger.length - 1].entryHash
-      : '0'.repeat(64);
-    this.ledgerSeq = Math.max(this.ledgerSeq || 0, this.ledger.length) + 1;
-    const body = {
-      index: this.ledgerSeq,
-      protocol: PROTOCOL,
-      generation: this.generation,
-      eventType: String(eventType || 'EVOLUTION_EVENT'),
-      at: new Date().toISOString(),
-      prevHash,
-      mutatesSource: false,
-      inventsGmv: false,
-      details: details || {},
-    };
-    const entryHash = sha256Hex(canonicalJson(body));
-    const signature = this._signPayload({ entryHash, body });
-    const signedEntry = Object.assign({}, body, {
-      entryHash,
-      signature,
-      publicKeyBase64: this.keys.publicKeyBase64,
-    });
-    this.ledger.push(signedEntry);
-    if (this.ledger.length > 150) this.ledger.shift();
+  _syncLedgerFromDisk() {
     try {
-      fs.appendFileSync(this._ledgerPath(), JSON.stringify(signedEntry) + '\n', 'utf8');
-      this._rotateLedgerIfLarge();
+      const lp = this._ledgerPath();
+      if (!fs.existsSync(lp)) return;
+      const st = fs.statSync(lp);
+      if (this._lastLedgerMtimeMs && st.mtimeMs <= this._lastLedgerMtimeMs && this._lastLedgerSize === st.size) {
+        return;
+      }
+      this._lastLedgerMtimeMs = st.mtimeMs;
+      this._lastLedgerSize = st.size;
+      const lines = fs.readFileSync(lp, 'utf8').split('\n').filter(Boolean).slice(-100);
+      const loaded = [];
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry && entry.entryHash && entry.signature) {
+            loaded.push(entry);
+            if (typeof entry.generation === 'number' && entry.generation > this.generation) {
+              this.generation = entry.generation;
+            }
+            if (typeof entry.index === 'number' && entry.index > (this.ledgerSeq || 0)) {
+              this.ledgerSeq = entry.index;
+            }
+          }
+        } catch (_) {}
+      }
+      if (loaded.length > 0) this.ledger = loaded;
     } catch (_) {}
-    this._persistState();
-    return signedEntry;
+  }
+
+  _appendSignedLedgerEntry(eventType, details) {
+    // Sync latest tail from disk before appending (with lightweight advisory lockfile)
+    // so concurrent processes (backend + orchestrator) never fork prevHash in shared ledger.jsonl.
+    const lockPath = path.join(resolveDataDir(), '.ledger.lock');
+    let lockHeld = false;
+    try {
+      const st = fs.existsSync(lockPath) ? fs.statSync(lockPath) : null;
+      if (st && (Date.now() - st.mtimeMs) > 5000) {
+        try { fs.unlinkSync(lockPath); } catch (_) {}
+      }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      lockHeld = true;
+    } catch (_) {}
+
+    try {
+      this._syncLedgerFromDisk();
+      const prevHash = this.ledger.length > 0
+        ? this.ledger[this.ledger.length - 1].entryHash
+        : '0'.repeat(64);
+      this.ledgerSeq = Math.max(this.ledgerSeq || 0, this.ledger.length) + 1;
+      const body = {
+        index: this.ledgerSeq,
+        protocol: PROTOCOL,
+        generation: this.generation,
+        eventType: String(eventType || 'EVOLUTION_EVENT'),
+        at: new Date().toISOString(),
+        prevHash,
+        mutatesSource: false,
+        inventsGmv: false,
+        details: details || {},
+      };
+      const entryHash = sha256Hex(canonicalJson(body));
+      const signature = this._signPayload({ entryHash, body });
+      const signedEntry = Object.assign({}, body, {
+        entryHash,
+        signature,
+        publicKeyBase64: this.keys.publicKeyBase64,
+      });
+      this.ledger.push(signedEntry);
+      if (this.ledger.length > 150) this.ledger.shift();
+      try {
+        fs.appendFileSync(this._ledgerPath(), JSON.stringify(signedEntry) + '\n', 'utf8');
+        this._rotateLedgerIfLarge();
+        const st = fs.statSync(this._ledgerPath());
+        this._lastLedgerMtimeMs = st.mtimeMs;
+        this._lastLedgerSize = st.size;
+      } catch (_) {}
+      this._persistState();
+      return signedEntry;
+    } finally {
+      if (lockHeld) {
+        try { fs.unlinkSync(lockPath); } catch (_) {}
+      }
+    }
   }
 
   /**
@@ -830,6 +883,7 @@ class CognitiveEvolutionGenomeEngine {
    * 6. Verify Cryptographic Hash-Chain & Ed25519 Signatures
    */
   verifyLedgerChain() {
+    this._syncLedgerFromDisk();
     let valid = true;
     const issues = [];
     for (let i = 0; i < this.ledger.length; i++) {
