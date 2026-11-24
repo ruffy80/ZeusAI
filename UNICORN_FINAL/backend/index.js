@@ -6856,6 +6856,23 @@ app.get(['/.well-known/x402.json', '/api/x402/manifest'], (req, res) => {
   }
 });
 
+app.get(['/.well-known/universal-module-atlas.json', '/api/modules/atlas'], (req, res) => {
+  try {
+    const umas = require('./modules/iak/universal-module-atlas');
+    const q = String((req.query && req.query.q) || '').trim();
+    const organ = String((req.query && req.query.organ) || '').trim();
+    const surface = String((req.query && req.query.surface) || '').trim();
+    const limit = Number((req.query && req.query.limit) || 25);
+    res.set('Cache-Control', 'public, max-age=60');
+    if (q || organ || surface) {
+      return res.json(umas.searchModules(q, { organ, surface, limit }));
+    }
+    res.json(umas.getUniversalAtlas());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
 app.post('/api/x402/execute', express.json({ limit: '16kb' }), async (req, res) => {
   try {
     const smce = require('./modules/autonomous-m2m-commerce-engine');

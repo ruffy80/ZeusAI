@@ -170,6 +170,18 @@ const MCP_TOOLS = [
       },
     },
   },
+  {
+    name: 'zeus_unicorn_module_atlas',
+    description: 'Inspect or search the full-fleet Universal Module Atlas (UMAS/1.0) covering ALL 900+ Unicorn modules across backend/modules, src/commerce, src/site, 30 manifest modules, and live IAK health.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Optional keyword to search across all 900+ modules' },
+        organ: { type: 'string', description: 'Optional organ filter (growth_acquisition, cro_conversion, fulfillment_quality, redteam_security, sre_performance, git_native_evolution, core_infrastructure)' },
+        limit: { type: 'integer', description: 'Max search results (default 25)' },
+      },
+    },
+  },
 ];
 
 const MCP_RESOURCES = [
@@ -226,6 +238,12 @@ const MCP_RESOURCES = [
     name: 'SMCE/1.0 HTTP 402 M2M Commerce & Autonomous Negotiation Manifest',
     mimeType: 'application/json',
     description: 'Ed25519-signed machine-to-machine payment paywall, bundle discount rules, and direct agent checkout endpoints.',
+  },
+  {
+    uri: 'zeus://atlas/all-modules',
+    name: 'UMAS/1.0 Universal Full-Fleet Unicorn Module Atlas (900+ modules)',
+    mimeType: 'application/json',
+    description: 'Complete 100%-coverage census of every Unicorn module across backend/modules, src/commerce, src/site, 30 manifest modules, and all 6 living-organism organs.',
   },
 ];
 
@@ -402,6 +420,12 @@ class UniversalMcpA2aMesh {
       if (!smce) throw new Error('smce_module_unavailable');
       const x402 = await smce.executeX402OrChallenge(safeArgs);
       result = x402.body;
+    } else if (name === 'zeus_unicorn_module_atlas') {
+      const umas = safeReq('../iak/universal-module-atlas');
+      if (!umas) throw new Error('umas_module_unavailable');
+      result = (safeArgs.query || safeArgs.organ)
+        ? umas.searchModules(safeArgs.query || '', { organ: safeArgs.organ || '', limit: safeArgs.limit || 25 })
+        : umas.getUniversalAtlas();
     } else {
       const err = new Error('Unknown MCP tool: ' + name);
       err.code = -32601;
@@ -458,6 +482,9 @@ class UniversalMcpA2aMesh {
     } else if (uri === 'zeus://commerce/x402-manifest') {
       const smce = safeReq('../autonomous-m2m-commerce-engine');
       data = smce ? smce.getX402Manifest() : { ok: false };
+    } else if (uri === 'zeus://atlas/all-modules') {
+      const umas = safeReq('../iak/universal-module-atlas');
+      data = umas ? umas.getUniversalAtlas() : { ok: false };
     } else {
       return null;
     }
@@ -706,6 +733,7 @@ class UniversalMcpA2aMesh {
         treasuryAutonomy: `${DOMAIN}/.well-known/treasury-autonomy.json`,
         livingOrganism: `${DOMAIN}/.well-known/living-organism.json`,
         x402Paywall: `${DOMAIN}/.well-known/x402.json`,
+        universalModuleAtlas: `${DOMAIN}/.well-known/universal-module-atlas.json`,
       },
       officialMcpRegistryName: 'io.github.ruffy80/zeusai-unicorn-mcp',
       paymentRails: ['Bitcoin Direct On-Chain (-10%)', 'PayPal Live', 'NOWPayments Live (Multi-Crypto + Card)'],
@@ -721,7 +749,7 @@ class UniversalMcpA2aMesh {
       name: 'io.github.ruffy80/zeusai-unicorn-mcp',
       title: 'ZeusAI Autonomous Unicorn MCP',
       description: 'Sovereign AI platform: free website audits, 55+ autonomous services, Ed25519 proofs & LLM swarm',
-      version: '1.3.0',
+      version: '1.3.1',
       protocolVersion: MCP_VERSION,
       websiteUrl: DOMAIN,
       repository: {
