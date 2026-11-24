@@ -489,6 +489,31 @@ class ZeusOmniscientBrain {
       }
     } catch (_) {}
 
+    // 3. Index ALL remaining src/* and backend/* platform modules via UMAS/1.0 (100% fleet coverage)
+    try {
+      const umas = require('./iak/universal-module-atlas');
+      const fullAtlas = umas.getUniversalAtlas({ includeEntries: true });
+      for (const entry of (fullAtlas.entries || [])) {
+        if (entry.surface === 'backend/modules') continue;
+        const key = `${entry.surface}/${entry.name}`;
+        if (modulesMap.has(entry.name) || modulesMap.has(key)) continue;
+        const humanWords = String(entry.name || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_/]+/g, ' ').trim();
+        modulesMap.set(key, {
+          name: key,
+          title: humanWords.charAt(0).toUpperCase() + humanWords.slice(1),
+          version: '1.0.0',
+          kind: entry.kind || 'platform_module',
+          tier: entry.organ || 'infra',
+          file: entry.id,
+          descriptionRo: `Modul de platformă Unicorn (${entry.surface}) mapat pe organul ${entry.organ}.`,
+          descriptionEn: `Unicorn platform module (${entry.surface}) mapped to organ ${entry.organ}.`,
+          capabilities: [],
+          provides: [entry.surface, entry.organ],
+          relatedServices: ['instant-website-audit', 'ent-engagement-kickoff'],
+        });
+      }
+    } catch (_) {}
+
     const list = [...modulesMap.values()];
     this._modulesCache = list;
     this._modulesCacheAt = Date.now();

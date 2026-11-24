@@ -712,6 +712,27 @@ class AutonomousOrganismOrchestrator {
       const evolution = await this.runGitNativeEvolutionAgent([growth, cro, fulfillment, redteam, sre]);
 
       const organs = [growth, cro, fulfillment, redteam, sre, evolution];
+      let fleetAtlas = null;
+      try {
+        const umas = safeReq('../iak/universal-module-atlas');
+        if (umas && typeof umas.getUniversalAtlas === 'function') {
+          const a = umas.getUniversalAtlas();
+          fleetAtlas = {
+            protocol: a.protocol,
+            totals: a.totals,
+            iakLive: a.iakLive,
+            byOrganCounts: Object.keys(a.byOrgan || {}).reduce((acc, k) => {
+              acc[k] = a.byOrgan[k].count;
+              return acc;
+            }, {}),
+          };
+          for (const o of organs) {
+            if (o && o.organ && a.byOrgan && a.byOrgan[o.organ]) {
+              o.fleetModulesCovered = a.byOrgan[o.organ].count;
+            }
+          }
+        }
+      } catch (_) {}
       const homeostasisScore = Math.round(
         organs.reduce((acc, o) => acc + (Number(o.score) || 0), 0) / organs.length
       );
@@ -726,6 +747,7 @@ class AutonomousOrganismOrchestrator {
         homeostasisScore,
         grade,
         adaptiveLoadShedding: this.adaptiveLoadShedding,
+        universalModuleFleet: fleetAtlas,
         organs,
         recentReflexes: this.reflexEvents.slice(0, 8),
         latestBlueprint: this.evolutionBlueprints[0] || null,
@@ -751,6 +773,27 @@ class AutonomousOrganismOrchestrator {
     const redteam = this.lastRedTeam || this.runRedTeamAudit();
     const sre = this.runSrePerformanceAgent();
     const organs = [growth, cro, fulfillment, redteam, sre];
+    let fleetSummary = null;
+    try {
+      const umas = safeReq('../iak/universal-module-atlas');
+      if (umas && typeof umas.getUniversalAtlas === 'function') {
+        const a = umas.getUniversalAtlas();
+        fleetSummary = {
+          protocol: a.protocol,
+          totals: a.totals,
+          iakLive: a.iakLive,
+          byOrganCounts: Object.keys(a.byOrgan || {}).reduce((acc, k) => {
+            acc[k] = a.byOrgan[k].count;
+            return acc;
+          }, {}),
+        };
+        for (const o of organs) {
+          if (o && o.organ && a.byOrgan && a.byOrgan[o.organ]) {
+            o.fleetModulesCovered = a.byOrgan[o.organ].count;
+          }
+        }
+      }
+    } catch (_) {}
     const homeostasisScore = this.lastHeartbeat
       ? this.lastHeartbeat.homeostasisScore
       : Math.round(organs.reduce((s, o) => s + (o.score || 0), 0) / organs.length);
@@ -766,6 +809,7 @@ class AutonomousOrganismOrchestrator {
       homeostasisScore,
       grade: homeostasisScore >= 95 ? 'LIVING_APEX' : (homeostasisScore >= 85 ? 'HOMEOSTASIS_STRONG' : 'ADAPTING'),
       adaptiveLoadShedding: this.adaptiveLoadShedding,
+      universalModuleFleet: fleetSummary,
       specialistAgents: [
         growth,
         cro,
@@ -777,6 +821,7 @@ class AutonomousOrganismOrchestrator {
           organ: 'git_native_evolution',
           ok: true,
           score: 100,
+          fleetModulesCovered: fleetSummary && fleetSummary.byOrganCounts ? (fleetSummary.byOrganCounts.git_native_evolution || 0) : 0,
           latestBlueprint: this.evolutionBlueprints[0] || null,
         },
       ],

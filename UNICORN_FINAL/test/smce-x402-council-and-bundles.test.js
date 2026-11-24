@@ -157,13 +157,13 @@ async function run() {
   assert.strictEqual(council.councilScoreboard.length, 2);
   console.log('PASS [5/6] NSC/1.0 Dual-Family Council of Minds 5-pillar arbitration verified');
 
-  // 6. UMAP/1.0 16 Live MCP Tools + 9 Resources + v1.3.0 Server Card + Omniscient Chatbot SMCE Deal Closing
+  // 6. UMAP/1.0 17 Live MCP Tools + 10 Resources + v1.3.1 Server Card + UMAS/1.0 Full-Fleet Atlas + Omniscient Chatbot SMCE Deal Closing
   const umap = require('../backend/modules/universal-mcp-a2a-mesh');
   const toolsList = await umap.handleJsonRpc({ jsonrpc: '2.0', id: 10, method: 'tools/list' });
-  assert.ok(toolsList.body.result.tools.length >= 16, 'Expected >= 16 MCP tools, got ' + toolsList.body.result.tools.length);
+  assert.ok(toolsList.body.result.tools.length >= 17, 'Expected >= 17 MCP tools, got ' + toolsList.body.result.tools.length);
   const resList = await umap.handleJsonRpc({ jsonrpc: '2.0', id: 11, method: 'resources/list' });
-  assert.ok(resList.body.result.resources.length >= 9, 'Expected >= 9 MCP resources');
-  assert.strictEqual(umap.getServerCard().version, '1.3.0');
+  assert.ok(resList.body.result.resources.length >= 10, 'Expected >= 10 MCP resources');
+  assert.strictEqual(umap.getServerCard().version, '1.3.1');
 
   const negTool = await umap.handleJsonRpc({
     jsonrpc: '2.0',
@@ -174,11 +174,38 @@ async function run() {
   assert.strictEqual(negTool.body.result.isError, false);
   assert.strictEqual(negTool.body.result.structuredContent.payload.protocol, 'SMCE/1.0');
 
+  // Verify UMAS/1.0 Universal Full-Fleet Module Atlas via MCP & AOSO/1.0
+  const atlasTool = await umap.handleJsonRpc({
+    jsonrpc: '2.0',
+    id: 13,
+    method: 'tools/call',
+    params: { name: 'zeus_unicorn_module_atlas', arguments: {} },
+  });
+  assert.strictEqual(atlasTool.body.result.isError, false);
+  const atlasData = atlasTool.body.result.structuredContent;
+  assert.strictEqual(atlasData.protocol, 'UMAS/1.0');
+  assert.ok(atlasData.totals.totalModulesIndexed >= 850, 'Atlas must cover ALL 850+ Unicorn modules, got ' + atlasData.totals.totalModulesIndexed);
+  assert.strictEqual(atlasData.totals.brokenAliases, 0, 'Zero broken aliases expected');
+  assert.strictEqual(atlasData.totals.coveragePct, 100);
+
+  // Verify AOSO/1.0 manifest includes universalModuleFleet + per-organ fleetModulesCovered
+  const aoso = require('../backend/modules/autonomous-organism-orchestrator');
+  const orgManifest = aoso.getOrganismManifest();
+  assert.ok(orgManifest.payload.universalModuleFleet && orgManifest.payload.universalModuleFleet.totals.totalModulesIndexed >= 850);
+  assert.ok(orgManifest.payload.specialistAgents.every((a) => typeof a.fleetModulesCovered === 'number' && a.fleetModulesCovered > 0));
+
+  // Verify ASPE/1.0 executes real modules dynamically (not generic stub)
+  const execResults = paidExec.body.execution.results || [];
+  const dynamicInvoked = execResults.filter((r) => r && r.output && r.output.realModuleInvoked === true);
+  assert.ok(dynamicInvoked.length >= 1, 'ASPE must dynamically invoke real modules beyond hardcoded 6');
+
   const brain = require('../backend/modules/omniscient-chatbot');
+  const km = brain.getKnowledgeMap();
+  assert.ok(km.modulesCount >= 850, 'Omniscient Chatbot must index ALL 850+ Unicorn modules, got ' + km.modulesCount);
   const chatDeal = await brain.answer({ message: 'Vreau un pachet bundle cu discount si pret bun pentru site-ul meu acme.io' });
   assert.strictEqual(chatDeal.ok, true);
   assert.ok(chatDeal.smceNegotiation && chatDeal.smceNegotiation.ok, 'Chatbot must attach SMCE/1.0 signed bundle deal');
-  console.log('PASS [6/6] UMAP/1.0 16 MCP tools, 9 resources, v1.3.0 Server Card & Chatbot SMCE deal closing');
+  console.log('PASS [6/6] UMAP/1.0 17 MCP tools, 10 resources, v1.3.1, UMAS/1.0 (' + atlasData.totals.totalModulesIndexed + ' modules), ASPE dynamic exec & Chatbot SMCE');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log('ALL SMCE/1.0 + COUNCIL + SERVER-SIDE BUNDLE TESTS PASSED ✓');

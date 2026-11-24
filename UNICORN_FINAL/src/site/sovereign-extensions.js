@@ -630,6 +630,7 @@ async function handle(req, res, ctx) {
       `- Ed25519 Autonomous Treasury, Net-Profit & Recovery Attestation (ATRO/1.0): ${OWNER.domain}/.well-known/treasury-autonomy.json`,
       `- Ed25519 6-Agent Autonomous Living Organism Manifest (AOSO/1.0): ${OWNER.domain}/.well-known/living-organism.json`,
       `- HTTP 402 Sovereign M2M Commerce & Autonomous Negotiation (SMCE/1.0): ${OWNER.domain}/.well-known/x402.json`,
+      `- Universal Full-Fleet Module Atlas (UMAS/1.0, 900+ modules): ${OWNER.domain}/.well-known/universal-module-atlas.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -1120,6 +1121,23 @@ async function handle(req, res, ctx) {
   }
 
   // ── SMCE/1.0 — Sovereign M2M Commerce, HTTP 402 Paywall & Council of Minds ─
+  if (urlPath === '/.well-known/universal-module-atlas.json' || urlPath === '/api/modules/atlas') {
+    const umas = require('../../backend/modules/iak/universal-module-atlas');
+    const parsedQ = new URL('http://localhost' + (req.url || '/'));
+    const q = String(parsedQ.searchParams.get('q') || '').trim();
+    const organ = String(parsedQ.searchParams.get('organ') || '').trim();
+    const surface = String(parsedQ.searchParams.get('surface') || '').trim();
+    const limit = Number(parsedQ.searchParams.get('limit') || 25);
+    const out = (q || organ || surface)
+      ? umas.searchModules(q, { organ, surface, limit })
+      : umas.getUniversalAtlas();
+    const body = JSON.stringify(out, null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
   if (urlPath === '/.well-known/x402.json' || urlPath === '/api/x402/manifest') {
     const smce = require('../../backend/modules/autonomous-m2m-commerce-engine');
     const body = JSON.stringify(smce.getX402Manifest(), null, 2);
