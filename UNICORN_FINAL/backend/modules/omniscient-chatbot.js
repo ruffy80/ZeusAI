@@ -72,6 +72,13 @@ const MODULE_PURPOSE_CATALOG = {
     purposeEn: 'Unicorn Autonomous Treasury & Net-Profit Reconciler (ATRO/1.0): reconciles real deduplicated multi-rail settlements (Bitcoin Direct -10% at 0% fee, PayPal Live, NOWPayments Live), computes true net profit after processor fees, affiliates, and AI fulfillment costs, performs live on-chain Bitcoin wallet audits, recovers abandoned checkouts with fresh links, and signs Ed25519 treasury proofs (`/.well-known/treasury-autonomy.json`).',
     relatedServices: ['fintech-os', 'frontier-checkout-cascade', 'ent-revenue-share'],
   },
+  'autonomous-organism-orchestrator': {
+    title: 'AOSO/1.0 — 6-Agent Autonomous Sovereign Organism & Predictive Synaptic Reflex Engine',
+    tier: 'autonomy',
+    purposeRo: 'Organismul viu unificat al Unicornului (AOSO/1.0): coordonează 6 agenți autonomi specialiști (Growth/Distribuție MCP, CRO/Bundle Conversion, Fulfillment Excellence, Red-Team Security, SRE Performance & Homeostasis, Git-Native Safe Evolution) și 4 arcuri reflexe predictive între toate cele 29 module nucleu, publicând starea de homeostazie semnată Ed25519 la `/.well-known/living-organism.json`.',
+    purposeEn: 'Unicorn Unified Living Organism (AOSO/1.0): coordinates 6 specialist autonomous agents (Growth/MCP Distribution, CRO/Bundle Conversion, Fulfillment Excellence, Red-Team Security, SRE Performance & Homeostasis, Git-Native Safe Evolution) and 4 predictive cross-organ reflex arcs across all 29 core modules, publishing an Ed25519-signed homeostasis manifest at `/.well-known/living-organism.json`.',
+    relatedServices: ['ent-sovereign-deployment', 'professional-ai-agent', 'ent-ai-transformation'],
+  },
   'zacc': {
     title: 'ZACC — Zeus Autonomic Commerce Core',
     tier: 'commerce',

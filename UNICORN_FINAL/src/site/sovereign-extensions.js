@@ -626,6 +626,7 @@ async function handle(req, res, ctx) {
       `- Google A2A Agent Card (UMAP/1.0): ${OWNER.domain}/.well-known/agent.json`,
       `- Unified OpenAPI 3.1.0 Sovereign Specification: ${OWNER.domain}/.well-known/openapi.json`,
       `- Ed25519 Autonomous Treasury, Net-Profit & Recovery Attestation (ATRO/1.0): ${OWNER.domain}/.well-known/treasury-autonomy.json`,
+      `- Ed25519 6-Agent Autonomous Living Organism Manifest (AOSO/1.0): ${OWNER.domain}/.well-known/living-organism.json`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(body);
@@ -719,9 +720,18 @@ async function handle(req, res, ctx) {
   const aspeStatusMatch = urlPath.match(/^\/api\/autonomous-service\/([^/]+)\/status$/);
   if (aspeStatusMatch && req.method === 'GET') {
     const aspe = require('../../backend/modules/autonomous-service-provisioning');
-    const inst = aspe.getInstance(decodeURIComponent(aspeStatusMatch[1]));
+    const oid = decodeURIComponent(aspeStatusMatch[1]);
+    const inst = aspe.getInstance(oid);
     const code = inst ? 200 : 404;
-    const body = JSON.stringify(inst ? { ok: true, instance: inst } : { ok: false, error: 'service_instance_not_found' }, null, 2);
+    let payload = { ok: false, error: 'service_instance_not_found' };
+    if (inst) {
+      let qToken = '';
+      try { const u = new URL(req.url, 'http://localhost'); qToken = u.searchParams.get('access_token') || u.searchParams.get('token') || ''; } catch (_) {}
+      const hToken = req.headers['x-aspe-token'] || req.headers['x-api-key'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const auth = aspe.verifyInstanceAccess(oid, qToken || hToken);
+      payload = { ok: true, authorized: auth.ok, instance: auth.ok ? inst : aspe.redactInstanceForPublic(inst) };
+    }
+    const body = JSON.stringify(payload, null, 2);
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, code, body.length);
@@ -730,13 +740,43 @@ async function handle(req, res, ctx) {
 
   const aspeRunMatch = urlPath.match(/^\/api\/autonomous-service\/([^/]+)\/run$/);
   if (aspeRunMatch && req.method === 'POST') {
-    const aspe = require('../../backend/modules/autonomous-service-provisioning');
-    const out = aspe.runAutonomousCycle(decodeURIComponent(aspeRunMatch[1]), { trigger: 'customer_on_demand' });
-    const code = out.ok ? 200 : 404;
-    const body = JSON.stringify(out, null, 2);
-    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(body);
-    recordMetric(urlPath, code, body.length);
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 16384) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const aspe = require('../../backend/modules/autonomous-service-provisioning');
+        const oid = decodeURIComponent(aspeRunMatch[1]);
+        const inst = aspe.getInstance(oid);
+        if (!inst) {
+          const b404 = JSON.stringify({ ok: false, error: 'service_instance_not_found' });
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(b404);
+          return;
+        }
+        let qToken = '';
+        try { const u = new URL(req.url, 'http://localhost'); qToken = u.searchParams.get('access_token') || u.searchParams.get('token') || ''; } catch (_) {}
+        const presented = parsed.access_token || parsed.token || qToken || req.headers['x-aspe-token'] || req.headers['x-api-key'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        if (inst.orderAccessTokenHash || inst.apiKeyHash) {
+          const auth = aspe.verifyInstanceAccess(oid, presented);
+          if (!auth.ok) {
+            const b401 = JSON.stringify({ ok: false, error: auth.reason || 'unauthorized' });
+            res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+            res.end(b401);
+            return;
+          }
+        }
+        const out = aspe.runAutonomousCycle(oid, { trigger: 'customer_on_demand', inputs: parsed.inputs || {} });
+        const code = out.ok ? 200 : 404;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      }
+    });
     return true;
   }
 
@@ -950,6 +990,78 @@ async function handle(req, res, ctx) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(body);
     recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── AOSO/1.0 — 6-Agent Autonomous Sovereign Living Organism ──────────────
+  if (urlPath === '/.well-known/living-organism.json' || urlPath === '/api/organism/manifest') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    const body = JSON.stringify(aoso.getOrganismManifest(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/organism/status') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    const body = JSON.stringify(aoso.getStatus(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/organism/heartbeat' && req.method === 'POST') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    Promise.resolve(aoso.runOrganismHeartbeat()).then((out) => {
+      const body = JSON.stringify(out, null, 2);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(body);
+      recordMetric(urlPath, 200, body.length);
+    }).catch((e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+    });
+    return true;
+  }
+
+  if (urlPath === '/api/organism/redteam') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    const body = JSON.stringify(aoso.runRedTeamAudit(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/organism/mcp-directory-pack') {
+    const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+    const body = JSON.stringify(aoso.getMcpDirectoryPack(), null, 2);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  if (urlPath === '/api/bundles/quote' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (chunk) => { if (raw.length < 8192) raw += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = raw ? JSON.parse(raw) : {};
+        const aoso = require('../../backend/modules/autonomous-organism-orchestrator');
+        const out = aoso.quoteMultiItemBundle(parsed.serviceIds || parsed.items || []);
+        const code = out.ok ? 200 : 400;
+        const body = JSON.stringify(out, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(body);
+        recordMetric(urlPath, code, body.length);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+      }
+    });
     return true;
   }
 

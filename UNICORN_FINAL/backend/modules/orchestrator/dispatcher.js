@@ -105,6 +105,7 @@ class UniversalCapabilityDispatcher {
         'runAcquisitionPulse', 'getDiscoveryManifest', 'getEvolutionLedger', 'evolveGeneration',
         'verifyLedgerChain', 'getAgentCard', 'getMcpDiscoveryManifest', 'getUnifiedOpenApi31',
         'reconcileLedger', 'reconcileOnChainBtc', 'runRecoverySweep', 'getTreasurySnapshot',
+        'runOrganismHeartbeat', 'runRedTeamAudit', 'getOrganismManifest', 'getMcpDirectoryPack',
       ]);
 
       if (safeDirectCallIds.has(fnName) && typeof mod[fnName] === 'function') {

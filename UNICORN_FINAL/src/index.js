@@ -3081,6 +3081,7 @@ function runDeliveryForReceipt(receipt, opts) {
           orderId: receipt.orderId || receipt.id,
           serviceId: receipt.serviceId || receipt.plan || (Array.isArray(receipt.items) && receipt.items[0] && receipt.items[0].serviceId) || 'instant-website-audit',
           email: receipt.customerEmail || receipt.email || null,
+          accessToken: receipt.access_token || receipt.accessToken || null,
           amountUsd: receipt.amountUsd || receipt.priceUsd || 0,
           inputs: receipt.inputs || {},
         });
@@ -13752,7 +13753,8 @@ a{color:#8a5cff;text-decoration:none}
     const __ssrMemo = global.__UNICORN_SSR_HTML_MEMO;
     const __ssrMemoTtl = __checkoutShellMemoOk
       ? Math.max(1000, Number(process.env.SITE_SSR_CHECKOUT_CACHE_MS || 8000))
-      : Math.max(2000, Number(process.env.SITE_SSR_HTML_CACHE_MS || 20000));
+      : Math.max(2000, Number(process.env.SITE_SSR_HTML_CACHE_MS || 60000));
+    if (!global.__UNICORN_SSR_STATS) global.__UNICORN_SSR_STATS = { hits: 0, misses: 0 };
     let html = null;
     let __ssrFromMemo = false;
     if (__ssrMemoKey) {
@@ -13760,9 +13762,11 @@ a{color:#8a5cff;text-decoration:none}
       if (hit && hit.html && (Date.now() - hit.ts) < __ssrMemoTtl) {
         html = String(hit.html).replace(/\snonce="[^"]*"/g, nonce ? (' nonce="' + nonce + '"') : '');
         __ssrFromMemo = true;
+        global.__UNICORN_SSR_STATS.hits += 1;
       }
     }
     if (!html) {
+      global.__UNICORN_SSR_STATS.misses += 1;
       html = v2.getHtml(route, ssrParams);
       if (__ssrMemoKey && html) {
         __ssrMemo.set(__ssrMemoKey, { html, ts: Date.now() });

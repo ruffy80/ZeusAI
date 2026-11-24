@@ -1,0 +1,97 @@
+{
+  "name": "autonomous-organism-orchestrator",
+  "version": "1.0.0",
+  "description": "AOSO/1.0 — 6-Agent Autonomous Sovereign Organism & Predictive Cross-Module Synaptic Reflex Engine unifying Growth, CRO/Bundle Conversion, Fulfillment Excellence, Red-Team Security, SRE Performance, and Git-Native Self-Evolution across all 29 Unicorn modules.",
+  "capabilities": [
+    {
+      "id": "health",
+      "type": "read",
+      "schedule": "*/30 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getStatus",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "runOrganismHeartbeat",
+      "type": "write",
+      "schedule": "*/5 * * * *",
+      "timeout_ms": 15000,
+      "resourceBudget": {
+        "maxCpuMs": 3000,
+        "maxMemoryMb": 256
+      }
+    },
+    {
+      "id": "runRedTeamAudit",
+      "type": "read",
+      "schedule": "*/15 * * * *",
+      "timeout_ms": 10000,
+      "resourceBudget": {
+        "maxCpuMs": 2000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getOrganismManifest",
+      "type": "read",
+      "schedule": "*/60 * * * * *",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    },
+    {
+      "id": "getMcpDirectoryPack",
+      "type": "read",
+      "schedule": "on-demand",
+      "timeout_ms": 5000,
+      "resourceBudget": {
+        "maxCpuMs": 1000,
+        "maxMemoryMb": 128
+      }
+    }
+  ],
+  "dependencies": [
+    "witness",
+    "autonomous-runtime-immunity",
+    "autonomous-service-provisioning",
+    "neural-swarm-llm-cascade",
+    "autonomous-client-magnet",
+    "cognitive-evolution-genome",
+    "universal-mcp-a2a-mesh",
+    "autonomous-treasury-reconciler",
+    "seo-aeo-geo-singularity"
+  ],
+  "provides": [
+    "six_agent_living_organism",
+    "predictive_synaptic_reflex_arcs",
+    "multi_item_bundle_pricing",
+    "continuous_red_team_verifier",
+    "git_native_evolution_blueprints",
+    "mcp_directory_distribution_pack"
+  ],
+  "failureModes": [
+    {
+      "symptom": "organ telemetry degraded or high memory/latency pressure",
+      "recovery": "skip"
+    }
+  ],
+  "sla": {
+    "maxLatencyMs": 500,
+    "maxErrorRate": 0.005
+  },
+  "healthCheck": "health"
+}

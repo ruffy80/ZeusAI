@@ -6465,7 +6465,10 @@ app.get('/api/autonomous-service/:orderId/status', (req, res) => {
     const inst = aspe.getInstance(req.params.orderId);
     res.set('Cache-Control', 'no-store');
     if (!inst) return res.status(404).json({ ok: false, error: 'service_instance_not_found' });
-    res.json({ ok: true, instance: inst });
+    const presented = req.query.access_token || req.query.token || req.headers['x-aspe-token'] || req.headers['x-api-key'] || (String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+    const auth = aspe.verifyInstanceAccess(req.params.orderId, presented);
+    const outInst = auth.ok ? inst : aspe.redactInstanceForPublic(inst);
+    res.json({ ok: true, authorized: auth.ok, instance: outInst });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
@@ -6474,11 +6477,18 @@ app.get('/api/autonomous-service/:orderId/status', (req, res) => {
 app.post('/api/autonomous-service/:orderId/run', express.json({ limit: '16kb' }), (req, res) => {
   try {
     const aspe = require('./modules/autonomous-service-provisioning');
+    const inst = aspe.getInstance(req.params.orderId);
+    res.set('Cache-Control', 'no-store');
+    if (!inst) return res.status(404).json({ ok: false, error: 'service_instance_not_found' });
+    const presented = (req.body && (req.body.access_token || req.body.token)) || req.query.access_token || req.query.token || req.headers['x-aspe-token'] || req.headers['x-api-key'] || (String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+    if (inst.orderAccessTokenHash || inst.apiKeyHash) {
+      const auth = aspe.verifyInstanceAccess(req.params.orderId, presented);
+      if (!auth.ok) return res.status(401).json({ ok: false, error: auth.reason || 'unauthorized' });
+    }
     const out = aspe.runAutonomousCycle(req.params.orderId, {
       trigger: 'customer_on_demand',
       inputs: (req.body && req.body.inputs) || {},
     });
-    res.set('Cache-Control', 'no-store');
     res.status(out.ok ? 200 : 404).json(out);
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message || e) });
@@ -6713,6 +6723,72 @@ if (process.env.NODE_ENV !== 'test') {
     if (asriLoop && typeof asriLoop.start === 'function') asriLoop.start(60000);
   } catch (_) {}
 }
+
+// ============================================================================
+// AOSO/1.0 — 6-AGENT AUTONOMOUS SOVEREIGN LIVING ORGANISM & BUNDLE QUOTE API
+// ============================================================================
+app.get(['/.well-known/living-organism.json', '/api/organism/manifest'], (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    res.set('Cache-Control', 'no-store');
+    res.json(aoso.getOrganismManifest());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/organism/status', (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    res.set('Cache-Control', 'no-store');
+    res.json(aoso.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/organism/heartbeat', async (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    const out = await aoso.runOrganismHeartbeat();
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/organism/redteam', (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    res.set('Cache-Control', 'no-store');
+    res.json(aoso.runRedTeamAudit());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.get('/api/organism/mcp-directory-pack', (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(aoso.getMcpDirectoryPack());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
+app.post('/api/bundles/quote', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const aoso = require('./modules/autonomous-organism-orchestrator');
+    const ids = (req.body && (req.body.serviceIds || req.body.items)) || [];
+    const out = aoso.quoteMultiItemBundle(ids);
+    res.set('Cache-Control', 'no-store');
+    res.status(out.ok ? 200 : 400).json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/demo/optimize', express.json({ limit: '8kb' }), (req, res) => {
   const demo = require('../src/site/demo-router');
   const out = demo.optimizePrompt(req.body && req.body.prompt);

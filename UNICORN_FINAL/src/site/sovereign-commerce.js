@@ -1861,6 +1861,11 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p style="margin:0" id="confirmWaitText">Waiting for the required confirmation depth before activation.</p>
   </div>
 
+  <div class="grant" id="btcExceptionBanner" style="background:#2e1620;border-color:#8a2c48;color:#ffd0de">
+  <h2 style="margin:0 0 6px">⚠️ Bitcoin amount mismatch detected</h2>
+  <p style="margin:0" id="btcExceptionText">An incoming transaction differed from the exact invoice sat amount (often caused by exchange withdrawal fees). Contact support with your Order ID &amp; txid or send a matching top-up.</p>
+  </div>
+
   <div class="grant${o.status === 'paid' ? ' on' : ''}" id="grant">
   <h2 style="margin:0 0 6px">✅ Payment received — autonomous Unicorn service activated</h2>
   <p style="margin:0 0 12px">Your dedicated Unicorn modules, live workspace, and cryptographic access token are now active automatically.</p>
@@ -1884,6 +1889,11 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <a class="cta" id="deliveryFile" href="/api/delivery/${orderId}?format=artifact&amp;access_token=${accessToken}" download style="background:#3ddc84;color:#04140c">Download the file</a></p>
   <p class="note" id="referralLine" style="margin-top:8px">A referral link appears here after payment is confirmed.</p>
   <p class="note" style="margin-top:8px">Your live autonomous service and signed package are immediately unlocked here. No email is required.</p>
+  <div id="postPayCompoundingCard" style="display:none;margin-top:14px;padding:14px;border-radius:12px;background:rgba(0,255,163,.06);border:1px solid rgba(0,255,163,.3)">
+    <p style="margin:0 0 6px"><b style="color:#00ffa3">🚀 Compound Your Results — Recommended Autonomous Upgrades</b></p>
+    <p class="note" style="margin:0 0 10px">Pair your newly activated Unicorn service with the next autonomous layer (BTC saves an extra 10%).</p>
+    <div id="postPayCompoundingList" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
     <p class="note" style="margin:0 0 8px">Mint a signed redemption code — recipient gets ZeusAI on you. Public endpoint, no login.</p>
@@ -2002,6 +2012,12 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         setAltMsg(j.rails.nowpayments.honesty||'Partial card/crypto payment seen — waiting for full amount.');
         if(s){s.textContent='partial'; s.className='status pending';}
       }
+      if(j.payment_exception){
+        var excBox=document.getElementById('btcExceptionBanner');
+        var excTxt=document.getElementById('btcExceptionText');
+        if(excBox) excBox.classList.add('on');
+        if(excTxt) excTxt.textContent='Detected incoming BTC exception ('+(j.payment_exception.reason||'amount_mismatch')+')'+(j.payment_exception.observed_sats?(' · observed '+Number(j.payment_exception.observed_sats).toLocaleString()+' sats vs expected '+Number(j.payment_exception.expected_sats||SATS).toLocaleString()+' sats'):'')+'. Your funds are safe — contact '+String('${escapeHtml(process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com')}')+' with Order '+ORDER_ID+' for instant reconciliation.';
+      }
       if(j.doublePayWarning){ showDoublePay(); }
       if(j.status==='paid'){
         var g=document.getElementById('grant');if(g)g.classList.add('on');
@@ -2022,12 +2038,29 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
           var aspeLine=document.getElementById('aspeStatusLine');
           if(aspeLine && !aspeLine.dataset.loaded){
             aspeLine.dataset.loaded='1';
-            fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/status',{cache:'no-store'})
+            fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/status?access_token='+encodeURIComponent(TOK),{cache:'no-store'})
               .then(function(r){return r.ok?r.json():null;})
               .then(function(d){
                 if(d&&d.ok&&d.instance){
                   var inst=d.instance;
                   aspeLine.textContent='LIVE Workspace '+inst.workspaceId+' · Modules active: '+(inst.modulesActivated||[]).join(', ')+' · Cycles run: '+inst.cyclesExecuted+' · Schedule: '+(inst.schedule||'always-on');
+                  var compCard=document.getElementById('postPayCompoundingCard');
+                  var compList=document.getElementById('postPayCompoundingList');
+                  if(compCard&&compList&&Array.isArray(inst.compoundingUpgrades)&&inst.compoundingUpgrades.length&&!compList.childElementCount){
+                    compCard.style.display='block';
+                    inst.compoundingUpgrades.slice(0,3).forEach(function(up){
+                      var a=document.createElement('a');
+                      a.className='cta';
+                      a.style.background='#14132a';
+                      a.style.color='#eaf0ff';
+                      a.style.border='1px solid var(--line)';
+                      a.style.fontSize='12.5px';
+                      a.href='/checkout/?plan='+encodeURIComponent(up.id);
+                      a.textContent=up.id+' ($'+up.priceUsd+') →';
+                      a.title=up.reason||'';
+                      compList.appendChild(a);
+                    });
+                  }
                 }
               }).catch(function(){});
           }
@@ -2036,7 +2069,7 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
             aspeBtn.dataset.bound='1';
             aspeBtn.addEventListener('click',function(){
               aspeBtn.disabled=true;
-              fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+              fetch('/api/autonomous-service/'+encodeURIComponent(ORDER_ID)+'/run',{method:'POST',headers:{'Content-Type':'application/json','x-aspe-token':TOK},body:JSON.stringify({access_token:TOK})})
                 .then(function(r){return r.json();})
                 .then(function(d){
                   aspeBtn.disabled=false;
