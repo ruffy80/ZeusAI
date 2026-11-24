@@ -65,6 +65,7 @@ class NeuralSwarmLLMCascade {
     this.totalCalls = 0;
     this.totalRefinements = 0;
     this.totalFailovers = 0;
+    this.totalCouncilRuns = 0;
     this.recentCalls = [];
     this._initMetrics();
   }
@@ -448,6 +449,228 @@ class NeuralSwarmLLMCascade {
     };
   }
 
+  /**
+   * Parallel Dual-Family "Council of Minds" Synthesizer:
+   * Dispatches up to 2 independent frontier model families concurrently,
+   * grounds prompts in CEGE/1.0 genome + 256-dim vector RAG recall,
+   * arbitrates deterministically on the 5-pillar quality rubric, and falls back
+   * gracefully to sovereign local Ollama if cloud rails are unavailable.
+   */
+  async runCouncilSynthesis(promptArg, optsArg = {}) {
+    const isObj = promptArg && typeof promptArg === 'object';
+    const opts = isObj ? promptArg : (optsArg || {});
+    const cleanPrompt = String(isObj ? (promptArg.prompt || '') : (promptArg || '')).trim();
+    if (!cleanPrompt) return { ok: false, protocol: PROTOCOL, mode: 'council', error: 'prompt_required' };
+
+    const t0 = Date.now();
+    this.totalCouncilRuns += 1;
+    const domain = String(opts.domain || 'llm_architecture_synthesis');
+    const minChars = Number(opts.minChars || 180);
+    const maxTokens = Number(opts.maxTokens || 900);
+    const temperature = typeof opts.temperature === 'number' ? opts.temperature : 0.35;
+    const timeoutMs = Number(opts.timeoutMs || 15000);
+    const topK = Number(opts.topK || 3);
+
+    // 1. CEGE/1.0 Genome + 256-dim Vector RAG Grounding
+    let effectiveSystem = String(
+      opts.system || 'You are the ZeusAI Council of Minds — a sovereign principal AI systems & commerce architect. Deliver concrete, verifiable, structured, zero-fluff guidance.'
+    );
+    let activeGenome = null;
+    let recalledLessons = [];
+    try {
+      const cege = require('../cognitive-evolution-genome');
+      if (cege && typeof cege.selectGenome === 'function') {
+        activeGenome = cege.selectGenome(domain);
+        if (activeGenome && activeGenome.directive) {
+          effectiveSystem = `${effectiveSystem}\n[CEGE Genome ${activeGenome.genomeId}]: ${activeGenome.directive}`;
+        }
+      }
+      if (cege && typeof cege.recallKnowledge === 'function') {
+        recalledLessons = cege.recallKnowledge(cleanPrompt, topK) || [];
+        if (recalledLessons.length) {
+          effectiveSystem += `\n[Distilled Institutional Memory]:\n${recalledLessons.map((l) => '- ' + l.text).join('\n')}`;
+        }
+      }
+    } catch (_) {}
+
+    const ragGrounding = {
+      domain,
+      genomeId: activeGenome ? activeGenome.genomeId : null,
+      lessonsRecalled: recalledLessons.length,
+      lessons: recalledLessons.slice(0, topK),
+    };
+
+    const messages = [
+      { role: 'system', content: effectiveSystem },
+      { role: 'user', content: cleanPrompt },
+    ];
+
+    const attempts = [];
+    let candidates = [];
+    let fallbackUsed = null;
+
+    // 2. Dry-run deterministic council hook (for unit tests without external network)
+    if (Array.isArray(opts.dryRunCandidates) && opts.dryRunCandidates.length > 0) {
+      candidates = opts.dryRunCandidates
+        .filter((c) => c && c.content)
+        .map((c) => ({
+          provider: c.provider || 'dry-run',
+          family: c.family || c.provider || 'dry-run',
+          tier: c.tier || 'test-council',
+          model: c.model || 'test-model',
+          latencyMs: Number(c.latencyMs || 10),
+          content: String(c.content),
+          quality: this.scoreDeliverableQuality(String(c.content), { minChars }),
+        }));
+    } else {
+      const now = Date.now();
+      const openRails = this._buildRails().filter((r) => {
+        const m = this.metrics.get(r.id);
+        return !m || m.circuitOpenUntil <= now;
+      });
+
+      // Pick up to 2 distinct cloud model families for parallel council dispatch
+      const cloudCouncil = [];
+      const seenFamilies = new Set();
+      for (const r of openRails) {
+        if (r.id === 'ollama') continue;
+        if (seenFamilies.has(r.family)) continue;
+        seenFamilies.add(r.family);
+        cloudCouncil.push(r);
+        if (cloudCouncil.length >= 2) break;
+      }
+
+      if (cloudCouncil.length > 0) {
+        const settled = await Promise.allSettled(
+          cloudCouncil.map((rail) => this._callRail(rail, messages, { maxTokens, temperature, timeoutMs }))
+        );
+        for (let i = 0; i < settled.length; i++) {
+          const r = settled[i];
+          const rail = cloudCouncil[i];
+          if (r.status === 'fulfilled' && r.value && r.value.ok && r.value.content) {
+            const v = r.value;
+            attempts.push({ provider: v.provider, model: v.model, ok: true, latencyMs: v.latencyMs });
+            candidates.push({
+              provider: v.provider,
+              family: v.family || rail.family,
+              tier: v.tier || rail.tier,
+              model: v.model,
+              latencyMs: v.latencyMs,
+              content: v.content,
+              quality: this.scoreDeliverableQuality(v.content, { minChars }),
+            });
+          } else {
+            const errMsg = r.status === 'rejected'
+              ? String((r.reason && r.reason.message) || r.reason)
+              : String((r.value && r.value.error) || 'empty_response');
+            attempts.push({ provider: rail.id, ok: false, error: errMsg });
+          }
+        }
+      }
+
+      // 3. Graceful fallback to local sovereign Ollama if all cloud council rails failed/unarmed
+      if (candidates.length === 0) {
+        const ollamaRail = openRails.find((r) => r.id === 'ollama');
+        if (ollamaRail) {
+          this.totalFailovers += 1;
+          fallbackUsed = 'ollama-local';
+          const localRes = await this._callRail(ollamaRail, messages, { maxTokens, temperature, timeoutMs });
+          if (localRes && localRes.ok && localRes.content) {
+            attempts.push({ provider: localRes.provider, model: localRes.model, ok: true, latencyMs: localRes.latencyMs });
+            candidates.push({
+              provider: localRes.provider,
+              family: ollamaRail.family,
+              tier: ollamaRail.tier,
+              model: localRes.model,
+              latencyMs: localRes.latencyMs,
+              content: localRes.content,
+              quality: this.scoreDeliverableQuality(localRes.content, { minChars }),
+            });
+          } else {
+            attempts.push({ provider: 'ollama', ok: false, error: (localRes && localRes.error) || 'ollama_unavailable' });
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      return {
+        ok: false,
+        protocol: PROTOCOL,
+        mode: 'council',
+        error: 'all_llm_rails_unavailable',
+        attempts,
+        ragGrounding,
+      };
+    }
+
+    // 4. Deterministic 5-pillar arbitration (highest quality score, tie-break fastest latency)
+    candidates.sort((a, b) => {
+      if (b.quality.score !== a.quality.score) return b.quality.score - a.quality.score;
+      return (a.latencyMs || 0) - (b.latencyMs || 0);
+    });
+
+    const winner = candidates[0];
+    const totalLatencyMs = Date.now() - t0;
+    const receipt = {
+      id: 'nsc_council_' + crypto.randomBytes(5).toString('hex'),
+      at: new Date().toISOString(),
+      mode: 'council',
+      winnerProvider: winner.provider,
+      winnerModel: winner.model,
+      councilMembersResponded: candidates.length,
+      familiesRepresented: Array.from(new Set(candidates.map((c) => c.family))),
+      qualityScore: winner.quality.score,
+      grade: winner.quality.grade,
+      latencyMs: totalLatencyMs,
+      fallbackUsed,
+    };
+    this.recentCalls.unshift(receipt);
+    if (this.recentCalls.length > 25) this.recentCalls.length = 25;
+
+    try {
+      const cege = require('../cognitive-evolution-genome');
+      if (cege && typeof cege.recordOutcome === 'function') {
+        cege.recordOutcome({
+          domain,
+          genomeId: activeGenome ? activeGenome.genomeId : null,
+          qualityScore: winner.quality.score,
+          latencyMs: totalLatencyMs,
+          success: true,
+          lesson: winner.quality.score >= 80
+            ? `Council of Minds (${receipt.familiesRepresented.join(' + ')}) selected ${winner.provider}:${winner.model} at ${winner.quality.score}/100 (${winner.quality.grade}) in ${totalLatencyMs}ms.`
+            : '',
+          source: 'nsc_council',
+        });
+      }
+    } catch (_) {}
+
+    return {
+      ok: true,
+      protocol: PROTOCOL,
+      mode: 'council',
+      content: winner.content,
+      provider: winner.provider,
+      model: winner.model,
+      family: winner.family,
+      tier: winner.tier,
+      latencyMs: totalLatencyMs,
+      quality: winner.quality,
+      fallbackUsed,
+      councilScoreboard: candidates.map((c) => ({
+        provider: c.provider,
+        family: c.family,
+        model: c.model,
+        score: c.quality.score,
+        grade: c.quality.grade,
+        latencyMs: c.latencyMs,
+      })),
+      ragGrounding,
+      attempts,
+      receipt,
+    };
+  }
+
   getSwarmManifest() {
     const rails = this._buildRails();
     return {
@@ -470,6 +693,7 @@ class NeuralSwarmLLMCascade {
         calls: this.totalCalls,
         refinements: this.totalRefinements,
         failovers: this.totalFailovers,
+        councilRuns: this.totalCouncilRuns,
       },
       recentCalls: this.recentCalls.slice(0, 10),
     };

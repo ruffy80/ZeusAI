@@ -1693,6 +1693,48 @@ function globalChrome(N) {
                 actRow.appendChild(badgeBtn);
               }
               magnetRes.appendChild(actRow);
+              // Live Remediation Bundle Offer (SMCE/1.0 + AOSO/1.0: -15% bundle + -10% BTC)
+              var pairSid = d.instantActivation.recommendedServiceId === 'instant-website-audit'
+                ? 'instant-seo-content-pack'
+                : 'instant-website-audit';
+              fetch('/api/bundles/quote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serviceIds: [d.instantActivation.recommendedServiceId, pairSid] })
+              }).then(function(r){ return r.ok ? r.json() : null; }).then(function(bq){
+                if (!bq || !bq.ok) return;
+                var box = document.createElement('div');
+                box.style.marginTop = '10px';
+                box.style.padding = '10px 12px';
+                box.style.borderRadius = '10px';
+                box.style.border = '1px solid rgba(138,92,255,.35)';
+                box.style.background = 'rgba(138,92,255,.08)';
+                var lbl = document.createElement('div');
+                lbl.style.fontSize = '12.5px';
+                lbl.style.fontWeight = '700';
+                lbl.style.marginBottom = '8px';
+                lbl.textContent = 'Autonomous Remediation Bundle (-' + bq.bundleDiscountPct + '% · Save $' + bq.bundleSavingsUsd + '): $' + bq.bundlePriceUsd + ' (BTC -10%: $' + bq.btcPriceUsd + ')';
+                box.appendChild(lbl);
+                var row = document.createElement('div');
+                row.className = 'magnet-actions';
+                var baseCheckout = '/checkout/?plan=' + encodeURIComponent(d.instantActivation.recommendedServiceId)
+                  + '&add=' + encodeURIComponent(pairSid)
+                  + '&url=' + encodeURIComponent(d.url || rawUrl);
+                [
+                  { label: 'Deploy Bundle · ₿ BTC ($' + bq.btcPriceUsd + ') →', rail: 'btc', cls: 'btn btn-primary' },
+                  { label: 'PayPal ($' + bq.bundlePriceUsd + ')', rail: 'paypal', cls: 'btn btn-ghost' },
+                  { label: 'Card / Crypto ($' + bq.bundlePriceUsd + ')', rail: 'nowpayments', cls: 'btn btn-ghost' }
+                ].forEach(function(opt){
+                  var a = document.createElement('a');
+                  a.className = opt.cls;
+                  a.style.fontSize = '12px';
+                  a.href = baseCheckout + '&rail=' + opt.rail;
+                  a.textContent = opt.label;
+                  row.appendChild(a);
+                });
+                box.appendChild(row);
+                magnetRes.appendChild(box);
+              }).catch(function(){});
             }
           }).catch(function(){
             if (magnetBtn) magnetBtn.disabled = false;
@@ -3004,7 +3046,7 @@ Awaiting pulse trigger...</pre>
         <h3 style="margin:0;font-size:20px">Live Sovereign Autonomy Pulse</h3>
         <span class="magnet-badge magnet-badge-violet">ED25519 VERIFIED</span>
       </div>
-      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 29 sovereign modules &amp; 6-Agent Living Organism: 0-CVE Immunity, Multi-LLM Frontier Swarm, Cognitive Evolution, Autonomous Treasury, and live MCP/A2A agent endpoints.</p>
+      <p style="margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55">Real-time telemetry from Unicorn&rsquo;s 30 sovereign modules &amp; 6-Agent Living Organism: 0-CVE Immunity, Multi-LLM Council Swarm, Cognitive Evolution, HTTP 402 M2M Commerce, and live MCP/A2A agent endpoints.</p>
       <div class="magnet-pulse-grid" id="autonomyPulseGrid">
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">Runtime Immunity (ASRI)</div>
@@ -3020,7 +3062,7 @@ Awaiting pulse trigger...</pre>
         </div>
         <div class="magnet-kpi">
           <div class="magnet-kpi-label">MCP / A2A Mesh (UMAP)</div>
-          <div class="magnet-kpi-val" id="pulseMcp">13 Live Tools</div>
+          <div class="magnet-kpi-val" id="pulseMcp">16 Live Tools</div>
         </div>
       </div>
       <div id="pulseEvolutionNote" style="font-family:var(--mono);font-size:12px;color:var(--ink-dim);line-height:1.5"></div>

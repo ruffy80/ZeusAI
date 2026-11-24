@@ -103,6 +103,7 @@ class UniversalCapabilityDispatcher {
         'syncSearchAndAnswerEngines', 'auditSupplyChain', 'stabilizeRuntime', 'getImmunityCertificate',
         'getCatalogCapabilities', 'runScheduledCycles', 'discoverActiveModels', 'getSwarmManifest',
         'runAcquisitionPulse', 'getDiscoveryManifest', 'getEvolutionLedger', 'evolveGeneration',
+        'getX402Manifest', 'negotiateAutonomousDeal', 'verifySignedArtifact',
         'verifyLedgerChain', 'getAgentCard', 'getMcpDiscoveryManifest', 'getUnifiedOpenApi31',
         'reconcileLedger', 'reconcileOnChainBtc', 'runRecoverySweep', 'getTreasurySnapshot',
         'runOrganismHeartbeat', 'runRedTeamAudit', 'getOrganismManifest', 'getMcpDirectoryPack',

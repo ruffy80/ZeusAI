@@ -3308,6 +3308,16 @@ async function sovereignBuy(serviceId, opts){
     // 201 for 24h (see sovereign-commerce.handle). Stable per invocation.
     const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     const payload = { serviceId, qty: 1, currency: 'USD', preorder, inputs: collectOrderInputs() };
+    const activeBundle = (opts && Array.isArray(opts.bundleIds) && opts.bundleIds.length >= 2)
+      ? opts.bundleIds
+      : ((window.location && String(window.location.pathname || '').startsWith('/checkout')
+        && window.__zeusCheckoutBundle
+        && window.__zeusCheckoutBundle.anchor === serviceId
+        && Array.isArray(window.__zeusCheckoutBundle.ids)
+        && window.__zeusCheckoutBundle.ids.length >= 2)
+          ? window.__zeusCheckoutBundle.ids
+          : null);
+    if (activeBundle) payload.bundleIds = activeBundle.slice(0, 6);
     if (email) payload.email = email;
     // Godmode Completion OS: attribute affiliate ?ref= on the sovereign money path.
     try {
@@ -4262,6 +4272,9 @@ function hydrateCheckout(){
     try {
       toast(rail === 'paypal' ? 'Creating PayPal order…' : 'Creating payment invoice…', 'ok');
       const createBody = { serviceId: pl, qty: 1, email: email || undefined, ref: ref || undefined, rail, inputs: collectOrderInputs() };
+      if (window.__zeusCheckoutBundle && window.__zeusCheckoutBundle.anchor === pl && Array.isArray(window.__zeusCheckoutBundle.ids) && window.__zeusCheckoutBundle.ids.length >= 2) {
+        createBody.bundleIds = window.__zeusCheckoutBundle.ids.slice(0, 6);
+      }
       if (isVirtual && amountUsd > 0) {
         createBody.amountUsd = amountUsd;
         createBody.skipBtcDiscount = true;
@@ -4383,7 +4396,39 @@ function hydrateCheckout(){
         }).join('')
         + '</div><div id="coBundleSummary" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>';
       const selectedBundleIds = [anchor];
+      const baseAmountUsd = readBuyingAmount() || Number(($('#coAmount') || {}).value || 0) || 0;
+      try {
+        const preAdd = String(new URLSearchParams(window.location.search).get('add') || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        preAdd.forEach(function(aid){ if (selectedBundleIds.indexOf(aid) === -1 && selectedBundleIds.length < 6) selectedBundleIds.push(aid); });
+      } catch (_) {}
+      window.__zeusCheckoutBundle = { anchor: anchor, ids: selectedBundleIds };
+      async function refreshBundleQuote(){
+        const sumEl = document.getElementById('coBundleSummary');
+        window.__zeusCheckoutBundle = { anchor: anchor, ids: selectedBundleIds.slice() };
+        if (selectedBundleIds.length < 2) {
+          if (sumEl) sumEl.textContent = '';
+          if (baseAmountUsd > 0 && typeof syncAmounts === 'function') syncAmounts(baseAmountUsd);
+          return;
+        }
+        try {
+          const qRes = await api('/api/bundles/quote', {
+            method: 'POST',
+            body: JSON.stringify({ serviceIds: selectedBundleIds }),
+          });
+          if (qRes && qRes.ok) {
+            if (sumEl) {
+              sumEl.textContent = 'Bundle (' + qRes.itemCount + ' services · -' + qRes.bundleDiscountPct + '%): $' + qRes.bundlePriceUsd + ' (Save $' + qRes.bundleSavingsUsd + ' · BTC: $' + qRes.btcPriceUsd + ') — applied automatically at checkout';
+            }
+            if (qRes.bundlePriceUsd > 0 && typeof syncAmounts === 'function') syncAmounts(qRes.bundlePriceUsd);
+          }
+        } catch (_) {}
+      }
       host.querySelectorAll('[data-co-upsell]').forEach(function(btn){
+        const btnSid = btn.getAttribute('data-co-upsell');
+        if (btnSid && selectedBundleIds.indexOf(btnSid) !== -1) {
+          btn.style.borderColor = 'var(--ok)';
+          btn.style.color = 'var(--ok)';
+        }
         btn.addEventListener('click', async function(){
           const sid = btn.getAttribute('data-co-upsell');
           if (!sid) return;
@@ -4397,24 +4442,12 @@ function hydrateCheckout(){
             btn.style.borderColor = '';
             btn.style.color = '';
           }
-          const sumEl = document.getElementById('coBundleSummary');
-          if (selectedBundleIds.length < 2) {
-            if (sumEl) sumEl.textContent = '';
-            return;
-          }
-          try {
-            const qRes = await api('/api/bundles/quote', {
-              method: 'POST',
-              body: JSON.stringify({ serviceIds: selectedBundleIds }),
-            });
-            if (qRes && qRes.ok && sumEl) {
-              sumEl.textContent = 'Bundle (' + qRes.itemCount + ' services · -' + qRes.bundleDiscountPct + '%): $' + qRes.bundlePriceUsd + ' (Save $' + qRes.bundleSavingsUsd + ' · BTC: $' + qRes.btcPriceUsd + ')';
-            }
-          } catch (_) {
-            goCheckoutSpa('/checkout/?plan=' + encodeURIComponent(sid), btn);
-          }
+          await refreshBundleQuote();
         });
       });
+      if (selectedBundleIds.length >= 2) {
+        refreshBundleQuote().catch(function(){});
+      }
     } catch (_) { host.style.display = 'none'; }
   })().catch(function(){});
 

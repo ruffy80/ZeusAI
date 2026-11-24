@@ -68,7 +68,7 @@ async function run() {
   assert.strictEqual(manifest.payload.protocol, 'AOSO/1.0');
   assert.strictEqual(manifest.payload.inventsMetrics, false);
   assert.strictEqual(manifest.payload.mutatesSourceDirectly, false);
-  assert.strictEqual(manifest.payload.reflexArcsArmed.length, 4);
+  assert.strictEqual(manifest.payload.reflexArcsArmed.length, 5);
   assert.strictEqual(manifest.attestation.algorithm, 'Ed25519');
   // Cryptographically verify Ed25519 signature
   const pubKey = crypto.createPublicKey({
@@ -210,11 +210,11 @@ async function run() {
   const engNames = distRes.indexNowAndWebSub.engines.map((e) => e.engine);
   assert.ok(engNames.includes('seznam') && engNames.includes('naver') && engNames.includes('yep') && engNames.includes('websub'));
 
-  // 5. Verify Homepage SSR renders 29 modules + 13 MCP tools with zero forbidden strings
+  // 5. Verify Homepage SSR renders 30 modules + 16 MCP tools with zero forbidden strings
   const shell = require('../src/site/v2/shell');
   const html = shell.getHtml('/');
-  assert.ok(html.includes('29 sovereign modules'), 'Homepage must show 29 sovereign modules');
-  assert.ok(html.includes('13 Live Tools'), 'Homepage must show 13 Live Tools');
+  assert.ok(html.includes('30 sovereign modules'), 'Homepage must show 30 sovereign modules');
+  assert.ok(html.includes('16 Live Tools'), 'Homepage must show 16 Live Tools');
   assert.ok(html.includes('proofMagnetStudio'), 'Homepage must keep Proof-Before-Pay studio');
   assert.ok(!html.includes('Test the Router Live'), 'Must never reintroduce Test the Router Live');
   assert.ok(!html.includes('tgJoinPopup'), 'Must never reintroduce Telegram popup');
